@@ -1,0 +1,452 @@
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Ảnh bìa - Giữ nguyên tràn màn hình */
+.banner {
+    width: 100%;
+    height: 250px;
+    overflow: hidden;
+}
+
+.banner-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Header Navbar */
+.header {
+    background: #fff;
+    padding: 15px 0;
+    border-bottom: 1px solid #f0f0f0;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+/* CHỈNH SỬA: Bỏ max-width và margin auto để Logo lùi sang trái */
+.container {
+    width: 100%; 
+    max-width: 100%; 
+    margin: 0; 
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 40px; /* Tăng padding một chút để logo không dính sát mép màn hình */
+}
+
+/* Định dạng tiêu đề Công nghệ hệ thống */
+.logo-vtf {
+    color: #ee0000;            /* Màu đỏ chuẩn thương hiệu Viettel */
+    font-weight: 700;          /* Đậm hơn để tạo sự vững chãi */
+    font-size: 22px;           /* Kích thước vừa phải, cân đối với Logo */
+    text-transform: uppercase;  /* Viết hoa để tạo phong cách chuyên nghiệp */
+    letter-spacing: 0.5px;     /* Khoảng cách chữ thoáng hơn */
+    margin: 0;                 /* Xóa margin mặc định của thẻ p */
+    display: flex;
+    align-items: center;
+}
+
+/* Hiệu ứng rê chuột (tùy chọn) */
+.logo-vtf:hover {
+    color: #cc0000;            /* Đỏ đậm hơn một chút khi di chuột vào */
+    cursor: default;
+}
+
+/* Menu bên phải */
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.nav-right a {
+    text-decoration: none;
+    color: #444;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Nút Viettel Group màu đỏ đặc trưng */
+.btn-viettel-group {
+    background-color: #ee0000;
+    color: #fff !important;
+    padding: 8px 20px;
+    border-radius: 8px;
+    transition: 0.3s;
+}
+
+.btn-viettel-group:hover {
+    background-color: #cc0000;
+}
+
+.separator {
+    color: #ddd;
+}
+
+/* CHỈNH SỬA Layout chính: Bỏ max-width và margin auto để Sidebar lùi sang trái */
+.main-content {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    margin: 20px 0; /* Bỏ căn giữa */
+    padding-left: 25px; /* Điều chỉnh khoảng cách lề trái cho toàn bộ Layout */
+}
+
+/* Menu dọc bên trái */
+.sidebar {
+    width: 280px;
+    padding-right: 20px;
+}
+
+.side-menu {
+    list-style: none;
+    padding: 0; /* Xóa padding mặc định của ul để menu lùi sát ra ngoài */
+}
+
+.side-menu li {
+    margin-bottom: 5px;
+}
+
+.side-menu a {
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Tăng khoảng cách giữa icon và chữ */
+    text-decoration: none;
+    color: #333;
+    padding: 12px 15px;
+    border-radius: 6px;
+    transition: 0.2s;
+}
+
+.side-menu a i {
+    width: 20px;
+    color: #ee0000;
+    font-size: 18px; /* Tăng kích thước icon cho rõ ràng */
+    text-align: center;
+}
+
+.side-menu a:hover {
+    background-color: #fceeee;
+    color: #ee0000;
+}
+
+/* Nội dung bên phải */
+.content {
+    flex: 1;
+    background: #fff;
+    padding: 20px;
+    min-height: 500px;
+}
+/* Màu cho tiêu đề nội dung */
+.content-title {
+    color: #ee0000;
+    margin-bottom: 10px;
+    border-left: 4px solid #ee0000;
+    padding-left: 15px;
+}
+
+.content-subtitle {
+    color: #666;
+    margin-bottom: 30px;
+}
+
+/* Chia lưới cho Form (mỗi dòng 2 cột) */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #333;
+}
+
+.form-group input, .form-group select, .form-group textarea {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-group input:focus {
+    border-color: #ee0000;
+    outline: none;
+}
+
+/* Nút bấm */
+.btn-submit {
+    margin-top: 30px;
+    background: #ee0000;
+    color: #fff;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-submit:hover {
+    background: #cc0000;
+}
+
+/* Active Menu */
+.active-menu {
+    background-color: #fceeee !important;
+    color: #ee0000 !important;
+}
+/* --- CSS CHO MỤC 2: THÔNG TIN ĐẦU VÀO --- */
+
+/* Khung chứa bảng để hỗ trợ xem trên điện thoại */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: 15px;
+    border: 1px solid #999;
+}
+
+/* Định dạng bảng giống ảnh mẫu */
+.sizing-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #fff;
+}
+
+/* Header của bảng màu xám đậm */
+.sizing-table th {
+    background-color: #bfbfbf; /* Màu xám như ảnh mẫu */
+    color: #333;
+    font-weight: bold;
+    border: 1px solid #999;
+    padding: 10px;
+    text-align: center;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+/* Các ô dữ liệu */
+.sizing-table td {
+    border: 1px solid #999;
+    padding: 5px;
+    vertical-align: middle;
+    font-size: 13px;
+}
+
+/* Định dạng các ô Input và Textarea bên trong bảng */
+.sizing-table input[type="text"], 
+.sizing-table input[type="number"],
+.sizing-table textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 8px;
+    font-size: 13px;
+    display: block;
+}
+
+/* Hiệu ứng khi nhấn vào ô nhập liệu trong bảng */
+.sizing-table td:focus-within {
+    background-color: #fff9e6; /* Màu nền nhẹ khi đang nhập */
+}
+
+/* Cột STT căn giữa */
+.sizing-table td:first-child {
+    text-align: center;
+    font-weight: bold;
+    background-color: #f2f2f2;
+}
+
+/* --- CÁC NÚT BẤM CHỨC NĂNG --- */
+
+/* Nút thêm dòng (+) */
+.btn-add {
+    margin-top: 15px;
+    background-color: #ffffff;
+    border: 1px dashed #ee0000;
+    color: #ee0000;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-add:hover {
+    background-color: #fceeee;
+    border-style: solid;
+}
+
+.btn-add i {
+    font-size: 16px;
+}
+
+/* Nút xóa dòng (✖) */
+.btn-delete {
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 18px;
+    cursor: pointer;
+    display: block;
+    margin: 0 auto;
+    transition: color 0.2s;
+}
+
+.btn-delete:hover {
+    color: #ee0000;
+}
+
+/* Tùy chỉnh Textarea trong bảng để không bị tràn */
+.sizing-table textarea {
+    resize: vertical;
+    min-height: 35px;
+}
+/* --- CSS CHO MÔ HÌNH HỆ THỐNG --- */
+.model-section {
+    margin-bottom: 30px;
+}
+
+.model-type-title {
+    font-size: 16px;
+    color: #333;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.image-upload-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.upload-box {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 10px;
+    position: relative;
+    background: #fafafa;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+}
+
+.upload-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.upload-label {
+    cursor: pointer;
+    color: #ee0000;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-remove-img {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-remove-img:hover { color: #ee0000; }
+
+.preview-area {
+    margin-top: 10px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.preview-area img {
+    max-width: 100%;
+    max-height: 150px;
+    border-radius: 4px;
+    object-fit: contain;
+}
+
+.btn-add-img {
+    background: #fff;
+    border: 1px solid #ee0000;
+    color: #ee0000;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Iframe wrapper for embedding Streamlit sizing app */
+.iframe-wrapper {
+    width: 100%;
+    margin-top: 8px;
+}
+
+.iframe-wrapper iframe {
+    width: 100%;
+    height: calc(100vh - 220px);
+    border: none;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.btn-add-img:hover { background: #fceeee; }
+
+.form-divider {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin: 20px 0;
+}
+/* Container của nhãn */
+.form-group label {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+/* Icon dấu hỏi chấm */
+.info-icon {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 15px;
+    height: 15px;
+    background-color: #999; /* Màu xám trung tính */
+    color: #fff;
+    border-radius: 50%;
+    font-size: 10px;
+    margin-left: 8px;
+    cursor: help;
+    transition: all 0.2s ease;
+}
+
+/* Khi di chuột vào icon */
+.info-icon:hover {
+    background-color: #ee0000; /* Chuyển sang đỏ Viettel */
+    transform: scale(1.2);
+}
