@@ -17,8 +17,12 @@ public class ThongTinDauVaoController {
         this.thongTinDauVaoService = thongTinDauVaoService;
     }
 
-    @PostMapping
-    public ResponseEntity<ThongTinDauVao> create(@RequestBody CreateThongTinDauVaoRequest request) {
+    @PostMapping("/system-info/{systemInfoId}")
+    public ResponseEntity<ThongTinDauVao> create(
+            @PathVariable String systemInfoId,
+            @RequestBody CreateThongTinDauVaoRequest request
+            ) {
+        request.setSystemInfoId(systemInfoId);
         ThongTinDauVao created = thongTinDauVaoService.create(request);
         return ResponseEntity.ok(created);
     }
@@ -26,6 +30,11 @@ public class ThongTinDauVaoController {
     @GetMapping
     public ResponseEntity<List<ThongTinDauVao>> getAll() {
         return ResponseEntity.ok(thongTinDauVaoService.getAll());
+    }
+
+    @GetMapping("/system-info/{systemInfoId}")
+    public ResponseEntity<List<ThongTinDauVao>> getBySystemInfoId(@PathVariable String systemInfoId) {
+        return ResponseEntity.ok(thongTinDauVaoService.getBySystemInfoId(systemInfoId));
     }
 }
 

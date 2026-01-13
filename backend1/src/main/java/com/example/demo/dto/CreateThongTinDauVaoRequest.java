@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class CreateThongTinDauVaoRequest {
+    private String systemInfoId;
     private String dauVao;
     private String taiHeThongPOC;
     private String dinhCo;

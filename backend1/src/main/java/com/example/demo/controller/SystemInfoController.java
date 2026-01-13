@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/system-info")
@@ -31,9 +32,16 @@ public class SystemInfoController {
         return ResponseEntity.ok(systemInfoService.getAllSystemInfo());
     }
 
-    @GetMapping("/export")
-    public ResponseEntity<byte[]> exportToDocx() throws IOException {
-        byte[] docxContent = systemInfoService.exportToDocx();
+    @GetMapping("/{id}")
+    public ResponseEntity<SystemInfo> getById(@PathVariable String id) {
+        Optional<SystemInfo> systemInfo = systemInfoService.getById(id);
+        return systemInfo.map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/export")
+    public ResponseEntity<byte[]> exportToDocx(@PathVariable String id) throws IOException {
+        byte[] docxContent = systemInfoService.exportToDocx(id);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);

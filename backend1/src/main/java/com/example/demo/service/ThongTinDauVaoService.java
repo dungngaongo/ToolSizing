@@ -11,13 +11,17 @@ import java.util.List;
 @Service
 public class ThongTinDauVaoService {
     private final ThongTinDauVaoRepository thongTinDauVaoRepository;
+    private final SoCuThongTinDauVaoService soCuThongTinDauVaoService;
 
-    public ThongTinDauVaoService(ThongTinDauVaoRepository thongTinDauVaoRepository) {
+    public ThongTinDauVaoService(ThongTinDauVaoRepository thongTinDauVaoRepository,
+                                  SoCuThongTinDauVaoService soCuThongTinDauVaoService) {
         this.thongTinDauVaoRepository = thongTinDauVaoRepository;
+        this.soCuThongTinDauVaoService = soCuThongTinDauVaoService;
     }
 
     public ThongTinDauVao create(CreateThongTinDauVaoRequest request) {
         ThongTinDauVao entity = new ThongTinDauVao();
+        entity.setSystemInfoId(request.getSystemInfoId());
         entity.setDauVao(request.getDauVao());
         entity.setTaiHeThongPOC(request.getTaiHeThongPOC());
         entity.setDinhCo(request.getDinhCo());
@@ -30,11 +34,15 @@ public class ThongTinDauVaoService {
         return thongTinDauVaoRepository.findAll();
     }
 
+    public List<ThongTinDauVao> getBySystemInfoId(String systemInfoId) {
+        return thongTinDauVaoRepository.findBySystemInfoId(systemInfoId);
+    }
+
     /**
-     * Thêm bảng Thông tin đầu vào vào document
+     * Thêm bảng Thông tin đầu vào vào document theo systemInfoId
      */
-    public void addThongTinDauVaoTableToDocument(XWPFDocument document) {
-        List<ThongTinDauVao> list = thongTinDauVaoRepository.findAll();
+    public void addThongTinDauVaoTableToDocument(XWPFDocument document, String systemInfoId) {
+        List<ThongTinDauVao> list = thongTinDauVaoRepository.findBySystemInfoId(systemInfoId);
 
         // Title
         XWPFParagraph title = document.createParagraph();
@@ -85,11 +93,14 @@ public class ThongTinDauVaoService {
             setCellText(row.getCell(1), item.getDauVao() != null ? item.getDauVao() : "", false);
             setCellText(row.getCell(2), item.getTaiHeThongPOC() != null ? item.getTaiHeThongPOC() : "", false);
             setCellText(row.getCell(3), item.getDinhCo() != null ? item.getDinhCo() : "", false);
-            setCellText(row.getCell(3), item.getModule() != null ? item.getModule() : "", false);
-            setCellText(row.getCell(4), item.getGhiChu() != null ? item.getGhiChu() : "", false);
+            setCellText(row.getCell(4), item.getModule() != null ? item.getModule() : "", false);
+            setCellText(row.getCell(5), item.getGhiChu() != null ? item.getGhiChu() : "", false);
         }
 
         document.createParagraph();
+
+        // Thêm ảnh sở cứ thông tin đầu vào
+        soCuThongTinDauVaoService.addSoCuImagesToDocument(document, systemInfoId);
     }
 
     private void setCellText(XWPFTableCell cell, String text, boolean bold) {

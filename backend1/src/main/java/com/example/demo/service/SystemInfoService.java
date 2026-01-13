@@ -12,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class SystemInfoService {
@@ -41,13 +42,22 @@ public class SystemInfoService {
         return systemInfoRepository.findAll();
     }
 
+    public Optional<SystemInfo> getById(String id) {
+        return systemInfoRepository.findById(id);
+    }
+
     /**
-     * Export System Info to DOCX file
+     * Export System Info to DOCX file by id
      */
-    public byte[] exportToDocx() throws IOException {
+    public byte[] exportToDocx(String systemInfoId) throws IOException {
+        Optional<SystemInfo> optionalSystemInfo = systemInfoRepository.findById(systemInfoId);
+        if (optionalSystemInfo.isEmpty()) {
+            throw new RuntimeException("SystemInfo not found with id: " + systemInfoId);
+        }
+
         try (XWPFDocument document = new XWPFDocument()) {
-            addSystemInfoTableToDocument(document);
-            thongTinDauVaoService.addThongTinDauVaoTableToDocument(document);
+            addSystemInfoTableToDocument(document, optionalSystemInfo.get());
+            thongTinDauVaoService.addThongTinDauVaoTableToDocument(document, systemInfoId);
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             document.write(outputStream);
@@ -58,62 +68,55 @@ public class SystemInfoService {
     /**
      * Thêm bảng System Info vào document
      */
-    public void addSystemInfoTableToDocument(XWPFDocument document) {
-        List<SystemInfo> systemInfoList = systemInfoRepository.findAll();
+    public void addSystemInfoTableToDocument(XWPFDocument document, SystemInfo sysInfo) {
+        // Title for System Info
+        XWPFParagraph sysInfoTitle = document.createParagraph();
+        sysInfoTitle.setAlignment(ParagraphAlignment.LEFT);
+        XWPFRun sysInfoTitleRun = sysInfoTitle.createRun();
+        sysInfoTitleRun.setText("I.\tYÊU CẦU BÀI TOÁN");
+        sysInfoTitleRun.addBreak();
+        sysInfoTitleRun.setText("1.\tThông tin hệ thống");
+        sysInfoTitleRun.setBold(true);
+        sysInfoTitleRun.setFontSize(13);
+        sysInfoTitleRun.setFontFamily("Times New Roman");
 
-        if (!systemInfoList.isEmpty()) {
-            // Title for System Info
-            XWPFParagraph sysInfoTitle = document.createParagraph();
-            sysInfoTitle.setAlignment(ParagraphAlignment.LEFT);
-            XWPFRun sysInfoTitleRun = sysInfoTitle.createRun();
-            sysInfoTitleRun.setText("I.\tYÊU CẦU BÀI TOÁN");
-            sysInfoTitleRun.addBreak();
-            sysInfoTitleRun.setText("1.\tThông tin hệ thống");
-            sysInfoTitleRun.setBold(true);
-            sysInfoTitleRun.setFontSize(13);
-            sysInfoTitleRun.setFontFamily("Times New Roman");
+        document.createParagraph();
 
-            document.createParagraph();
+        Map<String, String> fields = getSystemInfoFields(sysInfo);
 
-            // Create System Info table for each record
-            for (SystemInfo sysInfo : systemInfoList) {
-                Map<String, String> fields = getSystemInfoFields(sysInfo);
+        XWPFTable sysTable = document.createTable(fields.size() + 1, 3);
+        sysTable.setWidth("100%");
 
-                XWPFTable sysTable = document.createTable(fields.size() + 1, 3);
-                sysTable.setWidth("100%");
+        // Set column widths: STT 0.5 inches, Thông tin 1.8 inches, Chi tiết còn lại
+        // 1 inch = 1440 twips
+        int sttWidth = (int) (0.5 * 1440);      // 720 twips
+        int thongTinWidth = (int) (1.8 * 1440); // 2592 twips
+        int chiTietWidth = (int) (4.2 * 1440);  // Còn lại khoảng 4.2 inches
 
-                // Set column widths: STT 0.5 inches, Thông tin 1.8 inches, Chi tiết còn lại
-                // 1 inch = 1440 twips
-                int sttWidth = (int) (0.5 * 1440);      // 720 twips
-                int thongTinWidth = (int) (1.8 * 1440); // 2592 twips
-                int chiTietWidth = (int) (4.2 * 1440);  // Còn lại khoảng 4.2 inches
-
-                for (int rowIdx = 0; rowIdx <= fields.size(); rowIdx++) {
-                    XWPFTableRow tableRow = sysTable.getRow(rowIdx);
-                    tableRow.getCell(0).getCTTc().addNewTcPr().addNewTcW().setW(java.math.BigInteger.valueOf(sttWidth));
-                    tableRow.getCell(1).getCTTc().addNewTcPr().addNewTcW().setW(java.math.BigInteger.valueOf(thongTinWidth));
-                    tableRow.getCell(2).getCTTc().addNewTcPr().addNewTcW().setW(java.math.BigInteger.valueOf(chiTietWidth));
-                }
-
-                // Header row
-                XWPFTableRow sysHeaderRow = sysTable.getRow(0);
-                setCellText(sysHeaderRow.getCell(0), "STT", true);
-                setCellText(sysHeaderRow.getCell(1), "Thông tin", true);
-                setCellText(sysHeaderRow.getCell(2), "Chi tiết", true);
-
-                // Data rows
-                int stt = 1;
-                for (Map.Entry<String, String> entry : fields.entrySet()) {
-                    XWPFTableRow row = sysTable.getRow(stt);
-                    setCellText(row.getCell(0), String.valueOf(stt), false);
-                    setCellText(row.getCell(1), entry.getKey(), false);
-                    setCellText(row.getCell(2), entry.getValue(), false);
-                    stt++;
-                }
-
-                document.createParagraph();
-            }
+        for (int rowIdx = 0; rowIdx <= fields.size(); rowIdx++) {
+            XWPFTableRow tableRow = sysTable.getRow(rowIdx);
+            tableRow.getCell(0).getCTTc().addNewTcPr().addNewTcW().setW(java.math.BigInteger.valueOf(sttWidth));
+            tableRow.getCell(1).getCTTc().addNewTcPr().addNewTcW().setW(java.math.BigInteger.valueOf(thongTinWidth));
+            tableRow.getCell(2).getCTTc().addNewTcPr().addNewTcW().setW(java.math.BigInteger.valueOf(chiTietWidth));
         }
+
+        // Header row
+        XWPFTableRow sysHeaderRow = sysTable.getRow(0);
+        setCellText(sysHeaderRow.getCell(0), "STT", true);
+        setCellText(sysHeaderRow.getCell(1), "Thông tin", true);
+        setCellText(sysHeaderRow.getCell(2), "Chi tiết", true);
+
+        // Data rows
+        int stt = 1;
+        for (Map.Entry<String, String> entry : fields.entrySet()) {
+            XWPFTableRow row = sysTable.getRow(stt);
+            setCellText(row.getCell(0), String.valueOf(stt), false);
+            setCellText(row.getCell(1), entry.getKey(), false);
+            setCellText(row.getCell(2), entry.getValue(), false);
+            stt++;
+        }
+
+        document.createParagraph();
     }
 
     private Map<String, String> getSystemInfoFields(SystemInfo sysInfo) {

@@ -8,21 +8,17 @@ import lombok.AllArgsConstructor;
 import java.util.UUID;
 
 @Entity
-@Table(name = "thong_tin_dau_vao")
+@Table(name = "so_cu_thong_tin_dau_vao")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ThongTinDauVao {
+public class SoCuThongTinDauVao {
     @Id
     private String id;
 
     private String systemInfoId;
 
-    private String dauVao;
-    private String taiHeThongPOC;
-    private String dinhCo;
-    private String module;
-    private String ghiChu;
+    private String imagePath;
 
     @PrePersist
     public void generateId() {
