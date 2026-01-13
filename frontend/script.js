@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", function () {
         <button type="button" class="btn-submit" id="saveBtn">Lưu thông tin</button>
     </div>
 `,
- input: `
+input: `
     <div class="form-container">
         <h2 class="content-title">2. THÔNG TIN ĐẦU VÀO</h2>
         
@@ -84,25 +84,67 @@ document.addEventListener("DOMContentLoaded", function () {
         </button>
 
         <hr class="form-divider" style="margin: 30px 0;">
+        <div class="model-section">
+            <h3 class="model-type-title">
+                <i class="fa-solid fa-server"></i>THÔNG TIN HỆ THỐNG THAM CHIẾU
+            </h3>
+            <p style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">1. IP và cấu hình hệ thống tham chiếu</p>
+            <div class="table-responsive">
+                <table class="sizing-table">
+                    <thead>
+                        <tr style="background-color: #f2f2f2;">
+                            <th style="width: 150px;">Module</th>
+                            <th style="width: 150px;">IP</th>
+                            <th>CPU</th>
+                            <th style="width: 100px;">RAM (GB)</th>
+                            <th style="width: 120px;">Cint_rate_2017</th>
+                            <th style="width: 50px;">Xóa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="baseline-specs-body">
+                        <tr>
+                            <td><input type="text" placeholder="Ví dụ: APP"></td>
+                            <td><input type="text" placeholder="10.240.x.x"></td>
+                            <td><input type="text" placeholder="Intel Xeon..."></td>
+                            <td><input type="number" class="ram-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
+                            <td><input type="number" class="cint-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
+                            <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background-color: #f9f9f9;">
+                            <td colspan="3" style="text-align: center;">Tổng</td>
+                            <td id="total-ram-baseline" style="text-align: center;">0</td>
+                            <td id="total-cint-baseline" style="text-align: center;">0</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <button type="button" class="btn-add" id="addBaselineRowBtn" onclick="addBaselineRow()">
+                <i class="fa-solid fa-plus"></i> Thêm dòng hệ thống tham chiếu
+            </button>
+        </div>
+
+        <hr class="form-divider" style="margin: 30px 0;">
 
         <div class="model-section">
             <h3 class="model-type-title">
                 <i class="fa-solid fa-certificate"></i> Sở cứ giá trị định cỡ
             </h3>
-            <div id="container-evidence" class="image-upload-grid">
-                </div>
+            <div id="container-evidence" class="image-upload-grid"></div>
             <button type="button" class="btn-add-img" onclick="createUploadBox('evidence')">
                 <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ/xác minh
             </button>
         </div>
         
         <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
-            <button type="button" class="btn-submit" onclick="alert('Đã lưu toàn bộ thông tin đầu vào và ảnh sở cứ!')">
+            <button type="button" class="btn-submit" onclick="alert('Đã lưu toàn bộ thông tin đầu vào, hệ thống tham chiếu và ảnh sở cứ!')">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
             </button>
         </div>
     </div>
-        `,
+ `,
  model: `
     <div class="form-container">
         <h2 class="content-title">3. MÔ HÌNH HỆ THỐNG</h2>
@@ -171,7 +213,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         <div style="text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
             <button type="button" class="btn-submit" id="saveModelBtn">
-                <i class="fa-solid fa-floppy-disk"></i> LƯU MÔ HÌNH HỆ THỐNG
+                <i class="fa-solid fa-floppy-disk"></i> Lưu mô hình hệ thống
             </button>
         </div>
     </div>
@@ -409,23 +451,26 @@ if (pageId === 'input') {
     
     // Nút thêm ảnh sở cứ sử dụng chung hàm createUploadBox đã viết ở phần Mô hình
 }
-if (pageId === 'model') {
-    // Xử lý nút thêm dòng cho bảng danh sách thành phần
-    const addArchBtn = document.getElementById('addArchRowBtn');
-    if (addArchBtn) {
-        addArchBtn.onclick = function() {
-            const tbody = document.getElementById('arch-table-body');
-            const nextSTT = tbody.rows.length + 1;
-            const newRow = document.createElement('tr');
-            newRow.innerHTML = `
-                <td>${nextSTT}</td>
-                <td><input type="text"></td>
-                <td><input type="text"></td>
-                <td><input type="text"></td> 
-                <td><textarea rows="1"></textarea></td>
-                <td><button class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
-            `;
-            tbody.appendChild(newRow);
-        };
-    }
+function addBaselineRow() {
+    const tbody = document.getElementById('baseline-specs-body');
+    const newRow = document.createElement('tr');
+    newRow.innerHTML = `
+        <td><input type="text"></td>
+        <td><input type="text"></td>
+        <td><input type="text"></td>
+        <td><input type="number" class="ram-val" oninput="calculateBaselineTotal()"></td>
+        <td><input type="number" class="cint-val" oninput="calculateBaselineTotal()"></td>
+        <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
+    `;
+    tbody.appendChild(newRow);
+}
+
+function calculateBaselineTotal() {
+    let totalRam = 0;
+    let totalCint = 0;
+    document.querySelectorAll('.ram-val').forEach(input => totalRam += parseFloat(input.value) || 0);
+    document.querySelectorAll('.cint-val').forEach(input => totalCint += parseFloat(input.value) || 0);
+    
+    document.getElementById('total-ram-baseline').innerText = totalRam;
+    document.getElementById('total-cint-baseline').innerText = totalCint;
 }
