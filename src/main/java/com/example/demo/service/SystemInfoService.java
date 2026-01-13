@@ -16,9 +16,11 @@ import java.util.Map;
 @Service
 public class SystemInfoService {
     private final SystemInfoRepository systemInfoRepository;
+    private final ThongTinDauVaoService thongTinDauVaoService;
 
-    public SystemInfoService(SystemInfoRepository systemInfoRepository) {
+    public SystemInfoService(SystemInfoRepository systemInfoRepository, ThongTinDauVaoService thongTinDauVaoService) {
         this.systemInfoRepository = systemInfoRepository;
+        this.thongTinDauVaoService = thongTinDauVaoService;
     }
 
     public SystemInfo createSystemInfo(CreateSystemInfoRequest request) {
@@ -45,6 +47,7 @@ public class SystemInfoService {
     public byte[] exportToDocx() throws IOException {
         try (XWPFDocument document = new XWPFDocument()) {
             addSystemInfoTableToDocument(document);
+            thongTinDauVaoService.addThongTinDauVaoTableToDocument(document);
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             document.write(outputStream);
@@ -63,7 +66,9 @@ public class SystemInfoService {
             XWPFParagraph sysInfoTitle = document.createParagraph();
             sysInfoTitle.setAlignment(ParagraphAlignment.LEFT);
             XWPFRun sysInfoTitleRun = sysInfoTitle.createRun();
-            sysInfoTitleRun.setText("Thông tin hệ thống");
+            sysInfoTitleRun.setText("I.\tYÊU CẦU BÀI TOÁN");
+            sysInfoTitleRun.addBreak();
+            sysInfoTitleRun.setText("1.\tThông tin hệ thống");
             sysInfoTitleRun.setBold(true);
             sysInfoTitleRun.setFontSize(13);
             sysInfoTitleRun.setFontFamily("Times New Roman");
