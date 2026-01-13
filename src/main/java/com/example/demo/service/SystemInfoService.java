@@ -6,6 +6,8 @@ import com.example.demo.repository.SystemInfoRepository;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +37,19 @@ public class SystemInfoService {
 
     public List<SystemInfo> getAllSystemInfo() {
         return systemInfoRepository.findAll();
+    }
+
+    /**
+     * Export System Info to DOCX file
+     */
+    public byte[] exportToDocx() throws IOException {
+        try (XWPFDocument document = new XWPFDocument()) {
+            addSystemInfoTableToDocument(document);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            document.write(outputStream);
+            return outputStream.toByteArray();
+        }
     }
 
     /**
