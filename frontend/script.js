@@ -1,4 +1,27 @@
+// Cấu hình API Backend
+const API_BASE_URL = 'http://localhost:8080/api';
+
+// Biến lưu SystemInfo ID hiện tại - khôi phục từ localStorage nếu có
+let currentSystemInfoId = localStorage.getItem('currentSystemInfoId') || null;
+
+// Hàm lưu SystemInfo ID vào localStorage
+function saveSystemInfoIdToStorage(id) {
+    currentSystemInfoId = id;
+    localStorage.setItem('currentSystemInfoId', id);
+    console.log('Saved SystemInfo ID to localStorage:', id);
+}
+
+// Hàm xóa SystemInfo ID (khi muốn tạo mới)
+function clearSystemInfoId() {
+    currentSystemInfoId = null;
+    localStorage.removeItem('currentSystemInfoId');
+    console.log('Cleared SystemInfo ID');
+}
+
 document.addEventListener("DOMContentLoaded", function () {
+    // Log ID hiện tại khi load trang
+    console.log('Current SystemInfo ID from localStorage:', currentSystemInfoId);
+    
     // 1. Định nghĩa nội dung cho các trang
     const pageContent = {
         // GIỮ NGUYÊN PHẦN 1
@@ -44,6 +67,7 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
         </div>
         <button type="button" class="btn-submit" id="saveBtn">Lưu thông tin</button>
+        <div id="save-status" style="margin-top: 10px; text-align: center;"></div>
     </div>
 `,
 input: `
@@ -139,9 +163,10 @@ input: `
         </div>
         
         <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
-            <button type="button" class="btn-submit" onclick="alert('Đã lưu toàn bộ thông tin đầu vào, hệ thống tham chiếu và ảnh sở cứ!')">
+            <button type="button" class="btn-submit" id="saveInputDataBtn">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
             </button>
+            <div id="input-save-status" style="margin-top: 10px;"></div>
         </div>
     </div>
  `,
@@ -271,9 +296,10 @@ input: `
         </div>
 
         <div style="margin-top: 20px; text-align: center;">
-            <button type="button" class="btn-submit" onclick="exportToWord()">
+            <button type="button" class="btn-submit" id="exportBtn">
                 <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
             </button>
+            <div id="export-status" style="margin-top: 10px;"></div>
         </div>
     </div>
 `,
@@ -296,7 +322,7 @@ input: `
                 if (pageId === 'request') {
                     const saveBtn = document.getElementById('saveBtn');
                     if (saveBtn) {
-                        saveBtn.onclick = () => alert("Hệ thống đã lưu 9 thông tin dự án của bạn!");
+                        saveBtn.onclick = saveSystemInfo;
                     }
                 }
 
@@ -305,6 +331,11 @@ input: `
                     const addRowBtn = document.getElementById('addRowBtn');
                     if (addRowBtn) {
                         addRowBtn.onclick = addRow;
+                    }
+                    // Thêm sự kiện cho nút Lưu dữ liệu
+                    const saveInputDataBtn = document.getElementById('saveInputDataBtn');
+                    if (saveInputDataBtn) {
+                        saveInputDataBtn.onclick = saveInputData;
                     }
                 }
 
@@ -352,6 +383,11 @@ input: `
                             `;
                             tbody.appendChild(newRow);
                         };
+                    }
+                    // Thêm sự kiện cho nút xuất báo cáo
+                    const exportBtn = document.getElementById('exportBtn');
+                    if (exportBtn) {
+                        exportBtn.onclick = exportToWord;
                     }
                 }
             }, 50);
@@ -473,4 +509,258 @@ function calculateBaselineTotal() {
     
     document.getElementById('total-ram-baseline').innerText = totalRam;
     document.getElementById('total-cint-baseline').innerText = totalCint;
+}
+
+// ========== CÁC HÀM GỌI API BACKEND ==========
+
+// Hàm lưu thông tin hệ thống (Yêu cầu bài toán)
+async function saveSystemInfo() {
+    const inputs = document.querySelectorAll('.form-grid input');
+    const statusDiv = document.getElementById('save-status');
+    
+    // Lấy giá trị từ 9 input fields theo thứ tự
+    const data = {
+        devUnit: inputs[0]?.value || '',           // 1. Đơn vị phát triển
+        projectName: inputs[1]?.value || '',       // 2. Tên dự án
+        sysFeature: inputs[2]?.value || '',        // 3. Chức năng hệ thống
+        contactPerson: inputs[3]?.value || '',     // 4. Đầu mối định cỡ
+        sizingPurpose: inputs[4]?.value || '',     // 5. Mục đích định cỡ
+        sizingBasis: inputs[5]?.value || '',       // 6. Cơ sở định cỡ
+        sizingRule: inputs[6]?.value || '',        // 7. Nguyên tắc định cỡ
+        importance: inputs[7]?.value || '',        // 8. Mức độ quan trọng
+        deploymentTime: formatDateForAPI(inputs[8]?.value) // 9. Thời gian triển khai
+    };
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/system-info`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            // Lưu SystemInfo ID vào localStorage để không bị mất khi reload
+            saveSystemInfoIdToStorage(result.id);
+            
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thông tin thành công! (ID: ' + currentSystemInfoId + ')</span>';
+            }
+            alert('Đã lưu thông tin dự án thành công!');
+        } else {
+            const error = await response.text();
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi khi lưu thông tin!</span>';
+            }
+            alert('Lỗi khi lưu: ' + error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
+        }
+        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy tại port 8080.');
+    }
+}
+
+// Hàm format ngày sang định dạng dd/MM/yyyy
+function formatDateForAPI(dateStr) {
+    if (!dateStr) return null;
+    
+    // Nếu input là yyyy-MM-dd (từ input type="date")
+    if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+    }
+    
+    // Nếu đã là dd/MM/yyyy thì giữ nguyên
+    return dateStr;
+}
+
+// Hàm lưu thông tin đầu vào (ThongTinDauVao, HeThongThamChieu, SoCuThongTinDauVao)
+async function saveInputData() {
+    const statusDiv = document.getElementById('input-save-status');
+    
+    // Kiểm tra xem đã có SystemInfo ID chưa
+    if (!currentSystemInfoId) {
+        alert('Vui lòng lưu thông tin "Yêu cầu bài toán" trước!');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Chưa có SystemInfo ID. Hãy lưu Yêu cầu bài toán trước!</span>';
+        }
+        return;
+    }
+    
+    try {
+        let savedThongTinDauVao = 0;
+        let savedHeThongThamChieu = 0;
+        let uploadedImages = 0;
+        let errorCount = 0;
+        
+        // 1. Lưu các dòng thông tin đầu vào từ bảng đầu tiên
+        const inputRows = document.querySelectorAll('#input-table-body tr');
+        for (const row of inputRows) {
+            const cells = row.querySelectorAll('td');
+            const data = {
+                dauVao: cells[1]?.querySelector('input')?.value || '',
+                taiHeThongPOC: cells[2]?.querySelector('input')?.value || '',
+                dinhCo: cells[3]?.querySelector('input')?.value || '',
+                module: cells[4]?.querySelector('input')?.value || '',
+                ghiChu: cells[5]?.querySelector('textarea')?.value || ''
+            };
+            
+            // Chỉ lưu nếu có ít nhất 1 trường có giá trị
+            if (data.dauVao || data.taiHeThongPOC || data.dinhCo || data.module || data.ghiChu) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/thong-tin-dau-vao/system-info/${currentSystemInfoId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (response.ok) savedThongTinDauVao++;
+                    else errorCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Error saving ThongTinDauVao:', e);
+                }
+            }
+        }
+        
+        // 2. Lưu các dòng hệ thống tham chiếu
+        const baselineRows = document.querySelectorAll('#baseline-specs-body tr');
+        for (const row of baselineRows) {
+            const inputs = row.querySelectorAll('input');
+            const data = {
+                module: inputs[0]?.value || '',
+                ip: inputs[1]?.value || '',
+                cpu: inputs[2]?.value || '',
+                ram: parseFloat(inputs[3]?.value) || 0,
+                cintRate2017: parseFloat(inputs[4]?.value) || 0
+            };
+            
+            // Chỉ lưu nếu có ít nhất module hoặc IP
+            if (data.module || data.ip) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/he-thong-tham-chieu/system-info/${currentSystemInfoId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (response.ok) savedHeThongThamChieu++;
+                    else errorCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Error saving HeThongThamChieu:', e);
+                }
+            }
+        }
+        
+        // 3. Upload các ảnh sở cứ
+        const uploadBoxes = document.querySelectorAll('#container-evidence .upload-box');
+        for (const box of uploadBoxes) {
+            const fileInput = box.querySelector('input[type="file"]');
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/so-cu-thong-tin-dau-vao/system-info/${currentSystemInfoId}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) uploadedImages++;
+                    else errorCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Error uploading image:', e);
+                }
+            }
+        }
+        
+        // Hiển thị kết quả
+        const message = `Đã lưu thành công:
+- ${savedThongTinDauVao} dòng thông tin đầu vào
+- ${savedHeThongThamChieu} dòng hệ thống tham chiếu
+- ${uploadedImages} ảnh sở cứ
+${errorCount > 0 ? `\nCó ${errorCount} lỗi xảy ra.` : ''}`;
+
+        if (errorCount === 0) {
+            if (statusDiv) {
+                statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công: ${savedThongTinDauVao} thông tin đầu vào, ${savedHeThongThamChieu} hệ thống tham chiếu, ${uploadedImages} ảnh</span>`;
+            }
+        } else {
+            if (statusDiv) {
+                statusDiv.innerHTML = `<span style="color: orange;">⚠ Có ${errorCount} lỗi xảy ra</span>`;
+            }
+        }
+        alert(message);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
+        }
+        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+    }
+}
+
+// Hàm xuất báo cáo Word
+async function exportToWord() {
+    const statusDiv = document.getElementById('export-status');
+    
+    // Kiểm tra xem đã có SystemInfo ID chưa
+    if (!currentSystemInfoId) {
+        alert('Vui lòng lưu thông tin "Yêu cầu bài toán" trước khi xuất báo cáo!');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Chưa có dữ liệu để xuất!</span>';
+        }
+        return;
+    }
+    
+    try {
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tạo báo cáo...</span>';
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/system-info/${currentSystemInfoId}/export`, {
+            method: 'GET'
+        });
+
+        if (response.ok) {
+            // Tạo blob từ response
+            const blob = await response.blob();
+            
+            // Tạo link download
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'bao-cao-dinh-co.docx';
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span style="color: green;">✓ Đã xuất báo cáo thành công!</span>';
+            }
+            alert('Đã xuất báo cáo thành công!');
+        } else {
+            const error = await response.text();
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi khi xuất báo cáo!</span>';
+            }
+            alert('Lỗi khi xuất báo cáo: ' + error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
+        }
+        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+    }
 }

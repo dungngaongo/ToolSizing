@@ -12,11 +12,14 @@ import java.util.List;
 public class ThongTinDauVaoService {
     private final ThongTinDauVaoRepository thongTinDauVaoRepository;
     private final SoCuThongTinDauVaoService soCuThongTinDauVaoService;
+    private final HeThongThamChieuService heThongThamChieuService;
 
     public ThongTinDauVaoService(ThongTinDauVaoRepository thongTinDauVaoRepository,
-                                  SoCuThongTinDauVaoService soCuThongTinDauVaoService) {
+                                  SoCuThongTinDauVaoService soCuThongTinDauVaoService,
+                                  HeThongThamChieuService heThongThamChieuService) {
         this.thongTinDauVaoRepository = thongTinDauVaoRepository;
         this.soCuThongTinDauVaoService = soCuThongTinDauVaoService;
+        this.heThongThamChieuService = heThongThamChieuService;
     }
 
     public ThongTinDauVao create(CreateThongTinDauVaoRequest request) {
@@ -98,6 +101,9 @@ public class ThongTinDauVaoService {
         }
 
         document.createParagraph();
+
+        // Thêm bảng Hệ thống tham chiếu
+        heThongThamChieuService.addHeThongThamChieuTableToDocument(document, systemInfoId);
 
         // Thêm ảnh sở cứ thông tin đầu vào
         soCuThongTinDauVaoService.addSoCuImagesToDocument(document, systemInfoId);
