@@ -170,12 +170,22 @@ input: `
         </div>
     </div>
  `,
- model: `
+model: `
     <div class="form-container">
         <h2 class="content-title">3. MÔ HÌNH HỆ THỐNG</h2>
         
         <div class="model-section">
-            <h3 class="model-type-title"><i class="fa-solid fa-server"></i> A. Mô hình Vật lý (Physical Architecture)</h3>
+            <h3 class="model-type-title">
+                <i class="fa-solid fa-server"></i> A. Mô hình Vật lý
+                <span class="help-icon">
+                    <i class="fa-solid fa-circle-question"></i>
+                    <div class="help-content">
+                        <img src="https://placehold.co/600x300/e9ecef/444?text=Anh+Mau+Vat+Ly" alt="Mẫu Vật lý">
+                        <p class="help-text">Sơ đồ đấu nối vật lý giữa các máy chủ, thiết bị mạng.</p>
+                    </div>
+                </span>
+            </h3>
+            
             <div id="container-physical" class="image-upload-grid"></div>
             <button type="button" class="btn-add-img" onclick="createUploadBox('physical')">
                 <i class="fa-solid fa-plus"></i> Thêm ảnh mô hình Vật lý
@@ -185,7 +195,22 @@ input: `
         <hr class="form-divider">
 
         <div class="model-section">
-            <h3 class="model-type-title"><i class="fa-solid fa-network-wired"></i> B. Mô hình Logic (Logical Architecture)</h3>
+            <h3 class="model-type-title">
+                <i class="fa-solid fa-network-wired"></i> B. Mô hình Logic
+                <span class="help-icon">
+                    <i class="fa-solid fa-circle-question"></i>
+                    <div class="help-content" style="width: 500px;"> <img src="hinhanh.img/logic.png" alt="Mẫu Logic">
+                        <p class="help-text" style="color: red; font-weight: bold;">
+                            Lưu ý: Cần nêu rõ Module chức năng, Giao thức kết nối, Port cụ thể.
+                        </p>
+                    </div>
+                </span>
+            </h3>
+
+            <p style="color: #d9534f; font-style: italic; font-size: 13px; margin-bottom: 10px;">
+                * Yêu cầu: Nêu rõ thông tin module, giao thức và port kết nối.
+            </p>
+
             <div id="container-logical" class="image-upload-grid"></div>
             <button type="button" class="btn-add-img" onclick="createUploadBox('logical')">
                 <i class="fa-solid fa-plus"></i> Thêm ảnh mô hình Logic
@@ -195,12 +220,22 @@ input: `
         <hr class="form-divider">
 
         <div class="model-section">
-            <h3 class="model-type-title"><i class="fa-solid fa-diagram-project"></i> C. Luồng nghiệp vụ (Business Flow)</h3>
+            <h3 class="model-type-title">
+                <i class="fa-solid fa-diagram-project"></i> C. Luồng nghiệp vụ
+                <span class="help-icon">
+                    <i class="fa-solid fa-circle-question"></i>
+                    <div class="help-content">
+                        <img src="https://placehold.co/600x300/e9ecef/444?text=Anh+Mau+Business+Flow" alt="Mẫu Luồng">
+                        <p class="help-text">Sơ đồ luồng đi của dữ liệu/người dùng qua các hệ thống.</p>
+                    </div>
+                </span>
+            </h3>
+            
             <div id="container-flow" class="image-upload-grid"></div>
             <button type="button" class="btn-add-img" onclick="createUploadBox('flow')">
                 <i class="fa-solid fa-plus"></i> Thêm ảnh luồng nghiệp vụ
             </button>
-            <textarea id="flow-explanation" rows="3" placeholder="Giải thích luồng nghiệp vụ chi tiết..." style="width:100%; margin-top:10px; padding:10px; border-radius:4px; border:1px solid #ddd; font-family:inherit;"></textarea>
+            <textarea id="flow-explanation" rows="3" placeholder="Giải thích luồng nghiệp vụ chi tiết..." style="width:100%; margin-top:10px; padding:10px; border-radius:4px; border:1px solid #ddd;"></textarea>
         </div>
 
         <hr class="form-divider" style="border-top: 2px solid #ee0000; opacity: 0.3;">
