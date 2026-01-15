@@ -13,13 +13,19 @@ public class ThongTinDauVaoService {
     private final ThongTinDauVaoRepository thongTinDauVaoRepository;
     private final SoCuThongTinDauVaoService soCuThongTinDauVaoService;
     private final HeThongThamChieuService heThongThamChieuService;
+    private final MoHinhHeThongImageService moHinhHeThongImageService;
+    private final MoHinhHeThongService moHinhHeThongService;
 
     public ThongTinDauVaoService(ThongTinDauVaoRepository thongTinDauVaoRepository,
                                   SoCuThongTinDauVaoService soCuThongTinDauVaoService,
-                                  HeThongThamChieuService heThongThamChieuService) {
+                                  HeThongThamChieuService heThongThamChieuService,
+                                  MoHinhHeThongImageService moHinhHeThongImageService,
+                                  MoHinhHeThongService moHinhHeThongService) {
         this.thongTinDauVaoRepository = thongTinDauVaoRepository;
         this.soCuThongTinDauVaoService = soCuThongTinDauVaoService;
         this.heThongThamChieuService = heThongThamChieuService;
+        this.moHinhHeThongImageService = moHinhHeThongImageService;
+        this.moHinhHeThongService = moHinhHeThongService;
     }
 
     public ThongTinDauVao create(CreateThongTinDauVaoRequest request) {
@@ -107,6 +113,12 @@ public class ThongTinDauVaoService {
 
         // Thêm ảnh sở cứ thông tin đầu vào
         soCuThongTinDauVaoService.addSoCuImagesToDocument(document, systemInfoId);
+
+        // Thêm Mô hình hệ thống (ảnh: Vật lý, Logic, Luồng nghiệp vụ)
+        moHinhHeThongImageService.addMoHinhHeThongImageToDocument(document, systemInfoId);
+
+        // Thêm bảng Chi tiết các zone mạng
+        moHinhHeThongService.addMoHinhHeThongTableToDocument(document, systemInfoId);
     }
 
     private void setCellText(XWPFTableCell cell, String text, boolean bold) {

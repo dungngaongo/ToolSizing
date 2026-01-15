@@ -240,6 +240,7 @@ input: `
             <button type="button" class="btn-submit" id="saveModelBtn">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu mô hình hệ thống
             </button>
+            <div id="model-save-status" style="margin-top: 10px;"></div>
         </div>
     </div>
 `,
@@ -360,6 +361,12 @@ input: `
                             `;
                             tbody.appendChild(newRow);
                         };
+                    }
+                    
+                    // Thêm sự kiện cho nút Lưu mô hình hệ thống
+                    const saveModelBtn = document.getElementById('saveModelBtn');
+                    if (saveModelBtn) {
+                        saveModelBtn.onclick = saveModelData;
                     }
                 }
 
@@ -690,6 +697,175 @@ ${errorCount > 0 ? `\nCó ${errorCount} lỗi xảy ra.` : ''}`;
         if (errorCount === 0) {
             if (statusDiv) {
                 statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công: ${savedThongTinDauVao} thông tin đầu vào, ${savedHeThongThamChieu} hệ thống tham chiếu, ${uploadedImages} ảnh</span>`;
+            }
+        } else {
+            if (statusDiv) {
+                statusDiv.innerHTML = `<span style="color: orange;">⚠ Có ${errorCount} lỗi xảy ra</span>`;
+            }
+        }
+        alert(message);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
+        }
+        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+    }
+}
+
+// ========== HÀM LƯU MÔ HÌNH HỆ THỐNG ==========
+
+// Hàm lưu mô hình hệ thống (ảnh + bảng chi tiết zone mạng)
+async function saveModelData() {
+    const statusDiv = document.getElementById('model-save-status');
+    
+    // Kiểm tra xem đã có SystemInfo ID chưa
+    if (!currentSystemInfoId) {
+        alert('Vui lòng lưu thông tin "Yêu cầu bài toán" trước!');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Chưa có SystemInfo ID. Hãy lưu Yêu cầu bài toán trước!</span>';
+        }
+        return;
+    }
+    
+    try {
+        let uploadedImages = 0;
+        let savedZoneRows = 0;
+        let errorCount = 0;
+        
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu dữ liệu...</span>';
+        }
+        
+        // 1. Upload ảnh Mô hình Vật lý
+        const physicalBoxes = document.querySelectorAll('#container-physical .upload-box');
+        for (const box of physicalBoxes) {
+            const fileInput = box.querySelector('input[type="file"]');
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/mo-hinh-vat-ly`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) uploadedImages++;
+                    else errorCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Error uploading physical model image:', e);
+                }
+            }
+        }
+        
+        // 2. Upload ảnh Mô hình Logic
+        const logicalBoxes = document.querySelectorAll('#container-logical .upload-box');
+        for (const box of logicalBoxes) {
+            const fileInput = box.querySelector('input[type="file"]');
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/mo-hinh-logic`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) uploadedImages++;
+                    else errorCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Error uploading logical model image:', e);
+                }
+            }
+        }
+        
+        // 3. Upload ảnh Luồng nghiệp vụ
+        const flowBoxes = document.querySelectorAll('#container-flow .upload-box');
+        for (const box of flowBoxes) {
+            const fileInput = box.querySelector('input[type="file"]');
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/luong-nghiep-vu`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) uploadedImages++;
+                    else errorCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Error uploading business flow image:', e);
+                }
+            }
+        }
+        
+        // 4. Lưu mô tả luồng nghiệp vụ
+        const flowDescription = document.getElementById('flow-explanation')?.value;
+        if (flowDescription && flowDescription.trim()) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/luong-nghiep-vu-description`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(flowDescription)
+                });
+                if (response.ok) {
+                    console.log('Saved flow description');
+                } else {
+                    errorCount++;
+                }
+            } catch (e) {
+                errorCount++;
+                console.error('Error saving flow description:', e);
+            }
+        }
+        
+        // 5. Lưu bảng chi tiết zone mạng, hệ điều hành, số lượng VIP
+        const archRows = document.querySelectorAll('#arch-table-body tr');
+        for (const row of archRows) {
+            const cells = row.querySelectorAll('td');
+            const moduleInput = cells[1]?.querySelector('input');
+            const zoneInput = cells[2]?.querySelector('input');
+            const osInput = cells[3]?.querySelector('input');
+            const vipTextarea = cells[4]?.querySelector('textarea');
+            
+            const data = {
+                module: moduleInput?.value || '',
+                zoneMang: zoneInput?.value || '',
+                heDieuHanh: osInput?.value || '',
+                soLuongVIP: parseInt(vipTextarea?.value) || 0
+            };
+            
+            // Chỉ lưu nếu có ít nhất module
+            if (data.module) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong/system-info/${currentSystemInfoId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (response.ok) savedZoneRows++;
+                    else errorCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Error saving zone info:', e);
+                }
+            }
+        }
+        
+        // Hiển thị kết quả
+        const message = `Đã lưu mô hình hệ thống:
+- ${uploadedImages} ảnh mô hình
+- ${savedZoneRows} dòng thông tin zone/module
+${errorCount > 0 ? `\nCó ${errorCount} lỗi xảy ra.` : ''}`;
+
+        if (errorCount === 0) {
+            if (statusDiv) {
+                statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công: ${uploadedImages} ảnh, ${savedZoneRows} dòng thông tin</span>`;
             }
         } else {
             if (statusDiv) {
