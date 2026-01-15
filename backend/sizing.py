@@ -5,10 +5,38 @@ from docx.shared import Inches
 from io import BytesIO
 from datetime import datetime
 import math
+import requests
+
+# --- Cấu hình Backend API ---
+BACKEND_API_URL = "http://localhost:8081/api"
+
+# --- Hàm lưu kết quả sizing vào bảng Redis ---
+def save_redis_sizing(system_info_id, redis_data):
+    """Lưu kết quả tính toán sizing Redis vào database"""
+    try:
+        url = f"{BACKEND_API_URL}/redis/system-info/{system_info_id}"
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(url, json=redis_data, headers=headers)
+        if response.status_code == 200:
+            return True, response.json()
+        else:
+            return False, response.text
+    except Exception as e:
+        return False, str(e)
 
 # --- Cấu hình trang ---
 st.set_page_config(page_title="DB Sizing Tool v6 - Redis Supported", layout="wide")
 st.subheader("Database Infrastructure Sizing Tool (v6)")
+
+# --- Lấy SystemInfoId từ URL params ---
+query_params = st.query_params
+system_info_id = query_params.get("systemInfoId", "")
+
+if system_info_id:
+    st.success(f"🔗 Đang làm việc với SystemInfo ID: **{system_info_id}**")
+else:
+    st.warning("⚠️ Chưa có SystemInfo ID. Vui lòng lưu 'Yêu cầu bài toán' từ trang chính trước.")
+    system_info_id = st.text_input("Hoặc nhập SystemInfo ID thủ công:", "")
 
 # --- 1. Cấu hình Hệ thống & Tham số ---
 st.sidebar.header("1. Cấu hình chung")
@@ -278,6 +306,30 @@ if db_type == "Redis":
                 data=buffer, 
                 file_name=f"Sizing_Redis_{datetime.now().strftime('%Y%m%d')}.docx"
             )
+            
+            # --- Lưu kết quả vào Database ---
+            if system_info_id:
+                redis_db_data = {
+                    "moTa": redis_desc,
+                    "mucDich": redis_purpose,
+                    "keyNumber": redis_params.get("A", 0) if redis_params["method"] == "keys" else 0,
+                    "avgSize": redis_params.get("B_KB", 0) if redis_params["method"] == "keys" else 0,
+                    "importance": redis_params.get("criticality", "Thường") if redis_params["method"] == "keys" else "Thường",
+                    "masterNumber": redis_params.get("N", 1) if redis_params["method"] == "keys" else 1,
+                    "sumC": round(res_report.get("data_size", 0), 2),
+                    "deXuat": res_report.get("model", ""),
+                    "vCpu": res_report.get("config", {}).get("vCPU", 0),
+                    "ram": res_report.get("config", {}).get("RAM", 0),
+                    "disk": res_report.get("config", {}).get("Disk", 0)
+                }
+                
+                success, result = save_redis_sizing(system_info_id, redis_db_data)
+                if success:
+                    st.success("✅ Đã lưu kết quả sizing vào database!")
+                else:
+                    st.error(f"❌ Lỗi khi lưu kết quả: {result}")
+            else:
+                st.warning("⚠️ Chưa có SystemInfo ID. Kết quả chưa được lưu vào database.")
 
 # ==========================================
 # KHU VỰC CŨ CHO CÁC DB KHÁC (ORACLE/MARIA...)

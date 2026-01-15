@@ -5,15 +5,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="48c3b22b-a743-4972-86f7-20881423ca99" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.ask2agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/controller/TongHopController.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/dto/CreateTongHopRequest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/model/TongHop.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/repository/TongHopRepository.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/TongHopService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/controller/RedisController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/dto/CreateRedisRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/model/Redis.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/repository/RedisRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/RedisService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/model/TongHop.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/model/TongHop.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/SystemInfoService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/SystemInfoService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/ThongTinDauVaoService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/ThongTinDauVaoService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/script.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/script.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

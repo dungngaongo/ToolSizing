@@ -11,24 +11,9 @@ import java.util.List;
 @Service
 public class ThongTinDauVaoService {
     private final ThongTinDauVaoRepository thongTinDauVaoRepository;
-    private final SoCuThongTinDauVaoService soCuThongTinDauVaoService;
-    private final HeThongThamChieuService heThongThamChieuService;
-    private final MoHinhHeThongImageService moHinhHeThongImageService;
-    private final MoHinhHeThongService moHinhHeThongService;
-    private final TongHopService tongHopService;
 
-    public ThongTinDauVaoService(ThongTinDauVaoRepository thongTinDauVaoRepository,
-                                  SoCuThongTinDauVaoService soCuThongTinDauVaoService,
-                                  HeThongThamChieuService heThongThamChieuService,
-                                  MoHinhHeThongImageService moHinhHeThongImageService,
-                                  MoHinhHeThongService moHinhHeThongService,
-                                  TongHopService tongHopService) {
+    public ThongTinDauVaoService(ThongTinDauVaoRepository thongTinDauVaoRepository) {
         this.thongTinDauVaoRepository = thongTinDauVaoRepository;
-        this.soCuThongTinDauVaoService = soCuThongTinDauVaoService;
-        this.heThongThamChieuService = heThongThamChieuService;
-        this.moHinhHeThongImageService = moHinhHeThongImageService;
-        this.moHinhHeThongService = moHinhHeThongService;
-        this.tongHopService = tongHopService;
     }
 
     public ThongTinDauVao create(CreateThongTinDauVaoRequest request) {
@@ -110,21 +95,6 @@ public class ThongTinDauVaoService {
         }
 
         document.createParagraph();
-
-        // Thêm bảng Hệ thống tham chiếu
-        heThongThamChieuService.addHeThongThamChieuTableToDocument(document, systemInfoId);
-
-        // Thêm ảnh sở cứ thông tin đầu vào
-        soCuThongTinDauVaoService.addSoCuImagesToDocument(document, systemInfoId);
-
-        // Thêm Mô hình hệ thống (ảnh: Vật lý, Logic, Luồng nghiệp vụ)
-        moHinhHeThongImageService.addMoHinhHeThongImageToDocument(document, systemInfoId);
-
-        // Thêm bảng Chi tiết các zone mạng
-        moHinhHeThongService.addMoHinhHeThongTableToDocument(document, systemInfoId);
-
-        // Thêm bảng Tổng hợp và đề xuất
-        tongHopService.addTongHopTableToDocument(document, systemInfoId);
     }
 
     private void setCellText(XWPFTableCell cell, String text, boolean bold) {

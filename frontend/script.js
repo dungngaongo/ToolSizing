@@ -1,5 +1,5 @@
 // Cấu hình API Backend
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'http://localhost:8081/api';
 
 // Biến lưu SystemInfo ID hiện tại - khôi phục từ localStorage nếu có
 let currentSystemInfoId = localStorage.getItem('currentSystemInfoId') || null;
@@ -399,6 +399,15 @@ input: `
                     const exportBtn = document.getElementById('exportBtn');
                     if (exportBtn) {
                         exportBtn.onclick = exportToWord;
+                    }
+                }
+
+                // 5. Logic trang ĐỊNH CỠ HỆ THỐNG (Sizing)
+                if (pageId === 'sizing') {
+                    // Cập nhật iframe URL với systemInfoId
+                    const sizingIframe = document.getElementById('sizing-iframe');
+                    if (sizingIframe && currentSystemInfoId) {
+                        sizingIframe.src = `http://localhost:8503?systemInfoId=${currentSystemInfoId}`;
                     }
                 }
             }, 50);
