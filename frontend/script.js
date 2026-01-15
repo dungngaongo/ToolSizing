@@ -292,15 +292,14 @@ input: `
             <i class="fa-solid fa-plus"></i> Thêm dòng đề xuất
         </button>
 
-        <div style="margin-top: 30px; display: flex; justify-content: space-around; font-weight: bold; text-align: center;">
-            
-        </div>
-
-        <div style="margin-top: 20px; text-align: center;">
+        <div style="margin-top: 30px; text-align: center;">
+            <button type="button" class="btn-submit" id="saveSummaryBtn" style="margin-right: 10px;">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
+            </button>
             <button type="button" class="btn-submit" id="exportBtn">
                 <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
             </button>
-            <div id="export-status" style="margin-top: 10px;"></div>
+            <div id="summary-save-status" style="margin-top: 10px;"></div>
         </div>
     </div>
 `,
@@ -390,6 +389,11 @@ input: `
                             `;
                             tbody.appendChild(newRow);
                         };
+                    }
+                    // Thêm sự kiện cho nút lưu dữ liệu
+                    const saveSummaryBtn = document.getElementById('saveSummaryBtn');
+                    if (saveSummaryBtn) {
+                        saveSummaryBtn.onclick = saveSummaryData;
                     }
                     // Thêm sự kiện cho nút xuất báo cáo
                     const exportBtn = document.getElementById('exportBtn');
@@ -883,9 +887,86 @@ ${errorCount > 0 ? `\nCó ${errorCount} lỗi xảy ra.` : ''}`;
     }
 }
 
+// ========== HÀM LƯU TỔNG HỢP VÀ ĐỀ XUẤT ==========
+
+// Hàm lưu dữ liệu tổng hợp và đề xuất
+async function saveSummaryData() {
+    const statusDiv = document.getElementById('summary-save-status');
+    
+    // Kiểm tra xem đã có SystemInfo ID chưa
+    if (!currentSystemInfoId) {
+        alert('Vui lòng lưu thông tin "Yêu cầu bài toán" trước!');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Chưa có SystemInfo ID. Hãy lưu Yêu cầu bài toán trước!</span>';
+        }
+        return;
+    }
+    
+    try {
+        let savedRows = 0;
+        let errorCount = 0;
+        
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu dữ liệu...</span>';
+        }
+        
+        // Lưu các dòng trong bảng tổng hợp đề xuất
+        const summaryRows = document.querySelectorAll('#summary-table-body tr');
+        for (const row of summaryRows) {
+            const cells = row.querySelectorAll('td');
+            
+            const data = {
+                module: cells[1]?.querySelector('input')?.value || '',
+                soLuong: parseInt(cells[2]?.querySelector('input')?.value) || 1,
+                vCPU: parseInt(cells[3]?.querySelector('input')?.value) || 1,
+                ram: parseFloat(cells[4]?.querySelector('input')?.value) || 0,
+                volume: cells[5]?.querySelector('input')?.value || '',
+                ghiChu: cells[6]?.querySelector('textarea')?.value || ''
+            };
+            
+            // Chỉ lưu nếu có ít nhất module
+            if (data.module) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/tong-hop/system-info/${currentSystemInfoId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (response.ok) savedRows++;
+                    else errorCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Error saving summary row:', e);
+                }
+            }
+        }
+        
+        // Hiển thị kết quả
+        const message = `Đã lưu ${savedRows} dòng tổng hợp đề xuất${errorCount > 0 ? `\nCó ${errorCount} lỗi xảy ra.` : ''}`;
+
+        if (errorCount === 0) {
+            if (statusDiv) {
+                statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công: ${savedRows} dòng đề xuất</span>`;
+            }
+        } else {
+            if (statusDiv) {
+                statusDiv.innerHTML = `<span style="color: orange;">⚠ Đã lưu ${savedRows} dòng, có ${errorCount} lỗi</span>`;
+            }
+        }
+        alert(message);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
+        }
+        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+    }
+}
+
 // Hàm xuất báo cáo Word
 async function exportToWord() {
-    const statusDiv = document.getElementById('export-status');
+    const statusDiv = document.getElementById('summary-save-status');
     
     // Kiểm tra xem đã có SystemInfo ID chưa
     if (!currentSystemInfoId) {
