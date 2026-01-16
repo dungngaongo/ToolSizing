@@ -515,7 +515,7 @@ function previewModelImage(input, boxId) {
         reader.readAsDataURL(input.files[0]);
     }
 }
-if (pageId === 'input') {
+if (document.getElementById('addRowBtn')) {
     // Kích hoạt nút thêm dòng cho bảng (nếu có)
     const addRowBtn = document.getElementById('addRowBtn');
     if(addRowBtn) addRowBtn.onclick = addRow;
