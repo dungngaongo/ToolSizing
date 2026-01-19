@@ -11,15 +11,9 @@ import java.util.List;
 @Service
 public class ThongTinDauVaoService {
     private final ThongTinDauVaoRepository thongTinDauVaoRepository;
-    private final SoCuThongTinDauVaoService soCuThongTinDauVaoService;
-    private final HeThongThamChieuService heThongThamChieuService;
 
-    public ThongTinDauVaoService(ThongTinDauVaoRepository thongTinDauVaoRepository,
-                                  SoCuThongTinDauVaoService soCuThongTinDauVaoService,
-                                  HeThongThamChieuService heThongThamChieuService) {
+    public ThongTinDauVaoService(ThongTinDauVaoRepository thongTinDauVaoRepository) {
         this.thongTinDauVaoRepository = thongTinDauVaoRepository;
-        this.soCuThongTinDauVaoService = soCuThongTinDauVaoService;
-        this.heThongThamChieuService = heThongThamChieuService;
     }
 
     public ThongTinDauVao create(CreateThongTinDauVaoRequest request) {
@@ -101,12 +95,6 @@ public class ThongTinDauVaoService {
         }
 
         document.createParagraph();
-
-        // Thêm bảng Hệ thống tham chiếu
-        heThongThamChieuService.addHeThongThamChieuTableToDocument(document, systemInfoId);
-
-        // Thêm ảnh sở cứ thông tin đầu vào
-        soCuThongTinDauVaoService.addSoCuImagesToDocument(document, systemInfoId);
     }
 
     private void setCellText(XWPFTableCell cell, String text, boolean bold) {

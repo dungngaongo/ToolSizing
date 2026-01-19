@@ -18,10 +18,29 @@ import java.util.Optional;
 public class SystemInfoService {
     private final SystemInfoRepository systemInfoRepository;
     private final ThongTinDauVaoService thongTinDauVaoService;
+    private final HeThongThamChieuService heThongThamChieuService;
+    private final SoCuThongTinDauVaoService soCuThongTinDauVaoService;
+    private final MoHinhHeThongImageService moHinhHeThongImageService;
+    private final MoHinhHeThongService moHinhHeThongService;
+    private final RedisService redisService;
+    private final TongHopService tongHopService;
 
-    public SystemInfoService(SystemInfoRepository systemInfoRepository, ThongTinDauVaoService thongTinDauVaoService) {
+    public SystemInfoService(SystemInfoRepository systemInfoRepository,
+                            ThongTinDauVaoService thongTinDauVaoService,
+                            HeThongThamChieuService heThongThamChieuService,
+                            SoCuThongTinDauVaoService soCuThongTinDauVaoService,
+                            MoHinhHeThongImageService moHinhHeThongImageService,
+                            MoHinhHeThongService moHinhHeThongService,
+                            RedisService redisService,
+                            TongHopService tongHopService) {
         this.systemInfoRepository = systemInfoRepository;
         this.thongTinDauVaoService = thongTinDauVaoService;
+        this.heThongThamChieuService = heThongThamChieuService;
+        this.soCuThongTinDauVaoService = soCuThongTinDauVaoService;
+        this.moHinhHeThongImageService = moHinhHeThongImageService;
+        this.moHinhHeThongService = moHinhHeThongService;
+        this.redisService = redisService;
+        this.tongHopService = tongHopService;
     }
 
     public SystemInfo createSystemInfo(CreateSystemInfoRequest request) {
@@ -48,6 +67,22 @@ public class SystemInfoService {
 
     /**
      * Export System Info to DOCX file by id
+     * Cấu trúc:
+     * 1. Yêu cầu bài toán (SystemInfo table)
+     * 2. Thông tin đầu vào
+     *    - ThongTinDauVao table
+     *    - Thông tin Hệ thống tham chiếu
+     *      + IP và cấu hình hệ thống tham chiếu (HeThongThamChieu table)
+     *      + Sở cứ giá trị định cỡ (Images)
+     * 3. Mô hình hệ thống
+     *    - A. Mô hình vật lý
+     *    - B. Mô hình Logic
+     *    - C. Luồng nghiệp vụ, description
+     *    - Chi tiết các zone mạng, hệ điều hành, số lượng VIP(table)
+     * 4. Định cỡ hệ thống
+     *    - 1. Module Redis
+     * 5. Tổng hợp và đề xuất
+     *    - TongHop table
      */
     public byte[] exportToDocx(String systemInfoId) throws IOException {
         Optional<SystemInfo> optionalSystemInfo = systemInfoRepository.findById(systemInfoId);
@@ -56,13 +91,106 @@ public class SystemInfoService {
         }
 
         try (XWPFDocument document = new XWPFDocument()) {
+            // 1. Yêu cầu bài toán
             addSystemInfoTableToDocument(document, optionalSystemInfo.get());
+
+            // 2. Thông tin đầu vào
             thongTinDauVaoService.addThongTinDauVaoTableToDocument(document, systemInfoId);
+
+            // Thông tin Hệ thống tham chiếu
+            addHeThongThamChieuSection(document, systemInfoId);
+
+            // 3. Mô hình hệ thống
+            addMoHinhHeThongSection(document, systemInfoId);
+
+            // 4. Định cỡ hệ thống
+            addDinhCoHeThongSection(document, systemInfoId);
+
+            // 5. Tổng hợp và đề xuất
+            addTongHopSection(document, systemInfoId);
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             document.write(outputStream);
             return outputStream.toByteArray();
         }
+    }
+
+    /**
+     * Thông tin Hệ thống tham chiếu
+     */
+    private void addHeThongThamChieuSection(XWPFDocument document, String systemInfoId) {
+        // Title
+        XWPFParagraph title = document.createParagraph();
+        title.setAlignment(ParagraphAlignment.LEFT);
+        XWPFRun titleRun = title.createRun();
+        titleRun.setText("Thông tin Hệ thống tham chiếu");
+        titleRun.setBold(true);
+        titleRun.setFontSize(13);
+        titleRun.setFontFamily("Times New Roman");
+        document.createParagraph();
+
+        // IP và cấu hình hệ thống tham chiếu
+        heThongThamChieuService.addHeThongThamChieuTableToDocument(document, systemInfoId);
+
+        // Sở cứ giá trị định cỡ (Images)
+        soCuThongTinDauVaoService.addSoCuImagesToDocument(document, systemInfoId);
+    }
+
+    /**
+     * 3. Mô hình hệ thống
+     */
+    private void addMoHinhHeThongSection(XWPFDocument document, String systemInfoId) {
+        // Title
+        XWPFParagraph title = document.createParagraph();
+        title.setAlignment(ParagraphAlignment.LEFT);
+        XWPFRun titleRun = title.createRun();
+        titleRun.setText("3.\tMô hình hệ thống");
+        titleRun.setBold(true);
+        titleRun.setFontSize(13);
+        titleRun.setFontFamily("Times New Roman");
+        document.createParagraph();
+
+        // A. Mô hình vật lý, B. Mô hình Logic, C. Luồng nghiệp vụ
+        moHinhHeThongImageService.addMoHinhHeThongImageToDocument(document, systemInfoId);
+
+        // Chi tiết các zone mạng, hệ điều hành, số lượng VIP
+        moHinhHeThongService.addMoHinhHeThongTableToDocument(document, systemInfoId);
+    }
+
+    /**
+     * 4. Định cỡ hệ thống
+     */
+    private void addDinhCoHeThongSection(XWPFDocument document, String systemInfoId) {
+        // Title
+        XWPFParagraph title = document.createParagraph();
+        title.setAlignment(ParagraphAlignment.LEFT);
+        XWPFRun titleRun = title.createRun();
+        titleRun.setText("4.\tĐịnh cỡ hệ thống");
+        titleRun.setBold(true);
+        titleRun.setFontSize(13);
+        titleRun.setFontFamily("Times New Roman");
+        document.createParagraph();
+
+        // 1. Module Redis
+        redisService.addRedisToDocument(document, systemInfoId);
+    }
+
+    /**
+     * 5. Tổng hợp và đề xuất
+     */
+    private void addTongHopSection(XWPFDocument document, String systemInfoId) {
+        // Title
+        XWPFParagraph title = document.createParagraph();
+        title.setAlignment(ParagraphAlignment.LEFT);
+        XWPFRun titleRun = title.createRun();
+        titleRun.setText("5.\tTổng hợp và đề xuất");
+        titleRun.setBold(true);
+        titleRun.setFontSize(13);
+        titleRun.setFontFamily("Times New Roman");
+        document.createParagraph();
+
+        // TongHop table
+        tongHopService.addTongHopTableToDocument(document, systemInfoId);
     }
 
     /**
