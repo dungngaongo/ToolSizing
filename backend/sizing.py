@@ -25,7 +25,7 @@ def save_redis_sizing(system_info_id, redis_data):
         return False, str(e)
 
 # --- Cấu hình trang ---
-st.set_page_config(page_title="DB Sizing Tool v6 - Redis Supported", layout="wide")
+st.set_page_config(page_title="DB Sizing Tool v6", layout="wide")
 st.subheader("Database Infrastructure Sizing Tool (v6)")
 
 # --- Lấy SystemInfoId từ URL params ---
