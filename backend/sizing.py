@@ -1,18 +1,17 @@
 import streamlit as st
 import pandas as pd
 from docx import Document
-from docx.shared import Inches
 from io import BytesIO
 from datetime import datetime
 import math
 import requests
 
-# --- Cấu hình Backend API ---
+# --- CẤU HÌNH HỆ THỐNG ---
 BACKEND_API_URL = "http://localhost:8081/api"
 
-# --- Hàm lưu kết quả sizing vào bảng Redis ---
+# --- HÀM HỖ TRỢ ---
 def save_redis_sizing(system_info_id, redis_data):
-    """Lưu kết quả tính toán sizing Redis vào database"""
+    """Gửi dữ liệu sizing Redis xuống Backend API"""
     try:
         url = f"{BACKEND_API_URL}/redis/system-info/{system_info_id}"
         headers = {"Content-Type": "application/json"}
@@ -24,426 +23,424 @@ def save_redis_sizing(system_info_id, redis_data):
     except Exception as e:
         return False, str(e)
 
-# --- Cấu hình trang ---
-st.set_page_config(page_title="DB Sizing Tool v6", layout="wide")
-st.subheader("Database Infrastructure Sizing Tool (v6)")
+# --- THIẾT LẬP TRANG ---
+st.set_page_config(page_title="Cong cu Dinh co Ha tang", layout="wide")
 
-# --- Lấy SystemInfoId từ URL params ---
-query_params = st.query_params
-system_info_id = query_params.get("systemInfoId", "")
+# --- CSS TÙY CHỈNH (SLIDER MÀU ĐỎ & GIAO DIỆN CARD) ---
+st.markdown("""
+<style>
+    /* Font chữ */
+    html, body, [class*="css"] {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* Header Style */
+    .header-style {
+        background-color: #2c3e50;
+        padding: 20px;
+        border-radius: 8px;
+        color: white;
+        margin-bottom: 25px;
+        border-left: 5px solid #e74c3c; /* Màu đỏ làm điểm nhấn */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* TÙY CHỈNH SLIDER MÀU ĐỎ NHƯ TRONG ẢNH */
+    div.stSlider > div[data-baseweb = "slider"] > div > div > div[role="slider"]{
+        background-color: #ff4b4b !important; /* Nút kéo màu đỏ */
+        box-shadow: 0 0 5px rgba(255, 75, 75, 0.5);
+    }
+    div.stSlider > div[data-baseweb = "slider"] > div > div > div > div {
+        background-color: #ff4b4b !important; /* Thanh trượt màu đỏ */
+    }
+    
+    /* Style cho Card Server */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background-color: white;
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+    
+    /* Input field tinh chỉnh */
+    .stTextInput input, .stNumberInput input {
+        background-color: #f8f9fa;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-if system_info_id:
-    st.success(f"🔗 Đang làm việc với SystemInfo ID: **{system_info_id}**")
-else:
-    st.warning("⚠️ Chưa có SystemInfo ID. Vui lòng lưu 'Yêu cầu bài toán' từ trang chính trước.")
-    system_info_id = st.text_input("Hoặc nhập SystemInfo ID thủ công:", "")
+# --- KHỞI TẠO SESSION STATE CHO DANH SÁCH SERVER ---
+# Đây là phần quan trọng để lưu danh sách server khi thêm/xóa
+if "servers" not in st.session_state:
+    st.session_state.servers = [
+        {"ip": "10.207.252.1", "vcpu": 32, "ram": 64, "cpu_load": 30, "ram_load": 80}
+    ]
 
-# --- 1. Cấu hình Hệ thống & Tham số ---
-st.sidebar.header("1. Cấu hình chung")
-db_type = st.sidebar.selectbox(
-    "Loại Database:",
-    ["Redis", "Oracle RAC", "MariaDB MaxScale", "MariaDB Galera", "PostgreSQL", "MongoDB"]
-)
+def add_server():
+    idx = len(st.session_state.servers) + 1
+    st.session_state.servers.append({
+        "ip": f"10.207.252.{idx}", 
+        "vcpu": 32, 
+        "ram": 64, 
+        "cpu_load": 30, 
+        "ram_load": 80
+    })
 
-with st.sidebar.expander("Tham số An toàn (Safety Factors)"):
-    growth_factor = st.number_input("Growth Factor (Mặc định 1.1)", value=1.1, step=0.1)
-    cpu_threshold = st.number_input("Max CPU Load (0.75)", value=0.75, step=0.05)
-    ram_threshold = st.number_input("Max RAM Load (0.9)", value=0.90, step=0.05)
-    disk_threshold = st.number_input("Max Disk Fill (0.8)", value=0.80, step=0.05)
+def remove_server(index):
+    if len(st.session_state.servers) > 0:
+        st.session_state.servers.pop(index)
 
-st.markdown("---")
+# --- HEADER ---
+st.markdown("""
+<div class="header-style">
+    <h2 style="margin:0; font-size: 24px;">CÔNG CỤ ĐỊNH CỠ HẠ TẦNG (SIZING TOOL)</h2>
+    <p style="margin:5px 0 0 0; font-size: 14px; opacity: 0.9;">Hỗ trợ tính toán tài nguyên Oracle RAC, Redis, MariaDB...</p>
+</div>
+""", unsafe_allow_html=True)
+
+# --- SIDEBAR ---
+with st.sidebar:
+    st.header("Cấu hình chung")
+    
+    query_params = st.query_params
+    url_sys_id = query_params.get("systemInfoId", "")
+    if url_sys_id:
+        system_info_id = url_sys_id
+        st.info(f"Mã hệ thống: {system_info_id}")
+    else:
+        system_info_id = st.text_input("Mã hệ thống (SystemInfo ID)")
+
+    st.divider()
+    
+    db_type = st.selectbox(
+        "Loại Cơ sở dữ liệu",
+        ["Oracle RAC", "MariaDB MaxScale", "PostgreSQL", "Redis", "MongoDB"]
+    )
+
+    st.divider()
+    
+    with st.expander("Tham số An toàn", expanded=True):
+        growth_factor = st.slider("Hệ số Tăng trưởng (Growth)", 1.0, 2.0, 1.1, 0.1)
+        cpu_threshold = st.slider("Ngưỡng CPU tối đa", 0.5, 1.0, 0.75, 0.05)
+        ram_threshold = st.slider("Ngưỡng RAM tối đa", 0.5, 1.0, 0.90, 0.05)
+        disk_threshold = st.slider("Ngưỡng Disk tối đa", 0.5, 1.0, 0.80, 0.05)
 
 # ==========================================
-# KHU VỰC XỬ LÝ RIÊNG CHO REDIS
+# GIAO DIỆN CHÍNH
 # ==========================================
+
 if db_type == "Redis":
-    st.subheader(f"2. Định cỡ cho: {db_type}")
-    
-    col_redis_input, col_redis_result = st.columns([1, 1])
-    
-    with col_redis_input:
-        st.info("Nhập thông tin đặc tả Redis")
-        
-        # 1. Upload Mô hình Logic
-        st.markdown("**1. Mô hình Logic & Minh họa**")
-        uploaded_logic_img = st.file_uploader("Upload ảnh Mô hình Logic (Kết nối, Port...)", type=['png', 'jpg', 'jpeg'])
-        if uploaded_logic_img:
-            st.image(uploaded_logic_img, caption="Mô hình Logic", use_container_width=True)
-            
-        uploaded_ref_img = st.file_uploader("Upload ảnh Minh họa (Tùy chọn)", type=['png', 'jpg', 'jpeg'])
-        if uploaded_ref_img:
-            with st.expander("Xem ảnh minh họa"):
-                st.image(uploaded_ref_img, caption="Ảnh minh họa", use_container_width=True)
-        
-        # 2. Mô tả & Mục đích
-        st.markdown("**2. Thông tin mô tả**")
-        redis_desc = st.text_area("Mô tả module Redis (Chức năng, nhiệm vụ)", placeholder="Ví dụ: Module lưu trữ session người dùng...")
-        redis_purpose = st.text_area("Mục đích sử dụng", placeholder="Ví dụ: Cache ứng dụng, Message Broker Pub/Sub...")
-        
-        # 3. Chọn phương pháp tính
-        st.markdown("**3. Phương pháp tính toán**")
-        calc_method = st.radio("Chọn cách tính:", ["Theo lượng Key dự kiến (Khuyên dùng)", "Tuyến tính theo cấu hình cũ (Không khuyến nghị)"])
-        
-        redis_params = {} # Dict để lưu tham số cho tính toán sau này
-        
-        if calc_method == "Theo lượng Key dự kiến (Khuyên dùng)":
-            st.markdown("---")
-            st.markdown("#### Nhập liệu Key & Size")
-            
-            # Input A: Lượng Key
-            key_count = st.number_input("Tổng lượng Key dự kiến (A)", min_value=1, value=1000000, format="%d")
-            st.caption("HDSD: Dùng `dbsize` hoặc `info keyspace` trên môi trường Test/UAT.")
-            uploaded_key_proof = st.file_uploader("Upload ảnh sở cứ (Key Count)", type=['png', 'jpg'], key="k_proof")
-            
-            # Input B: Size trung bình
-            avg_size_kb = st.number_input("Kích thước trung bình 1 bản ghi (KB) (B)", min_value=0.0, value=2.0, step=0.1, format="%.2f")
-            st.caption("HDSD: Dùng `memory usage <key>` cho 10-20 key mẫu -> lấy trung bình.")
-            uploaded_size_proof = st.file_uploader("Upload ảnh sở cứ (Avg Size)", type=['png', 'jpg'], key="s_proof")
-            
-            # Input bổ sung cho Cluster
-            st.markdown("#### Cấu hình Cluster (Nếu cần)")
-            system_criticality = st.selectbox("Mức độ quan trọng của hệ thống", ["Hệ thống thường (1 Master - 1 Slave)", "Hệ thống ĐBQT (1 Master - 2 Slave)"])
-            num_shards = st.number_input("Số lượng Shard/Master dự kiến (N - Phải là số lẻ)", min_value=1, value=3, step=2)
-            if num_shards % 2 == 0:
-                st.warning("⚠️ Số lượng Master (N) nên là số lẻ để đảm bảo Quorum tốt nhất.")
-            
-            redis_params = {
-                "method": "keys",
-                "A": key_count,
-                "B_KB": avg_size_kb,
-                "criticality": system_criticality,
-                "N": num_shards,
-                "proof_key": uploaded_key_proof,
-                "proof_size": uploaded_size_proof
-            }
-            
-        else: # Tuyến tính
-            st.markdown("---")
-            st.markdown("#### Nhập liệu Cấu hình hiện tại (Baseline)")
-            st.warning("⚠️ Cách tính này chỉ nhân bản cấu hình cũ, có thể không tối ưu cho Redis.")
-            
-            # Input tương tự phần Server list cũ
-            c1, c2, c3 = st.columns(3)
-            curr_ram = c1.number_input("RAM hiện tại (GB)", value=16)
-            curr_cpu = c2.number_input("vCPU hiện tại", value=4)
-            curr_disk = c3.number_input("Disk hiện tại (GB)", value=50)
-            
-            l1, l2, l3 = st.columns(3)
-            load_ram = l1.slider("% RAM Used", 0, 100, 70)
-            load_cpu = l2.slider("% CPU Used", 0, 100, 30)
-            load_disk = l3.slider("% Disk Used", 0, 100, 50)
-            
-            target_scale = st.number_input("Tỉ lệ Scale mong muốn (Ví dụ 2.0 = Gấp đôi tải)", value=1.5)
-            
-            redis_params = {
-                "method": "linear",
-                "curr_ram": curr_ram, "curr_cpu": curr_cpu, "curr_disk": curr_disk,
-                "load_ram": load_ram, "load_cpu": load_cpu, "load_disk": load_disk,
-                "scale": target_scale
-            }
+    st.info("")
 
-    with col_redis_result:
-        st.markdown("### Kết quả Đề xuất (Redis)")
+else:
+    # --- GIAO DIỆN ORACLE RAC / DB THƯỜNG ---
+    
+    col_input, col_result = st.columns([1.2, 0.8], gap="large")
+    
+    # === CỘT TRÁI: NHẬP LIỆU BASELINE ===
+    with col_input:
+        st.subheader("A. Hệ thống Tham chiếu (Baseline)")
         
-        if st.button("TÍNH TOÁN REDIS", type="primary"):
-            res_report = {} # Lưu kết quả để in báo cáo
+        # 1. Thông tin CCU
+        with st.container(border=True):
+            c1, c2 = st.columns(2)
+            current_ccu = c1.number_input("CCU Hiện tại", value=100)
+            target_ccu = c2.number_input("CCU Mục tiêu", value=200)
+            scale_ratio = target_ccu / current_ccu
+            st.caption(f"Tỉ lệ Scale: **{scale_ratio:.2f}x**")
+
+        st.markdown("#### Danh sách Server hiện tại")
+        
+        # 2. VÒNG LẶP HIỂN THỊ SERVER CARD (GIỐNG ẢNH)
+        # Sử dụng st.session_state.servers để render từng card
+        
+        for i, server in enumerate(st.session_state.servers):
+            # Tạo khung viền cho từng server
+            with st.container(border=True):
+                # Header của Card: Tên Server + Nút Xóa
+                head_col1, head_col2 = st.columns([0.85, 0.15])
+                head_col1.markdown(f"**Server {i + 1}**")
+                if head_col2.button("🗑️", key=f"btn_del_{i}", help="Xóa server này"):
+                    remove_server(i)
+                    st.rerun()
+
+                # Dòng 1: IP, vCPU, RAM
+                row1 = st.columns([2, 1, 1])
+                server["ip"] = row1[0].text_input(f"IP Sv{i+1}", value=server["ip"], key=f"ip_{i}")
+                server["vcpu"] = row1[1].number_input(f"vCPU Sv{i+1}", value=server["vcpu"], key=f"cpu_{i}")
+                server["ram"] = row1[2].number_input(f"RAM(GB) Sv{i+1}", value=server["ram"], key=f"ram_{i}")
+
+                # Dòng 2: Slider CPU & RAM (Màu đỏ do CSS ở trên)
+                row2 = st.columns(2)
+                
+                # Slider CPU
+                server["cpu_load"] = row2[0].slider(
+                    f"% CPU Used Sv{i+1}", 
+                    0, 100, server["cpu_load"], 
+                    key=f"sld_cpu_{i}"
+                )
+                
+                # Slider RAM
+                server["ram_load"] = row2[1].slider(
+                    f"% RAM Used Sv{i+1}", 
+                    0, 100, server["ram_load"], 
+                    key=f"sld_ram_{i}"
+                )
+
+        # Nút chức năng quản lý danh sách
+        btn_col1, btn_col2 = st.columns([1, 1])
+        if btn_col1.button("➕ Thêm Server", type="secondary", use_container_width=True):
+            add_server()
+            st.rerun()
             
+        st.markdown("---")
+        st.markdown("#### Thông tin Lưu trữ (Storage)")
+        with st.container(border=True):
+            sd1, sd2 = st.columns(2)
+            current_storage_used_data = sd1.number_input("Data Used (GB)", value=500)
+            current_storage_used_log = sd2.number_input("Log Used (GB)", value=100)
+            current_storage_used_backup = st.number_input("Backup Full (GB)", value=500)
+
+    # === CỘT PHẢI: KẾT QUẢ TÍNH TOÁN ===
+    with col_result:
+        st.subheader("B. Kết quả & Đề xuất")
+        
+        with st.container(border=True):
+            st.markdown("##### Cấu hình Mục tiêu")
+            min_node = 2 if db_type == "Oracle RAC" else 1
+            proposed_n = st.number_input("Số Node đề xuất:", min_value=min_node, value=max(len(st.session_state.servers), min_node))
+            
+            calc_btn = st.button("TÍNH TOÁN SIZING", type="primary", use_container_width=True)
+
+        if calc_btn:
+            # 1. Tính tổng tài nguyên đang dùng (Baseline) từ Session State
+            total_cpu_used = 0
+            total_ram_used = 0
+            
+            for s in st.session_state.servers:
+                total_cpu_used += s["vcpu"] * (s["cpu_load"] / 100)
+                total_ram_used += s["ram"] * (s["ram_load"] / 100)
+
+            # 2. Tính nhu cầu (Requirements)
+            req_cpu = (total_cpu_used * scale_ratio * growth_factor) / cpu_threshold
+            req_ram = (total_ram_used * scale_ratio * growth_factor) / ram_threshold
+            
+            req_disk_data = (current_storage_used_data * scale_ratio * growth_factor) / disk_threshold
+            req_disk_log = (current_storage_used_log * scale_ratio * growth_factor) / disk_threshold
+            
+            # 3. Chia cho số node mới
+            per_node_cpu = math.ceil(math.ceil(req_cpu) / proposed_n)
+            per_node_ram = math.ceil(math.ceil(req_ram) / proposed_n)
+            
+            # Logic hiển thị Storage
+            is_shared = db_type == "Oracle RAC"
+            storage_txt = f"{math.ceil(req_disk_data)} GB (Shared)" if is_shared else f"{math.ceil(req_disk_data)} GB (Mỗi Node)"
+
+            # 4. Hiển thị Kết quả
+            st.success(f"✅ Kết quả tính toán cho {db_type} ({proposed_n} Node)")
+            
+            with st.container(border=True):
+                st.markdown("#### Cấu hình Mỗi Node")
+                m1, m2 = st.columns(2)
+                m1.metric("vCPU", f"{per_node_cpu} Core")
+                m2.metric("RAM", f"{per_node_ram} GB")
+                
+                st.divider()
+                st.markdown("#### Dung lượng Lưu trữ")
+                m3, m4 = st.columns(2)
+                m3.metric("Data Volume", storage_txt)
+                m4.metric("Log Volume", f"{math.ceil(req_disk_log/proposed_n)} GB")
+
+            # 5. Xuất báo cáo Word
+            doc = Document()
+            doc.add_heading(f'BÁO CÁO SIZING: {db_type.upper()}', 0)
+            
+            doc.add_heading('1. Thông tin Baseline', level=1)
+            table = doc.add_table(rows=1, cols=3)
+            table.style = 'Table Grid'
+            hdr = table.rows[0].cells
+            hdr[0].text = 'Server IP'
+            hdr[1].text = 'vCPU (Used)'
+            hdr[2].text = 'RAM (Used)'
+            
+            for s in st.session_state.servers:
+                row = table.add_row().cells
+                row[0].text = s['ip']
+                row[1].text = f"{s['vcpu']} ({s['cpu_load']}%)"
+                row[2].text = f"{s['ram']} ({s['ram_load']}%)"
+            
+            doc.add_heading('2. Kết quả Đề xuất', level=1)
+            doc.add_paragraph(f"Tổng số Node: {proposed_n}")
+            doc.add_paragraph(f"Cấu hình mỗi Node: {per_node_cpu} vCPU, {per_node_ram} GB RAM")
+            
+            b = BytesIO()
+            doc.save(b)
+            b.seek(0)
+            st.download_button("📥 Tải báo cáo (.docx)", data=b, file_name=f"sizing_{db_type}.docx", use_container_width=True)
+# --- TRƯỜNG HỢP 1: REDIS SIZING ---
+if db_type == "Redis":
+    
+    # Layout 2 cột: Trái (Input) - Phải (Output)
+    col_input, col_result = st.columns([1.2, 0.8], gap="medium")
+    
+    with col_input:
+        st.subheader("Tham số Đầu vào")
+        
+        # Tab điều hướng nhập liệu
+        tab_info, tab_sizing = st.tabs(["Thông tin Mô hình", "Số liệu Tính toán"])
+        
+        with tab_info:
+            with st.container(border=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown("**1. Sơ đồ Logic (Diagram)**")
+                    uploaded_logic_img = st.file_uploader("Tải lên sơ đồ", type=['png', 'jpg'])
+                    if uploaded_logic_img:
+                        st.image(uploaded_logic_img, use_container_width=True)
+                with c2:
+                    st.markdown("**2. Ảnh Minh họa (Tùy chọn)**")
+                    uploaded_ref_img = st.file_uploader("Tải lên ảnh tham khảo", type=['png', 'jpg'])
+                    if uploaded_ref_img:
+                        st.image(uploaded_ref_img, use_container_width=True)
+
+            with st.container(border=True):
+                st.markdown("**3. Thông tin Nghiệp vụ**")
+                redis_desc = st.text_area("Mô tả module", height=100, placeholder="Mô tả chức năng chính của module...")
+                redis_purpose = st.text_area("Mục đích sử dụng", height=100, placeholder="Ví dụ: Cache, Session, Pub/Sub...")
+
+        with tab_sizing:
+            method = st.radio("Phương pháp tính toán", ["Theo số lượng Key (Khuyên dùng)", "Tuyến tính theo cấu hình cũ"], horizontal=True)
+            
+            redis_params = {}
+
+            if "Key" in method:
+                with st.container(border=True):
+                    st.markdown("#### Chỉ số Key")
+                    c_key1, c_key2 = st.columns(2)
+                    
+                    with c_key1:
+                        key_count = st.number_input("Tổng số lượng Key (A)", min_value=1, value=1000000, step=100000, format="%d")
+                        st.caption("Gợi ý: Dùng lệnh dbsize hoặc info keyspace")
+                        uploaded_key_proof = st.file_uploader("Ảnh sở cứ (Số lượng Key)", type=['png', 'jpg'], key="kp")
+                    
+                    with c_key2:
+                        avg_size_kb = st.number_input("Kích thước TB/Key (KB) (B)", min_value=0.0, value=2.0, step=0.1)
+                        st.caption("Gợi ý: Dùng lệnh memory usage")
+                        uploaded_size_proof = st.file_uploader("Ảnh sở cứ (Kích thước)", type=['png', 'jpg'], key="sp")
+
+                with st.container(border=True):
+                    st.markdown("#### Chiến lược Cluster")
+                    c_clus1, c_clus2 = st.columns(2)
+                    with c_clus1:
+                        system_criticality = st.selectbox("Mức độ quan trọng", ["Thường (1 Master - 1 Slave)", "Đặc biệt quan trọng (1 Master - 2 Slave)"])
+                    with c_clus2:
+                        num_shards = st.number_input("Số Shard (Master) dự kiến (N)", min_value=1, value=3, step=2, help="Nên là số lẻ")
+
+                redis_params = {
+                    "method": "keys", "A": key_count, "B_KB": avg_size_kb,
+                    "criticality": system_criticality, "N": num_shards,
+                    "proof_key": uploaded_key_proof, "proof_size": uploaded_size_proof
+                }
+            
+            else: # Phương pháp Tuyến tính
+                with st.container(border=True):
+                    st.warning("Lưu ý: Phương pháp này chỉ nhân bản cấu hình cũ, không tối ưu cho Redis.")
+                    c1, c2, c3 = st.columns(3)
+                    curr_ram = c1.number_input("RAM Hiện tại (GB)", value=16)
+                    curr_cpu = c2.number_input("vCPU Hiện tại", value=4)
+                    curr_disk = c3.number_input("Disk Hiện tại (GB)", value=50)
+                    
+                    l1, l2 = st.columns(2)
+                    load_ram = l1.slider("% RAM đang dùng", 0, 100, 70)
+                    load_cpu = l2.slider("% CPU đang dùng", 0, 100, 30)
+                    target_scale = st.number_input("Tỉ lệ mở rộng (Scale Ratio)", value=1.5)
+
+                    redis_params = {
+                        "method": "linear", "curr_ram": curr_ram, "curr_cpu": curr_cpu, 
+                        "curr_disk": curr_disk, "load_ram": load_ram, "load_cpu": load_cpu,
+                        "scale": target_scale
+                    }
+
+    # Cột hiển thị kết quả
+    with col_result:
+        st.subheader("Kết quả Định cỡ")
+        
+        # Nút Tính toán
+        if st.button("TÍNH TOÁN TÀI NGUYÊN REDIS", type="primary", use_container_width=True):
+            
+            final_model = ""
+            node_config = {}
+            total_size_gb = 0
+
+            # Logic Tính toán Redis
             if redis_params["method"] == "keys":
-                # Logic A: Tính theo Key
-                # C (GB) = A * B(KB) / 1024 / 1024
+                # Tính dung lượng Data (GB)
                 total_size_gb = (redis_params["A"] * redis_params["B_KB"]) / (1024 * 1024)
-                
-                st.write(f"📊 **Tổng dung lượng Key (C):** {total_size_gb:,.2f} GB")
-                
-                final_model = ""
-                node_config = {}
                 
                 # Logic chọn mô hình
                 if total_size_gb < 32:
-                    final_model = "Redis Sentinel (1 Master - 2 Slave)"
-                    # RAM/svr = C * 1.1 / 0.8
+                    final_model = "Redis Sentinel"
                     req_ram = (total_size_gb * 1.1) / 0.8
-                    req_cpu = 16 # Fixed default for Sentinel
-                    req_disk = 4 * req_ram
-                    
-                    node_config = {
-                        "role": "Mỗi Node (Master/Slave)",
-                        "qty": 3,
-                        "vCPU": req_cpu,
-                        "RAM": math.ceil(req_ram),
-                        "Disk": math.ceil(req_disk)
-                    }
-                    st.success(f"✅ Đề xuất mô hình: **{final_model}** (Do C < 32GB)")
-                    
+                    node_config = {"qty": 3, "vCPU": 16, "RAM": math.ceil(req_ram), "Disk": math.ceil(req_ram * 4)}
+                    st.info(f"Tổng dung lượng Data: {total_size_gb:.2f} GB (<32GB) -> Đề xuất mô hình Sentinel")
                 else:
                     final_model = "Redis Cluster"
                     N = redis_params["N"]
-                    criticality = redis_params["criticality"]
-                    
-                    # Logic DBQT vs Thường
-                    slaves_per_master = 2 if "ĐBQT" in criticality else 1
-                    total_nodes = N * (1 + slaves_per_master)
-                    
-                    # RAM/svr = C * 1.1 / 0.8 / N
+                    slaves = 2 if "Đặc biệt" in redis_params["criticality"] else 1
+                    total_nodes = N * (1 + slaves)
                     req_ram = (total_size_gb * 1.1) / 0.8 / N
-                    req_cpu = 8 # Fixed default for Cluster
-                    req_disk = 4 * req_ram
-                    
-                    node_config = {
-                        "role": f"Mỗi Node (Trong cụm {N} Shard)",
-                        "qty": total_nodes,
-                        "vCPU": req_cpu,
-                        "RAM": math.ceil(req_ram),
-                        "Disk": math.ceil(req_disk)
-                    }
-                    st.success(f"✅ Đề xuất mô hình: **{final_model}** (Do C > 32GB)")
-                    st.info(f"Cấu trúc: {N} Master, mỗi Master có {slaves_per_master} Slave. Tổng {total_nodes} Node.")
-
-                # Hiển thị cấu hình
-                st.markdown("#### Cấu hình Node chi tiết")
-                rc1, rc2, rc3 = st.columns(3)
-                rc1.metric("vCPU / Node", f"{node_config['vCPU']} vCore")
-                rc2.metric("RAM / Node", f"{node_config['RAM']} GB")
-                rc3.metric("DISK / Node", f"{node_config['Disk']} GB")
-                
-                res_report = {
-                    "model": final_model,
-                    "config": node_config,
-                    "data_size": total_size_gb,
-                    "params": redis_params
-                }
-
-            else:
-                # Logic B: Tuyến tính
-                # Tính nhu cầu tổng: (Used * Scale * Growth) / Threshold
+                    node_config = {"qty": total_nodes, "vCPU": 8, "RAM": math.ceil(req_ram), "Disk": math.ceil(req_ram * 4)}
+                    st.info(f"Tổng dung lượng Data: {total_size_gb:.2f} GB (>32GB) -> Đề xuất mô hình Cluster ({N} Shards)")
+            
+            else: # Tuyến tính
                 p = redis_params
-                req_ram_total = (p["curr_ram"] * (p["load_ram"]/100) * p["scale"] * growth_factor) / ram_threshold
-                req_cpu_total = (p["curr_cpu"] * (p["load_cpu"]/100) * p["scale"] * growth_factor) / cpu_threshold
-                req_disk_total = (p["curr_disk"] * (p["load_disk"]/100) * p["scale"] * growth_factor) / disk_threshold
-                
-                # Giả định Sentinel 3 node cho đơn giản hoặc giữ nguyên mô hình cũ
-                # Ở đây đề xuất chia đều cho 3 node (Sentinel standard)
-                per_node_ram = math.ceil(req_ram_total / 3) 
-                per_node_cpu = math.ceil(req_cpu_total / 3)
-                per_node_disk = math.ceil(req_disk_total / 3) # Hoặc dùng công thức 4*RAM
-                
-                # Check lại disk theo RAM nếu disk tính ra nhỏ hơn
-                if per_node_disk < 4 * per_node_ram:
-                    per_node_disk = 4 * per_node_ram
-                
-                final_model = "Redis Sentinel (Linear Scaled)"
-                node_config = {
-                        "role": "Mỗi Node",
-                        "qty": 3,
-                        "vCPU": max(4, per_node_cpu), # Min 4 vCPU
-                        "RAM": per_node_ram,
-                        "Disk": per_node_disk
-                }
-                
-                st.success(f"✅ Đề xuất mô hình: **{final_model}**")
-                st.markdown("#### Cấu hình Node chi tiết")
-                rc1, rc2, rc3 = st.columns(3)
-                rc1.metric("vCPU / Node", f"{node_config['vCPU']} vCore")
-                rc2.metric("RAM / Node", f"{node_config['RAM']} GB")
-                rc3.metric("DISK / Node", f"{node_config['Disk']} GB")
-                
-                res_report = {
-                    "model": final_model,
-                    "config": node_config,
-                    "data_size": 0,
-                    "params": redis_params
-                }
+                req_ram_total = (p["curr_ram"] * (p["load_ram"]/100) * p["scale"] * growth_factor) / 0.9
+                req_cpu_total = (p["curr_cpu"] * (p["load_cpu"]/100) * p["scale"] * growth_factor) / 0.75
+                final_model = "Redis Sentinel (Tuyến tính)"
+                node_config = {"qty": 3, "vCPU": max(4, math.ceil(req_cpu_total/3)), "RAM": math.ceil(req_ram_total/3), "Disk": math.ceil(req_ram_total/3)*4}
 
-            # --- Xuất WORD cho REDIS ---
-            doc = Document()
-            doc.add_heading('BÁO CÁO SIZING REDIS', 0)
-            doc.add_paragraph(f'Loại Module: {db_type}')
-            doc.add_paragraph(f'Ngày lập: {datetime.now().strftime("%d/%m/%Y")}')
-            
-            doc.add_heading('1. Thông tin Mô hình & Nghiệp vụ', level=1)
-            doc.add_paragraph(f"Mô tả: {redis_desc}")
-            doc.add_paragraph(f"Mục đích sử dụng: {redis_purpose}")
-            doc.add_paragraph("Lưu ý: Xem ảnh mô hình logic trong file đính kèm hoặc hệ thống.")
-            
-            doc.add_heading('2. Cơ sở tính toán', level=1)
-            if redis_params["method"] == "keys":
-                doc.add_paragraph(f"Phương pháp: Theo lượng Key dự kiến")
-                doc.add_paragraph(f"- Tổng lượng Key (A): {redis_params['A']:,}")
-                doc.add_paragraph(f"- Size trung bình (B): {redis_params['B_KB']} KB")
-                doc.add_paragraph(f"- Tổng dung lượng Data (C = A*B): {res_report['data_size']:.2f} GB")
-                if res_report['data_size'] < 32:
-                     doc.add_paragraph(f"Nhận xét: C < 32GB -> Đề xuất Sentinel.")
-                else:
-                     doc.add_paragraph(f"Nhận xét: C > 32GB -> Đề xuất Cluster ({redis_params['N']} Shards).")
-            else:
-                doc.add_paragraph(f"Phương pháp: Tuyến tính (Scale {redis_params['scale']}x)")
-            
-            doc.add_heading('3. Cấu hình Đề xuất', level=1)
-            doc.add_paragraph(f"Mô hình triển khai: {res_report['model']}")
-            
-            table = doc.add_table(rows=1, cols=2)
-            table.style = 'Table Grid'
-            def add_r(l, v):
-                r = table.add_row().cells
-                r[0].text = l
-                r[1].text = str(v)
-            
-            add_r("Số lượng Node", res_report['config']['qty'])
-            add_r("vCPU (per Node)", f"{res_report['config']['vCPU']} Core")
-            add_r("RAM (per Node)", f"{res_report['config']['RAM']} GB")
-            add_r("DISK (per Node)", f"{res_report['config']['Disk']} GB")
-            
-            doc.add_paragraph("\nGhi chú cấu hình:")
-            doc.add_paragraph("- RAM tính toán đã bao gồm hệ số an toàn (RAM thực tế * 1.1 / 0.8).")
-            doc.add_paragraph("- Dung lượng Disk khuyến nghị tối thiểu gấp 4 lần RAM để đảm bảo an toàn cho việc Fork process khi RDB snapshot/AOF rewrite.")
-
-            buffer = BytesIO()
-            doc.save(buffer)
-            buffer.seek(0)
-            
-            st.download_button(
-                "Tải Báo cáo Redis (.docx)", 
-                data=buffer, 
-                file_name=f"Sizing_Redis_{datetime.now().strftime('%Y%m%d')}.docx"
-            )
-            
-            # --- Lưu kết quả vào Database ---
-            if system_info_id:
-                redis_db_data = {
-                    "moTa": redis_desc,
-                    "mucDich": redis_purpose,
-                    "keyNumber": redis_params.get("A", 0) if redis_params["method"] == "keys" else 0,
-                    "avgSize": redis_params.get("B_KB", 0) if redis_params["method"] == "keys" else 0,
-                    "importance": redis_params.get("criticality", "Thường") if redis_params["method"] == "keys" else "Thường",
-                    "masterNumber": redis_params.get("N", 1) if redis_params["method"] == "keys" else 1,
-                    "sumC": round(res_report.get("data_size", 0), 2),
-                    "deXuat": res_report.get("model", ""),
-                    "vCpu": res_report.get("config", {}).get("vCPU", 0),
-                    "ram": res_report.get("config", {}).get("RAM", 0),
-                    "disk": res_report.get("config", {}).get("Disk", 0)
-                }
+            # Hiển thị Kết quả (Card Style)
+            with st.container(border=True):
+                st.markdown(f"**Kiến trúc đề xuất:** {final_model}")
+                st.markdown(f"**Tổng số Node:** {node_config['qty']}")
                 
-                success, result = save_redis_sizing(system_info_id, redis_db_data)
-                if success:
-                    st.success("✅ Đã lưu kết quả sizing vào database!")
-                else:
-                    st.error(f"❌ Lỗi khi lưu kết quả: {result}")
-            else:
-                st.warning("⚠️ Chưa có SystemInfo ID. Kết quả chưa được lưu vào database.")
-
-# ==========================================
-# KHU VỰC CŨ CHO CÁC DB KHÁC (ORACLE/MARIA...)
-# ==========================================
-else: 
-    st.subheader(f"2. Định cỡ cho: {db_type}")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("A. Hệ thống Tham chiếu (Baseline)")
-        
-        current_ccu = st.number_input("CCU hiện tại", min_value=1, value=100)
-        target_ccu = st.number_input("CCU Mục tiêu", min_value=1, value=200)
-        scale_ratio = target_ccu / current_ccu
-        st.info(f"Tỉ lệ Scale CCU: **{scale_ratio:.2f}x**")
-
-        num_servers = st.number_input("Số lượng Server tham chiếu", min_value=1, value=3)
-        
-        server_data = []
-        with st.container(height=300):
-            for i in range(int(num_servers)):
-                st.markdown(f"**Server {i+1}**")
-                c1, c2, c3 = st.columns([2, 1.5, 1.5])
-                ip = c1.text_input(f"IP Sv{i+1}", f"10.207.252.{i+1}")
-                cpu_core = c2.number_input(f"vCPU Sv{i+1}", value=32)
-                ram_gb = c3.number_input(f"RAM(GB) Sv{i+1}", value=64)
-                
-                l1, l2 = st.columns(2)
-                cpu_load = l1.slider(f"% CPU Used Sv{i+1}", 0, 100, 30 + (i*2))
-                ram_load = l2.slider(f"% RAM Used Sv{i+1}", 0, 100, 80 + (i*1))
                 st.divider()
+                st.markdown("#### Cấu hình mỗi Node")
                 
-                server_data.append({
-                    "IP": ip, "vCPU": cpu_core, "RAM_GB": ram_gb,
-                    "Load_CPU": cpu_load, "Load_RAM": ram_load
-                })
+                m1, m2 = st.columns(2)
+                m1.metric("vCPU", f"{node_config['vCPU']} Core")
+                m2.metric("RAM", f"{node_config['RAM']} GB", delta="Đã bao gồm Buffer")
                 
-        st.divider()
-        st.markdown("#### Thông tin Lưu trữ")
-        current_storage_used_data = st.number_input("Data Used (GB)", value=500)
-        current_storage_used_log = st.number_input("Log Used (GB)", value=500)
-        current_storage_used_backup = st.number_input("Backup Full Size (GB)", value=500)
-        current_days_backup = st.number_input("Ngày lưu Backup", value=2)
-        compressed_ratio_backup = st.number_input("Tỉ lệ nén Backup", value=0.8)
+                m3, m4 = st.columns(2)
+                m3.metric("Lưu trữ (Disk)", f"{node_config['Disk']} GB", "Tỉ lệ 4x RAM")
+                m4.metric("Mạng (Network)", "10 Gbps")
 
-    with col2:
-        st.markdown("### Cấu hình Cluster Đề xuất")
-        min_node_req = 2 if db_type == "Oracle RAC" else 1
-        default_node = max(int(num_servers), min_node_req)
-        
-        proposed_n = st.number_input(f"Số lượng Node đề xuất:", min_value=min_node_req, value=default_node)
-
-        if st.button("TÍNH TOÁN SIZING", type="primary"):
-            # 1. Tính tổng tài nguyên Compute ĐANG DÙNG
-            total_cpu_used = sum([s['vCPU'] * (s['Load_CPU']/100) for s in server_data])
-            total_ram_used = sum([s['RAM_GB'] * (s['Load_RAM']/100) for s in server_data])
-
-            # 2. Tính Tổng nhu cầu (Total Requirements)
-            req_total_cpu = (total_cpu_used * scale_ratio * growth_factor) / cpu_threshold
-            req_total_ram = (total_ram_used * scale_ratio * growth_factor) / ram_threshold
-            
-            # Tính Storage (Chung)
-            req_total_disk_data = (current_storage_used_data * scale_ratio * growth_factor) / disk_threshold
-            req_total_disk_log = (current_storage_used_log * scale_ratio * growth_factor) / disk_threshold
-            req_total_disk_backup = (current_storage_used_backup + (current_storage_used_backup*current_days_backup*compressed_ratio_backup)) * scale_ratio * growth_factor / disk_threshold
-            
-            final_total_cpu = math.ceil(req_total_cpu)
-            final_total_ram = math.ceil(req_total_ram)
-            final_total_disk_data = math.ceil(req_total_disk_data)
-            final_total_disk_log = math.ceil(req_total_disk_log)
-            final_total_disk_backup = math.ceil(req_total_disk_backup)
-
-            # 3. Phân bổ theo từng loại DB (LOGIC MỚI CẬP NHẬT Ở ĐÂY)
-            per_node_cpu = math.ceil(final_total_cpu / proposed_n)
-            per_node_ram = math.ceil(final_total_ram / proposed_n)
-            
-            storage_msg = ""
-            
-            # Logic riêng:
-            if db_type == "Oracle RAC":
-                per_node_data = final_total_disk_data # Shared, hiển thị tổng
-                per_node_log = math.ceil(final_total_disk_log / proposed_n) # Log riêng
-                storage_note = "Data (Shared NAS/SAN), Log (Local/ASM)"
-                storage_val_display = f"{final_total_disk_data} GB (Total Shared)"
-            else:
-                # Shared Nothing (MariaDB, PG, Mongo) -> Data phải nhân bản
-                per_node_data = final_total_disk_data # Mỗi node cần Full Data
-                per_node_log = math.ceil(final_total_disk_log / proposed_n)
-                storage_note = "Data (Local Replicated - Mỗi Node chứa Full DB)"
-                storage_val_display = f"{final_total_disk_data} GB (Per Node)"
-
-            # --- Hiển thị Kết quả ---
+            # Khu vực Xuất báo cáo & Lưu
             st.divider()
-            st.success("**KẾT QUẢ ĐỀ XUẤT**")
+            c_down, c_save = st.columns(2)
             
-            r1, r2 = st.columns(2)
-            r3, r4, r5 = st.columns(3)
-            
-            r1.metric("vCPU / Node", f"{per_node_cpu} Cores")
-            r2.metric("RAM / Node", f"{per_node_ram} GB")
-            r3.metric(" /data ", storage_val_display, storage_note)
-            r4.metric(" /log ", f"{per_node_log} GB", "Per Node")
-            r5.metric(" /backup ", f"{final_total_disk_backup} GB", "NAS Shared")
+            with c_down:
+                # Tạo file Word
+                doc = Document()
+                doc.add_heading('BAO CAO DINH CO REDIS', 0)
+                doc.add_paragraph(f"Mo hinh: {final_model}")
+                doc.add_paragraph(f"Cau hinh Node: {node_config['vCPU']} vCPU, {node_config['RAM']} GB RAM")
+                b = BytesIO()
+                doc.save(b)
+                b.seek(0)
+                st.download_button("Tai bao cao (.docx)", data=b, file_name="redis_sizing.docx", use_container_width=True)
 
-            # --- Xuất Word (Giản lược cho code ngắn) ---
-            doc = Document()
-            doc.add_heading('BÁO CÁO SIZING DATABASE', 0)
-            doc.add_paragraph(f"Loại DB: {db_type}")
-            doc.add_paragraph(f"Cấu hình mỗi Node ({proposed_n} nodes):")
-            doc.add_paragraph(f"- vCPU: {per_node_cpu}")
-            doc.add_paragraph(f"- RAM: {per_node_ram} GB")
-            doc.add_paragraph(f"- Storage Data: {storage_val_display}")
-            
-            buffer = BytesIO()
-            doc.save(buffer)
-            buffer.seek(0)
-            st.download_button("Tải Báo cáo (.docx)", data=buffer, file_name=f"Sizing_{db_type}.docx")
+            with c_save:
+                if st.button("Luu vao Co so du lieu", use_container_width=True):
+                    if system_info_id:
+                        db_payload = {
+                            "moTa": redis_desc, "mucDich": redis_purpose,
+                            "keyNumber": redis_params.get("A", 0), "avgSize": redis_params.get("B_KB", 0),
+                            "deXuat": final_model, "ram": node_config['RAM'], "vCpu": node_config['vCPU'], "disk": node_config['Disk']
+                        }
+                        success, res = save_redis_sizing(system_info_id, db_payload)
+                        if success: st.success("Lưu dữ liệu thành công!")
+                        else: st.error(f"Lỗi: {res}")
+                    else:
+                        st.error("Chưa nhập Mã hệ thống (System ID)")
