@@ -180,7 +180,7 @@ model: `
                 <span class="help-icon">
                     <i class="fa-solid fa-circle-question"></i>
                     <div class="help-content">
-                        <img src="https://placehold.co/600x300/e9ecef/444?text=Anh+Mau+Vat+Ly" alt="Mẫu Vật lý">
+                        <img src="hinhanh.img/vatly.png" alt="Mẫu Vật lý">
                         <p class="help-text">Sơ đồ đấu nối vật lý giữa các máy chủ, thiết bị mạng.</p>
                     </div>
                 </span>
