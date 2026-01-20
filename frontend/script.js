@@ -4,23 +4,644 @@ const API_BASE_URL = 'http://localhost:8081/api';
 // Biến lưu SystemInfo ID hiện tại - khôi phục từ localStorage nếu có
 let currentSystemInfoId = localStorage.getItem('currentSystemInfoId') || null;
 
-// Hàm lưu SystemInfo ID vào localStorage
+// Biến lưu trang hiện tại để auto-save
+let currentPageId = null;
+
+// Hàm lưu cache cho trang hiện tại (gọi từ các sự kiện)
+function saveFormCacheForCurrentPage() {
+    if (currentPageId) {
+        saveFormCache(currentPageId);
+    }
+}
+
+// ========== HỆ THỐNG CACHE FORM DATA ==========
+
+// Hàm lấy ảnh base64 từ container
+function getImagesFromContainer(containerId) {
+    const container = document.getElementById(containerId);
+    const images = [];
+    if (container) {
+        container.querySelectorAll('.upload-box').forEach(box => {
+            const img = box.querySelector('.preview-area img');
+            if (img && img.src) {
+                images.push(img.src);
+            }
+        });
+    }
+    return images;
+}
+
+// Hàm khôi phục ảnh vào container
+function restoreImagesToContainer(containerId, images) {
+    const container = document.getElementById(containerId);
+    if (!container || !images || images.length === 0) return;
+    
+    images.forEach(imgSrc => {
+        const boxId = 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        
+        const div = document.createElement('div');
+        div.className = 'upload-box';
+        div.id = boxId;
+        div.innerHTML = `
+            <div class="upload-controls">
+                <input type="file" accept="image/*" onchange="previewModelImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
+                <label for="input-${boxId}" class="upload-label">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Chọn ảnh</span>
+                </label>
+                <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove(); saveFormCacheForCurrentPage();">✖</button>
+            </div>
+            <div class="preview-area" id="preview-${boxId}">
+                <img src="${imgSrc}" alt="Preview">
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// Hàm khôi phục ảnh từ đường dẫn file trong DB
+function restoreImageFromPath(containerId, filePath) {
+    const container = document.getElementById(containerId);
+    if (!container || !filePath) return;
+    
+    const boxId = 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    
+    // Tạo URL để fetch ảnh từ backend
+    const imageUrl = `${API_BASE_URL}/files/uploads?path=${encodeURIComponent(filePath)}`;
+    
+    const div = document.createElement('div');
+    div.className = 'upload-box';
+    div.id = boxId;
+    div.innerHTML = `
+        <div class="upload-controls">
+            <input type="file" accept="image/*" onchange="previewModelImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
+            <label for="input-${boxId}" class="upload-label">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>Chọn ảnh</span>
+            </label>
+            <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove(); saveFormCacheForCurrentPage();">✖</button>
+        </div>
+        <div class="preview-area" id="preview-${boxId}">
+            <img src="${imageUrl}" alt="Preview" onerror="this.parentElement.innerHTML='<span style=color:red;>Không tải được ảnh</span>'">
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+// Lưu SystemInfo ID vào localStorage
 function saveSystemInfoIdToStorage(id) {
     currentSystemInfoId = id;
     localStorage.setItem('currentSystemInfoId', id);
+    updateProjectStatusDisplay();
     console.log('Saved SystemInfo ID to localStorage:', id);
 }
 
-// Hàm xóa SystemInfo ID (khi muốn tạo mới)
-function clearSystemInfoId() {
+// Xóa toàn bộ cache và tạo project mới
+function clearAllCacheAndCreateNew() {
+    if (!confirm('Bạn có chắc muốn tạo dự án mới? Tất cả dữ liệu chưa lưu vào DB sẽ bị xóa.')) {
+        return;
+    }
+    // Xóa SystemInfo ID
     currentSystemInfoId = null;
     localStorage.removeItem('currentSystemInfoId');
-    console.log('Cleared SystemInfo ID');
+    
+    // Xóa toàn bộ form cache
+    localStorage.removeItem('formCache_request');
+    localStorage.removeItem('formCache_input');
+    localStorage.removeItem('formCache_model');
+    localStorage.removeItem('formCache_summary');
+    
+    updateProjectStatusDisplay();
+    alert('Đã xóa cache! Bạn có thể bắt đầu dự án mới.');
+    
+    // Reload trang để reset UI
+    location.reload();
+}
+
+// Lưu form data vào cache theo page
+function saveFormCache(pageId) {
+    let formData = {};
+    
+    switch(pageId) {
+        case 'request':
+            const requestInputs = document.querySelectorAll('.form-grid input');
+            formData = {
+                devUnit: requestInputs[0]?.value || '',
+                projectName: requestInputs[1]?.value || '',
+                sysFeature: requestInputs[2]?.value || '',
+                contactPerson: requestInputs[3]?.value || '',
+                sizingPurpose: requestInputs[4]?.value || '',
+                sizingBasis: requestInputs[5]?.value || '',
+                sizingRule: requestInputs[6]?.value || '',
+                importance: requestInputs[7]?.value || '',
+                deploymentTime: requestInputs[8]?.value || ''
+            };
+            break;
+            
+        case 'input':
+            // Lưu bảng thông tin đầu vào
+            const inputTableBody = document.getElementById('input-table-body');
+            formData.inputRows = [];
+            if (inputTableBody) {
+                inputTableBody.querySelectorAll('tr').forEach(row => {
+                    const inputs = row.querySelectorAll('input, textarea');
+                    formData.inputRows.push({
+                        dauVao: inputs[0]?.value || '',
+                        taiPOC: inputs[1]?.value || '',
+                        dinhCo: inputs[2]?.value || '',
+                        module: inputs[3]?.value || '',
+                        ghiChu: inputs[4]?.value || ''
+                    });
+                });
+            }
+            
+            // Lưu bảng hệ thống tham chiếu
+            const baselineBody = document.getElementById('baseline-specs-body');
+            formData.baselineRows = [];
+            if (baselineBody) {
+                baselineBody.querySelectorAll('tr').forEach(row => {
+                    const inputs = row.querySelectorAll('input');
+                    formData.baselineRows.push({
+                        module: inputs[0]?.value || '',
+                        ip: inputs[1]?.value || '',
+                        cpu: inputs[2]?.value || '',
+                        ram: inputs[3]?.value || '',
+                        cint: inputs[4]?.value || ''
+                    });
+                });
+            }
+            
+            // Lưu ảnh sở cứ (evidence)
+            formData.evidenceImages = getImagesFromContainer('container-evidence');
+            break;
+            
+        case 'model':
+            // Lưu ảnh mô hình vật lý
+            formData.physicalImages = getImagesFromContainer('container-physical');
+            // Lưu ảnh mô hình logic
+            formData.logicalImages = getImagesFromContainer('container-logical');
+            // Lưu ảnh kiến trúc
+            formData.architectureImages = getImagesFromContainer('container-architecture');
+            // Lưu ảnh luồng nghiệp vụ
+            formData.flowImages = getImagesFromContainer('container-flow');
+            // Lưu giải thích luồng nghiệp vụ
+            const flowExplanation = document.getElementById('flow-explanation');
+            formData.flowExplanation = flowExplanation?.value || '';
+            
+            // Lưu bảng chi tiết zone mạng (arch-table-body)
+            const archBody = document.getElementById('arch-table-body');
+            formData.archRows = [];
+            if (archBody) {
+                archBody.querySelectorAll('tr').forEach(row => {
+                    const inputs = row.querySelectorAll('input, textarea');
+                    formData.archRows.push({
+                        module: inputs[0]?.value || '',
+                        zone: inputs[1]?.value || '',
+                        os: inputs[2]?.value || '',
+                        vip: inputs[3]?.value || ''
+                    });
+                });
+            }
+            break;
+            
+        case 'summary':
+            const summaryBody = document.getElementById('summary-table-body');
+            formData.summaryRows = [];
+            if (summaryBody) {
+                summaryBody.querySelectorAll('tr').forEach(row => {
+                    const inputs = row.querySelectorAll('input, textarea');
+                    formData.summaryRows.push({
+                        module: inputs[0]?.value || '',
+                        soLuong: inputs[1]?.value || '',
+                        vCPU: inputs[2]?.value || '',
+                        ram: inputs[3]?.value || '',
+                        volume: inputs[4]?.value || '',
+                        ghiChu: inputs[5]?.value || ''
+                    });
+                });
+            }
+            break;
+    }
+    
+    localStorage.setItem(`formCache_${pageId}`, JSON.stringify(formData));
+    console.log(`Saved cache for ${pageId}:`, formData);
+}
+
+// Khôi phục form data từ cache
+function restoreFormCache(pageId) {
+    const cached = localStorage.getItem(`formCache_${pageId}`);
+    if (!cached) return;
+    
+    try {
+        const formData = JSON.parse(cached);
+        
+        switch(pageId) {
+            case 'request':
+                const requestInputs = document.querySelectorAll('.form-grid input');
+                if (requestInputs.length >= 9) {
+                    requestInputs[0].value = formData.devUnit || '';
+                    requestInputs[1].value = formData.projectName || '';
+                    requestInputs[2].value = formData.sysFeature || '';
+                    requestInputs[3].value = formData.contactPerson || '';
+                    requestInputs[4].value = formData.sizingPurpose || '';
+                    requestInputs[5].value = formData.sizingBasis || '';
+                    requestInputs[6].value = formData.sizingRule || '';
+                    requestInputs[7].value = formData.importance || '';
+                    requestInputs[8].value = formData.deploymentTime || '';
+                }
+                break;
+                
+            case 'input':
+                // Khôi phục bảng thông tin đầu vào
+                if (formData.inputRows && formData.inputRows.length > 0) {
+                    const inputTableBody = document.getElementById('input-table-body');
+                    if (inputTableBody) {
+                        inputTableBody.innerHTML = '';
+                        formData.inputRows.forEach((rowData, index) => {
+                            const newRow = document.createElement('tr');
+                            newRow.innerHTML = `
+                                <td>${index + 1}</td>
+                                <td><input type="text" value="${rowData.dauVao || ''}"></td>
+                                <td><input type="text" value="${rowData.taiPOC || ''}"></td>
+                                <td><input type="text" value="${rowData.dinhCo || ''}"></td>
+                                <td><input type="text" value="${rowData.module || ''}"></td>
+                                <td><textarea rows="1">${rowData.ghiChu || ''}</textarea></td>
+                                <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
+                            `;
+                            inputTableBody.appendChild(newRow);
+                        });
+                    }
+                }
+                
+                // Khôi phục bảng hệ thống tham chiếu
+                if (formData.baselineRows && formData.baselineRows.length > 0) {
+                    const baselineBody = document.getElementById('baseline-specs-body');
+                    if (baselineBody) {
+                        baselineBody.innerHTML = '';
+                        formData.baselineRows.forEach(rowData => {
+                            const newRow = document.createElement('tr');
+                            newRow.innerHTML = `
+                                <td><input type="text" value="${rowData.module || ''}"></td>
+                                <td><input type="text" value="${rowData.ip || ''}"></td>
+                                <td><input type="text" value="${rowData.cpu || ''}"></td>
+                                <td><input type="number" class="ram-val" value="${rowData.ram || ''}" oninput="calculateBaselineTotal()"></td>
+                                <td><input type="number" class="cint-val" value="${rowData.cint || ''}" oninput="calculateBaselineTotal()"></td>
+                                <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
+                            `;
+                            baselineBody.appendChild(newRow);
+                        });
+                        // Tính lại tổng
+                        setTimeout(() => calculateBaselineTotal(), 100);
+                    }
+                }
+                
+                // Khôi phục ảnh sở cứ
+                if (formData.evidenceImages && formData.evidenceImages.length > 0) {
+                    restoreImagesToContainer('container-evidence', formData.evidenceImages);
+                }
+                break;
+            
+            case 'model':
+                // Khôi phục ảnh mô hình vật lý
+                if (formData.physicalImages && formData.physicalImages.length > 0) {
+                    restoreImagesToContainer('container-physical', formData.physicalImages);
+                }
+                // Khôi phục ảnh mô hình logic
+                if (formData.logicalImages && formData.logicalImages.length > 0) {
+                    restoreImagesToContainer('container-logical', formData.logicalImages);
+                }
+                // Khôi phục ảnh kiến trúc
+                if (formData.architectureImages && formData.architectureImages.length > 0) {
+                    restoreImagesToContainer('container-architecture', formData.architectureImages);
+                }
+                // Khôi phục ảnh luồng nghiệp vụ
+                if (formData.flowImages && formData.flowImages.length > 0) {
+                    restoreImagesToContainer('container-flow', formData.flowImages);
+                }
+                // Khôi phục giải thích luồng nghiệp vụ
+                const flowExplanation = document.getElementById('flow-explanation');
+                if (flowExplanation && formData.flowExplanation) {
+                    flowExplanation.value = formData.flowExplanation;
+                }
+                
+                // Khôi phục bảng chi tiết zone mạng
+                if (formData.archRows && formData.archRows.length > 0) {
+                    const archBody = document.getElementById('arch-table-body');
+                    if (archBody) {
+                        archBody.innerHTML = '';
+                        formData.archRows.forEach((rowData, index) => {
+                            const newRow = document.createElement('tr');
+                            newRow.innerHTML = `
+                                <td>${index + 1}</td>
+                                <td><input type="text" value="${rowData.module || ''}"></td>
+                                <td><input type="text" value="${rowData.zone || ''}"></td>
+                                <td><input type="text" value="${rowData.os || ''}"></td>
+                                <td><textarea rows="1">${rowData.vip || ''}</textarea></td>
+                                <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
+                            `;
+                            archBody.appendChild(newRow);
+                        });
+                    }
+                }
+                break;
+                
+            case 'summary':
+                if (formData.summaryRows && formData.summaryRows.length > 0) {
+                    const summaryBody = document.getElementById('summary-table-body');
+                    if (summaryBody) {
+                        summaryBody.innerHTML = '';
+                        formData.summaryRows.forEach((rowData, index) => {
+                            const newRow = document.createElement('tr');
+                            newRow.innerHTML = `
+                                <td>${index + 1}</td>
+                                <td><input type="text" value="${rowData.module || ''}"></td>
+                                <td><input type="number" value="${rowData.soLuong || '1'}"></td>
+                                <td><input type="number" value="${rowData.vCPU || '1'}"></td>
+                                <td><input type="text" value="${rowData.ram || ''}"></td>
+                                <td><input type="text" value="${rowData.volume || ''}"></td>
+                                <td><textarea rows="1">${rowData.ghiChu || ''}</textarea></td>
+                                <td><button type="button" class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
+                            `;
+                            summaryBody.appendChild(newRow);
+                        });
+                    }
+                }
+                break;
+        }
+        
+        console.log(`Restored cache for ${pageId}`);
+    } catch (e) {
+        console.error('Error restoring cache:', e);
+    }
+}
+
+// ========== HÀM ĐỒNG BỘ DỮ LIỆU TỪ DATABASE ==========
+
+// Fetch dữ liệu từ DB và populate vào form
+async function loadDataFromDB(pageId) {
+    if (!currentSystemInfoId) return false;
+    
+    try {
+        switch(pageId) {
+            case 'request':
+                // Fetch thông tin SystemInfo
+                const sysResponse = await fetch(`${API_BASE_URL}/system-info/${currentSystemInfoId}`);
+                if (sysResponse.ok) {
+                    const sysData = await sysResponse.json();
+                    const requestInputs = document.querySelectorAll('.form-grid input');
+                    if (requestInputs.length >= 9) {
+                        requestInputs[0].value = sysData.devUnit || '';
+                        requestInputs[1].value = sysData.projectName || '';
+                        requestInputs[2].value = sysData.sysFeature || '';
+                        requestInputs[3].value = sysData.contactPerson || '';
+                        requestInputs[4].value = sysData.sizingPurpose || '';
+                        requestInputs[5].value = sysData.sizingBasis || '';
+                        requestInputs[6].value = sysData.sizingRule || '';
+                        requestInputs[7].value = sysData.importance || '';
+                        requestInputs[8].value = sysData.deploymentTime || '';
+                    }
+                    // Cập nhật cache từ DB
+                    saveFormCache('request');
+                    return true;
+                }
+                break;
+                
+            case 'input':
+                // Fetch ThongTinDauVao
+                const inputResponse = await fetch(`${API_BASE_URL}/thong-tin-dau-vao/system-info/${currentSystemInfoId}`);
+                if (inputResponse.ok) {
+                    const inputData = await inputResponse.json();
+                    if (inputData && inputData.length > 0) {
+                        const inputTableBody = document.getElementById('input-table-body');
+                        if (inputTableBody) {
+                            inputTableBody.innerHTML = '';
+                            inputData.forEach((item, index) => {
+                                const newRow = document.createElement('tr');
+                                newRow.innerHTML = `
+                                    <td>${index + 1}</td>
+                                    <td><input type="text" value="${item.dauVao || ''}"></td>
+                                    <td><input type="text" value="${item.taiPOC || ''}"></td>
+                                    <td><input type="text" value="${item.dinhCo || ''}"></td>
+                                    <td><input type="text" value="${item.module || ''}"></td>
+                                    <td><textarea rows="1">${item.ghiChu || ''}</textarea></td>
+                                    <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
+                                `;
+                                inputTableBody.appendChild(newRow);
+                            });
+                        }
+                    }
+                }
+                
+                // Fetch HeThongThamChieu
+                const baselineResponse = await fetch(`${API_BASE_URL}/he-thong-tham-chieu/system-info/${currentSystemInfoId}`);
+                if (baselineResponse.ok) {
+                    const baselineData = await baselineResponse.json();
+                    if (baselineData && baselineData.length > 0) {
+                        const baselineBody = document.getElementById('baseline-specs-body');
+                        if (baselineBody) {
+                            baselineBody.innerHTML = '';
+                            baselineData.forEach(item => {
+                                const newRow = document.createElement('tr');
+                                newRow.innerHTML = `
+                                    <td><input type="text" value="${item.module || ''}"></td>
+                                    <td><input type="text" value="${item.ip || ''}"></td>
+                                    <td><input type="text" value="${item.cpu || ''}"></td>
+                                    <td><input type="number" class="ram-val" value="${item.ram || ''}" oninput="calculateBaselineTotal()"></td>
+                                    <td><input type="number" class="cint-val" value="${item.cint || ''}" oninput="calculateBaselineTotal()"></td>
+                                    <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
+                                `;
+                                baselineBody.appendChild(newRow);
+                            });
+                            setTimeout(() => calculateBaselineTotal(), 100);
+                        }
+                    }
+                }
+                
+                // Fetch ảnh sở cứ từ DB
+                const evidenceResponse = await fetch(`${API_BASE_URL}/so-cu-thong-tin-dau-vao/system-info/${currentSystemInfoId}`);
+                if (evidenceResponse.ok) {
+                    const evidenceData = await evidenceResponse.json();
+                    if (evidenceData && evidenceData.length > 0) {
+                        const container = document.getElementById('container-evidence');
+                        if (container) {
+                            evidenceData.forEach(item => {
+                                if (item.imagePath) {
+                                    restoreImageFromPath('container-evidence', item.imagePath);
+                                }
+                            });
+                        }
+                    }
+                }
+                
+                // Cập nhật cache từ DB
+                saveFormCache('input');
+                return true;
+            
+            case 'model':
+                // Fetch ảnh mô hình hệ thống từ DB
+                const modelImageResponse = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}`);
+                if (modelImageResponse.ok) {
+                    const modelImageData = await modelImageResponse.json();
+                    if (modelImageData) {
+                        // Mô hình vật lý
+                        if (modelImageData.moHinhVatLy) {
+                            restoreImageFromPath('container-physical', modelImageData.moHinhVatLy);
+                        }
+                        // Mô hình logic
+                        if (modelImageData.moHinhLogic) {
+                            restoreImageFromPath('container-logical', modelImageData.moHinhLogic);
+                        }
+                        // Luồng nghiệp vụ
+                        if (modelImageData.luongNghiepVu) {
+                            restoreImageFromPath('container-flow', modelImageData.luongNghiepVu);
+                        }
+                        // Giải thích luồng nghiệp vụ
+                        if (modelImageData.luongNghiepVuDescription) {
+                            const flowExplanation = document.getElementById('flow-explanation');
+                            if (flowExplanation) {
+                                flowExplanation.value = modelImageData.luongNghiepVuDescription;
+                            }
+                        }
+                    }
+                }
+                
+                // Fetch chi tiết zone mạng từ DB
+                const zoneResponse = await fetch(`${API_BASE_URL}/mo-hinh-he-thong/system-info/${currentSystemInfoId}`);
+                if (zoneResponse.ok) {
+                    const zoneData = await zoneResponse.json();
+                    if (zoneData && zoneData.length > 0) {
+                        const archBody = document.getElementById('arch-table-body');
+                        if (archBody) {
+                            archBody.innerHTML = '';
+                            zoneData.forEach((item, index) => {
+                                const newRow = document.createElement('tr');
+                                newRow.innerHTML = `
+                                    <td>${index + 1}</td>
+                                    <td><input type="text" value="${item.module || ''}"></td>
+                                    <td><input type="text" value="${item.zoneMang || ''}"></td>
+                                    <td><input type="text" value="${item.heDieuHanh || ''}"></td>
+                                    <td><textarea rows="1">${item.soLuongVIP || ''}</textarea></td>
+                                    <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
+                                `;
+                                archBody.appendChild(newRow);
+                            });
+                        }
+                    }
+                }
+                
+                // Cập nhật cache từ DB
+                saveFormCache('model');
+                return true;
+                
+            case 'summary':
+                // Fetch TongHop
+                const summaryResponse = await fetch(`${API_BASE_URL}/tong-hop/system-info/${currentSystemInfoId}`);
+                if (summaryResponse.ok) {
+                    const summaryData = await summaryResponse.json();
+                    if (summaryData && summaryData.length > 0) {
+                        const summaryBody = document.getElementById('summary-table-body');
+                        if (summaryBody) {
+                            summaryBody.innerHTML = '';
+                            summaryData.forEach((item, index) => {
+                                const newRow = document.createElement('tr');
+                                newRow.innerHTML = `
+                                    <td>${index + 1}</td>
+                                    <td><input type="text" value="${item.module || ''}"></td>
+                                    <td><input type="number" value="${item.soLuong || 1}"></td>
+                                    <td><input type="number" value="${item.vCpu || item.vCPU || 1}"></td>
+                                    <td><input type="text" value="${item.ram || ''}"></td>
+                                    <td><input type="text" value="${item.volume || ''}"></td>
+                                    <td><textarea rows="1">${item.ghiChu || ''}</textarea></td>
+                                    <td><button type="button" class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
+                                `;
+                                summaryBody.appendChild(newRow);
+                            });
+                        }
+                        // Cập nhật cache từ DB
+                        saveFormCache('summary');
+                        return true;
+                    }
+                }
+                break;
+        }
+    } catch (error) {
+        console.error(`Error loading data from DB for ${pageId}:`, error);
+    }
+    
+    return false;
+}
+
+// Thêm auto-save listeners cho các input trong form
+function setupAutoSaveListeners(pageId) {
+    const container = document.getElementById('main-display');
+    if (!container) return;
+    
+    // Lắng nghe sự kiện input trên tất cả inputs và textareas
+    container.querySelectorAll('input, textarea').forEach(element => {
+        element.addEventListener('input', () => {
+            // Debounce: lưu sau 500ms không có thay đổi
+            clearTimeout(window.autoSaveTimeout);
+            window.autoSaveTimeout = setTimeout(() => {
+                saveFormCache(pageId);
+            }, 500);
+        });
+    });
+}
+
+// Cập nhật hiển thị trạng thái project
+function updateProjectStatusDisplay() {
+    let statusBar = document.getElementById('project-status-bar');
+    
+    if (!statusBar) {
+        // Tạo status bar nếu chưa có
+        statusBar = document.createElement('div');
+        statusBar.id = 'project-status-bar';
+        statusBar.style.cssText = `
+            position: fixed;
+            top: 0;
+            right: 0;
+            background: linear-gradient(135deg, #1a5276, #2e86ab);
+            color: white;
+            padding: 8px 15px;
+            font-size: 12px;
+            z-index: 9999;
+            border-bottom-left-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        `;
+        document.body.appendChild(statusBar);
+    }
+    
+    if (currentSystemInfoId) {
+        statusBar.innerHTML = `
+            <span style="background: #27ae60; padding: 3px 8px; border-radius: 4px;">●</span>
+            <span>Project ID: <strong>${currentSystemInfoId}</strong></span>
+            <button onclick="clearAllCacheAndCreateNew()" style="
+                background: #e74c3c;
+                border: none;
+                color: white;
+                padding: 5px 10px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 11px;
+            ">+ Tạo dự án mới</button>
+        `;
+    } else {
+        statusBar.innerHTML = `
+            <span style="background: #f39c12; padding: 3px 8px; border-radius: 4px;">○</span>
+            <span>Chưa có dự án - Hãy lưu "Yêu cầu bài toán" để bắt đầu</span>
+        `;
+    }
 }
 
 document.addEventListener("DOMContentLoaded", function () {
     // Log ID hiện tại khi load trang
     console.log('Current SystemInfo ID from localStorage:', currentSystemInfoId);
+    
+    // Hiển thị status bar project
+    updateProjectStatusDisplay();
     
     // 1. Định nghĩa nội dung cho các trang
     const pageContent = {
@@ -175,7 +796,16 @@ input: `
         <h2 class="content-title">3. MÔ HÌNH HỆ THỐNG</h2>
         
         <div class="model-section">
-            <h3 class="model-type-title"><i class="fa-solid fa-server"></i> A. Mô hình Vật lý (Physical Architecture)</h3>
+            <h3 class="model-type-title">
+                <i class="fa-solid fa-server"></i> A. Mô hình Vật lý
+                <span class="help-icon">
+                    <i class="fa-solid fa-circle-question"></i>
+                    <div class="help-content">
+                        <img src="hinhanh.img/vatly.png" alt="Mẫu Vật lý">
+                        <p class="help-text">Sơ đồ đấu nối vật lý giữa các máy chủ, thiết bị mạng.</p>
+                    </div>
+                </span>
+            </h3>
             <div id="container-physical" class="image-upload-grid"></div>
             <button type="button" class="btn-add-img" onclick="createUploadBox('physical')">
                 <i class="fa-solid fa-plus"></i> Thêm ảnh mô hình Vật lý
@@ -185,7 +815,22 @@ input: `
         <hr class="form-divider">
 
         <div class="model-section">
-            <h3 class="model-type-title"><i class="fa-solid fa-network-wired"></i> B. Mô hình Logic (Logical Architecture)</h3>
+            <h3 class="model-type-title">
+                <i class="fa-solid fa-network-wired"></i> B. Mô hình Logic
+                <span class="help-icon">
+                    <i class="fa-solid fa-circle-question"></i>
+                    <div class="help-content" style="width: 500px;"> <img src="hinhanh.img/logic.png" alt="Mẫu Logic">
+                        <p class="help-text" style="color: red; font-weight: bold;">
+                            Lưu ý: Cần nêu rõ Module chức năng, Giao thức kết nối, Port cụ thể.
+                        </p>
+                    </div>
+                </span>
+            </h3>
+
+            <p style="color: #d9534f; font-style: italic; font-size: 13px; margin-bottom: 10px;">
+                * Yêu cầu: Nêu rõ thông tin module, giao thức và port kết nối.
+            </p>
+
             <div id="container-logical" class="image-upload-grid"></div>
             <button type="button" class="btn-add-img" onclick="createUploadBox('logical')">
                 <i class="fa-solid fa-plus"></i> Thêm ảnh mô hình Logic
@@ -195,12 +840,21 @@ input: `
         <hr class="form-divider">
 
         <div class="model-section">
-            <h3 class="model-type-title"><i class="fa-solid fa-diagram-project"></i> C. Luồng nghiệp vụ (Business Flow)</h3>
+            <h3 class="model-type-title">
+                <i class="fa-solid fa-diagram-project"></i> C. Luồng nghiệp vụ
+                <span class="help-icon">
+                    <i class="fa-solid fa-circle-question"></i>
+                    <div class="help-content">
+                        <img src="https://placehold.co/600x300/e9ecef/444?text=Anh+Mau+Business+Flow" alt="Mẫu Luồng">
+                        <p class="help-text">Sơ đồ luồng đi của dữ liệu/người dùng qua các hệ thống.</p>
+                    </div>
+                </span>
+            </h3>
             <div id="container-flow" class="image-upload-grid"></div>
             <button type="button" class="btn-add-img" onclick="createUploadBox('flow')">
                 <i class="fa-solid fa-plus"></i> Thêm ảnh luồng nghiệp vụ
             </button>
-            <textarea id="flow-explanation" rows="3" placeholder="Giải thích luồng nghiệp vụ chi tiết..." style="width:100%; margin-top:10px; padding:10px; border-radius:4px; border:1px solid #ddd; font-family:inherit;"></textarea>
+            <textarea id="flow-explanation" rows="3" placeholder="Giải thích luồng nghiệp vụ chi tiết..." style="width:100%; margin-top:10px; padding:10px; border-radius:4px; border:1px solid #ddd;"></textarea>
         </div>
 
         <hr class="form-divider" style="border-top: 2px solid #ee0000; opacity: 0.3;">
@@ -249,7 +903,7 @@ input: `
     4. ĐỊNH CỠ HỆ THỐNG
 </h2>
             <div class="iframe-wrapper">
-                <iframe id="sizing-iframe" src="http://localhost:8503" width="100%" height="800" frameborder="0" loading="lazy"></iframe>
+                <iframe id="sizing-iframe" src="http://localhost:9000" width="100%" height="800" frameborder="0" loading="lazy"></iframe>
             </div>
         `,
         summary: `
@@ -309,15 +963,32 @@ input: `
     const menuLinks = document.querySelectorAll('.side-menu a');
 
     menuLinks.forEach(link => {
-    link.addEventListener('click', function (e) {
+    link.addEventListener('click', async function (e) {
         e.preventDefault();
         const pageId = this.getAttribute('data-page');
 
         if (contentArea && pageContent[pageId]) {
             contentArea.innerHTML = pageContent[pageId];
+            
+            // Lưu pageId hiện tại để auto-save
+            currentPageId = pageId;
 
             // Chờ một chút để DOM kịp cập nhật HTML mới
-            setTimeout(() => {
+            setTimeout(async () => {
+                // Ưu tiên load dữ liệu từ DB nếu có systemInfoId
+                let loadedFromDB = false;
+                if (currentSystemInfoId) {
+                    loadedFromDB = await loadDataFromDB(pageId);
+                }
+                
+                // Nếu không load được từ DB, thử khôi phục từ cache
+                if (!loadedFromDB) {
+                    restoreFormCache(pageId);
+                }
+                
+                // Thiết lập auto-save
+                setupAutoSaveListeners(pageId);
+                
                 // 1. Logic trang Yêu cầu bài toán
                 if (pageId === 'request') {
                     const saveBtn = document.getElementById('saveBtn');
@@ -388,6 +1059,19 @@ input: `
                                 <td><button type="button" class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
                             `;
                             tbody.appendChild(newRow);
+                            
+                            // Thêm auto-save listeners cho dòng mới
+                            newRow.querySelectorAll('input, textarea').forEach(element => {
+                                element.addEventListener('input', () => {
+                                    clearTimeout(window.autoSaveTimeout);
+                                    window.autoSaveTimeout = setTimeout(() => {
+                                        saveFormCache('summary');
+                                    }, 500);
+                                });
+                            });
+                            
+                            // Lưu cache ngay sau khi thêm dòng
+                            saveFormCache('summary');
                         };
                     }
                     // Thêm sự kiện cho nút lưu dữ liệu
@@ -446,6 +1130,9 @@ function removeRow(btn) {
     Array.from(tbody.rows).forEach((r, index) => {
         r.cells[0].innerText = index + 1;
     });
+    
+    // Lưu cache sau khi xóa dòng
+    saveFormCache('input');
 }
 function removeSummaryRow(btn) {
     const row = btn.closest('tr');
@@ -456,6 +1143,9 @@ function removeSummaryRow(btn) {
     Array.from(tbody.rows).forEach((r, index) => {
         r.cells[0].innerText = index + 1;
     });
+    
+    // Lưu cache sau khi xóa dòng
+    saveFormCache('summary');
 }
 function removeArchRow(btn) {
     const row = btn.closest('tr');
@@ -465,6 +1155,9 @@ function removeArchRow(btn) {
     Array.from(tbody.rows).forEach((r, index) => {
         r.cells[0].innerText = index + 1;
     });
+    
+    // Lưu cache sau khi xóa dòng
+    saveFormCache('model');
 }
 // Hàm tạo ô upload ảnh mới dựa trên loại mô hình
 function createUploadBox(type) {
@@ -481,7 +1174,7 @@ function createUploadBox(type) {
                 <i class="fa-solid fa-cloud-arrow-up"></i>
                 <span>Chọn ảnh</span>
             </label>
-            <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
+            <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove(); saveFormCacheForCurrentPage();">✖</button>
         </div>
         <div class="preview-area" id="preview-${boxId}"></div>
     `;
@@ -496,16 +1189,11 @@ function previewModelImage(input, boxId) {
         const reader = new FileReader();
         reader.onload = function(e) {
             previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+            // Auto-save cache sau khi upload ảnh
+            setTimeout(() => saveFormCacheForCurrentPage(), 100);
         };
         reader.readAsDataURL(input.files[0]);
     }
-}
-if (pageId === 'input') {
-    // Kích hoạt nút thêm dòng cho bảng (nếu có)
-    const addRowBtn = document.getElementById('addRowBtn');
-    if(addRowBtn) addRowBtn.onclick = addRow;
-    
-    // Nút thêm ảnh sở cứ sử dụng chung hàm createUploadBox đã viết ở phần Mô hình
 }
 function addBaselineRow() {
     const tbody = document.getElementById('baseline-specs-body');

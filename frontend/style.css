@@ -450,3 +450,65 @@
     background-color: #ee0000; /* Chuyển sang đỏ Viettel */
     transform: scale(1.2);
 }
+
+/* Style cho dấu hỏi chấm */
+.help-icon {
+    display: inline-block;
+    color: #eb0909; /* Màu xanh Viettel/Mặc định */
+    font-size: 16px;
+    margin-left: 8px;
+    cursor: help;
+    position: relative; /* Quan trọng để neo ảnh vào đây */
+}
+
+.help-icon:hover {
+    color: #005580;
+}
+
+/* Khung chứa ảnh (Ban đầu ẩn đi) */
+.help-content {
+    display: none; /* Ẩn mặc định */
+    position: absolute;
+    top: 25px; /* Hiện bên dưới dấu hỏi */
+    left: 0;
+    z-index: 1000; /* Nổi lên trên cùng */
+    background-color: white;
+    padding: 10px;
+    border: 1px solid #ddd;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    border-radius: 4px;
+    width: 400px; /* Độ rộng khung ảnh */
+    text-align: center;
+}
+
+/* Mũi tên nhỏ chỉ lên trên (Trang trí cho đẹp) */
+.help-content::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 10px;
+    border-width: 8px;
+    border-style: solid;
+    border-color: transparent transparent white transparent;
+}
+
+/* Khi di chuột vào icon thì hiện khung nội dung */
+.help-icon:hover .help-content {
+    display: block;
+}
+
+/* Style cho ảnh bên trong tooltip */
+.help-content img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #eee;
+    margin-bottom: 5px;
+}
+
+.help-text {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    margin: 0;
+    text-align: left;
+}
