@@ -104,17 +104,26 @@
                                     <th>Định cỡ</th>
                                     <th>Module</th>
                                     <th>Ghi chú</th>
+                                    <th>Admin chú thích</th>
+                                    <th style="width: 100px; text-align: center;">Admin xác nhận</th>
                                     <th style="width: 50px;">Xóa</th>
                                 </tr>
                             </thead>
                             <tbody id="input-table-body">
                                 <tr>
                                     <td>1</td>
-                                    <td><input type="text" placeholder="Ví dụ: Tổng số người dùng CCU"></td>
+                                    <td><textarea rows="3" placeholder="Ví dụ: Tổng số người dùng CCU" class="input-textarea"></textarea></td>
+                                    <td><textarea rows="3" class="input-textarea"></textarea></td>
+                                    <td><textarea rows="3" class="input-textarea"></textarea></td>
                                     <td><input type="text"></td>
-                                    <td><input type="text"></td>
-                                    <td><input type="text"></td>
-                                    <td><textarea rows="1"></textarea></td>
+                                    <td><textarea rows="3" class="input-textarea"></textarea></td>
+                                    
+                                    <td><textarea rows="3" class="input-textarea" placeholder="Admin note..."></textarea></td>
+                                    
+                                    <td style="text-align: center; vertical-align: middle;">
+                                        <input type="checkbox" style="width: 20px; height: 20px; cursor: pointer;">
+                                    </td>
+                                    
                                     <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
                                 </tr>
                             </tbody>
@@ -123,49 +132,84 @@
                     <button type="button" class="btn-add" id="addRowBtn">
                         <i class="fa-solid fa-plus"></i> Thêm đầu vào hệ thống
                     </button>
-            
-                    <hr class="form-divider" style="margin: 30px 0;">
-                    <div class="model-section">
-                        <h3 class="model-type-title">
-                            <i class="fa-solid fa-server"></i>THÔNG TIN HỆ THỐNG THAM CHIẾU
+                    
+                    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin-bottom: 15px; color: #333;">
+                            <i class="fa-solid fa-image"></i> Ảnh sở cứ - Đầu vào
                         </h3>
-                        <p style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">1. IP và cấu hình hệ thống tham chiếu</p>
-                        <div class="table-responsive">
-                            <table class="sizing-table">
-                                <thead>
-                                    <tr style="background-color: #f2f2f2;">
-                                        <th style="width: 150px;">Module</th>
-                                        <th style="width: 150px;">IP</th>
-                                        <th>CPU</th>
-                                        <th style="width: 100px;">RAM (GB)</th>
-                                        <th style="width: 120px;">Cint_rate_2017</th>
-                                        <th style="width: 50px;">Xóa</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="baseline-specs-body">
-                                    <tr>
-                                        <td><input type="text" placeholder="Ví dụ: APP"></td>
-                                        <td><input type="text" placeholder="10.240.x.x"></td>
-                                        <td><input type="text" placeholder="Intel Xeon..."></td>
-                                        <td><input type="number" class="ram-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
-                                        <td><input type="number" class="cint-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
-                                        <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
-                                    </tr>
-                                </tbody>
-                                <tfoot>
-                                    <tr style="font-weight: bold; background-color: #f9f9f9;">
-                                        <td colspan="3" style="text-align: center;">Tổng</td>
-                                        <td id="total-ram-baseline" style="text-align: center;">0</td>
-                                        <td id="total-cint-baseline" style="text-align: center;">0</td>
-                                        <td></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                        <button type="button" class="btn-add" id="addBaselineRowBtn" onclick="addBaselineRow()">
-                            <i class="fa-solid fa-plus"></i> Thêm dòng hệ thống tham chiếu
+                        <div id="container-input-evidence" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('input-evidence')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ đầu vào
                         </button>
                     </div>
+
+                    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin-bottom: 15px; color: #333;">
+                            <i class="fa-solid fa-image"></i> Ảnh sở cứ - Tải hệ thống POC
+                        </h3>
+                        <div id="container-poc-evidence" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('poc-evidence')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ tải POC
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin-bottom: 15px; color: #333;">
+                            <i class="fa-solid fa-image"></i> Ảnh sở cứ - Định cỡ
+                        </h3>
+                        <div id="container-sizing-evidence" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('sizing-evidence')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ định cỡ
+                        </button>
+                    </div>
+            
+                    <hr class="form-divider" style="margin: 30px 0;">
+                <div class="model-section">
+                    <h3 class="model-type-title">
+                        <i class="fa-solid fa-server"></i>THÔNG TIN HỆ THỐNG THAM CHIẾU
+                    </h3>
+                    <p style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">1. IP và cấu hình hệ thống tham chiếu</p>
+                    <div class="table-responsive">
+                        <table class="sizing-table">
+                            <thead>
+                                <tr style="background-color: #f2f2f2;">
+                                    <th style="width: 150px;">Module</th>
+                                    <th style="width: 150px;">IP</th>
+                                    <th>CPU</th>
+                                    <th style="width: 100px;">RAM (GB)</th>
+                                    <th style="width: 120px;">Cint_rate_2017</th>
+                                    <th style="width: 50px;">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="baseline-specs-body">
+                                <tr>
+                                    <td>
+                                        <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                                            <option value="APP">APP</option>
+                                            <option value="DB">DB</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="text" placeholder="10.240.x.x"></td>
+                                    <td><input type="text" placeholder="Intel Xeon..."></td>
+                                    <td><input type="number" class="ram-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
+                                    <td><input type="number" class="cint-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
+                                    <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr style="font-weight: bold; background-color: #f9f9f9;">
+                                    <td colspan="3" style="text-align: center;">Tổng</td>
+                                    <td id="total-ram-baseline" style="text-align: center;">0</td>
+                                    <td id="total-cint-baseline" style="text-align: center;">0</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <button type="button" class="btn-add" id="addBaselineRowBtn">
+                        <i class="fa-solid fa-plus"></i> Thêm dòng hệ thống tham chiếu
+                    </button>
+                </div>
             
                     <hr class="form-divider" style="margin: 30px 0;">
             

@@ -130,17 +130,27 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // --- 3. CÁC HÀM XỬ LÝ GIAO DIỆN (UI FUNCTIONS) ---
 
+// Tìm hàm addRow() cũ và thay thế bằng nội dung này:
+
 function addRow() {
     const tbody = document.getElementById('input-table-body');
     const nextSTT = tbody.rows.length + 1;
     const newRow = document.createElement('tr');
+    
     newRow.innerHTML = `
         <td>${nextSTT}</td>
+        <td><textarea rows="3" placeholder="Ví dụ: Tổng số người dùng CCU" class="input-textarea"></textarea></td>
+        <td><textarea rows="3" class="input-textarea"></textarea></td>
+        <td><textarea rows="3" class="input-textarea"></textarea></td>
         <td><input type="text"></td>
-        <td><input type="text"></td>
-        <td><input type="text"></td>
-        <td><input type="text"></td>
-        <td><textarea rows="1"></textarea></td>
+        <td><textarea rows="3" class="input-textarea"></textarea></td>
+        
+        <td><textarea rows="3" class="input-textarea"></textarea></td>
+        
+        <td style="text-align: center; vertical-align: middle;">
+            <input type="checkbox" style="width: 20px; height: 20px; cursor: pointer;">
+        </td>
+        
         <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
     `;
     tbody.appendChild(newRow);
@@ -208,15 +218,24 @@ function previewModelImage(input, boxId) {
     }
 }
 
+// Tìm đến đoạn gán sự kiện cho addBaselineRowBtn và sửa lại hàm addBaselineRow như sau:
+
 function addBaselineRow() {
     const tbody = document.getElementById('baseline-specs-body');
     const newRow = document.createElement('tr');
+    
+    // Cập nhật HTML cho dòng mới
     newRow.innerHTML = `
-        <td><input type="text"></td>
-        <td><input type="text"></td>
-        <td><input type="text"></td>
-        <td><input type="number" class="ram-val" oninput="calculateBaselineTotal()"></td>
-        <td><input type="number" class="cint-val" oninput="calculateBaselineTotal()"></td>
+        <td>
+            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                <option value="APP">APP</option>
+                <option value="DB">DB</option>
+            </select>
+        </td>
+        <td><input type="text" placeholder="10.240.x.x"></td>
+        <td><input type="text" placeholder="Intel Xeon..."></td>
+        <td><input type="number" class="ram-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
+        <td><input type="number" class="cint-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
         <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
     `;
     tbody.appendChild(newRow);
@@ -297,17 +316,29 @@ async function saveInputData() {
     try {
         let successCount = 0;
         
+       // Trong hàm saveInputData(), tìm đoạn vòng lặp "1. Lưu bảng thông tin đầu vào" và sửa lại:
+
         // 1. Lưu bảng thông tin đầu vào
         const inputRows = document.querySelectorAll('#input-table-body tr');
         for (const row of inputRows) {
             const cells = row.querySelectorAll('td');
+            
+            // Lấy checkbox
+            const checkbox = cells[7]?.querySelector('input[type="checkbox"]');
+
             const data = {
-                dauVao: cells[1]?.querySelector('input')?.value || '',
-                taiHeThongPOC: cells[2]?.querySelector('input')?.value || '',
-                dinhCo: cells[3]?.querySelector('input')?.value || '',
+                dauVao: cells[1]?.querySelector('textarea')?.value || '',
+                taiHeThongPOC: cells[2]?.querySelector('textarea')?.value || '',
+                dinhCo: cells[3]?.querySelector('textarea')?.value || '',
                 module: cells[4]?.querySelector('input')?.value || '',
-                ghiChu: cells[5]?.querySelector('textarea')?.value || ''
+                ghiChu: cells[5]?.querySelector('textarea')?.value || '',
+                
+                // Lấy dữ liệu 2 cột mới (Lưu ý chỉ số index của cells)
+                adminNote: cells[6]?.querySelector('textarea')?.value || '',
+                adminConfirmed: checkbox ? checkbox.checked : false
             };
+
+            // Chỉ lưu nếu có dữ liệu quan trọng
             if (data.dauVao || data.module) {
                 await fetch(`${API_BASE_URL}/thong-tin-dau-vao/system-info/${currentSystemInfoId}`, {
                     method: 'POST',
@@ -318,24 +349,25 @@ async function saveInputData() {
             }
         }
 
+        // Trong hàm saveInputData, tìm đoạn lưu Baseline (mục 2) và sửa:
+
         // 2. Lưu Baseline
         const baselineRows = document.querySelectorAll('#baseline-specs-body tr');
         for (const row of baselineRows) {
+            // SỬA: Lấy thẻ select ở ô đầu tiên
+            const moduleSelect = row.querySelector('select'); 
             const inputs = row.querySelectorAll('input');
+            
             const data = {
-                module: inputs[0]?.value || '',
-                ip: inputs[1]?.value || '',
-                cpu: inputs[2]?.value || '',
-                ram: parseFloat(inputs[3]?.value) || 0,
-                cintRate2017: parseFloat(inputs[4]?.value) || 0
+                module: moduleSelect?.value || 'APP', // Lấy giá trị từ Select Box
+                ip: inputs[0]?.value || '',           // inputs[0] bây giờ là IP (vì cột đầu là select, ko phải input nữa)
+                cpu: inputs[1]?.value || '',
+                ram: parseFloat(inputs[2]?.value) || 0,
+                cintRate2017: parseFloat(inputs[3]?.value) || 0
             };
-            if (data.module) {
-                await fetch(`${API_BASE_URL}/he-thong-tham-chieu/system-info/${currentSystemInfoId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                successCount++;
+            
+            if (data.ip) { // Chỉ lưu nếu có IP
+                // ... (phần gọi API giữ nguyên) ...
             }
         }
 

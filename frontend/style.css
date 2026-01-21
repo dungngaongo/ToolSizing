@@ -365,6 +365,14 @@ body {
     box-shadow: 0 0 0 2px rgba(238, 0, 51, 0.1);
 }
 
+/* Textarea mở rộng cho input table */
+.input-textarea {
+    resize: vertical;
+    min-height: 80px;
+    padding: 8px;
+    line-height: 1.5;
+}
+
 /* Cột STT */
 .sizing-table td:first-child {
     background-color: #fafafa;
