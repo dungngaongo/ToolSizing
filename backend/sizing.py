@@ -5,12 +5,6 @@ from io import BytesIO
 from datetime import datetime
 import math
 import requests
-import logging
-
-# Giảm log level cho tornado để ẩn WebSocket warnings
-logging.getLogger('tornado.access').setLevel(logging.ERROR)
-logging.getLogger('tornado.application').setLevel(logging.ERROR)
-logging.getLogger('tornado.general').setLevel(logging.ERROR)
 
 # --- CẤU HÌNH HỆ THỐNG ---
 BACKEND_API_URL = "http://localhost:8081/api"

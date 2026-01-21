@@ -10,7 +10,7 @@
 <body>
 
     <section class="banner">
-      <img alt="Viettel Top" width="2160" height="303" src="https://cdnvtfamily.keeng.vn/media/kt11/resize_detail_content_image_bbanner-1-1.jpg?v=1765242383">
+        <img alt="Viettel Top" width="2160" height="303" src="https://cdnvtfamily.keeng.vn/media/kt11/resize_detail_content_image_bbanner-1-1.jpg?v=1765242383">
     </section>
 
     <header class="header">
@@ -32,17 +32,406 @@
     <main class="main-content">
         <aside class="sidebar">
             <ul class="side-menu">
-                <li><a href="#" data-page="request"><i class="fa-solid fa-file-invoice"></i> Yêu cầu bài toán</a></li>
-                <li><a href="#" data-page="input"><i class="fa-solid fa-file-import"></i> Thông tin đầu vào</a></li>
-                <li><a href="#" data-page="model"><i class="fa-solid fa-sitemap"></i> Mô hình hệ thống</a></li>
-                <li><a href="#" data-page="sizing"><i class="fa-solid fa-microchip"></i> Định cỡ hệ thống</a></li>
-                <li><a href="#" data-page="summary"><i class="fa-solid fa-chart-line"></i> Tổng hợp và đề xuất</a></li>
+                <li><a href="#" class="menu-link active" data-target="request"><i class="fa-solid fa-file-invoice"></i> Yêu cầu bài toán</a></li>
+                <li><a href="#" class="menu-link" data-target="input"><i class="fa-solid fa-file-import"></i> Thông tin đầu vào</a></li>
+                <li><a href="#" class="menu-link" data-target="model"><i class="fa-solid fa-sitemap"></i> Mô hình hệ thống</a></li>
+                <li><a href="#" class="menu-link" data-target="sizing"><i class="fa-solid fa-microchip"></i> Định cỡ hệ thống</a></li>
+                <li><a href="#" class="menu-link" data-target="summary"><i class="fa-solid fa-chart-line"></i> Tổng hợp và đề xuất</a></li>
             </ul>
         </aside>
 
         <section class="content" id="main-display">
-            <h2 class="content-title">Chào mừng bạn!</h2>
-            <p>Vui lòng chọn một mục ở menu bên trái để bắt đầu nhập liệu</p>
+            
+            <div id="page-request" class="page-section active">
+                <div class="form-container">
+                    <h2 class="content-title">1. YÊU CẦU BÀI TOÁN</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>1. Đơn vị phát triển <span class="info-icon" title="Ghi tên đơn vị phát triển ứng dụng">?</span></label>
+                            <input type="text">
+                        </div>
+                        <div class="form-group">
+                            <label>2. Tên dự án <span class="info-icon" title="Tên đầy đủ của dự án">?</span></label>
+                            <input type="text">
+                        </div>
+                        <div class="form-group">
+                            <label>3. Chức năng hệ thống <span class="info-icon" title="Mô tả ngắn gọn chức năng, mục đích hệ thống">?</span></label>
+                            <input type="text">
+                        </div>
+                        <div class="form-group">
+                            <label>4. Đầu mối định cỡ <span class="info-icon" title="Nhập vào đầu mối định cỡ">?</span></label>
+                            <input type="text">
+                        </div>
+                        <div class="form-group">
+                            <label>5. Mục đích định cỡ <span class="info-icon" title="Lý do sizing: Cấp phát mới, cấp phát bổ sung, Đánh giá tải để bàn giao VHKT">?</span></label>
+                            <input type="text">
+                        </div>
+                        <div class="form-group">
+                            <label>6. Cơ sở định cỡ <span class="info-icon" title="Dựa trên hệ thống tương đương, dựa trên hệ thống testlab, dựa trên hệ thống đang chạy">?</span></label>
+                            <input type="text">
+                        </div>
+                        <div class="form-group">
+                            <label>7. Nguyên tắc định cỡ <span class="info-icon" title="Tham chiếu đến tài liệu GL.CNVTQĐ.CNTT.18.150 Guideline định cỡ cấp phát hạ tầng công nghệ thông tin ban hành lần 9 bởi Ban CNTT ">?</span></label>
+                            <input type="text">
+                        </div>
+                        <div class="form-group">
+                            <label>8. Mức độ quan trọng <span class="info-icon" title="Đơn vị tự đánh giá theo Guideline đánh giá mức độ quan trọng">?</span></label>
+                            <input type="text">
+                        </div>
+                        <div class="form-group">
+                            <label>9. Thời gian triển khai <span class="info-icon" title="Công bố thời gian sẽ thực hiện đổ tải. VTNet sẽ căn cứ vào mốc này để đánh giá rà soát tải trên server. ">?</span></label>
+                            <input type="text">
+                        </div>
+                    </div>
+                    <button type="button" class="btn-submit" id="saveBtn">Lưu thông tin</button>
+                    <div id="save-status" style="margin-top: 10px; text-align: center;"></div>
+                </div>
+            </div>
+
+            <div id="page-input" class="page-section">
+                <div class="form-container">
+                    <h2 class="content-title">2. THÔNG TIN ĐẦU VÀO</h2>
+                    <p style="color: red; font-style: italic; margin-bottom: 15px; font-size: 14px;">
+                        &lt;Đơn vị chọn giá trị đầu vào tùy theo đặc điểm hệ thống, ở đây ví dụ sử dụng CCU. Chỉ đưa các giá trị đầu vào có sử dụng để tính toán&gt;
+                    </p>
+                    <div class="table-responsive">
+                        <table class="sizing-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">STT</th>
+                                    <th>Đầu vào</th>
+                                    <th>Tải hệ thống POC</th>
+                                    <th>Định cỡ</th>
+                                    <th>Module</th>
+                                    <th>Ghi chú</th>
+                                    <th style="width: 120px; text-align: center;">Admin đánh giá</th>
+                                    <th>Admin comment</th>
+                                    <th style="width: 50px;">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="input-table-body">
+                                <tr>
+                                    <td>1</td>
+                                    <td><textarea rows="3" placeholder="Ví dụ: Tổng số người dùng CCU" class="input-textarea"></textarea></td>
+                                    <td><textarea rows="3" class="input-textarea"></textarea></td>
+                                    <td><textarea rows="3" class="input-textarea"></textarea></td>
+                                    <td><input type="text"></td>
+                                    <td><textarea rows="3" class="input-textarea"></textarea></td>
+                                    
+                                    <td style="text-align: center; vertical-align: middle;">
+                                        <select style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                                            <option value="WAITING">-- Chọn --</option>
+                                            <option value="OK" style="color: green; font-weight: bold;">OK</option>
+                                            <option value="NOK" style="color: red; font-weight: bold;">NOK</option>
+                                        </select>
+                                    </td>
+
+                                    <td><textarea rows="3" class="input-textarea" placeholder="Admin note..."></textarea></td>
+                                    
+                                    <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn-add" id="addRowBtn">
+                        <i class="fa-solid fa-plus"></i> Thêm đầu vào hệ thống
+                    </button>
+                    
+                    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin-bottom: 15px; color: #333;">
+                            <i class="fa-solid fa-image"></i> Ảnh sở cứ - Đầu vào
+                        </h3>
+                        <div id="container-input-evidence" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('input-evidence')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ đầu vào
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin-bottom: 15px; color: #333;">
+                            <i class="fa-solid fa-image"></i> Ảnh sở cứ - Tải hệ thống POC
+                        </h3>
+                        <div id="container-poc-evidence" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('poc-evidence')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ tải POC
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin-bottom: 15px; color: #333;">
+                            <i class="fa-solid fa-image"></i> Ảnh sở cứ - Định cỡ
+                        </h3>
+                        <div id="container-sizing-evidence" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('sizing-evidence')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ định cỡ
+                        </button>
+                    </div>
+            
+                    <hr class="form-divider" style="margin: 30px 0;">
+                <div class="model-section">
+                    <h3 class="model-type-title">
+                        <i class="fa-solid fa-server"></i>THÔNG TIN HỆ THỐNG THAM CHIẾU
+                    </h3>
+                    <p style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">1. IP và cấu hình hệ thống tham chiếu</p>
+                    <div class="table-responsive">
+                        <table class="sizing-table">
+                            <thead>
+                                <tr style="background-color: #f2f2f2;">
+                                    <th style="width: 150px;">Module</th>
+                                    <th style="width: 150px;">IP</th>
+                                    <th>CPU</th>
+                                    <th style="width: 100px;">RAM (GB)</th>
+                                    <th style="width: 120px;">Cint_rate_2017</th>
+                                    <th style="width: 50px;">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="baseline-specs-body">
+                                <tr>
+                                    <td>
+                                        <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                                            <option value="APP">APP</option>
+                                            <option value="DB">DB</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="text" placeholder="10.240.x.x"></td>
+                                    <td><input type="text" placeholder="Intel Xeon..."></td>
+                                    <td><input type="number" class="ram-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
+                                    <td><input type="number" class="cint-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
+                                    <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr style="font-weight: bold; background-color: #f9f9f9;">
+                                    <td colspan="3" style="text-align: center;">Tổng</td>
+                                    <td id="total-ram-baseline" style="text-align: center;">0</td>
+                                    <td id="total-cint-baseline" style="text-align: center;">0</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <button type="button" class="btn-add" id="addBaselineRowBtn">
+                        <i class="fa-solid fa-plus"></i> Thêm dòng hệ thống tham chiếu
+                    </button>
+                </div>
+            
+                    <hr class="form-divider" style="margin: 30px 0;">
+            
+                    <div class="model-section">
+                        <h3 class="model-type-title">
+                            <i class="fa-solid fa-certificate"></i> Sở cứ giá trị định cỡ
+                        </h3>
+                        <div id="container-evidence" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('evidence')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ/xác minh
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
+                        <button type="button" class="btn-submit" id="saveInputDataBtn">
+                            <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
+                        </button>
+                        <div id="input-save-status" style="margin-top: 10px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-model" class="page-section">
+                <div class="form-container">
+                    <h2 class="content-title">3. MÔ HÌNH HỆ THỐNG</h2>
+                    
+                    <div class="model-section">
+                        <h3 class="model-type-title">
+                            <i class="fa-solid fa-server"></i> A. Mô hình Vật lý
+                            <span class="help-icon">
+                                <i class="fa-solid fa-circle-question"></i>
+                                <div class="help-content">
+                                    <img src="hinhanh.img/vatly.png" alt="Mẫu Vật lý">
+                                    <p class="help-text">Sơ đồ đấu nối vật lý giữa các máy chủ, thiết bị mạng.</p>
+                                </div>
+                            </span>
+                        </h3>
+                        
+                        <div id="container-physical" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('physical')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh mô hình Vật lý
+                        </button>
+                    </div>
+            
+                    <hr class="form-divider">
+            
+                    <div class="model-section">
+                        <h3 class="model-type-title">
+                            <i class="fa-solid fa-network-wired"></i> B. Mô hình Logic
+                            <span class="help-icon">
+                                <i class="fa-solid fa-circle-question"></i>
+                                <div class="help-content" style="width: 500px;"> <img src="hinhanh.img/logic.png" alt="Mẫu Logic">
+                                    <p class="help-text" style="color: red; font-weight: bold;">
+                                        Lưu ý: Cần nêu rõ Module chức năng, Giao thức kết nối, Port cụ thể.
+                                    </p>
+                                </div>
+                            </span>
+                        </h3>
+            
+                        <p style="color: #d9534f; font-style: italic; font-size: 13px; margin-bottom: 10px;">
+                            * Yêu cầu: Nêu rõ thông tin module, giao thức và port kết nối.
+                        </p>
+            
+                        <div id="container-logical" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('logical')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh mô hình Logic
+                        </button>
+                    </div>
+            
+                    <hr class="form-divider">
+            
+                    <div class="model-section">
+                        <h3 class="model-type-title">
+                            <i class="fa-solid fa-diagram-project"></i> C. Luồng nghiệp vụ
+                            <span class="help-icon">
+                                <i class="fa-solid fa-circle-question"></i>
+                                <div class="help-content">
+                                    <img src="https://placehold.co/600x300/e9ecef/444?text=Anh+Mau+Business+Flow" alt="Mẫu Luồng">
+                                    <p class="help-text">Sơ đồ luồng đi của dữ liệu/người dùng qua các hệ thống.</p>
+                                </div>
+                            </span>
+                        </h3>
+                        
+                        <div id="container-flow" class="image-upload-grid"></div>
+                        <button type="button" class="btn-add-img" onclick="createUploadBox('flow')">
+                            <i class="fa-solid fa-plus"></i> Thêm ảnh luồng nghiệp vụ
+                        </button>
+                        <textarea id="flow-explanation" rows="3" placeholder="Giải thích luồng nghiệp vụ chi tiết..." style="width:100%; margin-top:10px; padding:10px; border-radius:4px; border:1px solid #ddd;"></textarea>
+                    </div>
+            
+                    <hr class="form-divider" style="border-top: 2px solid #ee0000; opacity: 0.3;">
+            
+                    <div class="model-section">
+                        <h3 class="model-type-title"><i class="fa-solid fa-list-check"></i> 5. Chi tiết các zone mạng, hệ điều hành, số lượng VIP</h3>
+                        <div class="table-responsive">
+                            <table class="sizing-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 50px;">STT</th>
+                                        <th>Module</th>
+                                        <th>Zone mạng</th>
+                                        <th>Hệ điều hành</th>
+                                        <th>Số lượng VIP</th>
+                                        <th style="width: 50px;">Xóa</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="arch-table-body">
+                                    <tr>
+                                        <td>1</td>
+                                        <td>
+                                            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="Web App">Web App</option>
+                                                <option value="Redis">Redis</option>
+                                                <option value="Oracle RAC">Oracle RAC</option>
+                                                <option value="MariaDB">MariaDB</option>
+                                                <option value="PostgreSQL">PostgreSQL</option>
+                                                <option value="MongoDB">MongoDB</option>
+                                                <option value="MinIO">MinIO</option>
+                                                <option value="Kafka">Kafka</option>
+                                                <option value="Other">Khác</option>
+                                            </select>
+                                        </td>
+                                        
+                                        <td><input type="text" placeholder="Ví dụ: Zone Internet"></td>
+                                        
+                                        <td>
+                                            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="Ubuntu 22.04 trở lên">Ubuntu 22.04 trở lên</option>
+                                                <option value="CentOS">CentOS</option>
+                                                <option value="Windows Server">Windows Server</option>
+                                                <option value="RedHat">RedHat</option>
+                                            </select>
+                                        </td>
+                                        
+                                        <td><textarea rows="1" placeholder="Ví dụ: 02 VIP"></textarea></td>
+                                        
+                                        <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="button" class="btn-add" id="addArchRowBtn">
+                            <i class="fa-solid fa-plus"></i> Thêm thành phần hệ thống
+                        </button>
+                    </div>
+            
+                    <div style="text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+                        <button type="button" class="btn-submit" id="saveModelBtn">
+                            <i class="fa-solid fa-floppy-disk"></i> Lưu mô hình hệ thống
+                        </button>
+                        <div id="model-save-status" style="margin-top: 10px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-sizing" class="page-section">
+                <h2 style="color: #333; border-left: 4px solid #ff0000; padding-left: 15px; line-height: 1.1; text-transform: uppercase;">
+                    4. ĐỊNH CỠ HỆ THỐNG
+                </h2>
+                <div class="iframe-wrapper">
+                    <iframe id="sizing-iframe" src="http://localhost:8501" width="100%" height="800" frameborder="0" loading="lazy"></iframe>
+                </div>
+            </div>
+
+            <div id="page-summary" class="page-section">
+                <div class="form-container">
+                    <h2 class="content-title">5. TỔNG HỢP VÀ ĐỀ XUẤT</h2>
+                    <p style="color: red; font-style: italic; margin-bottom: 15px; font-size: 14px;">
+                        &lt;Trong các trường hợp Sizing bổ sung tài nguyên theo chiều dọc (tăng cấu hình) sử dụng bảng sau&gt;
+                    </p>
+                    
+                    <div class="table-responsive">
+                        <table class="sizing-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">STT</th>
+                                    <th>Module</th>
+                                    <th style="width: 100px;">Số lượng</th>
+                                    <th style="width: 100px;">vCPU</th>
+                                    <th style="width: 120px;">RAM</th>
+                                    <th style="width: 150px;">Volume khác (GB)</th>
+                                    <th>Ghi chú</th>
+                                    <th style="width: 50px;">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="summary-table-body">
+                                <tr>
+                                    <td>1</td>
+                                    <td><input type="text" placeholder="Ví dụ: APP Service"></td>
+                                    <td><input type="number" value="1"></td>
+                                    <td><input type="number" value="1"></td>
+                                    <td><input type="text" placeholder="Ví dụ: 24"></td>
+                                    <td><input type="text" placeholder="/u01: 100"></td>
+                                    <td><textarea rows="1"></textarea></td>
+                                    <td><button class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+            
+                    <button type="button" class="btn-add" id="addSummaryRowBtn">
+                        <i class="fa-solid fa-plus"></i> Thêm dòng đề xuất
+                    </button>
+            
+                    <div style="margin-top: 30px; text-align: center;">
+                        <button type="button" class="btn-submit" id="saveSummaryBtn" style="margin-right: 10px;">
+                            <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
+                        </button>
+                        <button type="button" class="btn-submit" id="exportBtn">
+                            <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
+                        </button>
+                        <div id="summary-save-status" style="margin-top: 10px;"></div>
+                    </div>
+                </div>
+            </div>
+
         </section>
     </main>
 

@@ -1,4 +1,4 @@
-
+/* --- RESET & FONT --- */
 * {
     margin: 0;
     padding: 0;
@@ -6,10 +6,16 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Ảnh bìa - Giữ nguyên tràn màn hình */
+body {
+    background-color: #f0f2f5; /* Nền xám xanh rất nhạt, hiện đại hơn màu trắng tinh */
+    color: #333;
+    font-size: 14px;
+}
+
+/* --- BANNER --- */
 .banner {
     width: 100%;
-    height: 250px;
+    height: 220px; /* Giảm chiều cao một chút cho cân đối */
     overflow: hidden;
 }
 
@@ -19,44 +25,36 @@
     object-fit: cover;
 }
 
-/* Header Navbar */
+/* --- HEADER --- */
 .header {
     background: #fff;
-    padding: 15px 0;
-    border-bottom: 1px solid #f0f0f0;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    padding: 12px 0;
+    border-bottom: 1px solid #e5e5e5;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03); /* Bóng đổ siêu nhẹ */
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
-/* CHỈNH SỬA: Bỏ max-width và margin auto để Logo lùi sang trái */
 .container {
     width: 100%; 
-    max-width: 100%; 
     margin: 0; 
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 40px; /* Tăng padding một chút để logo không dính sát mép màn hình */
+    padding: 0 30px;
 }
 
-/* Định dạng tiêu đề Công nghệ hệ thống */
 .logo-vtf {
-    color: #ee0000;            /* Màu đỏ chuẩn thương hiệu Viettel */
-    font-weight: 700;          /* Đậm hơn để tạo sự vững chãi */
-    font-size: 22px;           /* Kích thước vừa phải, cân đối với Logo */
-    text-transform: uppercase;  /* Viết hoa để tạo phong cách chuyên nghiệp */
-    letter-spacing: 0.5px;     /* Khoảng cách chữ thoáng hơn */
-    margin: 0;                 /* Xóa margin mặc định của thẻ p */
-    display: flex;
-    align-items: center;
+    color: #ee0033;            /* Đỏ Viettel */
+    font-weight: 700;
+    font-size: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
 }
 
-/* Hiệu ứng rê chuột (tùy chọn) */
-.logo-vtf:hover {
-    color: #cc0000;            /* Đỏ đậm hơn một chút khi di chuột vào */
-    cursor: default;
-}
-
-/* Menu bên phải */
+/* --- NAVIGATION --- */
 .nav-right {
     display: flex;
     align-items: center;
@@ -65,450 +63,416 @@
 
 .nav-right a {
     text-decoration: none;
-    color: #444;
-    font-size: 14px;
-    font-weight: 500;
+    color: #555;
+    font-size: 13px;
+    font-weight: 600;
+    transition: color 0.2s;
 }
 
-/* Nút Viettel Group màu đỏ đặc trưng */
+.nav-right a:hover {
+    color: #ee0033;
+}
+
 .btn-viettel-group {
-    background-color: #ee0000;
+    background-color: #ee0033;
     color: #fff !important;
-    padding: 8px 20px;
-    border-radius: 8px;
-    transition: 0.3s;
+    padding: 8px 18px;
+    border-radius: 4px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(238, 0, 51, 0.2); /* Bóng đỏ mờ dưới nút */
 }
 
 .btn-viettel-group:hover {
-    background-color: #cc0000;
+    background-color: #c4002a; /* Đỏ đậm hơn khi hover */
+    transform: translateY(-1px);
 }
 
-.separator {
-    color: #ddd;
-}
+.separator { color: #ddd; }
 
-/* CHỈNH SỬA Layout chính: Bỏ max-width và margin auto để Sidebar lùi sang trái */
+/* --- MAIN LAYOUT --- */
 .main-content {
     display: flex;
     width: 100%;
-    max-width: 100%;
-    margin: 20px 0; /* Bỏ căn giữa */
-    padding-left: 25px; /* Điều chỉnh khoảng cách lề trái cho toàn bộ Layout */
+    margin: 25px 0;
+    padding-left: 25px;
+    gap: 25px;
 }
 
-/* Menu dọc bên trái */
 .sidebar {
-    width: 280px;
-    padding-right: 20px;
+    width: 260px;
+    flex-shrink: 0;
 }
 
+.content {
+    flex: 1;
+    padding-right: 25px;
+    min-height: 600px;
+}
+
+/* --- SIDEBAR MENU (Tinh chỉnh lại cho đẹp) --- */
 .side-menu {
     list-style: none;
-    padding: 0; /* Xóa padding mặc định của ul để menu lùi sát ra ngoài */
+    padding: 0;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden; /* Bo góc mượt mà */
 }
 
 .side-menu li {
-    margin-bottom: 5px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.side-menu li:last-child {
+    border-bottom: none;
 }
 
 .side-menu a {
     display: flex;
     align-items: center;
-    gap: 15px; /* Tăng khoảng cách giữa icon và chữ */
+    gap: 12px;
     text-decoration: none;
-    color: #333;
-    padding: 12px 15px;
-    border-radius: 6px;
-    transition: 0.2s;
+    color: #444;
+    padding: 14px 20px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    border-left: 4px solid transparent; /* Viền trái ẩn */
 }
 
 .side-menu a i {
     width: 20px;
-    color: #ee0000;
-    font-size: 18px; /* Tăng kích thước icon cho rõ ràng */
+    color: #888;
+    font-size: 16px;
     text-align: center;
+    transition: color 0.2s;
 }
 
 .side-menu a:hover {
-    background-color: #fceeee;
-    color: #ee0000;
+    background-color: #fff5f6; /* Nền đỏ cực nhạt khi hover */
+    color: #ee0033;
 }
 
-/* Nội dung bên phải */
-.content {
-    flex: 1;
+.side-menu a:hover i {
+    color: #ee0033;
+}
+
+/* Active State: Sang trọng hơn, không bị bệt màu */
+.side-menu a.active {
+    background-color: #fff0f2; /* Nền hồng phấn rất nhạt */
+    color: #ee0033;
+    font-weight: 700;
+    border-left-color: #ee0033; /* Chỉ hiện viền đỏ bên trái */
+}
+
+.side-menu a.active i {
+    color: #ee0033;
+}
+
+/* --- PAGE SECTIONS --- */
+.page-section {
+    display: none;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.page-section.active { display: block; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- FORMS & CARDS --- */
+.form-container {
     background: #fff;
-    padding: 20px;
-    min-height: 500px;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03); /* Bóng đổ rất nhẹ, tinh tế */
+    margin-bottom: 25px;
+    border: 1px solid #eaeaea;
 }
-/* Màu cho tiêu đề nội dung */
+
 .content-title {
-    color: #ee0000;
-    margin-bottom: 10px;
-    border-left: 4px solid #ee0000;
+    color: #333;
+    margin-bottom: 25px;
+    border-left: 4px solid #ee0033;
     padding-left: 15px;
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.2;
 }
 
-.content-subtitle {
-    color: #666;
-    margin-bottom: 30px;
-}
-
-/* Chia lưới cho Form (mỗi dòng 2 cột) */
 .form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 25px;
 }
 
-.form-group {
-    display: flex;
-    flex-direction: column;
-}
+.form-group { margin-bottom: 5px; }
 
 .form-group label {
+    display: flex;
+    align-items: center;
     font-weight: 600;
     margin-bottom: 8px;
-    font-size: 14px;
-    color: #333;
+    font-size: 13px;
+    color: #444;
 }
 
 .form-group input, .form-group select, .form-group textarea {
-    padding: 10px;
-    border: 1px solid #ccc;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 14px;
+    transition: all 0.2s;
+    background-color: #fff;
 }
 
-.form-group input:focus {
-    border-color: #ee0000;
+.form-group input:focus, .form-group textarea:focus {
+    border-color: #ee0033; /* Focus viền đỏ */
     outline: none;
+    box-shadow: 0 0 0 3px rgba(238, 0, 51, 0.1); /* Glow đỏ nhẹ */
 }
 
-/* Nút bấm */
+/* Info Icon (?) */
+.info-icon {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 16px;
+    height: 16px;
+    background-color: #ccc;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 10px;
+    margin-left: 8px;
+    cursor: help;
+    transition: background 0.2s;
+}
+
+.info-icon:hover {
+    background-color: #ee0033;
+}
+
+/* --- BUTTONS (Đỏ Viettel nhưng hiện đại) --- */
 .btn-submit {
-    margin-top: 30px;
-    background: #ee0000;
+    background-color: #ee0033;
     color: #fff;
     border: none;
-    padding: 12px 25px;
-    border-radius: 5px;
+    padding: 10px 30px;
+    border-radius: 4px;
     cursor: pointer;
-    font-weight: bold;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(238, 0, 51, 0.25);
 }
 
 .btn-submit:hover {
-    background: #cc0000;
+    background-color: #d3002d;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(238, 0, 51, 0.3);
 }
 
-/* Active Menu */
-.active-menu {
-    background-color: #fceeee !important;
-    color: #ee0000 !important;
+/* Nút thêm dòng (Outline Style) */
+.btn-add {
+    margin-top: 20px;
+    background-color: transparent;
+    border: 1px dashed #ee0033;
+    color: #ee0033;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
 }
-/* --- CSS CHO MỤC 2: THÔNG TIN ĐẦU VÀO --- */
 
-/* Khung chứa bảng để hỗ trợ xem trên điện thoại */
+.btn-add:hover {
+    background-color: #fff5f6;
+    border-style: solid;
+}
+
+.btn-delete {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 16px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.btn-delete:hover { color: #ee0033; }
+
+/* --- TABLES (Khoa học, dễ nhìn) --- */
 .table-responsive {
     width: 100%;
     overflow-x: auto;
     margin-top: 15px;
-    border: 1px solid #999;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background: #fff;
 }
 
-/* Định dạng bảng giống ảnh mẫu */
 .sizing-table {
     width: 100%;
     border-collapse: collapse;
-    background-color: #fff;
 }
 
-/* Header của bảng màu xám đậm */
+/* Header bảng: Màu nền nhẹ, chữ đậm, viền đỏ trên cùng */
 .sizing-table th {
-    background-color: #bfbfbf; /* Màu xám như ảnh mẫu */
+    background-color: #f8f9fa; /* Màu xám rất sáng */
     color: #333;
-    font-weight: bold;
-    border: 1px solid #999;
-    padding: 10px;
+    font-weight: 700;
+    border-bottom: 2px solid #e0e0e0;
+    border-right: 1px solid #eee;
+    padding: 12px 15px;
     text-align: center;
-    font-size: 14px;
-    white-space: nowrap;
-}
-
-/* Các ô dữ liệu */
-.sizing-table td {
-    border: 1px solid #999;
-    padding: 5px;
-    vertical-align: middle;
     font-size: 13px;
+    white-space: nowrap;
+    border-top: 3px solid #ee0033; /* Điểm nhấn thương hiệu ở đây */
 }
 
-/* Định dạng các ô Input và Textarea bên trong bảng */
+.sizing-table td {
+    border-bottom: 1px solid #eee;
+    border-right: 1px solid #eee;
+    padding: 8px 10px;
+    vertical-align: middle;
+}
+
+/* Input trong bảng: Chỉ hiện nền khi focus */
 .sizing-table input[type="text"], 
 .sizing-table input[type="number"],
 .sizing-table textarea {
-    width: 100%;
-    border: none;
-    outline: none;
+    border: 1px solid transparent;
     background: transparent;
-    padding: 8px;
+    padding: 6px;
     font-size: 13px;
-    display: block;
+    width: 100%;
+    border-radius: 3px;
 }
 
-/* Hiệu ứng khi nhấn vào ô nhập liệu trong bảng */
-.sizing-table td:focus-within {
-    background-color: #fff9e6; /* Màu nền nhẹ khi đang nhập */
+.sizing-table input:focus, 
+.sizing-table textarea:focus {
+    background-color: #fff;
+    border-color: #ee0033;
+    box-shadow: 0 0 0 2px rgba(238, 0, 51, 0.1);
 }
 
-/* Cột STT căn giữa */
-.sizing-table td:first-child {
-    text-align: center;
-    font-weight: bold;
-    background-color: #f2f2f2;
-}
-
-/* --- CÁC NÚT BẤM CHỨC NĂNG --- */
-
-/* Nút thêm dòng (+) */
-.btn-add {
-    margin-top: 15px;
-    background-color: #ffffff;
-    border: 1px dashed #ee0000;
-    color: #ee0000;
-    padding: 10px 20px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.3s ease;
-}
-
-.btn-add:hover {
-    background-color: #fceeee;
-    border-style: solid;
-}
-
-.btn-add i {
-    font-size: 16px;
-}
-
-/* Nút xóa dòng (✖) */
-.btn-delete {
-    background: none;
-    border: none;
-    color: #999;
-    font-size: 18px;
-    cursor: pointer;
-    display: block;
-    margin: 0 auto;
-    transition: color 0.2s;
-}
-
-.btn-delete:hover {
-    color: #ee0000;
-}
-
-/* Tùy chỉnh Textarea trong bảng để không bị tràn */
-.sizing-table textarea {
+/* Textarea mở rộng cho input table */
+.input-textarea {
     resize: vertical;
-    min-height: 35px;
+    min-height: 80px;
+    padding: 8px;
+    line-height: 1.5;
 }
-/* --- CSS CHO MÔ HÌNH HỆ THỐNG --- */
-.model-section {
-    margin-bottom: 30px;
+
+/* Cột STT */
+.sizing-table td:first-child {
+    background-color: #fafafa;
+    text-align: center;
+    font-weight: 600;
+    color: #666;
 }
+
+/* --- MÔ HÌNH (Upload Box) --- */
+.model-section { margin-bottom: 40px; }
 
 .model-type-title {
     font-size: 16px;
     color: #333;
+    font-weight: 700;
     margin-bottom: 15px;
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-.image-upload-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 15px;
-    margin-bottom: 15px;
-}
-
 .upload-box {
-    border: 2px dashed #ccc;
-    border-radius: 8px;
-    padding: 10px;
-    position: relative;
+    border: 2px dashed #ddd;
+    border-radius: 6px;
+    padding: 15px;
     background: #fafafa;
     min-height: 150px;
     display: flex;
     flex-direction: column;
+    transition: all 0.2s;
 }
 
-.upload-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.upload-box:hover {
+    border-color: #ee0033;
+    background-color: #fff;
 }
 
 .upload-label {
     cursor: pointer;
-    color: #ee0000;
+    color: #555;
     font-size: 13px;
+    font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
+    transition: color 0.2s;
 }
 
-.btn-remove-img {
-    background: none;
-    border: none;
-    color: #999;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.btn-remove-img:hover { color: #ee0000; }
-
-.preview-area {
-    margin-top: 10px;
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-}
-
-.preview-area img {
-    max-width: 100%;
-    max-height: 150px;
-    border-radius: 4px;
-    object-fit: contain;
+.upload-box:hover .upload-label {
+    color: #ee0033;
 }
 
 .btn-add-img {
     background: #fff;
-    border: 1px solid #ee0000;
-    color: #ee0000;
-    padding: 8px 15px;
-    border-radius: 5px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-/* Iframe wrapper for embedding Streamlit sizing app */
-.iframe-wrapper {
-    width: 100%;
-    margin-top: 8px;
-}
-
-.iframe-wrapper iframe {
-    width: 100%;
-    height: calc(100vh - 220px);
-    border: none;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-
-.btn-add-img:hover { background: #fceeee; }
-
-.form-divider {
-    border: 0;
-    border-top: 1px solid #eee;
-    margin: 20px 0;
-}
-/* Container của nhãn */
-.form-group label {
-    display: flex;
-    align-items: center;
-    font-weight: 600;
-    margin-bottom: 8px;
-    font-size: 14px;
-}
-
-/* Icon dấu hỏi chấm */
-.info-icon {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    width: 15px;
-    height: 15px;
-    background-color: #999; /* Màu xám trung tính */
-    color: #fff;
-    border-radius: 50%;
-    font-size: 10px;
-    margin-left: 8px;
-    cursor: help;
-    transition: all 0.2s ease;
-}
-
-/* Khi di chuột vào icon */
-.info-icon:hover {
-    background-color: #ee0000; /* Chuyển sang đỏ Viettel */
-    transform: scale(1.2);
-}
-
-/* Style cho dấu hỏi chấm */
-.help-icon {
-    display: inline-block;
-    color: #eb0909; /* Màu xanh Viettel/Mặc định */
-    font-size: 16px;
-    margin-left: 8px;
-    cursor: help;
-    position: relative; /* Quan trọng để neo ảnh vào đây */
-}
-
-.help-icon:hover {
-    color: #005580;
-}
-
-/* Khung chứa ảnh (Ban đầu ẩn đi) */
-.help-content {
-    display: none; /* Ẩn mặc định */
-    position: absolute;
-    top: 25px; /* Hiện bên dưới dấu hỏi */
-    left: 0;
-    z-index: 1000; /* Nổi lên trên cùng */
-    background-color: white;
-    padding: 10px;
-    border: 1px solid #ddd;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    border: 1px solid #ee0033;
+    color: #ee0033;
+    padding: 8px 16px;
     border-radius: 4px;
-    width: 400px; /* Độ rộng khung ảnh */
-    text-align: center;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
-/* Mũi tên nhỏ chỉ lên trên (Trang trí cho đẹp) */
-.help-content::after {
-    content: "";
+.btn-add-img:hover {
+    background-color: #ee0033;
+    color: #fff;
+}
+
+/* Tooltip & Help Icon */
+.help-icon {
+    color: #999;
+    margin-left: 8px;
+    cursor: help;
+    font-size: 16px;
+    position: relative;
+    transition: color 0.2s;
+}
+
+.help-icon:hover { color: #ee0033; }
+
+.help-content {
+    display: none;
     position: absolute;
-    bottom: 100%;
-    left: 10px;
-    border-width: 8px;
-    border-style: solid;
-    border-color: transparent transparent white transparent;
+    top: 30px;
+    left: 0;
+    z-index: 1000;
+    background-color: white;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    border-radius: 6px;
+    width: 450px;
 }
 
-/* Khi di chuột vào icon thì hiện khung nội dung */
-.help-icon:hover .help-content {
-    display: block;
-}
+.help-icon:hover .help-content { display: block; }
 
-/* Style cho ảnh bên trong tooltip */
-.help-content img {
-    max-width: 100%;
-    height: auto;
-    border: 1px solid #eee;
-    margin-bottom: 5px;
-}
-
-.help-text {
-    font-size: 12px;
-    color: #666;
-    font-style: italic;
-    margin: 0;
-    text-align: left;
+/* Iframe */
+.iframe-wrapper iframe {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background: #fff;
 }
