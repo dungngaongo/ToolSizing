@@ -19,493 +19,167 @@ function clearSystemInfoId() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    // Log ID hiện tại khi load trang
     console.log('Current SystemInfo ID from localStorage:', currentSystemInfoId);
-    
-    // 1. Định nghĩa nội dung cho các trang
-    const pageContent = {
-        // GIỮ NGUYÊN PHẦN 1
-        request: `
-    <div class="form-container">
-        <h2 class="content-title">1. YÊU CẦU BÀI TOÁN</h2>
-        <div class="form-grid">
-            <div class="form-group">
-                <label>1. Đơn vị phát triển <span class="info-icon" title="Ghi tên đơn vị phát triển ứng dụng">?</span></label>
-                <input type="text">
-            </div>
-            <div class="form-group">
-                <label>2. Tên dự án <span class="info-icon" title="Tên đầy đủ của dự án">?</span></label>
-                <input type="text">
-            </div>
-            <div class="form-group">
-                <label>3. Chức năng hệ thống <span class="info-icon" title="Mô tả ngắn gọn chức năng, mục đích hệ thống">?</span></label>
-                <input type="text">
-            </div>
-            <div class="form-group">
-                <label>4. Đầu mối định cỡ <span class="info-icon" title="Nhập vào đầu mối định cỡ">?</span></label>
-                <input type="text">
-            </div>
-            <div class="form-group">
-                <label>5. Mục đích định cỡ <span class="info-icon" title="Lý do sizing: Cấp phát mới, cấp phát bổ sung, Đánh giá tải để bàn giao VHKT">?</span></label>
-                <input type="text">
-            </div>
-            <div class="form-group">
-                <label>6. Cơ sở định cỡ <span class="info-icon" title="Dựa trên hệ thống tương đương, dựa trên hệ thống testlab, dựa trên hệ thống đang chạy">?</span></label>
-                <input type="text">
-            </div>
-            <div class="form-group">
-                <label>7. Nguyên tắc định cỡ <span class="info-icon" title="Tham chiếu đến tài liệu GL.CNVTQĐ.CNTT.18.150 Guideline định cỡ cấp phát hạ tầng công nghệ thông tin ban hành lần 9 bởi Ban CNTT ">?</span></label>
-                <input type="text">
-            </div>
-            <div class="form-group">
-                <label>8. Mức độ quan trọng <span class="info-icon" title="Đơn vị tự đánh giá theo Guideline đánh giá mức độ quan trọng">?</span></label>
-                <input type="text">
-            </div>
-            <div class="form-group">
-                <label>9. Thời gian triển khai <span class="info-icon" title="Công bố thời gian sẽ thực hiện đổ tải. VTNet sẽ căn cứ vào mốc này để đánh giá rà soát tải trên server. ">?</span></label>
-                <input type="text">
-            </div>
-        </div>
-        <button type="button" class="btn-submit" id="saveBtn">Lưu thông tin</button>
-        <div id="save-status" style="margin-top: 10px; text-align: center;"></div>
-    </div>
-`,
-input: `
-    <div class="form-container">
-        <h2 class="content-title">2. THÔNG TIN ĐẦU VÀO</h2>
-        
-        <p style="color: red; font-style: italic; margin-bottom: 15px; font-size: 14px;">
-            &lt;Đơn vị chọn giá trị đầu vào tùy theo đặc điểm hệ thống, ở đây ví dụ sử dụng CCU. Chỉ đưa các giá trị đầu vào có sử dụng để tính toán&gt;
-        </p>
-        <div class="table-responsive">
-            <table class="sizing-table">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;">STT</th>
-                        <th>Đầu vào</th>
-                        <th>Tải hệ thống POC</th>
-                        <th>Định cỡ</th>
-                        <th>Module</th>
-                        <th>Ghi chú</th>
-                        <th style="width: 50px;">Xóa</th>
-                    </tr>
-                </thead>
-                <tbody id="input-table-body">
-                    <tr>
-                        <td>1</td>
-                        <td><input type="text" placeholder="Ví dụ: Tổng số người dùng CCU"></td>
-                        <td><input type="text"></td>
-                        <td><input type="text"></td>
-                        <td><input type="text"></td>
-                        <td><textarea rows="1"></textarea></td>
-                        <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        <button type="button" class="btn-add" id="addRowBtn">
-            <i class="fa-solid fa-plus"></i> Thêm đầu vào hệ thống
-        </button>
 
-        <hr class="form-divider" style="margin: 30px 0;">
-        <div class="model-section">
-            <h3 class="model-type-title">
-                <i class="fa-solid fa-server"></i>THÔNG TIN HỆ THỐNG THAM CHIẾU
-            </h3>
-            <p style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">1. IP và cấu hình hệ thống tham chiếu</p>
-            <div class="table-responsive">
-                <table class="sizing-table">
-                    <thead>
-                        <tr style="background-color: #f2f2f2;">
-                            <th style="width: 150px;">Module</th>
-                            <th style="width: 150px;">IP</th>
-                            <th>CPU</th>
-                            <th style="width: 100px;">RAM (GB)</th>
-                            <th style="width: 120px;">Cint_rate_2017</th>
-                            <th style="width: 50px;">Xóa</th>
-                        </tr>
-                    </thead>
-                    <tbody id="baseline-specs-body">
-                        <tr>
-                            <td><input type="text" placeholder="Ví dụ: APP"></td>
-                            <td><input type="text" placeholder="10.240.x.x"></td>
-                            <td><input type="text" placeholder="Intel Xeon..."></td>
-                            <td><input type="number" class="ram-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
-                            <td><input type="number" class="cint-val" placeholder="0" oninput="calculateBaselineTotal()"></td>
-                            <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
-                        </tr>
-                    </tbody>
-                    <tfoot>
-                        <tr style="font-weight: bold; background-color: #f9f9f9;">
-                            <td colspan="3" style="text-align: center;">Tổng</td>
-                            <td id="total-ram-baseline" style="text-align: center;">0</td>
-                            <td id="total-cint-baseline" style="text-align: center;">0</td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-            <button type="button" class="btn-add" id="addBaselineRowBtn" onclick="addBaselineRow()">
-                <i class="fa-solid fa-plus"></i> Thêm dòng hệ thống tham chiếu
-            </button>
-        </div>
-
-        <hr class="form-divider" style="margin: 30px 0;">
-
-        <div class="model-section">
-            <h3 class="model-type-title">
-                <i class="fa-solid fa-certificate"></i> Sở cứ giá trị định cỡ
-            </h3>
-            <div id="container-evidence" class="image-upload-grid"></div>
-            <button type="button" class="btn-add-img" onclick="createUploadBox('evidence')">
-                <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ/xác minh
-            </button>
-        </div>
-        
-        <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
-            <button type="button" class="btn-submit" id="saveInputDataBtn">
-                <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
-            </button>
-            <div id="input-save-status" style="margin-top: 10px;"></div>
-        </div>
-    </div>
- `,
-model: `
-    <div class="form-container">
-        <h2 class="content-title">3. MÔ HÌNH HỆ THỐNG</h2>
-        
-        <div class="model-section">
-            <h3 class="model-type-title">
-                <i class="fa-solid fa-server"></i> A. Mô hình Vật lý
-                <span class="help-icon">
-                    <i class="fa-solid fa-circle-question"></i>
-                    <div class="help-content">
-                        <img src="hinhanh.img/vatly.png" alt="Mẫu Vật lý">
-                        <p class="help-text">Sơ đồ đấu nối vật lý giữa các máy chủ, thiết bị mạng.</p>
-                    </div>
-                </span>
-            </h3>
-            
-            <div id="container-physical" class="image-upload-grid"></div>
-            <button type="button" class="btn-add-img" onclick="createUploadBox('physical')">
-                <i class="fa-solid fa-plus"></i> Thêm ảnh mô hình Vật lý
-            </button>
-        </div>
-
-        <hr class="form-divider">
-
-        <div class="model-section">
-            <h3 class="model-type-title">
-                <i class="fa-solid fa-network-wired"></i> B. Mô hình Logic
-                <span class="help-icon">
-                    <i class="fa-solid fa-circle-question"></i>
-                    <div class="help-content" style="width: 500px;"> <img src="hinhanh.img/logic.png" alt="Mẫu Logic">
-                        <p class="help-text" style="color: red; font-weight: bold;">
-                            Lưu ý: Cần nêu rõ Module chức năng, Giao thức kết nối, Port cụ thể.
-                        </p>
-                    </div>
-                </span>
-            </h3>
-
-            <p style="color: #d9534f; font-style: italic; font-size: 13px; margin-bottom: 10px;">
-                * Yêu cầu: Nêu rõ thông tin module, giao thức và port kết nối.
-            </p>
-
-            <div id="container-logical" class="image-upload-grid"></div>
-            <button type="button" class="btn-add-img" onclick="createUploadBox('logical')">
-                <i class="fa-solid fa-plus"></i> Thêm ảnh mô hình Logic
-            </button>
-        </div>
-
-        <hr class="form-divider">
-
-        <div class="model-section">
-            <h3 class="model-type-title">
-                <i class="fa-solid fa-diagram-project"></i> C. Luồng nghiệp vụ
-                <span class="help-icon">
-                    <i class="fa-solid fa-circle-question"></i>
-                    <div class="help-content">
-                        <img src="https://placehold.co/600x300/e9ecef/444?text=Anh+Mau+Business+Flow" alt="Mẫu Luồng">
-                        <p class="help-text">Sơ đồ luồng đi của dữ liệu/người dùng qua các hệ thống.</p>
-                    </div>
-                </span>
-            </h3>
-            
-            <div id="container-flow" class="image-upload-grid"></div>
-            <button type="button" class="btn-add-img" onclick="createUploadBox('flow')">
-                <i class="fa-solid fa-plus"></i> Thêm ảnh luồng nghiệp vụ
-            </button>
-            <textarea id="flow-explanation" rows="3" placeholder="Giải thích luồng nghiệp vụ chi tiết..." style="width:100%; margin-top:10px; padding:10px; border-radius:4px; border:1px solid #ddd;"></textarea>
-        </div>
-
-        <hr class="form-divider" style="border-top: 2px solid #ee0000; opacity: 0.3;">
-
-        <div class="model-section">
-            <h3 class="model-type-title"><i class="fa-solid fa-list-check"></i> 5. Chi tiết các zone mạng, hệ điều hành, số lượng VIP</h3>
-            <div class="table-responsive">
-                <table class="sizing-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 50px;">STT</th>
-                            <th>Module</th>
-                            <th>Zone mạng</th>
-                            <th>Hệ điều hành</th>
-                            <th>Số lượng VIP</th>
-                            <th style="width: 50px;">Xóa</th>
-                        </tr>
-                    </thead>
-                    <tbody id="arch-table-body">
-                        <tr>
-                            <td>1</td>
-                            <td><input type="text" placeholder="Ví dụ: App Server"></td>
-                            <td><input type="text" placeholder="Ví dụ: Zone Internet"></td>
-                            <td><input type="text" placeholder="Ví dụ: CentOS 7"></td>
-                            <td><textarea rows="1" placeholder="Ví dụ: 02 VIP"></textarea></td>
-                            <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <button type="button" class="btn-add" id="addArchRowBtn">
-                <i class="fa-solid fa-plus"></i> Thêm thành phần hệ thống
-            </button>
-        </div>
-
-        <div style="text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-            <button type="button" class="btn-submit" id="saveModelBtn">
-                <i class="fa-solid fa-floppy-disk"></i> Lưu mô hình hệ thống
-            </button>
-            <div id="model-save-status" style="margin-top: 10px;"></div>
-        </div>
-    </div>
-`,
-        sizing: `
-            <h2 style="color: red; border-left: 4px solid red; padding-left: 15px; line-height: 1.1; text-transform: uppercase;">
-    4. ĐỊNH CỠ HỆ THỐNG
-</h2>
-            <div class="iframe-wrapper">
-                <iframe id="sizing-iframe" src="http://localhost:9000" width="100%" height="800" frameborder="0" loading="lazy"></iframe>
-            </div>
-        `,
-        summary: `
-    <div class="form-container">
-        <h2 class="content-title">5. TỔNG HỢP VÀ ĐỀ XUẤT</h2>
-        <p style="color: red; font-style: italic; margin-bottom: 15px; font-size: 14px;">
-            &lt;Trong các trường hợp Sizing bổ sung tài nguyên theo chiều dọc (tăng cấu hình) sử dụng bảng sau&gt;
-        </p>
-        
-        <div class="table-responsive">
-            <table class="sizing-table">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;">STT</th>
-                        <th>Module</th>
-                        <th style="width: 100px;">Số lượng</th>
-                        <th style="width: 100px;">vCPU</th>
-                        <th style="width: 120px;">RAM</th>
-                        <th style="width: 150px;">Volume khác (GB)</th>
-                        <th>Ghi chú</th>
-                        <th style="width: 50px;">Xóa</th>
-                    </tr>
-                </thead>
-                <tbody id="summary-table-body">
-                    <tr>
-                        <td>1</td>
-                        <td><input type="text" placeholder="Ví dụ: APP Service"></td>
-                        <td><input type="number" value="1"></td>
-                        <td><input type="number" value="1"></td>
-                        <td><input type="text" placeholder="Ví dụ: 24"></td>
-                        <td><input type="text" placeholder="/u01: 100"></td>
-                        <td><textarea rows="1"></textarea></td>
-                        <td><button class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <button type="button" class="btn-add" id="addSummaryRowBtn">
-            <i class="fa-solid fa-plus"></i> Thêm dòng đề xuất
-        </button>
-
-        <div style="margin-top: 30px; text-align: center;">
-            <button type="button" class="btn-submit" id="saveSummaryBtn" style="margin-right: 10px;">
-                <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
-            </button>
-            <button type="button" class="btn-submit" id="exportBtn">
-                <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
-            </button>
-            <div id="summary-save-status" style="margin-top: 10px;"></div>
-        </div>
-    </div>
-`,
-    };
-
-    const contentArea = document.getElementById('main-display');
-    const menuLinks = document.querySelectorAll('.side-menu a');
+    // --- 1. XỬ LÝ CHUYỂN TAB (NAVIGATION) ---
+    const menuLinks = document.querySelectorAll(".side-menu a");
+    const pages = document.querySelectorAll(".page-section");
 
     menuLinks.forEach(link => {
-    link.addEventListener('click', function (e) {
-        e.preventDefault();
-        const pageId = this.getAttribute('data-page');
+        link.addEventListener("click", function(e) {
+            e.preventDefault();
 
-        if (contentArea && pageContent[pageId]) {
-            contentArea.innerHTML = pageContent[pageId];
+            // Xóa class active ở tất cả menu
+            menuLinks.forEach(l => l.classList.remove("active"));
+            // Thêm class active cho menu vừa click
+            this.classList.add("active");
 
-            // Chờ một chút để DOM kịp cập nhật HTML mới
-            setTimeout(() => {
-                // 1. Logic trang Yêu cầu bài toán
-                if (pageId === 'request') {
-                    const saveBtn = document.getElementById('saveBtn');
-                    if (saveBtn) {
-                        saveBtn.onclick = saveSystemInfo;
-                    }
-                }
+            // Ẩn tất cả các trang
+            pages.forEach(page => page.classList.remove("active"));
 
-                // 2. Logic trang Thông tin đầu vào
-                if (pageId === 'input') {
-                    const addRowBtn = document.getElementById('addRowBtn');
-                    if (addRowBtn) {
-                        addRowBtn.onclick = addRow;
-                    }
-                    // Thêm sự kiện cho nút Lưu dữ liệu
-                    const saveInputDataBtn = document.getElementById('saveInputDataBtn');
-                    if (saveInputDataBtn) {
-                        saveInputDataBtn.onclick = saveInputData;
-                    }
-                }
-
-                // 3. Logic trang MÔ HÌNH HỆ THỐNG (Mục bạn cần thêm)
-                if (pageId === 'model') {
-                    const addArchBtn = document.getElementById('addArchRowBtn');
-                    if (addArchBtn) {
-                        addArchBtn.onclick = function(e) {
-                            e.preventDefault();
-                            const tbody = document.getElementById('arch-table-body');
-                            if (!tbody) return;
-
-                            const nextSTT = tbody.rows.length + 1;
-                            const newRow = document.createElement('tr');
-                            newRow.innerHTML = `
-                                <td>${nextSTT}</td>
-                                <td><input type="text" placeholder="Tên Module"></td>
-                                <td><input type="text" placeholder="Vùng mạng"></td>
-                                <td><input type="text" placeholder="Hệ điều hành"></td> 
-                                <td><textarea rows="1" placeholder="Ghi chú VIP"></textarea></td>
-                                <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
-                            `;
-                            tbody.appendChild(newRow);
-                        };
-                    }
-                    
-                    // Thêm sự kiện cho nút Lưu mô hình hệ thống
-                    const saveModelBtn = document.getElementById('saveModelBtn');
-                    if (saveModelBtn) {
-                        saveModelBtn.onclick = saveModelData;
-                    }
-                }
-
-                // 4. Logic trang Tổng hợp và đề xuất
-                if (pageId === 'summary') {
-                    const addSummaryBtn = document.getElementById('addSummaryRowBtn');
-                    if (addSummaryBtn) {
-                        addSummaryBtn.onclick = function() {
-                            const tbody = document.getElementById('summary-table-body');
-                            const nextSTT = tbody.rows.length + 1;
-                            const newRow = document.createElement('tr');
-                            newRow.innerHTML = `
-                                <td>${nextSTT}</td>
-                                <td><input type="text"></td>
-                                <td><input type="number" value="1"></td>
-                                <td><input type="number" value="1"></td>
-                                <td><input type="text"></td>
-                                <td><input type="text"></td>
-                                <td><textarea rows="1"></textarea></td>
-                                <td><button type="button" class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
-                            `;
-                            tbody.appendChild(newRow);
-                        };
-                    }
-                    // Thêm sự kiện cho nút lưu dữ liệu
-                    const saveSummaryBtn = document.getElementById('saveSummaryBtn');
-                    if (saveSummaryBtn) {
-                        saveSummaryBtn.onclick = saveSummaryData;
-                    }
-                    // Thêm sự kiện cho nút xuất báo cáo
-                    const exportBtn = document.getElementById('exportBtn');
-                    if (exportBtn) {
-                        exportBtn.onclick = exportToWord;
-                    }
-                }
-
-                // 5. Logic trang ĐỊNH CỠ HỆ THỐNG (Sizing)
-                if (pageId === 'sizing') {
-                    // Cập nhật iframe URL với systemInfoId
+            // Hiện trang tương ứng dựa vào data-target
+            const targetId = "page-" + this.getAttribute("data-target");
+            const targetPage = document.getElementById(targetId);
+            
+            if (targetPage) {
+                targetPage.classList.add("active");
+                
+                // Xử lý riêng cho trang Sizing (Load iframe)
+                if (this.getAttribute("data-target") === 'sizing') {
                     const sizingIframe = document.getElementById('sizing-iframe');
                     if (sizingIframe && currentSystemInfoId) {
-                        sizingIframe.src = `http://localhost:8503?systemInfoId=${currentSystemInfoId}`;
+                        // Reload iframe với ID mới nhất
+                        const baseUrl = sizingIframe.src.split('?')[0];
+                        sizingIframe.src = `${baseUrl}?systemInfoId=${currentSystemInfoId}`;
                     }
                 }
-            }, 50);
-        }
-
-        // Đổi màu Active cho menu
-        menuLinks.forEach(item => item.classList.remove('active-menu'));
-        this.classList.add('active-menu');
+            }
+        });
     });
-});
-    // Hàm thêm dòng mới
-    function addRow() {
-        const tbody = document.getElementById('input-table-body');
-        const nextSTT = tbody.rows.length + 1;
-        const newRow = document.createElement('tr');
-        newRow.innerHTML = `
-            <td>${nextSTT}</td>
-            <td><input type="text"></td>
-            <td><input type="text"></td>
-            <td><input type="text"></td>
-            <td><input type="text"></td>
-            <td><textarea rows="1"></textarea></td>
-            <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
-        `;
-        tbody.appendChild(newRow);
+
+    // --- 2. GÁN SỰ KIỆN CHO CÁC NÚT (EVENT LISTENERS) ---
+    
+    // Nút lưu Yêu cầu bài toán
+    const saveBtn = document.getElementById('saveBtn');
+    if (saveBtn) saveBtn.onclick = saveSystemInfo;
+
+    // Nút thêm dòng Thông tin đầu vào
+    const addRowBtn = document.getElementById('addRowBtn');
+    if (addRowBtn) addRowBtn.onclick = addRow;
+
+    // Nút lưu Thông tin đầu vào
+    const saveInputDataBtn = document.getElementById('saveInputDataBtn');
+    if (saveInputDataBtn) saveInputDataBtn.onclick = saveInputData;
+
+    // Nút thêm dòng Baseline
+    const addBaselineBtn = document.getElementById('addBaselineRowBtn');
+    if (addBaselineBtn) addBaselineBtn.onclick = addBaselineRow;
+
+    // Nút thêm dòng Zone mạng (Mô hình hệ thống)
+    const addArchBtn = document.getElementById('addArchRowBtn');
+    if (addArchBtn) {
+        addArchBtn.onclick = function() {
+            const tbody = document.getElementById('arch-table-body');
+            const rowCount = tbody.rows.length + 1;
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td>${rowCount}</td>
+                <td><input type="text" placeholder="Ví dụ: App Server"></td>
+                <td><input type="text" placeholder="Ví dụ: Zone Internet"></td>
+                <td><input type="text" placeholder="Ví dụ: CentOS 7"></td>
+                <td><textarea rows="1" placeholder="Ví dụ: 02 VIP"></textarea></td>
+                <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
+            `;
+            tbody.appendChild(newRow);
+        };
     }
+
+    // Nút lưu Mô hình hệ thống
+    const saveModelBtn = document.getElementById('saveModelBtn');
+    if (saveModelBtn) saveModelBtn.onclick = saveModelData;
+
+    // Nút thêm dòng Tổng hợp đề xuất
+    const addSummaryBtn = document.getElementById('addSummaryRowBtn');
+    if (addSummaryBtn) {
+        addSummaryBtn.onclick = function() {
+            const tbody = document.getElementById('summary-table-body');
+            const rowCount = tbody.rows.length + 1;
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td>${rowCount}</td>
+                <td><input type="text" placeholder="Ví dụ: APP Service"></td>
+                <td><input type="number" value="1"></td>
+                <td><input type="number" value="1"></td>
+                <td><input type="text" placeholder="Ví dụ: 24"></td>
+                <td><input type="text" placeholder="/u01: 100"></td>
+                <td><textarea rows="1"></textarea></td>
+                <td><button class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
+            `;
+            tbody.appendChild(newRow);
+        };
+    }
+
+    // Nút lưu Tổng hợp
+    const saveSummaryBtn = document.getElementById('saveSummaryBtn');
+    if (saveSummaryBtn) saveSummaryBtn.onclick = saveSummaryData;
+
+    // Nút xuất báo cáo
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) exportBtn.onclick = exportToWord;
 });
 
-// Hàm xóa dòng (để ngoài để thuộc tính onclick của button có thể gọi tới)
+// --- 3. CÁC HÀM XỬ LÝ GIAO DIỆN (UI FUNCTIONS) ---
+
+function addRow() {
+    const tbody = document.getElementById('input-table-body');
+    const nextSTT = tbody.rows.length + 1;
+    const newRow = document.createElement('tr');
+    newRow.innerHTML = `
+        <td>${nextSTT}</td>
+        <td><input type="text"></td>
+        <td><input type="text"></td>
+        <td><input type="text"></td>
+        <td><input type="text"></td>
+        <td><textarea rows="1"></textarea></td>
+        <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
+    `;
+    tbody.appendChild(newRow);
+}
+
 function removeRow(btn) {
     const row = btn.closest('tr');
     const tbody = row.parentElement;
     row.remove();
-    
-    // Đánh số lại STT
-    Array.from(tbody.rows).forEach((r, index) => {
-        r.cells[0].innerText = index + 1;
-    });
+    updateSTT(tbody);
 }
+
 function removeSummaryRow(btn) {
     const row = btn.closest('tr');
     const tbody = row.parentElement;
     row.remove();
-    
-    // Cập nhật lại STT
-    Array.from(tbody.rows).forEach((r, index) => {
-        r.cells[0].innerText = index + 1;
-    });
+    updateSTT(tbody);
 }
+
 function removeArchRow(btn) {
     const row = btn.closest('tr');
     const tbody = row.parentElement;
     row.remove();
-    // Cập nhật lại STT
+    updateSTT(tbody);
+}
+
+// Hàm cập nhật lại số thứ tự (STT) cho bảng
+function updateSTT(tbody) {
     Array.from(tbody.rows).forEach((r, index) => {
-        r.cells[0].innerText = index + 1;
+        if(r.cells[0]) r.cells[0].innerText = index + 1;
     });
 }
-// Hàm tạo ô upload ảnh mới dựa trên loại mô hình
-function createUploadBox(type) {
-    const container = document.getElementById(`container-${type}`);
-    const boxId = 'img-' + Date.now(); // Tạo ID duy nhất
 
+function createUploadBox(type) {
+    const containerId = 'container-' + type;
+    const container = document.getElementById(containerId);
+    if(!container) return;
+
+    const boxId = 'img-' + Date.now();
     const div = document.createElement('div');
     div.className = 'upload-box';
     div.id = boxId;
@@ -520,28 +194,20 @@ function createUploadBox(type) {
         </div>
         <div class="preview-area" id="preview-${boxId}"></div>
     `;
-
     container.appendChild(div);
 }
 
-// Hàm hiển thị ảnh sau khi chọn file
 function previewModelImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+            previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px;">`;
         };
         reader.readAsDataURL(input.files[0]);
     }
 }
-if (document.getElementById('addRowBtn')) {
-    // Kích hoạt nút thêm dòng cho bảng (nếu có)
-    const addRowBtn = document.getElementById('addRowBtn');
-    if(addRowBtn) addRowBtn.onclick = addRow;
-    
-    // Nút thêm ảnh sở cứ sử dụng chung hàm createUploadBox đã viết ở phần Mô hình
-}
+
 function addBaselineRow() {
     const tbody = document.getElementById('baseline-specs-body');
     const newRow = document.createElement('tr');
@@ -562,100 +228,76 @@ function calculateBaselineTotal() {
     document.querySelectorAll('.ram-val').forEach(input => totalRam += parseFloat(input.value) || 0);
     document.querySelectorAll('.cint-val').forEach(input => totalCint += parseFloat(input.value) || 0);
     
-    document.getElementById('total-ram-baseline').innerText = totalRam;
-    document.getElementById('total-cint-baseline').innerText = totalCint;
+    const ramEl = document.getElementById('total-ram-baseline');
+    const cintEl = document.getElementById('total-cint-baseline');
+    
+    if(ramEl) ramEl.innerText = totalRam;
+    if(cintEl) cintEl.innerText = totalCint;
 }
 
-// ========== CÁC HÀM GỌI API BACKEND ==========
+// --- 4. CÁC HÀM GỌI API (BACKEND INTEGRATION) ---
 
-// Hàm lưu thông tin hệ thống (Yêu cầu bài toán)
+// Hàm format ngày (giữ nguyên logic)
+function formatDateForAPI(dateStr) {
+    if (!dateStr) return null;
+    if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+}
+
+// Lưu Yêu cầu bài toán
 async function saveSystemInfo() {
-    const inputs = document.querySelectorAll('.form-grid input');
+    // Lấy input từ form cụ thể trong page-request
+    const pageRequest = document.getElementById('page-request');
+    const inputs = pageRequest.querySelectorAll('input'); 
     const statusDiv = document.getElementById('save-status');
     
-    // Lấy giá trị từ 9 input fields theo thứ tự
+    // Map đúng thứ tự input trong HTML mới
     const data = {
-        devUnit: inputs[0]?.value || '',           // 1. Đơn vị phát triển
-        projectName: inputs[1]?.value || '',       // 2. Tên dự án
-        sysFeature: inputs[2]?.value || '',        // 3. Chức năng hệ thống
-        contactPerson: inputs[3]?.value || '',     // 4. Đầu mối định cỡ
-        sizingPurpose: inputs[4]?.value || '',     // 5. Mục đích định cỡ
-        sizingBasis: inputs[5]?.value || '',       // 6. Cơ sở định cỡ
-        sizingRule: inputs[6]?.value || '',        // 7. Nguyên tắc định cỡ
-        importance: inputs[7]?.value || '',        // 8. Mức độ quan trọng
-        deploymentTime: formatDateForAPI(inputs[8]?.value) // 9. Thời gian triển khai
+        devUnit: inputs[0]?.value || '', 
+        projectName: inputs[1]?.value || '', 
+        sysFeature: inputs[2]?.value || '', 
+        contactPerson: inputs[3]?.value || '', 
+        sizingPurpose: inputs[4]?.value || '', 
+        sizingBasis: inputs[5]?.value || '', 
+        sizingRule: inputs[6]?.value || '', 
+        importance: inputs[7]?.value || '', 
+        deploymentTime: formatDateForAPI(inputs[8]?.value)
     };
 
     try {
         const response = await fetch(`${API_BASE_URL}/system-info`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
 
         if (response.ok) {
             const result = await response.json();
-            // Lưu SystemInfo ID vào localStorage để không bị mất khi reload
             saveSystemInfoIdToStorage(result.id);
-            
-            if (statusDiv) {
-                statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thông tin thành công! (ID: ' + currentSystemInfoId + ')</span>';
-            }
+            if (statusDiv) statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công! (ID: ${currentSystemInfoId})</span>`;
             alert('Đã lưu thông tin dự án thành công!');
         } else {
-            const error = await response.text();
-            if (statusDiv) {
-                statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi khi lưu thông tin!</span>';
-            }
-            alert('Lỗi khi lưu: ' + error);
+            throw new Error(await response.text());
         }
     } catch (error) {
         console.error('Error:', error);
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
-        }
-        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy tại port 8080.');
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi kết nối!</span>';
+        alert('Lỗi: ' + error.message);
     }
 }
 
-// Hàm format ngày sang định dạng dd/MM/yyyy
-function formatDateForAPI(dateStr) {
-    if (!dateStr) return null;
-    
-    // Nếu input là yyyy-MM-dd (từ input type="date")
-    if (dateStr.includes('-')) {
-        const parts = dateStr.split('-');
-        if (parts.length === 3) {
-            return `${parts[2]}/${parts[1]}/${parts[0]}`;
-        }
-    }
-    
-    // Nếu đã là dd/MM/yyyy thì giữ nguyên
-    return dateStr;
-}
-
-// Hàm lưu thông tin đầu vào (ThongTinDauVao, HeThongThamChieu, SoCuThongTinDauVao)
+// Lưu Thông tin đầu vào
 async function saveInputData() {
     const statusDiv = document.getElementById('input-save-status');
-    
-    // Kiểm tra xem đã có SystemInfo ID chưa
-    if (!currentSystemInfoId) {
-        alert('Vui lòng lưu thông tin "Yêu cầu bài toán" trước!');
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Chưa có SystemInfo ID. Hãy lưu Yêu cầu bài toán trước!</span>';
-        }
-        return;
-    }
+    if (!currentSystemInfoId) return alert('Vui lòng lưu "Yêu cầu bài toán" trước!');
     
     try {
-        let savedThongTinDauVao = 0;
-        let savedHeThongThamChieu = 0;
-        let uploadedImages = 0;
-        let errorCount = 0;
+        let successCount = 0;
         
-        // 1. Lưu các dòng thông tin đầu vào từ bảng đầu tiên
+        // 1. Lưu bảng thông tin đầu vào
         const inputRows = document.querySelectorAll('#input-table-body tr');
         for (const row of inputRows) {
             const cells = row.querySelectorAll('td');
@@ -666,25 +308,17 @@ async function saveInputData() {
                 module: cells[4]?.querySelector('input')?.value || '',
                 ghiChu: cells[5]?.querySelector('textarea')?.value || ''
             };
-            
-            // Chỉ lưu nếu có ít nhất 1 trường có giá trị
-            if (data.dauVao || data.taiHeThongPOC || data.dinhCo || data.module || data.ghiChu) {
-                try {
-                    const response = await fetch(`${API_BASE_URL}/thong-tin-dau-vao/system-info/${currentSystemInfoId}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    if (response.ok) savedThongTinDauVao++;
-                    else errorCount++;
-                } catch (e) {
-                    errorCount++;
-                    console.error('Error saving ThongTinDauVao:', e);
-                }
+            if (data.dauVao || data.module) {
+                await fetch(`${API_BASE_URL}/thong-tin-dau-vao/system-info/${currentSystemInfoId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                successCount++;
             }
         }
-        
-        // 2. Lưu các dòng hệ thống tham chiếu
+
+        // 2. Lưu Baseline
         const baselineRows = document.querySelectorAll('#baseline-specs-body tr');
         for (const row of baselineRows) {
             const inputs = row.querySelectorAll('input');
@@ -695,270 +329,116 @@ async function saveInputData() {
                 ram: parseFloat(inputs[3]?.value) || 0,
                 cintRate2017: parseFloat(inputs[4]?.value) || 0
             };
-            
-            // Chỉ lưu nếu có ít nhất module hoặc IP
-            if (data.module || data.ip) {
-                try {
-                    const response = await fetch(`${API_BASE_URL}/he-thong-tham-chieu/system-info/${currentSystemInfoId}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    if (response.ok) savedHeThongThamChieu++;
-                    else errorCount++;
-                } catch (e) {
-                    errorCount++;
-                    console.error('Error saving HeThongThamChieu:', e);
-                }
+            if (data.module) {
+                await fetch(`${API_BASE_URL}/he-thong-tham-chieu/system-info/${currentSystemInfoId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                successCount++;
             }
         }
-        
-        // 3. Upload các ảnh sở cứ
-        const uploadBoxes = document.querySelectorAll('#container-evidence .upload-box');
-        for (const box of uploadBoxes) {
+
+        // 3. Upload ảnh Sở cứ
+        const evidenceBoxes = document.querySelectorAll('#container-evidence .upload-box');
+        for (const box of evidenceBoxes) {
             const fileInput = box.querySelector('input[type="file"]');
-            if (fileInput && fileInput.files && fileInput.files[0]) {
+            if (fileInput?.files[0]) {
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
-                
-                try {
-                    const response = await fetch(`${API_BASE_URL}/so-cu-thong-tin-dau-vao/system-info/${currentSystemInfoId}/upload`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (response.ok) uploadedImages++;
-                    else errorCount++;
-                } catch (e) {
-                    errorCount++;
-                    console.error('Error uploading image:', e);
-                }
+                await fetch(`${API_BASE_URL}/so-cu-thong-tin-dau-vao/system-info/${currentSystemInfoId}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                successCount++;
             }
         }
-        
-        // Hiển thị kết quả
-        const message = `Đã lưu thành công:
-- ${savedThongTinDauVao} dòng thông tin đầu vào
-- ${savedHeThongThamChieu} dòng hệ thống tham chiếu
-- ${uploadedImages} ảnh sở cứ
-${errorCount > 0 ? `\nCó ${errorCount} lỗi xảy ra.` : ''}`;
 
-        if (errorCount === 0) {
-            if (statusDiv) {
-                statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công: ${savedThongTinDauVao} thông tin đầu vào, ${savedHeThongThamChieu} hệ thống tham chiếu, ${uploadedImages} ảnh</span>`;
-            }
-        } else {
-            if (statusDiv) {
-                statusDiv.innerHTML = `<span style="color: orange;">⚠ Có ${errorCount} lỗi xảy ra</span>`;
-            }
-        }
-        alert(message);
-        
-    } catch (error) {
-        console.error('Error:', error);
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
-        }
-        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+        if (statusDiv) statusDiv.innerHTML = `<span style="color: green;">✓ Đã lưu ${successCount} mục dữ liệu.</span>`;
+        alert('Lưu dữ liệu thành công!');
+
+    } catch (e) {
+        console.error(e);
+        alert('Có lỗi xảy ra khi lưu dữ liệu.');
     }
 }
 
-// ========== HÀM LƯU MÔ HÌNH HỆ THỐNG ==========
-
-// Hàm lưu mô hình hệ thống (ảnh + bảng chi tiết zone mạng)
+// Lưu Mô hình hệ thống
 async function saveModelData() {
     const statusDiv = document.getElementById('model-save-status');
-    
-    // Kiểm tra xem đã có SystemInfo ID chưa
-    if (!currentSystemInfoId) {
-        alert('Vui lòng lưu thông tin "Yêu cầu bài toán" trước!');
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Chưa có SystemInfo ID. Hãy lưu Yêu cầu bài toán trước!</span>';
-        }
-        return;
-    }
-    
-    try {
-        let uploadedImages = 0;
-        let savedZoneRows = 0;
-        let errorCount = 0;
-        
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu dữ liệu...</span>';
-        }
-        
-        // 1. Upload ảnh Mô hình Vật lý
-        const physicalBoxes = document.querySelectorAll('#container-physical .upload-box');
-        for (const box of physicalBoxes) {
-            const fileInput = box.querySelector('input[type="file"]');
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const formData = new FormData();
-                formData.append('file', fileInput.files[0]);
-                
-                try {
-                    const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/mo-hinh-vat-ly`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (response.ok) uploadedImages++;
-                    else errorCount++;
-                } catch (e) {
-                    errorCount++;
-                    console.error('Error uploading physical model image:', e);
-                }
-            }
-        }
-        
-        // 2. Upload ảnh Mô hình Logic
-        const logicalBoxes = document.querySelectorAll('#container-logical .upload-box');
-        for (const box of logicalBoxes) {
-            const fileInput = box.querySelector('input[type="file"]');
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const formData = new FormData();
-                formData.append('file', fileInput.files[0]);
-                
-                try {
-                    const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/mo-hinh-logic`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (response.ok) uploadedImages++;
-                    else errorCount++;
-                } catch (e) {
-                    errorCount++;
-                    console.error('Error uploading logical model image:', e);
-                }
-            }
-        }
-        
-        // 3. Upload ảnh Luồng nghiệp vụ
-        const flowBoxes = document.querySelectorAll('#container-flow .upload-box');
-        for (const box of flowBoxes) {
-            const fileInput = box.querySelector('input[type="file"]');
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const formData = new FormData();
-                formData.append('file', fileInput.files[0]);
-                
-                try {
-                    const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/luong-nghiep-vu`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (response.ok) uploadedImages++;
-                    else errorCount++;
-                } catch (e) {
-                    errorCount++;
-                    console.error('Error uploading business flow image:', e);
-                }
-            }
-        }
-        
-        // 4. Lưu mô tả luồng nghiệp vụ
-        const flowDescription = document.getElementById('flow-explanation')?.value;
-        if (flowDescription && flowDescription.trim()) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/luong-nghiep-vu-description`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(flowDescription)
-                });
-                if (response.ok) {
-                    console.log('Saved flow description');
-                } else {
-                    errorCount++;
-                }
-            } catch (e) {
-                errorCount++;
-                console.error('Error saving flow description:', e);
-            }
-        }
-        
-        // 5. Lưu bảng chi tiết zone mạng, hệ điều hành, số lượng VIP
-        const archRows = document.querySelectorAll('#arch-table-body tr');
-        for (const row of archRows) {
-            const cells = row.querySelectorAll('td');
-            const moduleInput = cells[1]?.querySelector('input');
-            const zoneInput = cells[2]?.querySelector('input');
-            const osInput = cells[3]?.querySelector('input');
-            const vipTextarea = cells[4]?.querySelector('textarea');
-            
-            const data = {
-                module: moduleInput?.value || '',
-                zoneMang: zoneInput?.value || '',
-                heDieuHanh: osInput?.value || '',
-                soLuongVIP: parseInt(vipTextarea?.value) || 0
-            };
-            
-            // Chỉ lưu nếu có ít nhất module
-            if (data.module) {
-                try {
-                    const response = await fetch(`${API_BASE_URL}/mo-hinh-he-thong/system-info/${currentSystemInfoId}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    if (response.ok) savedZoneRows++;
-                    else errorCount++;
-                } catch (e) {
-                    errorCount++;
-                    console.error('Error saving zone info:', e);
-                }
-            }
-        }
-        
-        // Hiển thị kết quả
-        const message = `Đã lưu mô hình hệ thống:
-- ${uploadedImages} ảnh mô hình
-- ${savedZoneRows} dòng thông tin zone/module
-${errorCount > 0 ? `\nCó ${errorCount} lỗi xảy ra.` : ''}`;
+    if (!currentSystemInfoId) return alert('Vui lòng lưu "Yêu cầu bài toán" trước!');
 
-        if (errorCount === 0) {
-            if (statusDiv) {
-                statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công: ${uploadedImages} ảnh, ${savedZoneRows} dòng thông tin</span>`;
+    try {
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang xử lý...</span>';
+
+        // Helper upload ảnh
+        const uploadImg = async (type, endpoint) => {
+            const boxes = document.querySelectorAll(`#container-${type} .upload-box`);
+            for (const box of boxes) {
+                const fileInput = box.querySelector('input[type="file"]');
+                if (fileInput?.files[0]) {
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+                    await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/${endpoint}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                }
             }
-        } else {
-            if (statusDiv) {
-                statusDiv.innerHTML = `<span style="color: orange;">⚠ Có ${errorCount} lỗi xảy ra</span>`;
+        };
+
+        await uploadImg('physical', 'mo-hinh-vat-ly');
+        await uploadImg('logical', 'mo-hinh-logic');
+        await uploadImg('flow', 'luong-nghiep-vu');
+
+        // Lưu mô tả luồng
+        const desc = document.getElementById('flow-explanation')?.value;
+        if (desc) {
+            await fetch(`${API_BASE_URL}/mo-hinh-he-thong-image/system-info/${currentSystemInfoId}/luong-nghiep-vu-description`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(desc)
+            });
+        }
+
+        // Lưu bảng Zone mạng
+        const rows = document.querySelectorAll('#arch-table-body tr');
+        for (const row of rows) {
+            const cells = row.querySelectorAll('td');
+            const data = {
+                module: cells[1]?.querySelector('input')?.value || '',
+                zoneMang: cells[2]?.querySelector('input')?.value || '',
+                heDieuHanh: cells[3]?.querySelector('input')?.value || '',
+                soLuongVIP: parseInt(cells[4]?.querySelector('textarea')?.value) || 0
+            };
+            if (data.module) {
+                await fetch(`${API_BASE_URL}/mo-hinh-he-thong/system-info/${currentSystemInfoId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
             }
         }
-        alert(message);
-        
-    } catch (error) {
-        console.error('Error:', error);
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
-        }
-        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu mô hình thành công!</span>';
+        alert('Lưu mô hình thành công!');
+
+    } catch (e) {
+        console.error(e);
+        alert('Lỗi khi lưu mô hình.');
     }
 }
 
-// ========== HÀM LƯU TỔNG HỢP VÀ ĐỀ XUẤT ==========
-
-// Hàm lưu dữ liệu tổng hợp và đề xuất
+// Lưu Tổng hợp
 async function saveSummaryData() {
     const statusDiv = document.getElementById('summary-save-status');
-    
-    // Kiểm tra xem đã có SystemInfo ID chưa
-    if (!currentSystemInfoId) {
-        alert('Vui lòng lưu thông tin "Yêu cầu bài toán" trước!');
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Chưa có SystemInfo ID. Hãy lưu Yêu cầu bài toán trước!</span>';
-        }
-        return;
-    }
-    
+    if (!currentSystemInfoId) return alert('Chưa có SystemInfo ID!');
+
     try {
-        let savedRows = 0;
-        let errorCount = 0;
-        
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu dữ liệu...</span>';
-        }
-        
-        // Lưu các dòng trong bảng tổng hợp đề xuất
-        const summaryRows = document.querySelectorAll('#summary-table-body tr');
-        for (const row of summaryRows) {
+        const rows = document.querySelectorAll('#summary-table-body tr');
+        let count = 0;
+        for (const row of rows) {
             const cells = row.querySelectorAll('td');
-            
             const data = {
                 module: cells[1]?.querySelector('input')?.value || '',
                 soLuong: parseInt(cells[2]?.querySelector('input')?.value) || 1,
@@ -967,101 +447,51 @@ async function saveSummaryData() {
                 volume: cells[5]?.querySelector('input')?.value || '',
                 ghiChu: cells[6]?.querySelector('textarea')?.value || ''
             };
-            
-            // Chỉ lưu nếu có ít nhất module
             if (data.module) {
-                try {
-                    const response = await fetch(`${API_BASE_URL}/tong-hop/system-info/${currentSystemInfoId}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    if (response.ok) savedRows++;
-                    else errorCount++;
-                } catch (e) {
-                    errorCount++;
-                    console.error('Error saving summary row:', e);
-                }
+                await fetch(`${API_BASE_URL}/tong-hop/system-info/${currentSystemInfoId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                count++;
             }
         }
-        
-        // Hiển thị kết quả
-        const message = `Đã lưu ${savedRows} dòng tổng hợp đề xuất${errorCount > 0 ? `\nCó ${errorCount} lỗi xảy ra.` : ''}`;
-
-        if (errorCount === 0) {
-            if (statusDiv) {
-                statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công: ${savedRows} dòng đề xuất</span>`;
-            }
-        } else {
-            if (statusDiv) {
-                statusDiv.innerHTML = `<span style="color: orange;">⚠ Đã lưu ${savedRows} dòng, có ${errorCount} lỗi</span>`;
-            }
-        }
-        alert(message);
-        
-    } catch (error) {
-        console.error('Error:', error);
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
-        }
-        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+        if (statusDiv) statusDiv.innerHTML = `<span style="color: green;">✓ Đã lưu ${count} dòng.</span>`;
+        alert('Lưu thành công!');
+    } catch (e) {
+        console.error(e);
+        alert('Lỗi khi lưu tổng hợp.');
     }
 }
 
-// Hàm xuất báo cáo Word
+// Xuất báo cáo
 async function exportToWord() {
     const statusDiv = document.getElementById('summary-save-status');
-    
-    // Kiểm tra xem đã có SystemInfo ID chưa
-    if (!currentSystemInfoId) {
-        alert('Vui lòng lưu thông tin "Yêu cầu bài toán" trước khi xuất báo cáo!');
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Chưa có dữ liệu để xuất!</span>';
-        }
-        return;
-    }
-    
-    try {
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tạo báo cáo...</span>';
-        }
-        
-        const response = await fetch(`${API_BASE_URL}/system-info/${currentSystemInfoId}/export`, {
-            method: 'GET'
-        });
+    if (!currentSystemInfoId) return alert('Chưa có dữ liệu!');
 
+    try {
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tạo file...</span>';
+        
+        const response = await fetch(`${API_BASE_URL}/system-info/${currentSystemInfoId}/export`);
+        
         if (response.ok) {
-            // Tạo blob từ response
             const blob = await response.blob();
-            
-            // Tạo link download
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'bao-cao-dinh-co.docx';
+            a.download = `Sizing_Report_${currentSystemInfoId}.docx`;
             document.body.appendChild(a);
             a.click();
-            
-            // Cleanup
             window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            a.remove();
             
-            if (statusDiv) {
-                statusDiv.innerHTML = '<span style="color: green;">✓ Đã xuất báo cáo thành công!</span>';
-            }
-            alert('Đã xuất báo cáo thành công!');
+            if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Xuất file thành công!</span>';
         } else {
-            const error = await response.text();
-            if (statusDiv) {
-                statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi khi xuất báo cáo!</span>';
-            }
-            alert('Lỗi khi xuất báo cáo: ' + error);
+            throw new Error('Server trả về lỗi');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        if (statusDiv) {
-            statusDiv.innerHTML = '<span style="color: red;">✗ Không thể kết nối đến server!</span>';
-        }
-        alert('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+    } catch (e) {
+        console.error(e);
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi xuất file!</span>';
+        alert('Không thể xuất báo cáo.');
     }
 }
