@@ -104,8 +104,8 @@
                                     <th>Định cỡ</th>
                                     <th>Module</th>
                                     <th>Ghi chú</th>
-                                    <th>Admin chú thích</th>
-                                    <th style="width: 100px; text-align: center;">Admin xác nhận</th>
+                                    <th style="width: 120px; text-align: center;">Admin đánh giá</th>
+                                    <th>Admin comment</th>
                                     <th style="width: 50px;">Xóa</th>
                                 </tr>
                             </thead>
@@ -118,11 +118,15 @@
                                     <td><input type="text"></td>
                                     <td><textarea rows="3" class="input-textarea"></textarea></td>
                                     
-                                    <td><textarea rows="3" class="input-textarea" placeholder="Admin note..."></textarea></td>
-                                    
                                     <td style="text-align: center; vertical-align: middle;">
-                                        <input type="checkbox" style="width: 20px; height: 20px; cursor: pointer;">
+                                        <select style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                                            <option value="WAITING">-- Chọn --</option>
+                                            <option value="OK" style="color: green; font-weight: bold;">OK</option>
+                                            <option value="NOK" style="color: red; font-weight: bold;">NOK</option>
+                                        </select>
                                     </td>
+
+                                    <td><textarea rows="3" class="input-textarea" placeholder="Admin note..."></textarea></td>
                                     
                                     <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
                                 </tr>
@@ -319,10 +323,35 @@
                                 <tbody id="arch-table-body">
                                     <tr>
                                         <td>1</td>
-                                        <td><input type="text" placeholder="Ví dụ: App Server"></td>
+                                        <td>
+                                            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="Web App">Web App</option>
+                                                <option value="Redis">Redis</option>
+                                                <option value="Oracle RAC">Oracle RAC</option>
+                                                <option value="MariaDB">MariaDB</option>
+                                                <option value="PostgreSQL">PostgreSQL</option>
+                                                <option value="MongoDB">MongoDB</option>
+                                                <option value="MinIO">MinIO</option>
+                                                <option value="Kafka">Kafka</option>
+                                                <option value="Other">Khác</option>
+                                            </select>
+                                        </td>
+                                        
                                         <td><input type="text" placeholder="Ví dụ: Zone Internet"></td>
-                                        <td><input type="text" placeholder="Ví dụ: CentOS 7"></td>
+                                        
+                                        <td>
+                                            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="Ubuntu 22.04 trở lên">Ubuntu 22.04 trở lên</option>
+                                                <option value="CentOS">CentOS</option>
+                                                <option value="Windows Server">Windows Server</option>
+                                                <option value="RedHat">RedHat</option>
+                                            </select>
+                                        </td>
+                                        
                                         <td><textarea rows="1" placeholder="Ví dụ: 02 VIP"></textarea></td>
+                                        
                                         <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
                                     </tr>
                                 </tbody>

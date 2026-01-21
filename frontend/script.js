@@ -75,25 +75,50 @@ document.addEventListener("DOMContentLoaded", function () {
     const addBaselineBtn = document.getElementById('addBaselineRowBtn');
     if (addBaselineBtn) addBaselineBtn.onclick = addBaselineRow;
 
-    // Nút thêm dòng Zone mạng (Mô hình hệ thống)
+// Nút thêm dòng Zone mạng (Mô hình hệ thống)
     const addArchBtn = document.getElementById('addArchRowBtn');
     if (addArchBtn) {
         addArchBtn.onclick = function() {
             const tbody = document.getElementById('arch-table-body');
-            const rowCount = tbody.rows.length + 1;
+            const nextSTT = tbody.rows.length + 1;
             const newRow = document.createElement('tr');
+            
             newRow.innerHTML = `
-                <td>${rowCount}</td>
-                <td><input type="text" placeholder="Ví dụ: App Server"></td>
+                <td>${nextSTT}</td>
+                <td>
+                    <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                        <option value="">-- Chọn --</option>
+                        <option value="Web App">Web App</option>
+                        <option value="Redis">Redis</option>
+                        <option value="Oracle RAC">Oracle RAC</option>
+                        <option value="MariaDB">MariaDB</option>
+                        <option value="PostgreSQL">PostgreSQL</option>
+                        <option value="MongoDB">MongoDB</option>
+                        <option value="MinIO">MinIO</option>
+                        <option value="Kafka">Kafka</option>
+                        <option value="Other">Khác</option>
+                    </select>
+                </td>
+                
                 <td><input type="text" placeholder="Ví dụ: Zone Internet"></td>
-                <td><input type="text" placeholder="Ví dụ: CentOS 7"></td>
+                
+                <td>
+                    <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                        <option value="">-- Chọn --</option>
+                        <option value="Ubuntu 22.04 trở lên">Ubuntu 22.04 trở lên</option>
+                        <option value="CentOS">CentOS</option>
+                        <option value="Windows Server">Windows Server</option>
+                        <option value="RedHat">RedHat</option>
+                    </select>
+                </td>
+                
                 <td><textarea rows="1" placeholder="Ví dụ: 02 VIP"></textarea></td>
+                
                 <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
             `;
             tbody.appendChild(newRow);
         };
     }
-
     // Nút lưu Mô hình hệ thống
     const saveModelBtn = document.getElementById('saveModelBtn');
     if (saveModelBtn) saveModelBtn.onclick = saveModelData;
@@ -132,6 +157,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // Tìm hàm addRow() cũ và thay thế bằng nội dung này:
 
+// Tìm hàm addRow() cũ và thay thế bằng:
+
 function addRow() {
     const tbody = document.getElementById('input-table-body');
     const nextSTT = tbody.rows.length + 1;
@@ -145,11 +172,15 @@ function addRow() {
         <td><input type="text"></td>
         <td><textarea rows="3" class="input-textarea"></textarea></td>
         
-        <td><textarea rows="3" class="input-textarea"></textarea></td>
-        
         <td style="text-align: center; vertical-align: middle;">
-            <input type="checkbox" style="width: 20px; height: 20px; cursor: pointer;">
+            <select style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                <option value="WAITING">-- Chọn --</option>
+                <option value="OK" style="color: green; font-weight: bold;">OK</option>
+                <option value="NOK" style="color: red; font-weight: bold;">NOK</option>
+            </select>
         </td>
+
+        <td><textarea rows="3" class="input-textarea"></textarea></td>
         
         <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
     `;
@@ -323,8 +354,11 @@ async function saveInputData() {
         for (const row of inputRows) {
             const cells = row.querySelectorAll('td');
             
-            // Lấy checkbox
-            const checkbox = cells[7]?.querySelector('input[type="checkbox"]');
+            // Lấy thẻ Select đánh giá (OK/NOK) ở cột index 6
+            const statusSelect = cells[6]?.querySelector('select');
+            
+            // Lấy Textarea comment ở cột index 7
+            const commentArea = cells[7]?.querySelector('textarea');
 
             const data = {
                 dauVao: cells[1]?.querySelector('textarea')?.value || '',
@@ -333,9 +367,9 @@ async function saveInputData() {
                 module: cells[4]?.querySelector('input')?.value || '',
                 ghiChu: cells[5]?.querySelector('textarea')?.value || '',
                 
-                // Lấy dữ liệu 2 cột mới (Lưu ý chỉ số index của cells)
-                adminNote: cells[6]?.querySelector('textarea')?.value || '',
-                adminConfirmed: checkbox ? checkbox.checked : false
+                // Lấy dữ liệu mới
+                adminEvaluation: statusSelect?.value || 'WAITING', // Giá trị sẽ là "OK", "NOK" hoặc "WAITING"
+                adminComment: commentArea?.value || ''
             };
 
             // Chỉ lưu nếu có dữ liệu quan trọng
@@ -434,21 +468,34 @@ async function saveModelData() {
         }
 
         // Lưu bảng Zone mạng
-        const rows = document.querySelectorAll('#arch-table-body tr');
-        for (const row of rows) {
+const archRows = document.querySelectorAll('#arch-table-body tr');
+        for (const row of archRows) {
             const cells = row.querySelectorAll('td');
+            
+            // Cột 1: Module (Select)
+            const moduleSelect = cells[1]?.querySelector('select');
+            // Cột 2: Zone (Input)
+            const zoneInput = cells[2]?.querySelector('input');
+            // Cột 3: OS (Select)
+            const osSelect = cells[3]?.querySelector('select');
+            // Cột 4: VIP (Textarea)
+            const vipTextarea = cells[4]?.querySelector('textarea');
+            
             const data = {
-                module: cells[1]?.querySelector('input')?.value || '',
-                zoneMang: cells[2]?.querySelector('input')?.value || '',
-                heDieuHanh: cells[3]?.querySelector('input')?.value || '',
-                soLuongVIP: parseInt(cells[4]?.querySelector('textarea')?.value) || 0
+                module: moduleSelect?.value || '',
+                zoneMang: zoneInput?.value || '',
+                heDieuHanh: osSelect?.value || '',
+                soLuongVIP: parseInt(vipTextarea?.value) || 0
             };
+            
+            // Chỉ lưu nếu người dùng đã chọn Module
             if (data.module) {
                 await fetch(`${API_BASE_URL}/mo-hinh-he-thong/system-info/${currentSystemInfoId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
+                savedZoneRows++;
             }
         }
 
