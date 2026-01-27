@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -22,6 +24,8 @@ import java.util.Map;
 
 @Service
 public class ExportService {
+    private static final Logger log = LoggerFactory.getLogger(ExportService.class);
+
     private final ProjectRepository projectRepository;
     private final ProjectDataRepository projectDataRepository;
     private final ObjectMapper objectMapper;
@@ -38,8 +42,20 @@ public class ExportService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("Project not found: " + projectId));
 
-        ProjectData projectData = projectDataRepository.findByProjectId(projectId)
+        ProjectData projectData = projectDataRepository.findFirstByProjectId(projectId)
                 .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + projectId));
+
+        // Debug logging
+        log.info("=== Export Debug for projectId: {} ===", projectId);
+        log.info("yeuCauBaiToanContent: {}", projectData.getYeuCauBaiToanContent() != null ? "HAS DATA" : "NULL");
+        log.info("thongTinDauVaoContent: {}", projectData.getThongTinDauVaoContent() != null ? "HAS DATA" : "NULL");
+        log.info("moHinhHeThongContent: {}", projectData.getMoHinhHeThongContent() != null ? "HAS DATA" : "NULL");
+        log.info("dinhCoHeThongContent: {}", projectData.getDinhCoHeThongContent() != null ? "HAS DATA" : "NULL");
+        log.info("tongHopVaDeXuatContent: {}", projectData.getTongHopVaDeXuatContent() != null ? "HAS DATA" : "NULL");
+
+        if (projectData.getThongTinDauVaoContent() != null) {
+            log.info("thongTinDauVaoContent value: {}", projectData.getThongTinDauVaoContent());
+        }
 
         XWPFDocument document = new XWPFDocument();
 
@@ -167,10 +183,11 @@ public class ExportService {
 
         document.createParagraph();
 
-        // Thông tin đầu vào table
-        if (rootNode.has("thongTinDauVao") && rootNode.get("thongTinDauVao").isArray()) {
+        // Thông tin đầu vào table (support both "thongTinDauVao" and "inputRows")
+        JsonNode inputNode = rootNode.has("inputRows") ? rootNode.get("inputRows") : rootNode.get("thongTinDauVao");
+        if (inputNode != null && inputNode.isArray()) {
             List<Map<String, String>> items = objectMapper.readValue(
-                    rootNode.get("thongTinDauVao").toString(),
+                    inputNode.toString(),
                     new TypeReference<List<Map<String, String>>>() {}
             );
 
@@ -248,8 +265,94 @@ public class ExportService {
             document.createParagraph();
         }
 
-        // Hệ thống tham chiếu
-        if (rootNode.has("heThongThamChieu") && rootNode.get("heThongThamChieu").isArray()) {
+        // Input Evidence Images (support both "inputEvidenceImages" and "soCuThongTinDauVao")
+        JsonNode inputEvidenceNode = rootNode.has("inputEvidenceImages") ? rootNode.get("inputEvidenceImages") : rootNode.get("soCuThongTinDauVao");
+        if (inputEvidenceNode != null && inputEvidenceNode.isArray() && inputEvidenceNode.size() > 0) {
+            XWPFParagraph subTitle = document.createParagraph();
+            XWPFRun subRun = subTitle.createRun();
+            subRun.setText("Sở cứ giá trị thông tin đầu vào");
+            subRun.setBold(true);
+            subRun.setFontSize(13);
+            subRun.setFontFamily("Times New Roman");
+
+            for (JsonNode imgNode : inputEvidenceNode) {
+                // Support base64 images
+                if (imgNode.has("base64")) {
+                    String base64 = imgNode.get("base64").asText("");
+                    if (!base64.isEmpty()) {
+                        addBase64ImageToDocument(document, base64);
+                    }
+                }
+                // Support file path images
+                else if (imgNode.has("imagePath")) {
+                    String imagePath = imgNode.get("imagePath").asText("");
+                    if (!imagePath.isEmpty()) {
+                        addImageToDocument(document, imagePath);
+                    }
+                }
+            }
+            document.createParagraph();
+        }
+
+        JsonNode pocEvidenceNode = rootNode.has("pocEvidenceImages") ? rootNode.get("pocEvidenceImages") : rootNode.get("soCuThongTinDauVao");
+        if (pocEvidenceNode != null && pocEvidenceNode.isArray() && pocEvidenceNode.size() > 0) {
+            XWPFParagraph subTitle = document.createParagraph();
+            XWPFRun subRun = subTitle.createRun();
+            subRun.setText("Sở cứ giá trị tải POC");
+            subRun.setBold(true);
+            subRun.setFontSize(13);
+            subRun.setFontFamily("Times New Roman");
+
+            for (JsonNode imgNode : pocEvidenceNode) {
+                // Support base64 images
+                if (imgNode.has("base64")) {
+                    String base64 = imgNode.get("base64").asText("");
+                    if (!base64.isEmpty()) {
+                        addBase64ImageToDocument(document, base64);
+                    }
+                }
+                // Support file path images
+                else if (imgNode.has("imagePath")) {
+                    String imagePath = imgNode.get("imagePath").asText("");
+                    if (!imagePath.isEmpty()) {
+                        addImageToDocument(document, imagePath);
+                    }
+                }
+            }
+            document.createParagraph();
+        }
+
+        JsonNode sizingEvidenceNode = rootNode.has("sizingEvidenceImages") ? rootNode.get("sizingEvidenceImages") : rootNode.get("soCuThongTinDauVao");
+        if (sizingEvidenceNode != null && sizingEvidenceNode.isArray() && sizingEvidenceNode.size() > 0) {
+            XWPFParagraph subTitle = document.createParagraph();
+            XWPFRun subRun = subTitle.createRun();
+            subRun.setText("Sở cứ giá trị định cỡ");
+            subRun.setBold(true);
+            subRun.setFontSize(13);
+            subRun.setFontFamily("Times New Roman");
+
+            for (JsonNode imgNode : sizingEvidenceNode) {
+                // Support base64 images
+                if (imgNode.has("base64")) {
+                    String base64 = imgNode.get("base64").asText("");
+                    if (!base64.isEmpty()) {
+                        addBase64ImageToDocument(document, base64);
+                    }
+                }
+                // Support file path images
+                else if (imgNode.has("imagePath")) {
+                    String imagePath = imgNode.get("imagePath").asText("");
+                    if (!imagePath.isEmpty()) {
+                        addImageToDocument(document, imagePath);
+                    }
+                }
+            }
+            document.createParagraph();
+        }
+
+        // Hệ thống tham chiếu (support both "baselineRows" and "heThongThamChieu")
+        JsonNode baselineNode = rootNode.has("baselineRows") ? rootNode.get("baselineRows") : rootNode.get("heThongThamChieu");
+        if (baselineNode != null && baselineNode.isArray()) {
             XWPFParagraph subTitle = document.createParagraph();
             XWPFRun subRun = subTitle.createRun();
             subRun.setText("Thông tin Hệ thống tham chiếu");
@@ -258,7 +361,7 @@ public class ExportService {
             subRun.setFontFamily("Times New Roman");
 
             List<Map<String, Object>> items = objectMapper.readValue(
-                    rootNode.get("heThongThamChieu").toString(),
+                    baselineNode.toString(),
                     new TypeReference<List<Map<String, Object>>>() {}
             );
 
@@ -307,24 +410,29 @@ public class ExportService {
             }
         }
 
-        // Sở cứ thông tin đầu vào (images)
-        if (rootNode.has("soCuThongTinDauVao") && rootNode.get("soCuThongTinDauVao").isArray()) {
+        JsonNode evidenceNode = rootNode.has("evidenceImages") ? rootNode.get("evidenceImages") : rootNode.get("soCuThongTinDauVao");
+        if (evidenceNode != null && evidenceNode.isArray() && evidenceNode.size() > 0) {
             XWPFParagraph subTitle = document.createParagraph();
             XWPFRun subRun = subTitle.createRun();
-            subRun.setText("Sở cứ giá trị định cỡ");
+            subRun.setText("Sở cứ thông tin hệ thống tham chiếu");
             subRun.setBold(true);
             subRun.setFontSize(13);
             subRun.setFontFamily("Times New Roman");
 
-            List<Map<String, String>> images = objectMapper.readValue(
-                    rootNode.get("soCuThongTinDauVao").toString(),
-                    new TypeReference<List<Map<String, String>>>() {}
-            );
-
-            for (Map<String, String> img : images) {
-                String imagePath = img.get("imagePath");
-                if (imagePath != null && !imagePath.isEmpty()) {
-                    addImageToDocument(document, imagePath);
+            for (JsonNode imgNode : evidenceNode) {
+                // Support base64 images
+                if (imgNode.has("base64")) {
+                    String base64 = imgNode.get("base64").asText("");
+                    if (!base64.isEmpty()) {
+                        addBase64ImageToDocument(document, base64);
+                    }
+                }
+                // Support file path images
+                else if (imgNode.has("imagePath")) {
+                    String imagePath = imgNode.get("imagePath").asText("");
+                    if (!imagePath.isEmpty()) {
+                        addImageToDocument(document, imagePath);
+                    }
                 }
             }
             document.createParagraph();
@@ -345,8 +453,9 @@ public class ExportService {
 
         document.createParagraph();
 
-        // A. Mô hình Vật lý
-        if (rootNode.has("moHinhVatLy")) {
+        // A. Mô hình Vật lý (support both "physicalImages" and "moHinhVatLy")
+        JsonNode physicalNode = rootNode.has("physicalImages") ? rootNode.get("physicalImages") : rootNode.get("moHinhVatLy");
+        if (physicalNode != null) {
             XWPFParagraph subTitle = document.createParagraph();
             XWPFRun subRun = subTitle.createRun();
             subRun.setText("A.\tMô hình Vật lý (Physical Architecture)");
@@ -354,15 +463,35 @@ public class ExportService {
             subRun.setFontSize(13);
             subRun.setFontFamily("Times New Roman");
 
-            String imagePath = rootNode.get("moHinhVatLy").asText("");
-            if (!imagePath.isEmpty()) {
-                addImageToDocument(document, imagePath);
+            // If it's an array of images
+            if (physicalNode.isArray()) {
+                for (JsonNode imgNode : physicalNode) {
+                    if (imgNode.has("base64")) {
+                        String base64 = imgNode.get("base64").asText("");
+                        if (!base64.isEmpty()) {
+                            addBase64ImageToDocument(document, base64);
+                        }
+                    } else if (imgNode.has("imagePath")) {
+                        String imagePath = imgNode.get("imagePath").asText("");
+                        if (!imagePath.isEmpty()) {
+                            addImageToDocument(document, imagePath);
+                        }
+                    }
+                }
+            }
+            // If it's a single image path string
+            else if (physicalNode.isTextual()) {
+                String imagePath = physicalNode.asText("");
+                if (!imagePath.isEmpty()) {
+                    addImageToDocument(document, imagePath);
+                }
             }
             document.createParagraph();
         }
 
-        // B. Mô hình Logic
-        if (rootNode.has("moHinhLogic")) {
+        // B. Mô hình Logic (support both "logicalImages" and "moHinhLogic")
+        JsonNode logicalNode = rootNode.has("logicalImages") ? rootNode.get("logicalImages") : rootNode.get("moHinhLogic");
+        if (logicalNode != null) {
             XWPFParagraph subTitle = document.createParagraph();
             XWPFRun subRun = subTitle.createRun();
             subRun.setText("B.\tMô hình Logic (Logical Architecture)");
@@ -370,15 +499,38 @@ public class ExportService {
             subRun.setFontSize(13);
             subRun.setFontFamily("Times New Roman");
 
-            String imagePath = rootNode.get("moHinhLogic").asText("");
-            if (!imagePath.isEmpty()) {
-                addImageToDocument(document, imagePath);
+            // If it's an array of images
+            if (logicalNode.isArray()) {
+                for (JsonNode imgNode : logicalNode) {
+                    if (imgNode.has("base64")) {
+                        String base64 = imgNode.get("base64").asText("");
+                        if (!base64.isEmpty()) {
+                            addBase64ImageToDocument(document, base64);
+                        }
+                    } else if (imgNode.has("imagePath")) {
+                        String imagePath = imgNode.get("imagePath").asText("");
+                        if (!imagePath.isEmpty()) {
+                            addImageToDocument(document, imagePath);
+                        }
+                    }
+                }
+            }
+            // If it's a single image path string
+            else if (logicalNode.isTextual()) {
+                String imagePath = logicalNode.asText("");
+                if (!imagePath.isEmpty()) {
+                    addImageToDocument(document, imagePath);
+                }
             }
             document.createParagraph();
         }
 
-        // C. Luồng nghiệp vụ
-        if (rootNode.has("luongNghiepVu") || rootNode.has("luongNghiepVuDescription")) {
+        // C. Luồng nghiệp vụ (support both "flowImages"/"flowExplanation" and "luongNghiepVu"/"luongNghiepVuDescription")
+        JsonNode flowImagesNode = rootNode.has("flowImages") ? rootNode.get("flowImages") : rootNode.get("luongNghiepVu");
+        String flowExplanation = rootNode.has("flowExplanation") ? rootNode.get("flowExplanation").asText("") :
+                                 (rootNode.has("luongNghiepVuDescription") ? rootNode.get("luongNghiepVuDescription").asText("") : "");
+
+        if (flowImagesNode != null || !flowExplanation.isEmpty()) {
             XWPFParagraph subTitle = document.createParagraph();
             XWPFRun subRun = subTitle.createRun();
             subRun.setText("C.\tLuồng nghiệp vụ (Business Flow)");
@@ -386,25 +538,44 @@ public class ExportService {
             subRun.setFontSize(13);
             subRun.setFontFamily("Times New Roman");
 
-            if (rootNode.has("luongNghiepVu")) {
-                String imagePath = rootNode.get("luongNghiepVu").asText("");
-                if (!imagePath.isEmpty()) {
-                    addImageToDocument(document, imagePath);
+            // Add flow images
+            if (flowImagesNode != null) {
+                if (flowImagesNode.isArray()) {
+                    for (JsonNode imgNode : flowImagesNode) {
+                        if (imgNode.has("base64")) {
+                            String base64 = imgNode.get("base64").asText("");
+                            if (!base64.isEmpty()) {
+                                addBase64ImageToDocument(document, base64);
+                            }
+                        } else if (imgNode.has("imagePath")) {
+                            String imagePath = imgNode.get("imagePath").asText("");
+                            if (!imagePath.isEmpty()) {
+                                addImageToDocument(document, imagePath);
+                            }
+                        }
+                    }
+                } else if (flowImagesNode.isTextual()) {
+                    String imagePath = flowImagesNode.asText("");
+                    if (!imagePath.isEmpty()) {
+                        addImageToDocument(document, imagePath);
+                    }
                 }
             }
 
-            if (rootNode.has("luongNghiepVuDescription")) {
+            // Add flow explanation/description
+            if (!flowExplanation.isEmpty()) {
                 XWPFParagraph descPara = document.createParagraph();
                 XWPFRun descRun = descPara.createRun();
-                descRun.setText(rootNode.get("luongNghiepVuDescription").asText(""));
+                descRun.setText(flowExplanation);
                 descRun.setFontSize(13);
                 descRun.setFontFamily("Times New Roman");
             }
             document.createParagraph();
         }
 
-        // Chi tiết các zone mạng
-        if (rootNode.has("chiTietZoneMang") && rootNode.get("chiTietZoneMang").isArray()) {
+        // Chi tiết các zone mạng (support both "archRows" and "chiTietZoneMang")
+        JsonNode archNode = rootNode.has("archRows") ? rootNode.get("archRows") : rootNode.get("chiTietZoneMang");
+        if (archNode != null && archNode.isArray()) {
             XWPFParagraph subTitle = document.createParagraph();
             XWPFRun subRun = subTitle.createRun();
             subRun.setText("5.\tChi tiết các zone mạng, hệ điều hành, số lượng VIP");
@@ -413,7 +584,7 @@ public class ExportService {
             subRun.setFontFamily("Times New Roman");
 
             List<Map<String, Object>> items = objectMapper.readValue(
-                    rootNode.get("chiTietZoneMang").toString(),
+                    archNode.toString(),
                     new TypeReference<List<Map<String, Object>>>() {}
             );
 
@@ -662,6 +833,42 @@ public class ExportService {
         } catch (Exception e) {
             // Log error but continue processing
             System.err.println("Failed to add image: " + imagePath + " - " + e.getMessage());
+        }
+    }
+
+    private void addBase64ImageToDocument(XWPFDocument document, String base64String) {
+        try {
+            // Remove data URL prefix if present (e.g., "data:image/png;base64,")
+            String base64Data = base64String;
+            int pictureType = XWPFDocument.PICTURE_TYPE_PNG; // default
+
+            if (base64String.contains(",")) {
+                String[] parts = base64String.split(",");
+                String header = parts[0].toLowerCase();
+                base64Data = parts[1];
+
+                if (header.contains("jpeg") || header.contains("jpg")) {
+                    pictureType = XWPFDocument.PICTURE_TYPE_JPEG;
+                } else if (header.contains("gif")) {
+                    pictureType = XWPFDocument.PICTURE_TYPE_GIF;
+                } else if (header.contains("bmp")) {
+                    pictureType = XWPFDocument.PICTURE_TYPE_BMP;
+                }
+            }
+
+            byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Data);
+
+            XWPFParagraph imagePara = document.createParagraph();
+            imagePara.setAlignment(ParagraphAlignment.CENTER);
+            XWPFRun imageRun = imagePara.createRun();
+
+            try (java.io.ByteArrayInputStream bis = new java.io.ByteArrayInputStream(imageBytes)) {
+                imageRun.addPicture(bis, pictureType, "image",
+                        Units.toEMU(400), Units.toEMU(300));
+            }
+        } catch (Exception e) {
+            // Log error but continue processing
+            System.err.println("Failed to add base64 image: " + e.getMessage());
         }
     }
 

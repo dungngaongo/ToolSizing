@@ -5,6 +5,7 @@ import com.example.demo.dto.UpdateProjectDataRequest;
 import com.example.demo.model.ProjectData;
 import com.example.demo.repository.ProjectDataRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,31 @@ public class ProjectDataService {
     }
 
     public ProjectData create(CreateProjectDataRequest request) {
+        // Kiểm tra xem đã có ProjectData cho project này chưa
+        Optional<ProjectData> existing = projectDataRepository.findFirstByProjectId(request.getProjectId());
+        
+        if (existing.isPresent()) {
+            // Nếu đã tồn tại, cập nhật thay vì tạo mới
+            ProjectData projectData = existing.get();
+            if (request.getYeuCauBaiToanContent() != null) {
+                projectData.setYeuCauBaiToanContent(request.getYeuCauBaiToanContent());
+            }
+            if (request.getThongTinDauVaoContent() != null) {
+                projectData.setThongTinDauVaoContent(request.getThongTinDauVaoContent());
+            }
+            if (request.getMoHinhHeThongContent() != null) {
+                projectData.setMoHinhHeThongContent(request.getMoHinhHeThongContent());
+            }
+            if (request.getDinhCoHeThongContent() != null) {
+                projectData.setDinhCoHeThongContent(request.getDinhCoHeThongContent());
+            }
+            if (request.getTongHopVaDeXuatContent() != null) {
+                projectData.setTongHopVaDeXuatContent(request.getTongHopVaDeXuatContent());
+            }
+            return projectDataRepository.save(projectData);
+        }
+        
+        // Tạo mới nếu chưa tồn tại
         ProjectData projectData = new ProjectData();
         projectData.setProjectId(request.getProjectId());
         projectData.setYeuCauBaiToanContent(request.getYeuCauBaiToanContent());
@@ -37,11 +63,13 @@ public class ProjectDataService {
     }
 
     public Optional<ProjectData> getByProjectId(String projectId) {
-        return projectDataRepository.findByProjectId(projectId);
+        // Sử dụng findFirstByProjectId để tránh lỗi khi có nhiều bản ghi
+        return projectDataRepository.findFirstByProjectId(projectId);
     }
 
     public ProjectData update(String projectId, UpdateProjectDataRequest request) {
-        ProjectData projectData = projectDataRepository.findByProjectId(projectId)
+        // Sử dụng findFirstByProjectId để tránh lỗi khi có nhiều bản ghi
+        ProjectData projectData = projectDataRepository.findFirstByProjectId(projectId)
                 .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + projectId));
 
         if (request.getYeuCauBaiToanContent() != null) {
@@ -65,5 +93,16 @@ public class ProjectDataService {
 
     public void delete(String id) {
         projectDataRepository.deleteById(id);
+    }
+    
+    @Transactional
+    public void cleanupDuplicates(String projectId) {
+        List<ProjectData> allData = projectDataRepository.findByProjectId(projectId);
+        if (allData.size() > 1) {
+            // Giữ lại bản ghi đầu tiên, xóa các bản ghi còn lại
+            for (int i = 1; i < allData.size(); i++) {
+                projectDataRepository.deleteById(allData.get(i).getId());
+            }
+        }
     }
 }

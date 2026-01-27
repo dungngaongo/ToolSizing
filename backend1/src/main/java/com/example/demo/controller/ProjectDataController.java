@@ -55,5 +55,11 @@ public class ProjectDataController {
         projectDataService.delete(id);
         return ResponseEntity.noContent().build();
     }
+    
+    @PostMapping("/project/{projectId}/cleanup")
+    public ResponseEntity<String> cleanupDuplicates(@PathVariable String projectId) {
+        projectDataService.cleanupDuplicates(projectId);
+        return ResponseEntity.ok("Cleanup completed for projectId: " + projectId);
+    }
 }
 

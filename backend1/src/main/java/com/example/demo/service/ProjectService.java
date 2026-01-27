@@ -75,7 +75,7 @@ public class ProjectService {
     @Transactional
     public void delete(String id) {
         // Xóa ProjectData liên quan
-        projectDataRepository.findByProjectId(id).ifPresent(projectDataRepository::delete);
+        projectDataRepository.findFirstByProjectId(id).ifPresent(projectDataRepository::delete);
         projectRepository.deleteById(id);
     }
 }

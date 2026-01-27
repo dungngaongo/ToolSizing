@@ -31,7 +31,7 @@ public class ProjectRevisionService {
      */
     public ProjectRevision createRevision(CreateProjectRevisionRequest request) {
         // Lấy ProjectData hiện tại
-        ProjectData projectData = projectDataRepository.findByProjectId(request.getProjectId())
+        ProjectData projectData = projectDataRepository.findFirstByProjectId(request.getProjectId())
                 .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + request.getProjectId()));
 
         // Tạo snapshot JSON từ ProjectData
@@ -74,7 +74,7 @@ public class ProjectRevisionService {
         ProjectRevision revision = projectRevisionRepository.findById(revisionId)
                 .orElseThrow(() -> new RuntimeException("Revision not found: " + revisionId));
 
-        ProjectData projectData = projectDataRepository.findByProjectId(revision.getProjectId())
+        ProjectData projectData = projectDataRepository.findFirstByProjectId(revision.getProjectId())
                 .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + revision.getProjectId()));
 
         // Parse snapshot và cập nhật ProjectData

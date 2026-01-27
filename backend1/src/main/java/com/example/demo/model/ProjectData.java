@@ -15,23 +15,23 @@ public class ProjectData {
     @Column(name = "project_id", nullable = false)
     private String projectId;
 
-    @Column(name = "yeu_cau_bai_toan_content", columnDefinition = "TEXT")
+    @Column(name = "yeu_cau_bai_toan_content", columnDefinition = "LONGTEXT")
     @Lob
     private String yeuCauBaiToanContent; // JSON string
 
-    @Column(name = "thong_tin_dau_vao_content", columnDefinition = "TEXT")
+    @Column(name = "thong_tin_dau_vao_content", columnDefinition = "LONGTEXT")
     @Lob
     private String thongTinDauVaoContent; // JSON string
 
-    @Column(name = "mo_hinh_he_thong_content", columnDefinition = "TEXT")
+    @Column(name = "mo_hinh_he_thong_content", columnDefinition = "LONGTEXT")
     @Lob
     private String moHinhHeThongContent; // JSON string
 
-    @Column(name = "dinh_co_he_thong_content", columnDefinition = "TEXT")
+    @Column(name = "dinh_co_he_thong_content", columnDefinition = "LONGTEXT")
     @Lob
     private String dinhCoHeThongContent; // JSON string
 
-    @Column(name = "tong_hop_va_de_xuat_content", columnDefinition = "TEXT")
+    @Column(name = "tong_hop_va_de_xuat_content", columnDefinition = "LONGTEXT")
     @Lob
     private String tongHopVaDeXuatContent; // JSON string
 
