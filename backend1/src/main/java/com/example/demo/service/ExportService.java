@@ -200,6 +200,54 @@ public class ExportService {
             }
         }
 
+        // Sở cứ đầu vào
+        if (rootNode.has("soCuDauVao")) {
+            XWPFParagraph subTitle = document.createParagraph();
+            XWPFRun subRun = subTitle.createRun();
+            subRun.setText("Sở cứ đầu vào:");
+            subRun.setBold(true);
+            subRun.setFontSize(13);
+            subRun.setFontFamily("Times New Roman");
+
+            String imagePath = rootNode.get("soCuDauVao").asText("");
+            if (!imagePath.isEmpty()) {
+                addImageToDocument(document, imagePath);
+            }
+            document.createParagraph();
+        }
+
+        // Sở cứ tải POC
+        if (rootNode.has("soCuTaiPOC")) {
+            XWPFParagraph subTitle = document.createParagraph();
+            XWPFRun subRun = subTitle.createRun();
+            subRun.setText("Sở cứ tải POC:");
+            subRun.setBold(true);
+            subRun.setFontSize(13);
+            subRun.setFontFamily("Times New Roman");
+
+            String imagePath = rootNode.get("soCuTaiPOC").asText("");
+            if (!imagePath.isEmpty()) {
+                addImageToDocument(document, imagePath);
+            }
+            document.createParagraph();
+        }
+
+        // Sở cứ định cỡ
+        if (rootNode.has("soCuDinhCo")) {
+            XWPFParagraph subTitle = document.createParagraph();
+            XWPFRun subRun = subTitle.createRun();
+            subRun.setText("Sở cứ định cỡ:");
+            subRun.setBold(true);
+            subRun.setFontSize(13);
+            subRun.setFontFamily("Times New Roman");
+
+            String imagePath = rootNode.get("soCuDinhCo").asText("");
+            if (!imagePath.isEmpty()) {
+                addImageToDocument(document, imagePath);
+            }
+            document.createParagraph();
+        }
+
         // Hệ thống tham chiếu
         if (rootNode.has("heThongThamChieu") && rootNode.get("heThongThamChieu").isArray()) {
             XWPFParagraph subTitle = document.createParagraph();
