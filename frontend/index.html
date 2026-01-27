@@ -129,8 +129,6 @@
                                     <th>Định cỡ</th>
                                     <th>Module</th>
                                     <th>Ghi chú</th>
-                                    <th style="width: 120px; text-align: center;">Admin đánh giá</th>
-                                    <th>Admin comment</th>
                                     <th style="width: 50px;">Xóa</th>
                                 </tr>
                             </thead>
@@ -142,17 +140,6 @@
                                     <td><textarea rows="3" class="input-textarea"></textarea></td>
                                     <td><input type="text"></td>
                                     <td><textarea rows="3" class="input-textarea"></textarea></td>
-                                    
-                                    <td style="text-align: center; vertical-align: middle;">
-                                        <select style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
-                                            <option value="WAITING">-- Chọn --</option>
-                                            <option value="OK" style="color: green; font-weight: bold;">Phê duyệt</option>
-                                            <option value="NOK" style="color: red; font-weight: bold;">Không phê duyệt</option>
-                                        </select>
-                                    </td>
-
-                                    <td><textarea rows="3" class="input-textarea" placeholder="Admin note..."></textarea></td>
-                                    
                                     <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
                                 </tr>
                             </tbody>
@@ -250,6 +237,31 @@
                         <button type="button" class="btn-add-img" onclick="createUploadBox('evidence')">
                             <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ/xác minh
                         </button>
+                    </div>
+                    
+                    <hr class="form-divider" style="margin: 30px 0;">
+                    
+                    <div style="background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                        <h3 style="font-size: 16px; font-weight: 600; color: #d9534f; margin-top: 0; display: flex; align-items: center;">
+                            <i class="fa-solid fa-user-tie" style="margin-right: 10px;"></i> Admin Đánh giá & Nhận xét
+                        </h3>
+                        <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Dành cho Admin/Quản lý để đánh giá thông tin đầu vào</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 15px;">
+                            <div>
+                                <label style="font-weight: 600; color: #333; display: block; margin-bottom: 8px;">Đánh giá:</label>
+                                <select id="input-admin-rating" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+                                    <option value="">-- Chọn --</option>
+                                    <option value="OK" style="color: green;">✓ Phê duyệt</option>
+                                    <option value="PENDING" style="color: orange;">⏳ Cần bổ sung</option>
+                                    <option value="NOK" style="color: red;">✗ Không phê duyệt</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-weight: 600; color: #333; display: block; margin-bottom: 8px;">Ghi chú:</label>
+                                <textarea id="input-admin-comment" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: Arial; font-size: 13px; resize: vertical;" placeholder="Nhập nhận xét/hướng dẫn..."></textarea>
+                            </div>
+                        </div>
                     </div>
                     
                     <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
