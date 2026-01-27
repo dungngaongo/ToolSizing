@@ -85,6 +85,31 @@
                     </div>
                     <button type="button" class="btn-submit" id="saveBtn">Lưu thông tin</button>
                     <div id="save-status" style="margin-top: 10px; text-align: center;"></div>
+                    
+                    <hr class="form-divider" style="margin: 30px 0;">
+                    
+                    <div style="background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                        <h3 style="font-size: 16px; font-weight: 600; color: #d9534f; margin-top: 0; display: flex; align-items: center;">
+                            <i class="fa-solid fa-user-tie" style="margin-right: 10px;"></i> Admin Đánh giá & Nhận xét
+                        </h3>
+                        <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Dành cho Admin/Quản lý để đánh giá yêu cầu bài toán</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 15px;">
+                            <div>
+                                <label style="font-weight: 600; color: #333; display: block; margin-bottom: 8px;">Đánh giá:</label>
+                                <select id="request-admin-rating" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+                                    <option value="">-- Chọn --</option>
+                                    <option value="OK" style="color: green;"> Phê duyệt</option>
+                                    <option value="PENDING" style="color: orange;"> Cần bổ sung</option>
+                                    <option value="NOK" style="color: red;"> Không phê duyệt</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-weight: 600; color: #333; display: block; margin-bottom: 8px;">Ghi chú:</label>
+                                <textarea id="request-admin-comment" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: Arial; font-size: 13px; resize: vertical;" placeholder="Nhập nhận xét/hướng dẫn..."></textarea>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -121,8 +146,8 @@
                                     <td style="text-align: center; vertical-align: middle;">
                                         <select style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
                                             <option value="WAITING">-- Chọn --</option>
-                                            <option value="OK" style="color: green; font-weight: bold;">OK</option>
-                                            <option value="NOK" style="color: red; font-weight: bold;">NOK</option>
+                                            <option value="OK" style="color: green; font-weight: bold;">Phê duyệt</option>
+                                            <option value="NOK" style="color: red; font-weight: bold;">Không phê duyệt</option>
                                         </select>
                                     </td>
 
@@ -307,7 +332,7 @@
                     <hr class="form-divider" style="border-top: 2px solid #ee0000; opacity: 0.3;">
             
                     <div class="model-section">
-                        <h3 class="model-type-title"><i class="fa-solid fa-list-check"></i> 5. Chi tiết các zone mạng, hệ điều hành, số lượng VIP</h3>
+                        <h3 class="model-type-title"><i class="fa-solid fa-list-check"></i> Chi tiết các zone mạng, hệ điều hành, số lượng VIP</h3>
                         <div class="table-responsive">
                             <table class="sizing-table">
                                 <thead>
@@ -367,6 +392,31 @@
                             <i class="fa-solid fa-floppy-disk"></i> Lưu mô hình hệ thống
                         </button>
                         <div id="model-save-status" style="margin-top: 10px;"></div>
+                    </div>
+                    
+                    <hr class="form-divider" style="margin: 30px 0;">
+                    
+                    <div style="background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                        <h3 style="font-size: 16px; font-weight: 600; color: #d9534f; margin-top: 0; display: flex; align-items: center;">
+                            <i class="fa-solid fa-user-tie" style="margin-right: 10px;"></i> Admin Đánh giá & Nhận xét
+                        </h3>
+                        <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Dành cho Admin/Quản lý để đánh giá mô hình hệ thống</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 15px;">
+                            <div>
+                                <label style="font-weight: 600; color: #333; display: block; margin-bottom: 8px;">Đánh giá:</label>
+                                <select id="model-admin-rating" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+                                    <option value="">-- Chọn --</option>
+                                    <option value="OK" style="color: green;">Phê duyệt</option>
+                                    <option value="PENDING" style="color: orange;">Cần bổ sung</option>
+                                    <option value="NOK" style="color: red;">Không phê duyệt</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-weight: 600; color: #333; display: block; margin-bottom: 8px;">Ghi chú:</label>
+                                <textarea id="model-admin-comment" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: Arial; font-size: 13px; resize: vertical;" placeholder="Nhập nhận xét/hướng dẫn..."></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

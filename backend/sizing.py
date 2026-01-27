@@ -189,17 +189,19 @@ if db_type == "Redis":
         
         with tab_info:
             with st.container(border=True):
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown("**1. Sơ đồ Logic (Diagram)**")
-                    uploaded_logic_img = st.file_uploader("Tải lên sơ đồ", type=['png', 'jpg'])
-                    if uploaded_logic_img:
-                        st.image(uploaded_logic_img, use_container_width=True)
-                with c2:
-                    st.markdown("**2. Ảnh Minh họa (Tùy chọn)**")
-                    uploaded_ref_img = st.file_uploader("Tải lên ảnh tham khảo", type=['png', 'jpg'])
-                    if uploaded_ref_img:
-                        st.image(uploaded_ref_img, use_container_width=True)
+                st.markdown("**1. Sơ đồ Logic**")
+                
+                col_upload, col_icon = st.columns([5, 1])
+                
+                with col_upload:
+                    uploaded_logic_img = st.file_uploader("Tải lên sơ đồ", type=['png', 'jpg'], key="redis_logic", label_visibility="collapsed")
+                
+                with col_icon:
+                    with st.popover("❓", help="Xem ảnh minh họa"):
+                        st.image("mo-hinh-he-thong/redis_example.png", use_container_width=True, caption="Ví dụ sơ đồ Logic Redis")
+                
+                if uploaded_logic_img:
+                    st.image(uploaded_logic_img, use_container_width=True, caption="Sơ đồ Logic")
 
             with st.container(border=True):
                 st.markdown("**3. Thông tin Nghiệp vụ**")
@@ -346,17 +348,19 @@ elif db_type == "MongoDB":
         
         with tab_info:
             with st.container(border=True):
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown("**1. Sơ đồ Logic (Diagram)**")
-                    uploaded_logic_img = st.file_uploader("Tải lên sơ đồ", type=['png', 'jpg'], key="mongo_logic")
-                    if uploaded_logic_img:
-                        st.image(uploaded_logic_img, use_container_width=True)
-                with c2:
-                    st.markdown("**2. Ảnh Minh họa (Tùy chọn)**")
-                    uploaded_ref_img = st.file_uploader("Tải lên ảnh tham khảo", type=['png', 'jpg'], key="mongo_ref")
-                    if uploaded_ref_img:
-                        st.image(uploaded_ref_img, use_container_width=True)
+                st.markdown("**1. Sơ đồ Logic**")
+                
+                col_upload, col_icon = st.columns([5, 1])
+                
+                with col_upload:
+                    uploaded_logic_img = st.file_uploader("Tải lên sơ đồ", type=['png', 'jpg'], key="mongo_logic", label_visibility="collapsed")
+                
+                with col_icon:
+                    with st.popover("❓", help="Xem ảnh minh họa"):
+                        st.image("mo-hinh-he-thong/mongodb_example.png", use_container_width=True, caption="Ví dụ sơ đồ Logic MongoDB")
+                
+                if uploaded_logic_img:
+                    st.image(uploaded_logic_img, use_container_width=True, caption="Sơ đồ Logic")
 
             with st.container(border=True):
                 st.markdown("**3. Thông tin Nghiệp vụ**")
@@ -524,17 +528,19 @@ elif db_type == "PostgreSQL":
         
         with tab_info:
             with st.container(border=True):
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown("**1. Sơ đồ Logic (Diagram)**")
-                    uploaded_logic_img = st.file_uploader("Tải lên sơ đồ HA", type=['png', 'jpg'], key="pg_logic")
-                    if uploaded_logic_img:
-                        st.image(uploaded_logic_img, use_container_width=True)
-                with c2:
-                    st.markdown("**2. Ảnh Minh họa (Patroni/Cluster)**")
-                    uploaded_ref_img = st.file_uploader("Tải lên ảnh tham khảo", type=['png', 'jpg'], key="pg_ref")
-                    if uploaded_ref_img:
-                        st.image(uploaded_ref_img, use_container_width=True)
+                st.markdown("**1. Sơ đồ Logic HA**")
+                
+                col_upload, col_icon = st.columns([5, 1])
+                
+                with col_upload:
+                    uploaded_logic_img = st.file_uploader("Tải lên sơ đồ HA", type=['png', 'jpg'], key="pg_logic", label_visibility="collapsed")
+                
+                with col_icon:
+                    with st.popover("❓", help="Xem ảnh minh họa"):
+                        st.image("mo-hinh-he-thong/postgresql_example.png", use_container_width=True, caption="Ví dụ sơ đồ Logic PostgreSQL")
+                
+                if uploaded_logic_img:
+                    st.image(uploaded_logic_img, use_container_width=True, caption="Sơ đồ Logic HA")
 
             with st.container(border=True):
                 st.markdown("**3. Thông tin Nghiệp vụ**")
