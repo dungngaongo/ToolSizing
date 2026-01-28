@@ -30,7 +30,18 @@
                 <button onclick="startNewProject()" style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
                     <i class="fa-solid fa-plus"></i> Tạo dự án mới
                 </button>
-                <a href="#" class="login-link">Đăng nhập</a>
+                
+                <!-- User Info (hiện khi đã đăng nhập) -->
+                <div id="user-info" class="user-info" style="display: none;">
+                    <span class="user-avatar"><i class="fa-solid fa-user-circle"></i></span>
+                    <span id="user-display-name" class="user-name">User</span>
+                    <button onclick="logout()" class="btn-logout" title="Đăng xuất">
+                        <i class="fa-solid fa-right-from-bracket"></i> Đăng xuất
+                    </button>
+                </div>
+                
+                <!-- Link đăng nhập (hiện khi chưa đăng nhập) -->
+                <a href="login.html" id="login-link" class="login-link">Đăng nhập</a>
             </nav>
         </div>
     </header>

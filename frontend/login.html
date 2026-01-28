@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Tool Sizing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <!-- Modal đăng nhập chính -->
+    <div id="loginModal" class="login-container" style="display: flex;">
+        <div class="login-visual">
+            <div class="bg-image"></div>
+            <div class="overlay"></div>
+            
+            <div class="lang-flags">
+                <a href="#" class="flag active" title="Tiếng Việt"><img src="https://flagcdn.com/w40/vn.png" alt="VN"></a>
+                <a href="#" class="flag" title="English"><img src="https://flagcdn.com/w40/gb.png" alt="EN"></a>
+                <a href="#" class="flag" title="Français"><img src="https://flagcdn.com/w40/fr.png" alt="FR"></a>
+                <a href="#" class="flag" title="Português"><img src="https://flagcdn.com/w40/pt.png" alt="PT"></a>
+                <a href="#" class="flag" title="Español"><img src="https://flagcdn.com/w40/es.png" alt="ES"></a>
+            </div>
+        </div>
+
+        <div class="login-form-wrapper">
+            <div class="login-content">
+                <div class="logo-area">
+                    <i class="fa-solid fa-cloud-lock logo-icon"></i>
+                    <span class="logo-text">SIZING</span>
+                </div>
+
+                <h2 class="welcome-text">Đăng Nhập</h2>
+                <p class="sub-text">Vui lòng nhập thông tin đăng nhập</p>
+
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label for="username">
+                            <i class="fa-solid fa-user"></i> Tài khoản
+                        </label>
+                        <input type="text" id="username" name="username" placeholder="Nhập tài khoản của bạn" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">
+                            <i class="fa-solid fa-lock"></i> Mật khẩu
+                        </label>
+                        <input type="password" id="password" name="password" placeholder="Nhập mật khẩu của bạn" required>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="checkbox">
+                            <input type="checkbox" id="rememberMe" name="rememberMe">
+                            <span>Ghi nhớ tôi</span>
+                        </label>
+                        <a href="#" class="forgot-password">Quên mật khẩu?</a>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary login-btn">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                        <span>Đăng Nhập</span>
+                        <div class="shine"></div>
+                    </button>
+                </form>
+
+                <!-- <div class="divider">
+                    <span>Hoặc</span>
+                </div> -->
+
+                <!-- <div class="action-buttons">
+                    <button class="btn btn-outline" id="passkeyBtn">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <span>Đăng nhập bằng Passkey</span>
+                    </button>
+                </div> -->
+
+                <div id="loginMessage" style="margin-top: 15px; text-align: center; display: none;"></div>
+            </div>
+
+            <!-- <div class="login-footer">
+                <p>© 2025 Công nghệ Hệ thống Viettel</p>
+                <p>Military Industry and Telecoms Group</p>
+            </div> -->
+        </div>
+    </div>
+
+    <script>
+        // Danh sách tài khoản mặc định
+        const DEFAULT_USERS = [
+            { username: 'ttcn', password: 'ttcn', displayName: 'TTCN User', role: 'user' },
+            { username: 'admin1', password: 'admin1', displayName: 'Admin 1', role: 'admin' },
+            { username: 'admin2', password: 'admin2', displayName: 'Admin 2', role: 'admin' }
+        ];
+
+        // Kiểm tra xem user đã đăng nhập chưa từ localStorage
+        function checkLogin() {
+            const isLoggedIn = localStorage.getItem('isLoggedIn');
+            if (isLoggedIn === 'true') {
+                // Nếu đã đăng nhập, chuyển về trang chính
+                window.location.href = 'index.html';
+            }
+        }
+
+        // Hàm hiển thị nội dung chính
+        function showMainContent() {
+            window.location.href = 'index.html';
+        }
+
+        // Xử lý đăng nhập
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('loginMessage');
+            
+            // Kiểm tra thông tin với danh sách tài khoản mặc định
+            const user = DEFAULT_USERS.find(u => u.username === username && u.password === password);
+            
+            if (user) {
+                // Lưu trạng thái đăng nhập
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('username', user.username);
+                localStorage.setItem('displayName', user.displayName);
+                localStorage.setItem('userRole', user.role);
+                localStorage.setItem('rememberMe', document.getElementById('rememberMe').checked);
+                
+                // Hiển thị thông báo thành công
+                messageDiv.innerHTML = '<span style="color: green;"><i class="fa-solid fa-check-circle"></i> Đăng nhập thành công! Đang chuyển hướng...</span>';
+                messageDiv.style.display = 'block';
+                
+                // Chuyển đến trang chính sau 1 giây
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1000);
+            } else {
+                messageDiv.innerHTML = '<span style="color: red;"><i class="fa-solid fa-exclamation-circle"></i> Sai tài khoản hoặc mật khẩu!</span>';
+                messageDiv.style.display = 'block';
+                
+                // Thêm hiệu ứng rung cho form
+                document.querySelector('.login-form').classList.add('shake');
+                setTimeout(() => {
+                    document.querySelector('.login-form').classList.remove('shake');
+                }, 500);
+            }
+        });
+
+        // Xử lý nút Passkey
+        document.getElementById('passkeyBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            alert('Tính năng Passkey sẽ được triển khai sớm');
+        });
+
+        // Xử lý nút quên mật khẩu
+        document.querySelector('.forgot-password').addEventListener('click', function(e) {
+            e.preventDefault();
+            alert('Vui lòng liên hệ quản trị viên để đặt lại mật khẩu');
+        });
+
+        // Kiểm tra login khi trang load
+        window.addEventListener('DOMContentLoaded', checkLogin);
+
+        // Hàm đăng xuất (sử dụng trong trang chính)
+        function logout() {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('username');
+            window.location.reload();
+        }
+    </script>
+</body>
+</html>

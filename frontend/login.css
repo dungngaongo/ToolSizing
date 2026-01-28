@@ -1,0 +1,408 @@
+/* --- CẤU HÌNH CHUNG --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    width: 100%;
+    background-color: #fff;
+}
+
+/* Khi login modal được hiển thị, ngăn lướt trang */
+body.show-login {
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* --- LAYOUT CHÍNH (Chia đôi màn hình) --- */
+.login-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+
+/* --- PHẦN TRÁI: HÌNH ẢNH --- */
+.login-visual {
+    flex: 1.2; /* Chiếm 60% chiều rộng */
+    position: relative;
+    overflow: hidden;
+    background-color: #000;
+}
+
+/* Ảnh nền (Thay url bằng ảnh tòa nhà Viettel thật nếu có) */
+.bg-image {
+    width: 100%;
+    height: 100%;
+    background-image: url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2070&auto=format&fit=crop'); 
+    background-size: cover;
+    background-position: center;
+    /* Hiệu ứng Ken Burns (Zoom chậm) */
+    animation: kenBurns 20s infinite alternate;
+}
+
+@keyframes kenBurns {
+    from { transform: scale(1); }
+    to { transform: scale(1.15); }
+}
+
+/* Lớp phủ màu tối để làm nổi bật cờ */
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.6));
+}
+
+/* Cụm cờ ngôn ngữ */
+.lang-flags {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    display: flex;
+    gap: 15px;
+    z-index: 2;
+}
+
+.flag img {
+    width: 28px;
+    height: 20px;
+    object-fit: cover;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease, filter 0.3s;
+    filter: grayscale(60%); /* Làm xám nhẹ các cờ không chọn */
+}
+
+.flag.active img, .flag:hover img {
+    filter: grayscale(0%);
+    transform: scale(1.2) translateY(-5px); /* Hiệu ứng nổi lên khi hover */
+    box-shadow: 0 5px 10px rgba(0,0,0,0.4);
+}
+
+/* --- PHẦN PHẢI: FORM --- */
+.login-form-wrapper {
+    flex: 0.8; /* Chiếm 40% chiều rộng */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    position: relative;
+    background: #fff;
+    box-shadow: -10px 0 30px rgba(0,0,0,0.05); /* Bóng đổ ngăn cách */
+    overflow-y: auto;
+    max-height: 100vh;
+}
+
+.login-content {
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    /* Animation xuất hiện */
+    animation: slideInRight 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(50px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Logo */
+.logo-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.logo-icon {
+    font-size: 32px;
+    color: #ee0033; /* Đỏ Viettel */
+}
+
+.logo-text {
+    font-size: 32px;
+    font-weight: 800;
+    color: #000;
+    letter-spacing: -1px;
+}
+
+/* Tiêu đề */
+.welcome-text {
+    font-size: 28px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.sub-text {
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 40px;
+}
+
+/* Nút bấm */
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 50px; /* Bo tròn kiểu viên thuốc */
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+/* Nút chính (Đỏ) */
+.btn-primary {
+    background-color: #ee0033;
+    color: white;
+    border: none;
+    box-shadow: 0 4px 15px rgba(238, 0, 51, 0.3);
+}
+
+.btn-primary:hover {
+    background-color: #cc002b;
+    transform: translateY(-3px); /* Nổi lên */
+    box-shadow: 0 8px 20px rgba(238, 0, 51, 0.4);
+}
+
+/* Hiệu ứng lướt ánh sáng trên nút đỏ */
+.shine {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+    transform: skewX(-25deg);
+    animation: shineEffect 3s infinite;
+}
+
+@keyframes shineEffect {
+    0% { left: -100%; }
+    20% { left: 200%; } /* Lướt nhanh qua */
+    100% { left: 200%; } /* Đợi một lúc rồi lặp lại */
+}
+
+/* Nút phụ (Trắng viền đỏ) */
+.btn-outline {
+    background-color: transparent;
+    color: #ee0033;
+    border: 2px solid #ee0033;
+}
+
+.btn-outline:hover {
+    background-color: #fff5f6;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+/* Footer */
+.login-footer {
+    position: absolute;
+    bottom: 20px;
+    text-align: center;
+    width: 100%;
+    color: #aaa;
+    font-size: 11px;
+    line-height: 1.5;
+    /* Animation xuất hiện chậm hơn */
+    animation: fadeIn 1s ease-in 0.5s backwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* --- FORM ĐĂNG NHẬP --- */
+.login-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: 10px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.form-group label i {
+    font-size: 14px;
+    color: #ee0033;
+}
+
+.form-group input {
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'Poppins', sans-serif;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #ee0033;
+    box-shadow: 0 0 0 3px rgba(238, 0, 51, 0.1);
+}
+
+.form-group input::placeholder {
+    color: #bbb;
+}
+
+/* Tùy chọn form */
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    margin-top: 5px;
+}
+
+.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #666;
+}
+
+.checkbox input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.forgot-password {
+    color: #ee0033;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.forgot-password:hover {
+    color: #cc002b;
+    text-decoration: underline;
+}
+
+/* Nút đăng nhập */
+.login-btn {
+    margin-top: 10px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    background-color: #ee0033;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(238, 0, 51, 0.3);
+}
+
+.login-btn:hover {
+    background-color: #cc002b;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(238, 0, 51, 0.4);
+}
+
+.login-btn:active {
+    transform: translateY(-1px);
+}
+
+/* Divider */
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin: 25px 0 20px;
+    color: #bbb;
+    font-size: 13px;
+    width: 100%;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: #ddd;
+}
+
+/* Nút tùy chọn thêm */
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+}
+
+/* --- RESPONSIVE (Cho điện thoại) --- */
+@media (max-width: 768px) {
+    .login-container {
+        flex-direction: column;
+    }
+    
+    .login-visual {
+        flex: 0.3; /* Ảnh nhỏ lại ở trên cùng */
+        min-height: 200px;
+    }
+    
+    .lang-flags {
+        display: none; /* Ẩn cờ trên mobile cho gọn */
+    }
+    
+    .login-form-wrapper {
+        flex: 0.7;
+        border-radius: 20px 20px 0 0; /* Bo góc để đè lên ảnh */
+        margin-top: -20px; /* Đẩy lên 1 chút */
+        z-index: 10;
+    }
+}
+
+/* --- SHAKE ANIMATION --- */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.login-form.shake {
+    animation: shake 0.5s ease-in-out;
+}

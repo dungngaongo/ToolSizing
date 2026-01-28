@@ -8,6 +8,56 @@ let currentProjectDataId = localStorage.getItem('currentProjectDataId') || null;
 // Biến lưu danh sách dự án
 let allProjects = [];
 
+// ==================== AUTHENTICATION ====================
+
+// Kiểm tra trạng thái đăng nhập
+function checkAuthStatus() {
+    const isLoggedIn = localStorage.getItem('isLoggedIn');
+    const displayName = localStorage.getItem('displayName');
+    
+    const userInfo = document.getElementById('user-info');
+    const loginLink = document.getElementById('login-link');
+    const userDisplayName = document.getElementById('user-display-name');
+    
+    if (isLoggedIn === 'true' && displayName) {
+        // Đã đăng nhập - hiện user info, ẩn link đăng nhập
+        if (userInfo) userInfo.style.display = 'flex';
+        if (loginLink) loginLink.style.display = 'none';
+        if (userDisplayName) userDisplayName.textContent = displayName;
+    } else {
+        // Chưa đăng nhập - ẩn user info, hiện link đăng nhập
+        if (userInfo) userInfo.style.display = 'none';
+        if (loginLink) loginLink.style.display = 'inline';
+    }
+}
+
+// Đăng xuất
+function logout() {
+    if (confirm('Bạn có chắc muốn đăng xuất?')) {
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('username');
+        localStorage.removeItem('displayName');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('rememberMe');
+        clearProjectIds();
+        
+        // Chuyển về trang login
+        window.location.href = 'login.html';
+    }
+}
+
+// Lấy thông tin user hiện tại
+function getCurrentUser() {
+    return {
+        username: localStorage.getItem('username'),
+        displayName: localStorage.getItem('displayName'),
+        role: localStorage.getItem('userRole'),
+        isLoggedIn: localStorage.getItem('isLoggedIn') === 'true'
+    };
+}
+
+// ==================== PROJECT MANAGEMENT ====================
+
 // Hàm lưu Project ID vào localStorage
 function saveProjectIdToStorage(id) {
     currentProjectId = id;
@@ -220,16 +270,45 @@ async function deleteProject(projectId, projectName) {
 }
 
 // Tạo dự án mới
-function startNewProject() {
-    clearProjectIds();
+async function startNewProject() {
+    const user = getCurrentUser();
+    const projectName = 'Dự án mới - ' + new Date().toLocaleString('vi-VN');
     
-    // Ẩn trang danh sách, hiện trang chi tiết
-    document.getElementById('project-list-page').style.display = 'none';
-    document.getElementById('project-detail-page').style.display = 'flex';
-    document.getElementById('btn-back-to-list').style.display = 'inline-block';
-    
-    // Reset form
-    resetAllForms();
+    try {
+        // Tạo project mới qua API
+        const response = await fetch(`${API_BASE_URL}/projects`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: projectName,
+                ownerName: user.displayName || user.username || 'Chưa xác định',
+                status: 'Draft'
+            })
+        });
+        
+        if (response.ok) {
+            const project = await response.json();
+            saveProjectIdToStorage(project.id);
+            
+            // Ẩn trang danh sách, hiện trang chi tiết
+            document.getElementById('project-list-page').style.display = 'none';
+            document.getElementById('project-detail-page').style.display = 'flex';
+            document.getElementById('btn-back-to-list').style.display = 'inline-block';
+            
+            // Reset form
+            resetAllForms();
+            
+            // Load ProjectData (đã tự động tạo bởi backend)
+            await loadAllDataFromDB();
+            
+            console.log('Created new project:', project.id);
+        } else {
+            throw new Error('Không thể tạo dự án mới');
+        }
+    } catch (error) {
+        console.error('Error creating project:', error);
+        alert('Lỗi: ' + error.message);
+    }
 }
 
 // Reset tất cả form
@@ -274,6 +353,9 @@ function resetAllForms() {
 document.addEventListener("DOMContentLoaded", async function () {
     console.log('Current Project ID from localStorage:', currentProjectId);
     console.log('Current ProjectData ID from localStorage:', currentProjectDataId);
+
+    // --- KIỂM TRA ĐĂNG NHẬP ---
+    checkAuthStatus();
 
     // --- KHỞI TẠO TRANG ---
     // Nếu không có project ID, hiển thị trang danh sách
@@ -1111,14 +1193,5 @@ async function exportToWord() {
         console.error('Export error:', e);
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi xuất file!</span>';
         alert('Không thể xuất báo cáo: ' + e.message);
-    }
-}
-
-// ==================== RESET PROJECT (for new project) ====================
-
-function startNewProject() {
-    if (confirm('Bạn có chắc muốn tạo dự án mới? Dữ liệu hiện tại sẽ được lưu trong database.')) {
-        clearProjectIds();
-        location.reload();
     }
 }

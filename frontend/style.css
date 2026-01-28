@@ -88,6 +88,56 @@ body {
     transform: translateY(-1px);
 }
 
+/* --- USER INFO & LOGOUT --- */
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 10px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 25px;
+    border: 1px solid #dee2e6;
+}
+
+.user-avatar {
+    font-size: 24px;
+    color: #ee0033;
+}
+
+.user-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.btn-logout {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-logout:hover {
+    background: #c82333;
+    transform: scale(1.05);
+}
+
+.btn-logout i {
+    font-size: 11px;
+}
+
 .separator { color: #ddd; }
 
 /* --- MAIN LAYOUT --- */
