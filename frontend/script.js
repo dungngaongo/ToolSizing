@@ -111,6 +111,13 @@ document.addEventListener("DOMContentLoaded", async function () {
 // ==================== LOAD DATA FROM DATABASE ====================
 async function loadAllDataFromDB() {
     try {
+        // Cập nhật iframe sizing với projectId
+        const sizingIframe = document.getElementById('sizing-iframe');
+        if (sizingIframe && currentProjectId) {
+            const baseUrl = sizingIframe.src.split('?')[0];
+            sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
+        }
+        
         // Lấy ProjectData theo projectId
         const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`);
         if (response.ok) {
