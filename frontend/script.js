@@ -5,6 +5,9 @@ const API_BASE_URL = 'http://localhost:8081/api';
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
 let currentProjectDataId = localStorage.getItem('currentProjectDataId') || null;
 
+// Biến lưu danh sách dự án
+let allProjects = [];
+
 // Hàm lưu Project ID vào localStorage
 function saveProjectIdToStorage(id) {
     currentProjectId = id;
@@ -28,10 +31,264 @@ function clearProjectIds() {
     console.log('Cleared Project IDs');
 }
 
+// ==================== PROJECT LIST ====================
+
+// Load danh sách dự án từ API
+async function loadProjectList() {
+    const tbody = document.getElementById('project-list-body');
+    const loadingEl = document.getElementById('project-list-loading');
+    const emptyEl = document.getElementById('project-list-empty');
+    const tableWrapper = document.querySelector('.project-list-table-wrapper');
+    
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (tableWrapper) tableWrapper.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = 'none';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/projects`);
+        if (response.ok) {
+            allProjects = await response.json();
+            
+            if (loadingEl) loadingEl.style.display = 'none';
+            
+            if (allProjects.length === 0) {
+                if (emptyEl) emptyEl.style.display = 'block';
+            } else {
+                if (tableWrapper) tableWrapper.style.display = 'block';
+                renderProjectList(allProjects);
+            }
+        } else {
+            throw new Error('Không thể tải danh sách dự án');
+        }
+    } catch (error) {
+        console.error('Error loading projects:', error);
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (emptyEl) {
+            emptyEl.style.display = 'block';
+            emptyEl.innerHTML = `<i class="fa-solid fa-exclamation-triangle"></i><p>Lỗi: ${error.message}</p>`;
+        }
+    }
+}
+
+// Render danh sách dự án ra bảng
+function renderProjectList(projects) {
+    const tbody = document.getElementById('project-list-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    projects.forEach((project, index) => {
+        const tr = document.createElement('tr');
+        tr.onclick = () => openProject(project.id);
+        
+        // Format ngày
+        const createdDate = project.createdAt ? formatDate(project.createdAt) : 'N/A';
+        const modifiedDate = project.updatedAt ? formatDate(project.updatedAt) : 'N/A';
+        
+        // Status badge class
+        const statusClass = getStatusClass(project.status);
+        const statusText = getStatusText(project.status);
+        
+        tr.innerHTML = `
+            <td>${index + 1}</td>
+            <td class="project-name-cell">${project.name || 'Chưa có tên'}</td>
+            <td>${project.devUnit || 'N/A'}</td>
+            <td>${project.ownerName || 'Chưa xác định'}</td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            <td class="date-cell">${createdDate}</td>
+            <td class="date-cell">${modifiedDate}</td>
+            <td>
+                <div class="project-actions">
+                    <button class="btn-action view" title="Xem chi tiết" onclick="event.stopPropagation(); openProject(${project.id})">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button class="btn-action delete" title="Xóa dự án" onclick="event.stopPropagation(); deleteProject(${project.id}, '${project.name}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        tbody.appendChild(tr);
+    });
+}
+
+// Format ngày tháng
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} <span class="time">${hours}:${minutes}</span>`;
+}
+
+// Lấy class cho status badge
+function getStatusClass(status) {
+    switch (status?.toLowerCase()) {
+        case 'draft': return 'draft';
+        case 'pending': return 'pending';
+        case 'approved': return 'approved';
+        case 'rejected': return 'rejected';
+        default: return 'draft';
+    }
+}
+
+// Lấy text hiển thị cho status
+function getStatusText(status) {
+    switch (status?.toLowerCase()) {
+        case 'draft': return 'Nháp';
+        case 'pending': return 'Chờ duyệt';
+        case 'approved': return 'Đã duyệt';
+        case 'rejected': return 'Từ chối';
+        default: return 'Nháp';
+    }
+}
+
+// Lọc danh sách dự án
+function filterProjects() {
+    const searchText = document.getElementById('search-project')?.value.toLowerCase() || '';
+    const statusFilter = document.getElementById('filter-status')?.value || '';
+    
+    let filtered = allProjects;
+    
+    if (searchText) {
+        filtered = filtered.filter(p => 
+            (p.name && p.name.toLowerCase().includes(searchText)) ||
+            (p.devUnit && p.devUnit.toLowerCase().includes(searchText)) ||
+            (p.ownerName && p.ownerName.toLowerCase().includes(searchText))
+        );
+    }
+    
+    if (statusFilter) {
+        filtered = filtered.filter(p => p.status?.toUpperCase() === statusFilter);
+    }
+    
+    renderProjectList(filtered);
+}
+
+// Mở dự án để xem/chỉnh sửa
+async function openProject(projectId) {
+    saveProjectIdToStorage(projectId);
+    
+    // Ẩn trang danh sách, hiện trang chi tiết
+    document.getElementById('project-list-page').style.display = 'none';
+    document.getElementById('project-detail-page').style.display = 'flex';
+    document.getElementById('btn-back-to-list').style.display = 'inline-block';
+    
+    // Reset projectDataId để load lại
+    currentProjectDataId = null;
+    localStorage.removeItem('currentProjectDataId');
+    
+    // Load dữ liệu dự án
+    await loadAllDataFromDB();
+}
+
+// Quay về trang danh sách dự án
+function showProjectList() {
+    document.getElementById('project-list-page').style.display = 'block';
+    document.getElementById('project-detail-page').style.display = 'none';
+    document.getElementById('btn-back-to-list').style.display = 'none';
+    
+    // Reload danh sách để cập nhật thay đổi
+    loadProjectList();
+}
+
+// Xóa dự án
+async function deleteProject(projectId, projectName) {
+    if (!confirm(`Bạn có chắc muốn xóa dự án "${projectName}"? Thao tác này không thể hoàn tác.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Xóa dự án thành công!');
+            loadProjectList();
+        } else {
+            throw new Error('Không thể xóa dự án');
+        }
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        alert('Lỗi: ' + error.message);
+    }
+}
+
+// Tạo dự án mới
+function startNewProject() {
+    clearProjectIds();
+    
+    // Ẩn trang danh sách, hiện trang chi tiết
+    document.getElementById('project-list-page').style.display = 'none';
+    document.getElementById('project-detail-page').style.display = 'flex';
+    document.getElementById('btn-back-to-list').style.display = 'inline-block';
+    
+    // Reset form
+    resetAllForms();
+}
+
+// Reset tất cả form
+function resetAllForms() {
+    // Reset form Yêu cầu bài toán
+    const pageRequest = document.getElementById('page-request');
+    if (pageRequest) {
+        pageRequest.querySelectorAll('input').forEach(input => input.value = '');
+        pageRequest.querySelectorAll('textarea').forEach(ta => ta.value = '');
+        pageRequest.querySelectorAll('select').forEach(select => select.selectedIndex = 0);
+    }
+    
+    // Reset các bảng
+    const inputBody = document.getElementById('input-table-body');
+    if (inputBody) {
+        inputBody.innerHTML = `
+            <tr>
+                <td>1</td>
+                <td><textarea rows="3" placeholder="Ví dụ: Tổng số người dùng CCU" class="input-textarea"></textarea></td>
+                <td><textarea rows="3" class="input-textarea"></textarea></td>
+                <td><textarea rows="3" class="input-textarea"></textarea></td>
+                <td><input type="text"></td>
+                <td><textarea rows="3" class="input-textarea"></textarea></td>
+                <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
+            </tr>
+        `;
+    }
+    
+    // Reset active tab về tab đầu tiên
+    const menuLinks = document.querySelectorAll(".side-menu a");
+    const pages = document.querySelectorAll(".page-section");
+    
+    menuLinks.forEach(l => l.classList.remove("active"));
+    pages.forEach(p => p.classList.remove("active"));
+    
+    if (menuLinks[0]) menuLinks[0].classList.add("active");
+    const firstPage = document.getElementById('page-request');
+    if (firstPage) firstPage.classList.add("active");
+}
+
 // ==================== PAGE LOAD ====================
 document.addEventListener("DOMContentLoaded", async function () {
     console.log('Current Project ID from localStorage:', currentProjectId);
     console.log('Current ProjectData ID from localStorage:', currentProjectDataId);
+
+    // --- KHỞI TẠO TRANG ---
+    // Nếu không có project ID, hiển thị trang danh sách
+    if (!currentProjectId) {
+        document.getElementById('project-list-page').style.display = 'block';
+        document.getElementById('project-detail-page').style.display = 'none';
+        document.getElementById('btn-back-to-list').style.display = 'none';
+        await loadProjectList();
+    } else {
+        // Nếu có project ID, hiển thị trang chi tiết
+        document.getElementById('project-list-page').style.display = 'none';
+        document.getElementById('project-detail-page').style.display = 'flex';
+        document.getElementById('btn-back-to-list').style.display = 'inline-block';
+        await loadAllDataFromDB();
+    }
 
     // --- 1. XỬ LÝ CHUYỂN TAB (NAVIGATION) ---
     const menuLinks = document.querySelectorAll(".side-menu a");
@@ -101,11 +358,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Nút xuất báo cáo
     const exportBtn = document.getElementById('exportBtn');
     if (exportBtn) exportBtn.onclick = exportToWord;
-
-    // --- 3. TẢI DỮ LIỆU TỪ DATABASE KHI KHỞI ĐỘNG ---
-    if (currentProjectId) {
-        await loadAllDataFromDB();
-    }
 });
 
 // ==================== LOAD DATA FROM DATABASE ====================
@@ -204,6 +456,8 @@ async function saveYeuCauBaiToan() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: projectName,
+                    devUnit: data.devUnit || '',
+                    ownerName: data.contactPerson || '',
                     status: 'Draft'
                 })
             });
@@ -214,6 +468,17 @@ async function saveYeuCauBaiToan() {
             } else {
                 throw new Error('Không thể tạo project');
             }
+        } else {
+            // Cập nhật thông tin project nếu đã tồn tại
+            await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: data.projectName,
+                    devUnit: data.devUnit || '',
+                    ownerName: data.contactPerson || ''
+                })
+            });
         }
         
         // Lưu hoặc cập nhật ProjectData

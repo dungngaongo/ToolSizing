@@ -20,6 +20,12 @@ public class Project {
 
     @Column(nullable = false)
     private String name;
+    
+    @Column(name = "dev_unit")
+    private String devUnit;
+    
+    @Column(name = "owner_name")
+    private String ownerName;
 
     @Column(length = 50)
     private String status; // Draft, Completed, etc.

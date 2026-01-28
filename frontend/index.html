@@ -20,6 +20,9 @@
             </div>
 
             <nav class="nav-right">
+                <button id="btn-back-to-list" onclick="showProjectList()" style="background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px; display: none;">
+                    <i class="fa-solid fa-arrow-left"></i> Quay về danh sách
+                </button>
                 <a href="#" class="btn-viettel-group">Viettel Group</a>
                 <a href="#">Xem theo đơn vị</a>
                 <a href="#">Mới nhất</a>
@@ -32,7 +35,54 @@
         </div>
     </header>
 
-    <main class="main-content">
+    <!-- TRANG DANH SÁCH DỰ ÁN -->
+    <div id="project-list-page" class="project-list-container">
+        <div class="project-list-header">
+            <h2><i class="fa-solid fa-folder-open"></i> Danh sách Dự án</h2>
+            <div class="project-list-actions">
+                <input type="text" id="search-project" placeholder="Tìm kiếm dự án..." oninput="filterProjects()">
+                <select id="filter-status" onchange="filterProjects()">
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="DRAFT">Nháp</option>
+                    <option value="PENDING">Chờ duyệt</option>
+                    <option value="APPROVED">Đã duyệt</option>
+                    <option value="REJECTED">Từ chối</option>
+                </select>
+                <button onclick="loadProjectList()" class="btn-refresh">
+                    <i class="fa-solid fa-rotate"></i> Làm mới
+                </button>
+            </div>
+        </div>
+        <div class="project-list-table-wrapper">
+            <table class="project-list-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">STT</th>
+                        <th>Tên dự án</th>
+                        <th>Đơn vị</th>
+                        <th>Người tạo</th>
+                        <th>Trạng thái</th>
+                        <th>Ngày tạo</th>
+                        <th>Sửa đổi lần cuối</th>
+                        <th style="width: 120px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="project-list-body">
+                    <!-- Dữ liệu sẽ được load bằng JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <div id="project-list-empty" class="project-list-empty" style="display: none;">
+            <i class="fa-solid fa-inbox"></i>
+            <p>Chưa có dự án nào. Hãy tạo dự án mới!</p>
+        </div>
+        <div id="project-list-loading" class="project-list-loading">
+            <i class="fa-solid fa-spinner fa-spin"></i> Đang tải danh sách dự án...
+        </div>
+    </div>
+
+    <!-- TRANG CHI TIẾT DỰ ÁN -->
+    <main class="main-content" id="project-detail-page" style="display: none;">
         <aside class="sidebar">
             <ul class="side-menu">
                 <li><a href="#" class="menu-link active" data-target="request"><i class="fa-solid fa-file-invoice"></i> Yêu cầu bài toán</a></li>

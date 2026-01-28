@@ -26,6 +26,8 @@ public class ProjectService {
         Project project = new Project();
         project.setUserId(request.getUserId());
         project.setName(request.getName());
+        project.setDevUnit(request.getDevUnit());
+        project.setOwnerName(request.getOwnerName());
         project.setStatus(request.getStatus() != null ? request.getStatus() : "Draft");
         Project savedProject = projectRepository.save(project);
 
@@ -68,6 +70,12 @@ public class ProjectService {
         }
         if (request.getUserId() != null) {
             project.setUserId(request.getUserId());
+        }
+        if (request.getDevUnit() != null) {
+            project.setDevUnit(request.getDevUnit());
+        }
+        if (request.getOwnerName() != null) {
+            project.setOwnerName(request.getOwnerName());
         }
         return projectRepository.save(project);
     }
