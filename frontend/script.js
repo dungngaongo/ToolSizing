@@ -149,10 +149,10 @@ function renderProjectList(projects) {
             <td class="date-cell">${modifiedDate}</td>
             <td>
                 <div class="project-actions">
-                    <button class="btn-action view" title="Xem chi tiết" onclick="event.stopPropagation(); openProject(${project.id})">
+                    <button class="btn-action view" title="Xem chi tiết" onclick="event.stopPropagation(); openProject('${project.id}')">
                         <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button class="btn-action delete" title="Xóa dự án" onclick="event.stopPropagation(); deleteProject(${project.id}, '${project.name}')">
+                    <button class="btn-action delete" title="Xóa dự án" onclick="event.stopPropagation(); deleteProject('${(project.id || '').toString().replace(/'/g, "\\'")}', '${(project.name || '').replace(/'/g, "\\'")}')">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
