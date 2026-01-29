@@ -7,10 +7,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @Service
 public class UserService {
     private final UserRepository userRepository;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -29,6 +31,7 @@ public class UserService {
         user.setEmail(request.getEmail());
         // In real application, you should hash the password
         user.setPasswordHash(hashPassword(request.getPassword()));
+        user.setRole(request.getRole() == null ? "user" : request.getRole());
         return userRepository.save(user);
     }
 
@@ -48,11 +51,22 @@ public class UserService {
         return userRepository.findByEmail(email);
     }
 
+    public Optional<User> authenticate(String username, String rawPassword) {
+        Optional<User> u = userRepository.findByUsername(username);
+        if (u.isEmpty()) return Optional.empty();
+        User user = u.get();
+        if (passwordEncoder.matches(rawPassword == null ? "" : rawPassword, user.getPasswordHash())) {
+            return Optional.of(user);
+        }
+        return Optional.empty();
+    }
+
     public User update(String id, CreateUserRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
+        if (request.getRole() != null) user.setRole(request.getRole());
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPasswordHash(hashPassword(request.getPassword()));
         }
@@ -65,9 +79,8 @@ public class UserService {
 
     // Simple password hash (in production, use BCrypt or similar)
     private String hashPassword(String password) {
-        // This is a simple hash for demo purposes
-        // In production, use BCryptPasswordEncoder
-        return Integer.toHexString(password.hashCode());
+        // Use BCrypt for hashing
+        return passwordEncoder.encode(password == null ? "" : password);
     }
 }
 

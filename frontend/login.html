@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="login.css">
 </head>
 <body>
-    <!-- Modal đăng nhập chính -->
     <div id="loginModal" class="login-container" style="display: flex;">
         <div class="login-visual">
             <div class="bg-image"></div>
@@ -64,47 +63,21 @@
                     </button>
                 </form>
 
-                <!-- <div class="divider">
-                    <span>Hoặc</span>
-                </div> -->
-
-                <!-- <div class="action-buttons">
-                    <button class="btn btn-outline" id="passkeyBtn">
-                        <i class="fa-solid fa-user-shield"></i>
-                        <span>Đăng nhập bằng Passkey</span>
-                    </button>
-                </div> -->
-
                 <div id="loginMessage" style="margin-top: 15px; text-align: center; display: none;"></div>
             </div>
-
-            <!-- <div class="login-footer">
-                <p>© 2025 Công nghệ Hệ thống Viettel</p>
-                <p>Military Industry and Telecoms Group</p>
-            </div> -->
         </div>
     </div>
 
     <script>
-        // Danh sách tài khoản mặc định
-        const DEFAULT_USERS = [
-            { username: 'ttcn', password: 'ttcn', displayName: 'TTCN User', role: 'user' },
-            { username: 'admin1', password: 'admin1', displayName: 'Admin 1', role: 'admin' },
-            { username: 'admin2', password: 'admin2', displayName: 'Admin 2', role: 'admin' }
-        ];
+        // Cấu hình Backend URL (Di chuyển từ HTML vào đây)
+        const BACKEND_URL = "http://localhost:8081"; // Để trống nếu dùng relative path hoặc điền http://localhost:8080
 
         // Kiểm tra xem user đã đăng nhập chưa từ localStorage
         function checkLogin() {
             const isLoggedIn = localStorage.getItem('isLoggedIn');
             if (isLoggedIn === 'true') {
-                // Nếu đã đăng nhập, chuyển về trang chính
                 window.location.href = 'index.html';
             }
-        }
-
-        // Hàm hiển thị nội dung chính
-        function showMainContent() {
-            window.location.href = 'index.html';
         }
 
         // Xử lý đăng nhập
@@ -115,41 +88,39 @@
             const password = document.getElementById('password').value;
             const messageDiv = document.getElementById('loginMessage');
             
-            // Kiểm tra thông tin với danh sách tài khoản mặc định
-            const user = DEFAULT_USERS.find(u => u.username === username && u.password === password);
-            
-            if (user) {
-                // Lưu trạng thái đăng nhập
-                localStorage.setItem('isLoggedIn', 'true');
-                localStorage.setItem('username', user.username);
-                localStorage.setItem('displayName', user.displayName);
-                localStorage.setItem('userRole', user.role);
-                localStorage.setItem('rememberMe', document.getElementById('rememberMe').checked);
-                
-                // Hiển thị thông báo thành công
-                messageDiv.innerHTML = '<span style="color: green;"><i class="fa-solid fa-check-circle"></i> Đăng nhập thành công! Đang chuyển hướng...</span>';
-                messageDiv.style.display = 'block';
-                
-                // Chuyển đến trang chính sau 1 giây
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 1000);
-            } else {
-                messageDiv.innerHTML = '<span style="color: red;"><i class="fa-solid fa-exclamation-circle"></i> Sai tài khoản hoặc mật khẩu!</span>';
-                messageDiv.style.display = 'block';
-                
-                // Thêm hiệu ứng rung cho form
-                document.querySelector('.login-form').classList.add('shake');
-                setTimeout(() => {
-                    document.querySelector('.login-form').classList.remove('shake');
-                }, 500);
-            }
-        });
+            // Gửi thông tin tới server để xác thực
+            // Sử dụng BACKEND_URL nếu cần, hoặc để path tương đối
+            const apiUrl = BACKEND_URL ? (BACKEND_URL + '/api/auth/login') : '/api/auth/login';
 
-        // Xử lý nút Passkey
-        document.getElementById('passkeyBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            alert('Tính năng Passkey sẽ được triển khai sớm');
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            }).then(async res => {
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('isLoggedIn', 'true');
+                    localStorage.setItem('username', data.username || username);
+                    localStorage.setItem('displayName', data.displayName || data.username || username);
+                    localStorage.setItem('userRole', data.role || 'user');
+                    localStorage.setItem('rememberMe', document.getElementById('rememberMe').checked);
+                    if (data.token) localStorage.setItem('authToken', data.token);
+                    
+                    messageDiv.innerHTML = '<span style="color: green;"><i class="fa-solid fa-check-circle"></i> Đăng nhập thành công! Đang chuyển hướng...</span>';
+                    messageDiv.style.display = 'block';
+                    setTimeout(() => { window.location.href = 'index.html'; }, 800);
+                } else {
+                    let text = 'Sai tài khoản hoặc mật khẩu!';
+                    try { const err = await res.json(); if (err && err.message) text = err.message; } catch(_){}
+                    messageDiv.innerHTML = `<span style="color: red;"><i class="fa-solid fa-exclamation-circle"></i> ${text}</span>`;
+                    messageDiv.style.display = 'block';
+                    document.querySelector('.login-form').classList.add('shake');
+                    setTimeout(() => { document.querySelector('.login-form').classList.remove('shake'); }, 500);
+                }
+            }).catch(err => {
+                messageDiv.innerHTML = `<span style="color: red;"><i class="fa-solid fa-exclamation-circle"></i> Lỗi kết nối: ${err.message}</span>`;
+                messageDiv.style.display = 'block';
+            });
         });
 
         // Xử lý nút quên mật khẩu
@@ -160,13 +131,6 @@
 
         // Kiểm tra login khi trang load
         window.addEventListener('DOMContentLoaded', checkLogin);
-
-        // Hàm đăng xuất (sử dụng trong trang chính)
-        function logout() {
-            localStorage.removeItem('isLoggedIn');
-            localStorage.removeItem('username');
-            window.location.reload();
-        }
     </script>
 </body>
 </html>
