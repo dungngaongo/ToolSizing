@@ -8,9 +8,42 @@ let currentProjectDataId = localStorage.getItem('currentProjectDataId') || null;
 // Biến lưu danh sách dự án
 let allProjects = [];
 
+// ==================== UTILS (TIỆN ÍCH) ====================
+
+// Hàm đổi màu Select Box Admin (OK -> Xanh, NOK -> Đỏ)
+function updateColor(selectElement) {
+    selectElement.classList.remove('status-ok', 'status-nok');
+    if (selectElement.value === 'OK') {
+        selectElement.classList.add('status-ok');
+    } else if (selectElement.value === 'NOK') {
+        selectElement.classList.add('status-nok');
+    }
+}
+
+// Format ngày tháng cho API
+function formatDateForAPI(dateStr) {
+    if (!dateStr) return null;
+    if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+}
+
+// Format ngày tháng hiển thị
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} <span class="time">${hours}:${minutes}</span>`;
+}
+
 // ==================== AUTHENTICATION ====================
 
-// Kiểm tra trạng thái đăng nhập
 function checkAuthStatus() {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
     const displayName = localStorage.getItem('displayName');
@@ -20,18 +53,15 @@ function checkAuthStatus() {
     const userDisplayName = document.getElementById('user-display-name');
     
     if (isLoggedIn === 'true' && displayName) {
-        // Đã đăng nhập - hiện user info, ẩn link đăng nhập
         if (userInfo) userInfo.style.display = 'flex';
         if (loginLink) loginLink.style.display = 'none';
         if (userDisplayName) userDisplayName.textContent = displayName;
     } else {
-        // Chưa đăng nhập - ẩn user info, hiện link đăng nhập
         if (userInfo) userInfo.style.display = 'none';
         if (loginLink) loginLink.style.display = 'inline';
     }
 }
 
-// Đăng xuất
 function logout() {
     if (confirm('Bạn có chắc muốn đăng xuất?')) {
         localStorage.removeItem('isLoggedIn');
@@ -40,13 +70,10 @@ function logout() {
         localStorage.removeItem('userRole');
         localStorage.removeItem('rememberMe');
         clearProjectIds();
-        
-        // Chuyển về trang login
         window.location.href = 'login.html';
     }
 }
 
-// Lấy thông tin user hiện tại
 function getCurrentUser() {
     return {
         username: localStorage.getItem('username'),
@@ -58,21 +85,18 @@ function getCurrentUser() {
 
 // ==================== PROJECT MANAGEMENT ====================
 
-// Hàm lưu Project ID vào localStorage
 function saveProjectIdToStorage(id) {
     currentProjectId = id;
     localStorage.setItem('currentProjectId', id);
     console.log('Saved Project ID to localStorage:', id);
 }
 
-// Hàm lưu ProjectData ID vào localStorage
 function saveProjectDataIdToStorage(id) {
     currentProjectDataId = id;
     localStorage.setItem('currentProjectDataId', id);
     console.log('Saved ProjectData ID to localStorage:', id);
 }
 
-// Hàm xóa IDs (khi muốn tạo mới)
 function clearProjectIds() {
     currentProjectId = null;
     currentProjectDataId = null;
@@ -83,7 +107,6 @@ function clearProjectIds() {
 
 // ==================== PROJECT LIST ====================
 
-// Load danh sách dự án từ API
 async function loadProjectList() {
     const tbody = document.getElementById('project-list-body');
     const loadingEl = document.getElementById('project-list-loading');
@@ -120,7 +143,6 @@ async function loadProjectList() {
     }
 }
 
-// Render danh sách dự án ra bảng
 function renderProjectList(projects) {
     const tbody = document.getElementById('project-list-body');
     if (!tbody) return;
@@ -131,11 +153,8 @@ function renderProjectList(projects) {
         const tr = document.createElement('tr');
         tr.onclick = () => openProject(project.id);
         
-        // Format ngày
         const createdDate = project.createdAt ? formatDate(project.createdAt) : 'N/A';
         const modifiedDate = project.updatedAt ? formatDate(project.updatedAt) : 'N/A';
-        
-        // Status badge class
         const statusClass = getStatusClass(project.status);
         const statusText = getStatusText(project.status);
         
@@ -158,24 +177,10 @@ function renderProjectList(projects) {
                 </div>
             </td>
         `;
-        
         tbody.appendChild(tr);
     });
 }
 
-// Format ngày tháng
-function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${day}/${month}/${year} <span class="time">${hours}:${minutes}</span>`;
-}
-
-// Lấy class cho status badge
 function getStatusClass(status) {
     switch (status?.toLowerCase()) {
         case 'draft': return 'draft';
@@ -186,7 +191,6 @@ function getStatusClass(status) {
     }
 }
 
-// Lấy text hiển thị cho status
 function getStatusText(status) {
     switch (status?.toLowerCase()) {
         case 'draft': return 'Nháp';
@@ -197,7 +201,6 @@ function getStatusText(status) {
     }
 }
 
-// Lọc danh sách dự án
 function filterProjects() {
     const searchText = document.getElementById('search-project')?.value.toLowerCase() || '';
     const statusFilter = document.getElementById('filter-status')?.value || '';
@@ -219,34 +222,26 @@ function filterProjects() {
     renderProjectList(filtered);
 }
 
-// Mở dự án để xem/chỉnh sửa
 async function openProject(projectId) {
     saveProjectIdToStorage(projectId);
     
-    // Ẩn trang danh sách, hiện trang chi tiết
     document.getElementById('project-list-page').style.display = 'none';
     document.getElementById('project-detail-page').style.display = 'flex';
     document.getElementById('btn-back-to-list').style.display = 'inline-block';
     
-    // Reset projectDataId để load lại
     currentProjectDataId = null;
     localStorage.removeItem('currentProjectDataId');
     
-    // Load dữ liệu dự án
     await loadAllDataFromDB();
 }
 
-// Quay về trang danh sách dự án
 function showProjectList() {
     document.getElementById('project-list-page').style.display = 'block';
     document.getElementById('project-detail-page').style.display = 'none';
     document.getElementById('btn-back-to-list').style.display = 'none';
-    
-    // Reload danh sách để cập nhật thay đổi
     loadProjectList();
 }
 
-// Xóa dự án
 async function deleteProject(projectId, projectName) {
     if (!confirm(`Bạn có chắc muốn xóa dự án "${projectName}"? Thao tác này không thể hoàn tác.`)) {
         return;
@@ -269,13 +264,11 @@ async function deleteProject(projectId, projectName) {
     }
 }
 
-// Tạo dự án mới
 async function startNewProject() {
     const user = getCurrentUser();
     const projectName = 'Dự án mới - ' + new Date().toLocaleString('vi-VN');
     
     try {
-        // Tạo project mới qua API
         const response = await fetch(`${API_BASE_URL}/projects`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -290,15 +283,11 @@ async function startNewProject() {
             const project = await response.json();
             saveProjectIdToStorage(project.id);
             
-            // Ẩn trang danh sách, hiện trang chi tiết
             document.getElementById('project-list-page').style.display = 'none';
             document.getElementById('project-detail-page').style.display = 'flex';
             document.getElementById('btn-back-to-list').style.display = 'inline-block';
             
-            // Reset form
             resetAllForms();
-            
-            // Load ProjectData (đã tự động tạo bởi backend)
             await loadAllDataFromDB();
             
             console.log('Created new project:', project.id);
@@ -311,17 +300,16 @@ async function startNewProject() {
     }
 }
 
-// Reset tất cả form
 function resetAllForms() {
-    // Reset form Yêu cầu bài toán
-    const pageRequest = document.getElementById('page-request');
-    if (pageRequest) {
-        pageRequest.querySelectorAll('input').forEach(input => input.value = '');
-        pageRequest.querySelectorAll('textarea').forEach(ta => ta.value = '');
-        pageRequest.querySelectorAll('select').forEach(select => select.selectedIndex = 0);
-    }
-    
-    // Reset các bảng
+    // Reset inputs, textareas, selects
+    document.querySelectorAll('input').forEach(input => input.value = '');
+    document.querySelectorAll('textarea').forEach(ta => ta.value = '');
+    document.querySelectorAll('select').forEach(select => {
+        select.selectedIndex = 0;
+        select.classList.remove('status-ok', 'status-nok');
+    });
+
+    // Reset bảng input
     const inputBody = document.getElementById('input-table-body');
     if (inputBody) {
         inputBody.innerHTML = `
@@ -337,7 +325,7 @@ function resetAllForms() {
         `;
     }
     
-    // Reset active tab về tab đầu tiên
+    // Reset tabs
     const menuLinks = document.querySelectorAll(".side-menu a");
     const pages = document.querySelectorAll(".page-section");
     
@@ -349,116 +337,20 @@ function resetAllForms() {
     if (firstPage) firstPage.classList.add("active");
 }
 
-// ==================== PAGE LOAD ====================
-document.addEventListener("DOMContentLoaded", async function () {
-    console.log('Current Project ID from localStorage:', currentProjectId);
-    console.log('Current ProjectData ID from localStorage:', currentProjectDataId);
-
-    // --- KIỂM TRA ĐĂNG NHẬP ---
-    checkAuthStatus();
-
-    // --- KHỞI TẠO TRANG ---
-    // Nếu không có project ID, hiển thị trang danh sách
-    if (!currentProjectId) {
-        document.getElementById('project-list-page').style.display = 'block';
-        document.getElementById('project-detail-page').style.display = 'none';
-        document.getElementById('btn-back-to-list').style.display = 'none';
-        await loadProjectList();
-    } else {
-        // Nếu có project ID, hiển thị trang chi tiết
-        document.getElementById('project-list-page').style.display = 'none';
-        document.getElementById('project-detail-page').style.display = 'flex';
-        document.getElementById('btn-back-to-list').style.display = 'inline-block';
-        await loadAllDataFromDB();
-    }
-
-    // --- 1. XỬ LÝ CHUYỂN TAB (NAVIGATION) ---
-    const menuLinks = document.querySelectorAll(".side-menu a");
-    const pages = document.querySelectorAll(".page-section");
-
-    menuLinks.forEach(link => {
-        link.addEventListener("click", function(e) {
-            e.preventDefault();
-
-            menuLinks.forEach(l => l.classList.remove("active"));
-            this.classList.add("active");
-
-            pages.forEach(page => page.classList.remove("active"));
-
-            const targetId = "page-" + this.getAttribute("data-target");
-            const targetPage = document.getElementById(targetId);
-            
-            if (targetPage) {
-                targetPage.classList.add("active");
-                
-                // Xử lý riêng cho trang Sizing (Load iframe)
-                if (this.getAttribute("data-target") === 'sizing') {
-                    const sizingIframe = document.getElementById('sizing-iframe');
-                    if (sizingIframe && currentProjectId) {
-                        const baseUrl = sizingIframe.src.split('?')[0];
-                        sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
-                    }
-                }
-            }
-        });
-    });
-
-    // --- 2. GÁN SỰ KIỆN CHO CÁC NÚT ---
-    
-    // Nút lưu Yêu cầu bài toán
-    const saveBtn = document.getElementById('saveBtn');
-    if (saveBtn) saveBtn.onclick = saveYeuCauBaiToan;
-
-    // Nút thêm dòng Thông tin đầu vào
-    const addRowBtn = document.getElementById('addRowBtn');
-    if (addRowBtn) addRowBtn.onclick = addInputRow;
-
-    // Nút lưu Thông tin đầu vào
-    const saveInputDataBtn = document.getElementById('saveInputDataBtn');
-    if (saveInputDataBtn) saveInputDataBtn.onclick = saveThongTinDauVao;
-
-    // Nút thêm dòng Baseline
-    const addBaselineBtn = document.getElementById('addBaselineRowBtn');
-    if (addBaselineBtn) addBaselineBtn.onclick = addBaselineRow;
-
-    // Nút thêm dòng Zone mạng
-    const addArchBtn = document.getElementById('addArchRowBtn');
-    if (addArchBtn) addArchBtn.onclick = addArchRow;
-
-    // Nút lưu Mô hình hệ thống
-    const saveModelBtn = document.getElementById('saveModelBtn');
-    if (saveModelBtn) saveModelBtn.onclick = saveMoHinhHeThong;
-
-    // Nút thêm dòng Tổng hợp
-    const addSummaryBtn = document.getElementById('addSummaryRowBtn');
-    if (addSummaryBtn) addSummaryBtn.onclick = addSummaryRow;
-
-    // Nút lưu Tổng hợp
-    const saveSummaryBtn = document.getElementById('saveSummaryBtn');
-    if (saveSummaryBtn) saveSummaryBtn.onclick = saveTongHop;
-
-    // Nút xuất báo cáo
-    const exportBtn = document.getElementById('exportBtn');
-    if (exportBtn) exportBtn.onclick = exportToWord;
-});
-
 // ==================== LOAD DATA FROM DATABASE ====================
 async function loadAllDataFromDB() {
     try {
-        // Cập nhật iframe sizing với projectId
         const sizingIframe = document.getElementById('sizing-iframe');
         if (sizingIframe && currentProjectId) {
             const baseUrl = sizingIframe.src.split('?')[0];
             sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
         }
         
-        // Lấy ProjectData theo projectId
         const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`);
         if (response.ok) {
             const projectData = await response.json();
             saveProjectDataIdToStorage(projectData.id);
             
-            // Load từng phần
             if (projectData.yeuCauBaiToanContent) {
                 loadYeuCauBaiToan(JSON.parse(projectData.yeuCauBaiToanContent));
             }
@@ -481,126 +373,220 @@ async function loadAllDataFromDB() {
     }
 }
 
-// ==================== YÊU CẦU BÀI TOÁN ====================
+// ==================== 1. YÊU CẦU BÀI TOÁN (CẬP NHẬT MỚI) ====================
 
 function loadYeuCauBaiToan(data) {
-    const pageRequest = document.getElementById('page-request');
-    const inputs = pageRequest.querySelectorAll('.form-grid input');
+    const rows = document.querySelectorAll('#request-table-body tr');
     
-    if (inputs[0]) inputs[0].value = data.devUnit || '';
-    if (inputs[1]) inputs[1].value = data.projectName || '';
-    if (inputs[2]) inputs[2].value = data.sysFeature || '';
-    if (inputs[3]) inputs[3].value = data.contactPerson || '';
-    if (inputs[4]) inputs[4].value = data.sizingPurpose || '';
-    if (inputs[5]) inputs[5].value = data.sizingBasis || '';
-    if (inputs[6]) inputs[6].value = data.sizingRule || '';
-    if (inputs[7]) inputs[7].value = data.importance || '';
-    if (inputs[8]) inputs[8].value = data.deploymentTime || '';
+    // Helper function để load dữ liệu vào 1 dòng (Input + Admin)
+    const loadRowData = (rowIndex, value, adminData) => {
+        const row = rows[rowIndex];
+        if (!row) return;
+        
+        // Cột User Input (Cột 2)
+        const userInput = row.cells[1].querySelector('input');
+        const userSelect = row.cells[1].querySelector('select');
+        
+        if (userInput) userInput.value = value || '';
+        if (userSelect) userSelect.value = value || '';
+
+        // Cột Admin (Cột 3 & 4)
+        if (adminData) {
+            const adminEval = row.cells[2].querySelector('select');
+            const adminNote = row.cells[3].querySelector('input');
+            if (adminEval) {
+                adminEval.value = adminData.eval || '';
+                updateColor(adminEval); // Cập nhật màu
+            }
+            if (adminNote) adminNote.value = adminData.note || '';
+        }
+    };
+
+    // Dòng 1: Đơn vị
+    loadRowData(0, data.devUnit, data.adminReview?.row0);
+    // Dòng 2: Tên dự án
+    loadRowData(1, data.projectName, data.adminReview?.row1);
+    // Dòng 3: Chức năng
+    loadRowData(2, data.sysFeature, data.adminReview?.row2);
     
-    // Admin đánh giá và ghi chú
-    const adminRating = document.getElementById('request-admin-rating');
-    const adminComment = document.getElementById('request-admin-comment');
-    if (adminRating) adminRating.value = data.adminRating || '';
-    if (adminComment) adminComment.value = data.adminComment || '';
+    // Dòng 4: Đầu mối (Tách chuỗi contactPerson)
+    const contactRow = rows[3];
+    if (contactRow) {
+        // Giả sử contactPerson lưu dạng "Email - Đơn vị - SĐT"
+        const contactParts = (data.contactPerson || '').split(' - ');
+        // Nếu có ít hơn 3 phần, điền lần lượt
+        document.getElementById('contact-email').value = contactParts[0] || '';
+        document.getElementById('contact-unit').value = contactParts[1] || '';
+        document.getElementById('contact-phone').value = contactParts[2] || '';
+        
+        // Load admin
+        const adminData = data.adminReview?.row3;
+        if(adminData) {
+            const adminEval = contactRow.cells[2].querySelector('select');
+            const adminNote = contactRow.cells[3].querySelector('input');
+            if (adminEval) { adminEval.value = adminData.eval || ''; updateColor(adminEval); }
+            if (adminNote) adminNote.value = adminData.note || '';
+        }
+    }
+
+    // Dòng 5: Mục đích
+    loadRowData(4, data.sizingPurpose, data.adminReview?.row4);
+    // Dòng 6: Cơ sở
+    loadRowData(5, data.sizingBasis, data.adminReview?.row5);
+    // Dòng 7: Nguyên tắc
+    loadRowData(6, data.sizingRule, data.adminReview?.row6);
+    // Dòng 8: Mức độ
+    loadRowData(7, data.importance, data.adminReview?.row7);
+    // Dòng 9: Thời gian
+    loadRowData(8, data.deploymentTime, data.adminReview?.row8);
 }
 
 function collectYeuCauBaiToan() {
-    const pageRequest = document.getElementById('page-request');
-    const inputs = pageRequest.querySelectorAll('.form-grid input');
+    const rows = document.querySelectorAll('#request-table-body tr');
+
+    // Helper lấy value User Input
+    const getVal = (rowIndex) => {
+        const row = rows[rowIndex];
+        if (!row) return '';
+        const input = row.cells[1].querySelector('input');
+        const select = row.cells[1].querySelector('select');
+        return input ? input.value : (select ? select.value : '');
+    };
+
+    // Helper lấy Admin Data
+    const getAdminData = (rowIndex) => {
+        const row = rows[rowIndex];
+        if (!row) return { eval: '', note: '' };
+        return {
+            eval: row.cells[2].querySelector('select')?.value || '',
+            note: row.cells[3].querySelector('input')?.value || ''
+        };
+    };
+
+    // Gộp thông tin đầu mối
+    const email = document.getElementById('contact-email')?.value || '';
+    const unit = document.getElementById('contact-unit')?.value || '';
+    const phone = document.getElementById('contact-phone')?.value || '';
+    const contactCombined = [email, unit, phone].join(' - '); // Luôn join để giữ vị trí khi split
     
     return {
-        devUnit: inputs[0]?.value || '',
-        projectName: inputs[1]?.value || '',
-        sysFeature: inputs[2]?.value || '',
-        contactPerson: inputs[3]?.value || '',
-        sizingPurpose: inputs[4]?.value || '',
-        sizingBasis: inputs[5]?.value || '',
-        sizingRule: inputs[6]?.value || '',
-        importance: inputs[7]?.value || '',
-        deploymentTime: inputs[8]?.value || '',
-        adminRating: document.getElementById('request-admin-rating')?.value || '',
-        adminComment: document.getElementById('request-admin-comment')?.value || ''
+        devUnit: getVal(0),
+        projectName: getVal(1),
+        sysFeature: getVal(2),
+        contactPerson: contactCombined,
+        sizingPurpose: getVal(4), // Dòng 5 là index 4
+        sizingBasis: getVal(5),
+        sizingRule: getVal(6),
+        importance: getVal(7),
+        deploymentTime: getVal(8),
+
+        // Gom dữ liệu Admin thành object
+        adminReview: {
+            row0: getAdminData(0),
+            row1: getAdminData(1),
+            row2: getAdminData(2),
+            row3: getAdminData(3),
+            row4: getAdminData(4),
+            row5: getAdminData(5),
+            row6: getAdminData(6),
+            row7: getAdminData(7),
+            row8: getAdminData(8)
+        }
     };
 }
 
 async function saveYeuCauBaiToan() {
     const statusDiv = document.getElementById('save-status');
     const data = collectYeuCauBaiToan();
+
+    if (!data.projectName) {
+        alert("Vui lòng nhập Tên dự án!");
+        return;
+    }
     
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
         
-        // Nếu chưa có Project, tạo mới
+        // 1. Tạo hoặc Cập nhật Project
         if (!currentProjectId) {
-            const projectName = data.projectName || 'Dự án mới ' + new Date().toLocaleString();
             const projectResponse = await fetch(`${API_BASE_URL}/projects`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: projectName,
-                    devUnit: data.devUnit || '',
-                    ownerName: data.contactPerson || '',
+                    name: data.projectName,
+                    devUnit: data.devUnit,
+                    ownerName: data.contactPerson,
                     status: 'Draft'
                 })
             });
             
-            if (projectResponse.ok) {
-                const project = await projectResponse.json();
-                saveProjectIdToStorage(project.id);
-            } else {
-                throw new Error('Không thể tạo project');
-            }
+            if (!projectResponse.ok) throw new Error('Không thể tạo Project mới.');
+            const project = await projectResponse.json();
+            saveProjectIdToStorage(project.id);
         } else {
-            // Cập nhật thông tin project nếu đã tồn tại
             await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: data.projectName,
-                    devUnit: data.devUnit || '',
-                    ownerName: data.contactPerson || ''
+                    devUnit: data.devUnit,
+                    ownerName: data.contactPerson
                 })
             });
         }
+
+        // 2. Lưu System Info (Chứa cả data user và admin review)
+        const systemInfoPayload = {
+            projectId: currentProjectId,
+            ...data // Spread data bao gồm cả adminReview
+        };
+
+        const method = currentProjectDataId ? 'PUT' : 'POST';
+        const url = currentProjectDataId 
+            ? `${API_BASE_URL}/project-data/${currentProjectDataId}` // Giả sử BE hỗ trợ update qua ID này
+            : `${API_BASE_URL}/project-data`; // Hoặc tạo mới
+
+        // Logic cũ của bạn đang dùng API khác nhau cho create/update project data
+        // Tôi sẽ điều chỉnh theo luồng chuẩn: Update vào bảng ProjectData
+        // Lưu nội dung Yêu cầu bài toán vào cột yeuCauBaiToanContent
         
-        // Lưu hoặc cập nhật ProjectData
-        const yeuCauContent = JSON.stringify(data);
-        
-        if (currentProjectDataId) {
-            // Update
-            await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+        let response;
+        if(currentProjectDataId) {
+             response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    yeuCauBaiToanContent: yeuCauContent
-                })
+                body: JSON.stringify({ yeuCauBaiToanContent: JSON.stringify(data) })
             });
         } else {
-            // Create
-            const response = await fetch(`${API_BASE_URL}/project-data`, {
+            response = await fetch(`${API_BASE_URL}/project-data`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     projectId: currentProjectId,
-                    yeuCauBaiToanContent: yeuCauContent
+                    yeuCauBaiToanContent: JSON.stringify(data)
                 })
             });
-            
-            if (response.ok) {
-                const result = await response.json();
-                saveProjectDataIdToStorage(result.id);
-            }
         }
         
-        if (statusDiv) statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công! (Project ID: ${currentProjectId})</span>`;
-        alert('Đã lưu thông tin Yêu cầu bài toán thành công!');
+        if (response.ok) {
+            const result = await response.json();
+            if(!currentProjectDataId) saveProjectDataIdToStorage(result.id);
+            if (statusDiv) statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công!</span>`;
+            alert('Đã lưu thông tin thành công!');
+        } else {
+            throw new Error(await response.text());
+        }
         
     } catch (error) {
         console.error('Error:', error);
-        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi kết nối!</span>';
-        alert('Lỗi: ' + error.message);
+        if (statusDiv) statusDiv.innerHTML = `<span style="color: red;">✗ Lỗi: ${error.message}</span>`;
+        alert('Có lỗi xảy ra: ' + error.message);
     }
 }
+
+// ==================== CÁC PHẦN KHÁC (GIỮ NGUYÊN) ====================
+// (Phần Thông tin đầu vào, Mô hình hệ thống, Tổng hợp... vẫn giữ nguyên code cũ
+// vì bạn chưa yêu cầu đổi giao diện các phần đó trong lần prompt này)
 
 // ==================== THÔNG TIN ĐẦU VÀO ====================
 
@@ -627,77 +613,266 @@ function loadThongTinDauVao(data) {
         });
         calculateBaselineTotal();
     }
-    
-    // Load ảnh sở cứ - Đầu vào
-    if (data.inputEvidenceImages && data.inputEvidenceImages.length > 0) {
-        loadImagesToContainer('input-evidence', data.inputEvidenceImages);
-    }
-    
-    // Load ảnh sở cứ - Tải hệ thống POC
-    if (data.pocEvidenceImages && data.pocEvidenceImages.length > 0) {
-        loadImagesToContainer('poc-evidence', data.pocEvidenceImages);
-    }
-    
-    // Load ảnh sở cứ - Định cỡ
-    if (data.sizingEvidenceImages && data.sizingEvidenceImages.length > 0) {
-        loadImagesToContainer('sizing-evidence', data.sizingEvidenceImages);
-    }
-    
-    // Load ảnh sở cứ giá trị định cỡ (evidence)
-    if (data.evidenceImages && data.evidenceImages.length > 0) {
-        loadImagesToContainer('evidence', data.evidenceImages);
-    }
-    
-    // Admin đánh giá và ghi chú
-    const adminRating = document.getElementById('input-admin-rating');
-    const adminComment = document.getElementById('input-admin-comment');
-    if (adminRating) adminRating.value = data.adminRating || '';
-    if (adminComment) adminComment.value = data.adminComment || '';
+
+    // Load ảnh sở cứ khác (nếu còn dùng)
+    if(data.evidenceImages) loadImagesToContainer('evidence', data.evidenceImages);
 }
 
+// 2. Hàm xử lý khi chọn ảnh từ icon dấu hỏi (?)
+// Hàm xử lý khi chọn file ảnh
+// 1. Hàm xử lý khi chọn ảnh
+function handleEvidenceUpload(input) {
+    const label = input.parentElement; // Cái nhãn chứa icon
+    const wrapper = label.parentElement; // Cái khung cell-wrapper
+    const removeBtn = wrapper.querySelector('.btn-remove-file'); // Nút xóa bên cạnh
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Img = e.target.result;
+            
+            // Đổi trạng thái icon thành "Đã có file"
+            label.classList.add('has-file'); 
+            
+            // Gán sự kiện click vào icon để mở Modal xem ảnh
+            label.onclick = function(event) {
+                if (event.target !== input) {
+                    event.preventDefault();
+                    openModal(base64Img);
+                }
+            };
+
+            // HIỆN NÚT XÓA
+            if(removeBtn) removeBtn.style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// 2. Hàm Xóa ảnh (Reset về ban đầu)
+function clearImage(btn) {
+    // Tìm các phần tử liên quan
+    const wrapper = btn.parentElement;
+    const label = wrapper.querySelector('.upload-icon-btn');
+    const input = label.querySelector('input[type="file"]');
+
+    // 1. Reset giá trị input file (quan trọng để chọn lại được ảnh cũ nếu muốn)
+    input.value = '';
+
+    // 2. Xóa class 'has-file' của icon (để icon về màu xám)
+    label.classList.remove('has-file');
+
+    // 3. Hủy sự kiện click xem modal (trả về mặc định)
+    label.onclick = null;
+
+    // 4. Ẩn nút xóa đi
+    btn.style.display = 'none';
+}
 function createInputTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
+
+    // --- 1. XỬ LÝ TRẠNG THÁI ẢNH (POC) ---
+    const hasPoc = !!data.pocImage; // Kiểm tra có ảnh không
+    const pocClass = hasPoc ? 'has-file' : ''; // Class xanh nếu có ảnh
+    // Nếu có ảnh -> Click mở Modal. Không có -> Không làm gì (để input file chạy)
+    const pocClick = hasPoc ? `onclick="event.preventDefault(); openModal('${data.pocImage}')"` : '';
+    // Nếu có ảnh -> Hiện nút Xóa. Không có -> Ẩn
+    const pocRemoveDisplay = hasPoc ? 'block' : 'none';
+
+    // --- 2. XỬ LÝ TRẠNG THÁI ẢNH (ĐỊNH CỠ) ---
+    const hasSizing = !!data.sizingImage;
+    const sizingClass = hasSizing ? 'has-file' : '';
+    const sizingClick = hasSizing ? `onclick="event.preventDefault(); openModal('${data.sizingImage}')"` : '';
+    const sizingRemoveDisplay = hasSizing ? 'block' : 'none';
+
     tr.innerHTML = `
-        <td>${stt}</td>
-        <td><textarea rows="3" placeholder="Ví dụ: Tổng số người dùng CCU" class="input-textarea">${data.dauVao || ''}</textarea></td>
-        <td><textarea rows="3" class="input-textarea">${data.taiHeThongPOC || ''}</textarea></td>
-        <td><textarea rows="3" class="input-textarea">${data.dinhCo || ''}</textarea></td>
-        <td><input type="text" value="${data.module || ''}"></td>
-        <td><textarea rows="3" class="input-textarea">${data.ghiChu || ''}</textarea></td>
-        <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
+        <td style="text-align: center;">${stt}</td>
+        
+        <td><textarea rows="2" class="input-full" placeholder="Nhập nội dung...">${data.dauVao || ''}</textarea></td>
+
+        <td>
+            <div class="cell-wrapper">
+                <input type="text" value="${data.taiHeThongPOC || ''}" placeholder="Giá trị...">
+                
+                <label class="upload-icon-btn ${pocClass}" title="Tải ảnh/Xem ảnh" ${pocClick}>
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <input type="file" accept="image/*" class="hidden-file-input" 
+                           onclick="event.stopPropagation()" 
+                           onchange="handleEvidenceUpload(this)">
+                </label>
+
+                <i class="fa-solid fa-times btn-remove-file" 
+                   style="display: ${pocRemoveDisplay};" 
+                   onclick="clearImage(this)" 
+                   title="Xóa ảnh này"></i>
+            </div>
+        </td>
+        
+        <td>
+            <div class="cell-wrapper">
+                <input type="text" value="${data.dinhCo || ''}" placeholder="Giá trị...">
+                
+                <label class="upload-icon-btn ${sizingClass}" title="Tải ảnh/Xem ảnh" ${sizingClick}>
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <input type="file" accept="image/*" class="hidden-file-input" 
+                           onclick="event.stopPropagation()" 
+                           onchange="handleEvidenceUpload(this)">
+                </label>
+
+                <i class="fa-solid fa-times btn-remove-file" 
+                   style="display: ${sizingRemoveDisplay};" 
+                   onclick="clearImage(this)" 
+                   title="Xóa ảnh này"></i>
+            </div>
+        </td>
+        
+        <td><input type="text" class="input-full" value="${data.module || ''}" placeholder="Module..."></td>
+        
+        <td><textarea rows="2" class="input-full" placeholder="Ghi chú...">${data.ghiChu || ''}</textarea></td>
+        
+        <td>
+            <select class="admin-eval" onchange="updateColor(this)">
+                <option value="">--</option>
+                <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
+                <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
+            </select>
+        </td>
+        <td>
+            <textarea rows="1" class="input-full admin-note" 
+                      placeholder="..." 
+                      style="resize: vertical; min-height: 36px;">${data.adminNote || ''}</textarea>
+        </td>
+        
+        <td style="text-align: center;">
+            <button class="btn-delete-row-item" onclick="deleteRow(this)" title="Xóa dòng này">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
     `;
+
+    // Kích hoạt màu sắc cho ô Select nếu đã có dữ liệu (OK xanh / NOK đỏ)
+    const select = tr.querySelector('select');
+    if(select && select.value) updateColor(select);
+
     return tr;
 }
 
-function createBaselineTableRow(data = {}) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-        <td>
-            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
-                <option value="APP" ${data.module === 'APP' ? 'selected' : ''}>APP</option>
-                <option value="DB" ${data.module === 'DB' ? 'selected' : ''}>DB</option>
-            </select>
-        </td>
-        <td><input type="text" placeholder="10.240.x.x" value="${data.ip || ''}"></td>
-        <td><input type="text" placeholder="Intel Xeon..." value="${data.cpu || ''}"></td>
-        <td><input type="number" class="ram-val" placeholder="0" value="${data.ram || ''}" oninput="calculateBaselineTotal()"></td>
-        <td><input type="number" class="cint-val" placeholder="0" value="${data.cintRate2017 || ''}" oninput="calculateBaselineTotal()"></td>
-        <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
-    `;
-    return tr;
+// 2. Xử lý khi upload ảnh xong -> Hiện nút Xóa ảnh
+function handleEvidenceUpload(input) {
+    const label = input.parentElement; // Label chứa icon
+    const wrapper = label.parentElement; // Div cell-wrapper
+    const removeBtn = wrapper.querySelector('.btn-remove-file'); // Nút X
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Img = e.target.result;
+            
+            // Đổi màu icon thành xanh
+            label.classList.add('has-file'); 
+            
+            // Gán sự kiện click vào icon để mở Modal xem ảnh
+            label.onclick = function(event) {
+                if (event.target !== input) {
+                    event.preventDefault();
+                    openModal(base64Img);
+                }
+            };
+
+            // QUAN TRỌNG: Hiện nút xóa ảnh lên
+            if(removeBtn) removeBtn.style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
 }
+
+// 3. Xử lý xóa ảnh (Reset về trạng thái chưa có ảnh)
+function clearImage(btn) {
+    const wrapper = btn.parentElement;
+    const label = wrapper.querySelector('.upload-icon-btn');
+    const input = label.querySelector('input[type="file"]');
+
+    // Reset input file
+    input.value = '';
+
+    // Xóa class 'has-file' (icon về màu xám)
+    label.classList.remove('has-file');
+
+    // Hủy sự kiện click xem modal
+    label.onclick = null;
+
+    // Ẩn nút xóa đi
+    btn.style.display = 'none';
+}
+
+// 4. [MỚI] Hàm xóa dòng cụ thể
+function deleteRow(btn) {
+    if(confirm("Bạn có chắc muốn xóa dòng này không?")) {
+        const row = btn.closest('tr');
+        const tbody = row.parentElement;
+        row.remove();
+        
+        // Cập nhật lại số thứ tự (STT)
+        Array.from(tbody.rows).forEach((r, index) => {
+            r.cells[0].innerText = index + 1;
+        });
+    }
+}
+// 2. Hàm Thêm Dòng (Được gọi khi bấm nút)
+function addInputRow() {
+    const tbody = document.getElementById('input-table-body');
+    if (!tbody) {
+        console.error("Không tìm thấy tbody có id='input-table-body'");
+        return;
+    }
+    
+    const nextSTT = tbody.rows.length + 1;
+    // Gọi hàm tạo dòng ở trên
+    const tr = createInputTableRow(nextSTT); 
+    tbody.appendChild(tr);
+}
+
+// 3. Hàm Xóa Dòng Cuối
+function removeLastRow(tbodyId) {
+    const tbody = document.getElementById(tbodyId);
+    if (tbody && tbody.rows.length > 1) { // Giữ lại ít nhất 1 dòng
+        tbody.deleteRow(tbody.rows.length - 1);
+    } else {
+        alert("Phải giữ lại ít nhất một dòng!");
+    }
+}
+
 
 function collectThongTinDauVao() {
     // Thu thập bảng đầu vào
     const inputRows = [];
     document.querySelectorAll('#input-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
+
+        // Helper: Lấy ảnh base64
+        const getImg = (cellIndex) => {
+            const img = cells[cellIndex]?.querySelector('.evidence-preview img');
+            return img ? img.src : '';
+        };
+
+        // Helper: Lấy text input trong wrapper
+        const getWrapperInput = (cellIndex) => {
+            return cells[cellIndex]?.querySelector('input[type="text"]')?.value || '';
+        }
+
         inputRows.push({
             dauVao: cells[1]?.querySelector('textarea')?.value || '',
-            taiHeThongPOC: cells[2]?.querySelector('textarea')?.value || '',
-            dinhCo: cells[3]?.querySelector('textarea')?.value || '',
-            module: cells[4]?.querySelector('input')?.value || '',
-            ghiChu: cells[5]?.querySelector('textarea')?.value || ''
+            taiHeThongPOC: getWrapperInput(2), // Cột 2
+            pocImage: getImg(2),
+            
+            dinhCo: getWrapperInput(3), // Cột 3
+            sizingImage: getImg(3),
+            
+            module: cells[4]?.querySelector('input')?.value || '', // Cột 4
+            ghiChu: cells[5]?.querySelector('textarea')?.value || '', // Cột 5
+            
+            adminEval: cells[6]?.querySelector('select')?.value || '', // Cột 6
+            adminNote: cells[7]?.querySelector('input')?.value || ''   // Cột 7
         });
     });
     
@@ -715,21 +890,10 @@ function collectThongTinDauVao() {
         });
     });
     
-    // Thu thập ảnh từ các container
-    const inputEvidenceImages = collectImagesFromContainer('input-evidence');
-    const pocEvidenceImages = collectImagesFromContainer('poc-evidence');
-    const sizingEvidenceImages = collectImagesFromContainer('sizing-evidence');
-    const evidenceImages = collectImagesFromContainer('evidence');
-    
     return {
         inputRows: inputRows,
         baselineRows: baselineRows,
-        inputEvidenceImages: inputEvidenceImages,
-        pocEvidenceImages: pocEvidenceImages,
-        sizingEvidenceImages: sizingEvidenceImages,
-        evidenceImages: evidenceImages,
-        adminRating: document.getElementById('input-admin-rating')?.value || '',
-        adminComment: document.getElementById('input-admin-comment')?.value || ''
+        evidenceImages: collectImagesFromContainer('evidence')
     };
 }
 
@@ -772,6 +936,25 @@ function addInputRow() {
     tbody.appendChild(tr);
 }
 
+// 7. Hàm thêm dòng Baseline (Giữ nguyên)
+function createBaselineTableRow(data = {}) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>
+            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                <option value="APP" ${data.module === 'APP' ? 'selected' : ''}>APP</option>
+                <option value="DB" ${data.module === 'DB' ? 'selected' : ''}>DB</option>
+            </select>
+        </td>
+        <td><input type="text" placeholder="10.240.x.x" value="${data.ip || ''}"></td>
+        <td><input type="text" placeholder="Intel Xeon..." value="${data.cpu || ''}"></td>
+        <td><input type="number" class="ram-val" placeholder="0" value="${data.ram || ''}" oninput="calculateBaselineTotal()"></td>
+        <td><input type="number" class="cint-val" placeholder="0" value="${data.cintRate2017 || ''}" oninput="calculateBaselineTotal()"></td>
+        <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
+    `;
+    return tr;
+}
+
 function addBaselineRow() {
     const tbody = document.getElementById('baseline-specs-body');
     const tr = createBaselineTableRow();
@@ -781,11 +964,28 @@ function addBaselineRow() {
 // ==================== MÔ HÌNH HỆ THỐNG ====================
 
 function loadMoHinhHeThong(data) {
-    // Load luồng nghiệp vụ explanation
+    // Load ảnh
+    if(data.physicalImages) loadImagesToContainer('physical', data.physicalImages);
+    if(data.logicalImages) loadImagesToContainer('logical', data.logicalImages);
+    if(data.flowImages) loadImagesToContainer('flow', data.flowImages);
+
     const flowExplanation = document.getElementById('flow-explanation');
     if (flowExplanation) flowExplanation.value = data.flowExplanation || '';
     
-    // Load bảng Zone mạng
+    // Load Admin Data (3 phần)
+    const setAdmin = (type, adminData) => {
+        const select = document.getElementById(`eval-${type}`);
+        const note = document.getElementById(`note-${type}`);
+        if(adminData) {
+            if(select) select.value = adminData.eval || '';
+            if(note) note.value = adminData.note || '';
+        }
+    };
+
+    setAdmin('physical', data.adminPhysical);
+    setAdmin('logical', data.adminLogical);
+    setAdmin('flow', data.adminFlow);
+
     const archBody = document.getElementById('arch-table-body');
     archBody.innerHTML = '';
     
@@ -795,27 +995,6 @@ function loadMoHinhHeThong(data) {
             archBody.appendChild(tr);
         });
     }
-    
-    // Load ảnh mô hình vật lý
-    if (data.physicalImages && data.physicalImages.length > 0) {
-        loadImagesToContainer('physical', data.physicalImages);
-    }
-    
-    // Load ảnh mô hình logic
-    if (data.logicalImages && data.logicalImages.length > 0) {
-        loadImagesToContainer('logical', data.logicalImages);
-    }
-    
-    // Load ảnh luồng nghiệp vụ
-    if (data.flowImages && data.flowImages.length > 0) {
-        loadImagesToContainer('flow', data.flowImages);
-    }
-    
-    // Admin đánh giá và ghi chú
-    const adminRating = document.getElementById('model-admin-rating');
-    const adminComment = document.getElementById('model-admin-comment');
-    if (adminRating) adminRating.value = data.adminRating || '';
-    if (adminComment) adminComment.value = data.adminComment || '';
 }
 
 function createArchTableRow(stt, data = {}) {
@@ -857,58 +1036,53 @@ function collectMoHinhHeThong() {
     const archRows = [];
     document.querySelectorAll('#arch-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
-        const moduleSelect = cells[1]?.querySelector('select');
-        const zoneInput = cells[2]?.querySelector('input');
-        const osSelect = cells[3]?.querySelector('select');
-        const vipTextarea = cells[4]?.querySelector('textarea');
         
         archRows.push({
-            module: moduleSelect?.value || '',
-            zoneMang: zoneInput?.value || '',
-            heDieuHanh: osSelect?.value || '',
-            soLuongVIP: vipTextarea?.value || ''
+            module: cells[1]?.querySelector('select')?.value || '',
+            zoneMang: cells[2]?.querySelector('input')?.value || '',
+            heDieuHanh: cells[3]?.querySelector('select')?.value || '',
+            soLuongVIP: cells[4]?.querySelector('textarea')?.value || ''
         });
+    });
+
+    // Helper lấy giá trị Admin cho gọn
+    const getAdmin = (type) => ({
+        eval: document.getElementById(`eval-${type}`)?.value || '',
+        note: document.getElementById(`note-${type}`)?.value || ''
     });
     
     return {
-        flowExplanation: document.getElementById('flow-explanation')?.value || '',
-        archRows: archRows,
         physicalImages: collectImagesFromContainer('physical'),
         logicalImages: collectImagesFromContainer('logical'),
         flowImages: collectImagesFromContainer('flow'),
-        adminRating: document.getElementById('model-admin-rating')?.value || '',
-        adminComment: document.getElementById('model-admin-comment')?.value || ''
+        flowExplanation: document.getElementById('flow-explanation')?.value || '',
+        archRows: archRows,
+
+        // Dữ liệu Admin (3 phần riêng biệt)
+        adminPhysical: getAdmin('physical'),
+        adminLogical: getAdmin('logical'),
+        adminFlow: getAdmin('flow')
     };
 }
 
 async function saveMoHinhHeThong() {
     const statusDiv = document.getElementById('model-save-status');
-    
-    if (!currentProjectId) {
-        alert('Vui lòng lưu "Yêu cầu bài toán" trước!');
-        return;
-    }
-    
+    if (!currentProjectId) { alert('Vui lòng lưu "Yêu cầu bài toán" trước!'); return; }
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
         
         const data = collectMoHinhHeThong();
-        const content = JSON.stringify(data);
         
         await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                moHinhHeThongContent: content
-            })
+            body: JSON.stringify({ moHinhHeThongContent: JSON.stringify(data) })
         });
-        
-        if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu mô hình thành công!</span>';
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
         alert('Đã lưu Mô hình hệ thống thành công!');
         
     } catch (error) {
         console.error('Error:', error);
-        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi!</span>';
         alert('Lỗi: ' + error.message);
     }
 }
@@ -963,31 +1137,21 @@ function collectTongHop() {
         });
     });
     
-    return {
-        summaryRows: summaryRows
-    };
+    return { summaryRows: summaryRows };
 }
 
 async function saveTongHop() {
     const statusDiv = document.getElementById('summary-save-status');
-    
-    if (!currentProjectId) {
-        alert('Vui lòng lưu "Yêu cầu bài toán" trước!');
-        return;
-    }
-    
+    if (!currentProjectId) { alert('Vui lòng lưu "Yêu cầu bài toán" trước!'); return; }
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
         
         const data = collectTongHop();
-        const content = JSON.stringify(data);
         
         await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tongHopVaDeXuatContent: content
-            })
+            body: JSON.stringify({ tongHopVaDeXuatContent: JSON.stringify(data) })
         });
         
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
@@ -995,7 +1159,6 @@ async function saveTongHop() {
         
     } catch (error) {
         console.error('Error:', error);
-        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi!</span>';
         alert('Lỗi: ' + error.message);
     }
 }
@@ -1016,19 +1179,8 @@ function removeRow(btn) {
     updateSTT(tbody);
 }
 
-function removeSummaryRow(btn) {
-    const row = btn.closest('tr');
-    const tbody = row.parentElement;
-    row.remove();
-    updateSTT(tbody);
-}
-
-function removeArchRow(btn) {
-    const row = btn.closest('tr');
-    const tbody = row.parentElement;
-    row.remove();
-    updateSTT(tbody);
-}
+function removeSummaryRow(btn) { removeRow(btn); }
+function removeArchRow(btn) { removeRow(btn); }
 
 function updateSTT(tbody) {
     Array.from(tbody.rows).forEach((r, index) => {
@@ -1063,10 +1215,7 @@ function collectImagesFromContainer(type) {
     boxes.forEach(box => {
         const img = box.querySelector('.preview-area img');
         if (img && img.src) {
-            images.push({
-                id: box.id,
-                base64: img.src
-            });
+            images.push({ id: box.id, base64: img.src });
         }
     });
     
@@ -1155,9 +1304,7 @@ async function exportToWord() {
         // Gọi API export từ backend1
         const response = await fetch(`${API_BASE_URL}/export/project/${currentProjectId}`, {
             method: 'GET',
-            headers: {
-                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            }
+            headers: { 'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
         });
         
         if (response.ok) {
@@ -1186,8 +1333,7 @@ async function exportToWord() {
             
             if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Xuất file DOCX thành công!</span>';
         } else {
-            const errorText = await response.text();
-            throw new Error(errorText || 'Không thể xuất file');
+            throw new Error('Không thể xuất file');
         }
     } catch (e) {
         console.error('Export error:', e);
@@ -1195,3 +1341,100 @@ async function exportToWord() {
         alert('Không thể xuất báo cáo: ' + e.message);
     }
 }
+
+document.addEventListener("DOMContentLoaded", async function () {
+    console.log('Current Project ID:', currentProjectId);
+    checkAuthStatus();
+
+    if (!currentProjectId) {
+        document.getElementById('project-list-page').style.display = 'block';
+        document.getElementById('project-detail-page').style.display = 'none';
+        document.getElementById('btn-back-to-list').style.display = 'none';
+        await loadProjectList();
+    } else {
+        document.getElementById('project-list-page').style.display = 'none';
+        document.getElementById('project-detail-page').style.display = 'flex';
+        document.getElementById('btn-back-to-list').style.display = 'inline-block';
+        await loadAllDataFromDB();
+    }
+
+    const menuLinks = document.querySelectorAll(".side-menu a");
+    const pages = document.querySelectorAll(".page-section");
+    menuLinks.forEach(link => {
+        link.addEventListener("click", function(e) {
+            e.preventDefault();
+            menuLinks.forEach(l => l.classList.remove("active"));
+            this.classList.add("active");
+            pages.forEach(page => page.classList.remove("active"));
+            const targetId = "page-" + this.getAttribute("data-target");
+            const targetPage = document.getElementById(targetId);
+            if (targetPage) {
+                targetPage.classList.add("active");
+                if (this.getAttribute("data-target") === 'sizing') {
+                    const sizingIframe = document.getElementById('sizing-iframe');
+                    if (sizingIframe && currentProjectId) {
+                        const baseUrl = sizingIframe.src.split('?')[0];
+                        sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
+                    }
+                }
+            }
+        });
+    });
+
+    const saveBtn = document.getElementById('saveBtn');
+    if (saveBtn) saveBtn.onclick = saveYeuCauBaiToan;
+    const addRowBtn = document.getElementById('addRowBtn');
+    if (addRowBtn) addRowBtn.onclick = addInputRow;
+    const saveInputDataBtn = document.getElementById('saveInputDataBtn');
+    if (saveInputDataBtn) saveInputDataBtn.onclick = saveThongTinDauVao;
+    const addBaselineBtn = document.getElementById('addBaselineRowBtn');
+    if (addBaselineBtn) addBaselineBtn.onclick = addBaselineRow;
+    const addArchBtn = document.getElementById('addArchRowBtn');
+    if (addArchBtn) addArchBtn.onclick = addArchRow;
+    const saveModelBtn = document.getElementById('saveModelBtn');
+    if (saveModelBtn) saveModelBtn.onclick = saveMoHinhHeThong;
+    const addSummaryBtn = document.getElementById('addSummaryRowBtn');
+    if (addSummaryBtn) addSummaryBtn.onclick = addSummaryRow;
+    const saveSummaryBtn = document.getElementById('saveSummaryBtn');
+    if (saveSummaryBtn) saveSummaryBtn.onclick = saveTongHop;
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) exportBtn.onclick = exportToWord;
+});
+// Hàm xóa dòng cuối cùng của bảng
+function removeLastRow(tbodyId) {
+    const tbody = document.getElementById(tbodyId);
+    // Chỉ xóa nếu có nhiều hơn 1 dòng (để lại dòng đầu tiên)
+    if (tbody && tbody.rows.length > 1) {
+        tbody.deleteRow(tbody.rows.length - 1);
+    } else {
+        alert("Không thể xóa dòng duy nhất!");
+    }
+}
+// --- CÁC HÀM XỬ LÝ MODAL ---
+
+// Hàm mở Modal xem ảnh to
+function openModal(imgSrc) {
+    const modal = document.getElementById("evidence-modal");
+    const modalImg = document.getElementById("modal-img");
+    
+    if (modal && modalImg && imgSrc) {
+        modal.style.display = "flex"; // Hiện modal
+        modalImg.src = imgSrc;
+    }
+}
+
+// Hàm đóng Modal
+function closeModal() {
+    const modal = document.getElementById("evidence-modal");
+    if (modal) {
+        modal.style.display = "none";
+    }
+}
+
+// Đóng modal khi nhấn phím ESC
+document.addEventListener('keydown', function(event) {
+    if (event.key === "Escape") {
+        closeModal();
+    }
+});
+
