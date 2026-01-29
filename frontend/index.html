@@ -6,6 +6,16 @@
     <title>Tool Sizing cấp phát - Viettel Family</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        // Kiểm tra xác thực người dùng ngay khi trang load
+        (function() {
+            const isLoggedIn = localStorage.getItem('isLoggedIn');
+            if (isLoggedIn !== 'true') {
+                // Nếu chưa đăng nhập, chuyển hướng đến login page
+                window.location.href = 'login.html';
+            }
+        })();
+    </script>
 </head>
 <body>
 
@@ -241,7 +251,7 @@
                             <tr>
                                 <th class="sub-header">Giá trị + Ảnh</th>
                                 <th class="sub-header">Giá trị + Ảnh</th>
-                                <th class="sub-header">Kết quả</th>
+                                <th class="sub-header">Đánh giá
                                 <th class="sub-header">Ghi chú</th>
                             </tr>
                         </thead>

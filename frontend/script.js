@@ -593,7 +593,11 @@ async function saveYeuCauBaiToan() {
 function loadThongTinDauVao(data) {
     // Load bảng thông tin đầu vào
     const tbody = document.getElementById('input-table-body');
-    tbody.innerHTML = '';
+    if (!tbody) {
+        console.warn("loadThongTinDauVao: missing element with id='input-table-body', skipping input table load.");
+    } else {
+        tbody.innerHTML = '';
+    }
     
     if (data.inputRows && data.inputRows.length > 0) {
         data.inputRows.forEach((row, index) => {
@@ -604,9 +608,13 @@ function loadThongTinDauVao(data) {
     
     // Load bảng Baseline
     const baselineBody = document.getElementById('baseline-specs-body');
-    baselineBody.innerHTML = '';
+    if (!baselineBody) {
+        console.warn("loadThongTinDauVao: missing element with id='baseline-specs-body', skipping baseline load.");
+    } else {
+        baselineBody.innerHTML = '';
+    }
     
-    if (data.baselineRows && data.baselineRows.length > 0) {
+    if (data.baselineRows && data.baselineRows.length > 0 && baselineBody) {
         data.baselineRows.forEach(row => {
             const tr = createBaselineTableRow(row);
             baselineBody.appendChild(tr);
@@ -615,7 +623,7 @@ function loadThongTinDauVao(data) {
     }
 
     // Load ảnh sở cứ khác (nếu còn dùng)
-    if(data.evidenceImages) loadImagesToContainer('evidence', data.evidenceImages);
+    if (data.evidenceImages) loadImagesToContainer('evidence', data.evidenceImages);
 }
 
 // 2. Hàm xử lý khi chọn ảnh từ icon dấu hỏi (?)
