@@ -472,6 +472,7 @@ body {
     color: #adb5bd; /* Màu xám nhạt khi chưa có ảnh */
     transition: all 0.2s;
     border-radius: 50%; /* Icon tròn trịa */
+    position: relative; /* for absolute hidden input inside label */
 }
 
 /* Hover vào icon */
@@ -492,7 +493,12 @@ body {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-.hidden-file-input { display: none; }
+.hidden-file-input {
+    /* keep file input present but invisible so label clicks always trigger file picker */
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer;
+}
 
 /* ========================================= */
 /* 6. MODAL XEM ẢNH (PREMIUM LOOK)           */
@@ -745,6 +751,56 @@ body {
     border-radius: 4px;
     padding-right: 5px;
     height: 36px;
+}
+
+/* Row evidence container (small view/remove buttons) */
+.row-evidence-container {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-left: 6px;
+}
+.row-evidence-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* View evidence button (small pill) */
+.btn-view-evidence {
+    background: linear-gradient(180deg, #ffffff, #f8f9fb);
+    border: 1px solid #dfe6ee;
+    color: #0b5ed7;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 16px;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(11,94,215,0.08);
+    transition: all 0.15s ease-in-out;
+}
+.btn-view-evidence:hover {
+    background: #e9f2ff;
+    transform: translateY(-1px);
+}
+
+/* Remove evidence button (small round icon) */
+.btn-remove-evidence {
+    background: #fff;
+    border: 1px solid #f0b3b3;
+    color: #c82333;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+.btn-remove-evidence:hover {
+    background: #ffecec;
+    transform: scale(1.08);
 }
 /* ========================================= */
 /* STYLE CHO MỤC 3: MÔ HÌNH HỆ THỐNG (FIX)   */

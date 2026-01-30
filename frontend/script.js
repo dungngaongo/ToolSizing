@@ -606,92 +606,35 @@ function loadThongTinDauVao(data) {
         });
     }
     
-    // Load bảng Baseline
-    const baselineBody = document.getElementById('baseline-specs-body');
-    if (!baselineBody) {
-        console.warn("loadThongTinDauVao: missing element with id='baseline-specs-body', skipping baseline load.");
-    } else {
-        baselineBody.innerHTML = '';
-    }
-    
-    if (data.baselineRows && data.baselineRows.length > 0 && baselineBody) {
-        data.baselineRows.forEach(row => {
-            const tr = createBaselineTableRow(row);
-            baselineBody.appendChild(tr);
-        });
-        calculateBaselineTotal();
-    }
-
-    // Load ảnh sở cứ khác (nếu còn dùng)
-    if (data.evidenceImages) loadImagesToContainer('evidence', data.evidenceImages);
+    // Note: baselineRows and global evidenceImages have been removed from storage structure
+    // Load per-row images (pocEvidenceImages / sizingEvidenceImages) when present
+    // (the per-row image loading is handled inside createInputTableRow below)
 }
 
 // 2. Hàm xử lý khi chọn ảnh từ icon dấu hỏi (?)
 // Hàm xử lý khi chọn file ảnh
 // 1. Hàm xử lý khi chọn ảnh
-function handleEvidenceUpload(input) {
-    const label = input.parentElement; // Cái nhãn chứa icon
-    const wrapper = label.parentElement; // Cái khung cell-wrapper
-    const removeBtn = wrapper.querySelector('.btn-remove-file'); // Nút xóa bên cạnh
-    
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const base64Img = e.target.result;
-            
-            // Đổi trạng thái icon thành "Đã có file"
-            label.classList.add('has-file'); 
-            
-            // Gán sự kiện click vào icon để mở Modal xem ảnh
-            label.onclick = function(event) {
-                if (event.target !== input) {
-                    event.preventDefault();
-                    openModal(base64Img);
-                }
-            };
-
-            // HIỆN NÚT XÓA
-            if(removeBtn) removeBtn.style.display = 'block';
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-}
-
-// 2. Hàm Xóa ảnh (Reset về ban đầu)
-function clearImage(btn) {
-    // Tìm các phần tử liên quan
+// Clear all evidence images in the same cell-wrapper (used by legacy clear buttons in markup)
+function clearRowImages(btn) {
     const wrapper = btn.parentElement;
+    const container = wrapper.querySelector('.row-evidence-container');
+    if (container) container.innerHTML = '';
     const label = wrapper.querySelector('.upload-icon-btn');
-    const input = label.querySelector('input[type="file"]');
-
-    // 1. Reset giá trị input file (quan trọng để chọn lại được ảnh cũ nếu muốn)
-    input.value = '';
-
-    // 2. Xóa class 'has-file' của icon (để icon về màu xám)
-    label.classList.remove('has-file');
-
-    // 3. Hủy sự kiện click xem modal (trả về mặc định)
-    label.onclick = null;
-
-    // 4. Ẩn nút xóa đi
-    btn.style.display = 'none';
+    const input = wrapper.querySelector('input[type="file"]');
+    if (input) input.value = '';
+    if (label) label.classList.remove('has-file');
 }
 function createInputTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
 
-    // --- 1. XỬ LÝ TRẠNG THÁI ẢNH (POC) ---
-    const hasPoc = !!data.pocImage; // Kiểm tra có ảnh không
-    const pocClass = hasPoc ? 'has-file' : ''; // Class xanh nếu có ảnh
-    // Nếu có ảnh -> Click mở Modal. Không có -> Không làm gì (để input file chạy)
-    const pocClick = hasPoc ? `onclick="event.preventDefault(); openModal('${data.pocImage}')"` : '';
-    // Nếu có ảnh -> Hiện nút Xóa. Không có -> Ẩn
-    const pocRemoveDisplay = hasPoc ? 'block' : 'none';
+    // --- 1. XỬ LÝ ẢNH (POC) ---
+    // Support multiple images per row: data.taiHeThongPOC = { text: '', pocEvidenceImages: [ {base64}, ... ] }
+    const pocText = (data.taiHeThongPOC && data.taiHeThongPOC.text) ? data.taiHeThongPOC.text : (data.taiHeThongPOC || '');
+    const pocImages = (data.taiHeThongPOC && Array.isArray(data.taiHeThongPOC.pocEvidenceImages)) ? data.taiHeThongPOC.pocEvidenceImages : (data.pocImage ? [{ base64: data.pocImage }] : []);
 
-    // --- 2. XỬ LÝ TRẠNG THÁI ẢNH (ĐỊNH CỠ) ---
-    const hasSizing = !!data.sizingImage;
-    const sizingClass = hasSizing ? 'has-file' : '';
-    const sizingClick = hasSizing ? `onclick="event.preventDefault(); openModal('${data.sizingImage}')"` : '';
-    const sizingRemoveDisplay = hasSizing ? 'block' : 'none';
+    // --- 2. XỬ LÝ ẢNH (ĐỊNH CỠ) ---
+    const sizingText = (data.dinhCo && typeof data.dinhCo === 'object' && data.dinhCo.text) ? data.dinhCo.text : (typeof data.dinhCo === 'string' ? data.dinhCo : '');
+    const sizingImages = (data.dinhCo && Array.isArray(data.dinhCo.sizingEvidenceImages)) ? data.dinhCo.sizingEvidenceImages : (data.sizingImage ? [{ base64: data.sizingImage }] : []);
 
     tr.innerHTML = `
         <td style="text-align: center;">${stt}</td>
@@ -700,37 +643,35 @@ function createInputTableRow(stt, data = {}) {
 
         <td>
             <div class="cell-wrapper">
-                <input type="text" value="${data.taiHeThongPOC || ''}" placeholder="Giá trị...">
-                
-                <label class="upload-icon-btn ${pocClass}" title="Tải ảnh/Xem ảnh" ${pocClick}>
-                    <i class="fa-solid fa-cloud-arrow-up"></i>
-                    <input type="file" accept="image/*" class="hidden-file-input" 
-                           onclick="event.stopPropagation()" 
-                           onchange="handleEvidenceUpload(this)">
-                </label>
-
-                <i class="fa-solid fa-times btn-remove-file" 
-                   style="display: ${pocRemoveDisplay};" 
-                   onclick="clearImage(this)" 
-                   title="Xóa ảnh này"></i>
+                <input type="text" value="${escapeHtml(pocText)}" placeholder="Giá trị...">
+                <div class="row-evidence-controls">
+                    <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                           <input type="file" accept="image/*" class="hidden-file-input" 
+                               onclick="event.stopPropagation()" 
+                               onchange="handleRowEvidenceUpload(this, 'poc')">
+                    </label>
+                </div>
+                <div class="row-evidence-container">
+                    ${pocImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-base64="${img.base64}" onclick="openModalFromElement(this)">Xem</button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)">✖</button></div>`).join('')}
+                </div>
             </div>
         </td>
         
         <td>
             <div class="cell-wrapper">
-                <input type="text" value="${data.dinhCo || ''}" placeholder="Giá trị...">
-                
-                <label class="upload-icon-btn ${sizingClass}" title="Tải ảnh/Xem ảnh" ${sizingClick}>
-                    <i class="fa-solid fa-cloud-arrow-up"></i>
-                    <input type="file" accept="image/*" class="hidden-file-input" 
-                           onclick="event.stopPropagation()" 
-                           onchange="handleEvidenceUpload(this)">
-                </label>
-
-                <i class="fa-solid fa-times btn-remove-file" 
-                   style="display: ${sizingRemoveDisplay};" 
-                   onclick="clearImage(this)" 
-                   title="Xóa ảnh này"></i>
+                <input type="text" value="${escapeHtml(sizingText)}" placeholder="Giá trị...">
+                <div class="row-evidence-controls">
+                    <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                           <input type="file" accept="image/*" class="hidden-file-input" 
+                               onclick="event.stopPropagation()" 
+                               onchange="handleRowEvidenceUpload(this, 'sizing')">
+                    </label>
+                </div>
+                <div class="row-evidence-container">
+                    ${sizingImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-base64="${img.base64}" onclick="openModalFromElement(this)">Xem</button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)">✖</button></div>`).join('')}
+                </div>
             </div>
         </td>
         
@@ -762,56 +703,26 @@ function createInputTableRow(stt, data = {}) {
     const select = tr.querySelector('select');
     if(select && select.value) updateColor(select);
 
+    // Nếu đã có ảnh tải sẵn, ẩn icon upload để tránh upload thêm
+    const pocContainer = tr.querySelector('.row-evidence-container');
+    if (pocContainer && pocContainer.children.length > 0) {
+        const pocLabel = tr.querySelector('td .upload-icon-btn');
+        if (pocLabel) pocLabel.style.display = 'none';
+    }
+    // Sizing column (nếu tồn tại ảnh) - tìm label trong cùng row, cột 4
+    const sizingContainers = tr.querySelectorAll('td .row-evidence-container');
+    if (sizingContainers && sizingContainers.length > 1) {
+        const sizingContainer = sizingContainers[1];
+        if (sizingContainer && sizingContainer.children.length > 0) {
+            const sizingLabel = tr.querySelectorAll('td .upload-icon-btn')[1];
+            if (sizingLabel) sizingLabel.style.display = 'none';
+        }
+    }
+
     return tr;
 }
 
-// 2. Xử lý khi upload ảnh xong -> Hiện nút Xóa ảnh
-function handleEvidenceUpload(input) {
-    const label = input.parentElement; // Label chứa icon
-    const wrapper = label.parentElement; // Div cell-wrapper
-    const removeBtn = wrapper.querySelector('.btn-remove-file'); // Nút X
-    
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const base64Img = e.target.result;
-            
-            // Đổi màu icon thành xanh
-            label.classList.add('has-file'); 
-            
-            // Gán sự kiện click vào icon để mở Modal xem ảnh
-            label.onclick = function(event) {
-                if (event.target !== input) {
-                    event.preventDefault();
-                    openModal(base64Img);
-                }
-            };
-
-            // QUAN TRỌNG: Hiện nút xóa ảnh lên
-            if(removeBtn) removeBtn.style.display = 'block';
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-}
-
-// 3. Xử lý xóa ảnh (Reset về trạng thái chưa có ảnh)
-function clearImage(btn) {
-    const wrapper = btn.parentElement;
-    const label = wrapper.querySelector('.upload-icon-btn');
-    const input = label.querySelector('input[type="file"]');
-
-    // Reset input file
-    input.value = '';
-
-    // Xóa class 'has-file' (icon về màu xám)
-    label.classList.remove('has-file');
-
-    // Hủy sự kiện click xem modal
-    label.onclick = null;
-
-    // Ẩn nút xóa đi
-    btn.style.display = 'none';
-}
+// legacy single-file handlers removed; use per-row handlers instead
 
 // 4. [MỚI] Hàm xóa dòng cụ thể
 function deleteRow(btn) {
@@ -857,10 +768,21 @@ function collectThongTinDauVao() {
     document.querySelectorAll('#input-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
 
-        // Helper: Lấy ảnh base64
-        const getImg = (cellIndex) => {
-            const img = cells[cellIndex]?.querySelector('.evidence-preview img');
-            return img ? img.src : '';
+        // Helper: Lấy ảnh base64 (từ <img> hoặc từ nút xem có data-base64)
+        const getRowImages = (cellIndex) => {
+            const container = cells[cellIndex]?.querySelector('.row-evidence-container');
+            if (!container) return [];
+            // Buttons that store base64 in data-base64
+            const btns = container.querySelectorAll('.btn-view-evidence');
+            const results = [];
+            btns.forEach(b => {
+                const b64 = b.getAttribute('data-base64');
+                if (b64) results.push({ base64: b64 });
+            });
+            // Fallback: any <img> tags (older behavior)
+            const imgs = container.querySelectorAll('img');
+            imgs.forEach(i => { if (i.src) results.push({ base64: i.src }); });
+            return results;
         };
 
         // Helper: Lấy text input trong wrapper
@@ -870,38 +792,28 @@ function collectThongTinDauVao() {
 
         inputRows.push({
             dauVao: cells[1]?.querySelector('textarea')?.value || '',
-            taiHeThongPOC: getWrapperInput(2), // Cột 2
-            pocImage: getImg(2),
-            
-            dinhCo: getWrapperInput(3), // Cột 3
-            sizingImage: getImg(3),
+            taiHeThongPOC: {
+                text: getWrapperInput(2),
+                pocEvidenceImages: getRowImages(2)
+            },
+
+            dinhCo: {
+                text: getWrapperInput(3),
+                sizingEvidenceImages: getRowImages(3)
+            },
             
             module: cells[4]?.querySelector('input')?.value || '', // Cột 4
             ghiChu: cells[5]?.querySelector('textarea')?.value || '', // Cột 5
             
             adminEval: cells[6]?.querySelector('select')?.value || '', // Cột 6
-            adminNote: cells[7]?.querySelector('input')?.value || ''   // Cột 7
+            adminNote: cells[7]?.querySelector('textarea')?.value || ''   // Cột 7
         });
     });
     
     // Thu thập bảng Baseline
-    const baselineRows = [];
-    document.querySelectorAll('#baseline-specs-body tr').forEach(row => {
-        const moduleSelect = row.querySelector('select');
-        const inputs = row.querySelectorAll('input');
-        baselineRows.push({
-            module: moduleSelect?.value || 'APP',
-            ip: inputs[0]?.value || '',
-            cpu: inputs[1]?.value || '',
-            ram: parseFloat(inputs[2]?.value) || 0,
-            cintRate2017: parseFloat(inputs[3]?.value) || 0
-        });
-    });
-    
+    // NOTE: baselineRows and global evidenceImages were removed from storage per new spec
     return {
-        inputRows: inputRows,
-        baselineRows: baselineRows,
-        evidenceImages: collectImagesFromContainer('evidence')
+        inputRows: inputRows
     };
 }
 
@@ -1293,6 +1205,63 @@ function previewModelImage(input, boxId) {
             previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px;">`;
         };
         reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// Handle multiple images uploaded per input-table row (POC or sizing)
+function handleRowEvidenceUpload(input, kind) {
+    const files = input.files;
+    if (!files || files.length === 0) return;
+    const cellWrapper = input.closest('.cell-wrapper');
+    const container = cellWrapper?.querySelector('.row-evidence-container');
+    if (!container) return;
+    // Only accept the first file (single image per cell)
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const div = document.createElement('div');
+        div.className = 'row-evidence-item';
+        const safeBase64 = e.target.result.replace(/"/g, '&quot;');
+        div.innerHTML = `<button type="button" class="btn-view-evidence" data-base64="${safeBase64}" onclick="openModalFromElement(this)">Xem</button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)">✖</button>`;
+        // append and then hide upload icon to prevent uploading more
+        container.appendChild(div);
+        const label = cellWrapper.querySelector('.upload-icon-btn');
+        if (label) label.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+    // Clear input so same file can be selected again if needed
+    input.value = '';
+}
+
+function removeRowEvidence(btn) {
+    const item = btn.closest('.row-evidence-item');
+    if (item) {
+        const container = item.parentElement;
+        item.remove();
+        // nếu không còn ảnh nào trong container, hiện lại icon upload
+        if (container && container.children.length === 0) {
+            const cellWrapper = container.closest('.cell-wrapper');
+            const label = cellWrapper?.querySelector('.upload-icon-btn');
+            if (label) label.style.display = '';
+        }
+    }
+}
+
+// Simple HTML escaper for values inserted into row markup
+function escapeHtml(str) {
+    if (typeof str !== 'string') return str || '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+// Open modal when clicking a 'Xem' button; read base64 from data attribute
+function openModalFromElement(el) {
+    const base64 = el.getAttribute('data-base64');
+    if (base64) {
+        openModal(base64);
+    } else {
+        // If an <img> exists inside (fallback), open its src
+        const img = el.querySelector && el.querySelector('img');
+        if (img && img.src) openModal(img.src);
     }
 }
 

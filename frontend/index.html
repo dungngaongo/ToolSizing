@@ -269,7 +269,7 @@
                                             <i class="fa-solid fa-cloud-arrow-up"></i>
                                             <input type="file" accept="image/*" class="hidden-file-input" 
                                                 onclick="event.stopPropagation()" 
-                                                onchange="handleEvidenceUpload(this)">
+                                                onchange="handleRowEvidenceUpload(this, 'poc')">
                                         </label>
                                         <i class="fa-solid fa-times btn-remove-file" style="display: none;" onclick="clearImage(this)" title="Xóa ảnh này"></i>
                                     </div>
@@ -282,9 +282,9 @@
                                             <i class="fa-solid fa-cloud-arrow-up"></i>
                                             <input type="file" accept="image/*" class="hidden-file-input" 
                                                 onclick="event.stopPropagation()" 
-                                                onchange="handleEvidenceUpload(this)">
+                                                onchange="handleRowEvidenceUpload(this, 'sizing')">
                                         </label>
-                                        <i class="fa-solid fa-times btn-remove-file" style="display: none;" onclick="clearImage(this)" title="Xóa ảnh này"></i>
+                                        <i class="fa-solid fa-times btn-remove-file" style="display: none;" onclick="clearRowImages(this)" title="Xóa ảnh này"></i>
                                     </div>
                                 </td>
                                 
