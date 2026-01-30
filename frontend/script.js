@@ -102,7 +102,7 @@ function applyRolePermissions() {
             el.disabled = false;
             el.classList.remove('readonly-admin');
         });
-        // Disable user-editable inputs inside the three sections
+        // Disable user-editable inputs inside the three sections (admin only edits admin fields)
         document.querySelectorAll('#page-request input, #page-request textarea, #page-request select').forEach(el => {
             if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note')) el.disabled = true;
         });
@@ -111,6 +111,17 @@ function applyRolePermissions() {
         });
         document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => {
             if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note')) el.disabled = true;
+        });
+
+        // Disable file inputs (uploads) in those sections
+        document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"]').forEach(fi => fi.disabled = true);
+
+        // Disable action buttons that manipulate user content but keep save/evaluate buttons enabled
+        document.querySelectorAll('#page-request button, #page-input button, #page-model button').forEach(btn => {
+            // allow admin to use save/evaluate/export and logout buttons
+            // also allow admin to VIEW evidence images (btn-view-evidence)
+            const allow = btn.classList.contains('btn-evaluate') || btn.classList.contains('btn-submit') || btn.id === 'exportBtn' || btn.classList.contains('btn-logout') || btn.classList.contains('btn-view-evidence');
+            if (!allow) btn.disabled = true;
         });
     } else {
         // Regular user: admin fields readonly, user inputs editable
@@ -123,6 +134,9 @@ function applyRolePermissions() {
         document.querySelectorAll('#page-request input, #page-request textarea, #page-request select').forEach(el => el.disabled = false);
         document.querySelectorAll('#page-input input, #page-input textarea, #page-input select').forEach(el => el.disabled = false);
         document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => el.disabled = false);
+        // Re-enable file inputs and buttons for regular users
+        document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"]').forEach(fi => fi.disabled = false);
+        document.querySelectorAll('#page-request button, #page-input button, #page-model button').forEach(btn => btn.disabled = false);
     }
 }
 
@@ -588,6 +602,8 @@ function loadMoHinhHeThong(data, admin) {
                 });
             }
         }
+        // Ensure role permissions applied after building model section
+        try { applyRolePermissions(); } catch (e) {}
     } catch (e) {
         console.error('loadMoHinhHeThong error', e);
     }
@@ -814,6 +830,8 @@ function loadThongTinDauVao(data) {
     // Load per-row images (pocEvidenceImages / sizingEvidenceImages) when present
     // (the per-row image loading is handled inside createInputTableRow below)
 }
+// Ensure role permissions applied after loading input table
+try { applyRolePermissions(); } catch (e) {}
 
 // 2. Hàm xử lý khi chọn ảnh từ icon dấu hỏi (?)
 // Hàm xử lý khi chọn file ảnh
@@ -966,6 +984,8 @@ function addInputRow() {
     // Gọi hàm tạo dòng ở trên
     const tr = createInputTableRow(nextSTT); 
     tbody.appendChild(tr);
+    // Re-apply role permissions so dynamically added row gets correct disabled state
+    try { applyRolePermissions(); } catch (e) { /* ignore */ }
 }
 
 // 3. Hàm Xóa Dòng Cuối
@@ -1083,6 +1103,7 @@ function addInputRow() {
     const nextSTT = tbody.rows.length + 1;
     const tr = createInputTableRow(nextSTT);
     tbody.appendChild(tr);
+    try { applyRolePermissions(); } catch (e) {}
 }
 
 // 7. Hàm thêm dòng Baseline (Giữ nguyên)
@@ -1108,6 +1129,7 @@ function addBaselineRow() {
     const tbody = document.getElementById('baseline-specs-body');
     const tr = createBaselineTableRow();
     tbody.appendChild(tr);
+    try { applyRolePermissions(); } catch (e) {}
 }
 
 function createArchTableRow(stt, data = {}) {
@@ -1205,6 +1227,7 @@ function addArchRow() {
     const nextSTT = tbody.rows.length + 1;
     const tr = createArchTableRow(nextSTT);
     tbody.appendChild(tr);
+    try { applyRolePermissions(); } catch (e) {}
 }
 
 // ==================== TỔNG HỢP VÀ ĐỀ XUẤT ====================
@@ -1281,6 +1304,7 @@ function addSummaryRow() {
     const nextSTT = tbody.rows.length + 1;
     const tr = createSummaryTableRow(nextSTT);
     tbody.appendChild(tr);
+    try { applyRolePermissions(); } catch (e) {}
 }
 
 // ==================== UTILITY FUNCTIONS ====================
@@ -1388,6 +1412,8 @@ function createUploadBox(type) {
         <div class="preview-area" id="preview-${boxId}"></div>
     `;
     container.appendChild(div);
+    // enforce role permissions (disable upload box for admin if needed)
+    try { applyRolePermissions(); } catch (e) {}
 }
 
 function previewModelImage(input, boxId) {
