@@ -403,21 +403,10 @@
                                 </span>
                             </h3>
                             
-                            <div style="margin-bottom: 20px;">
-                                <div id="container-flow" class="image-upload-grid"></div>
-                                <button type="button" class="btn-add-img" onclick="createUploadBox('flow')">
-                                    <i class="fa-solid fa-plus"></i> Thêm ảnh luồng
-                                </button>
-                            </div>
-
-                            <div class="flow-description-wrapper">
-                                <label class="flow-label">
-                                    <i class="fa-solid fa-pen-to-square"></i> Mô tả/Giải thích chi tiết luồng nghiệp vụ:
-                                </label>
-                                <textarea id="flow-explanation" 
-                                        class="custom-flow-textarea" 
-                                        placeholder="- Bước 1: Người dùng đăng nhập vào hệ thống...&#10;- Bước 2: Hệ thống gọi API xác thực...&#10;- Bước 3: Trả về token..."></textarea>
-                            </div>
+                            <div id="container-logical" class="image-upload-grid"></div>
+                            <button type="button" class="btn-add-img" onclick="createUploadBox('logical')">
+                                <i class="fa-solid fa-plus"></i> Thêm ảnh
+                            </button>
                         </div>
 
                         <div class="model-admin-box">
@@ -455,11 +444,21 @@
                                 </span>
                             </h3>
                             
-                            <div id="container-flow" class="image-upload-grid"></div>
-                            <button type="button" class="btn-add-img" onclick="createUploadBox('flow')">
-                                <i class="fa-solid fa-plus"></i> Thêm ảnh
-                            </button>
-                            <textarea id="flow-explanation" rows="3" class="input-full" placeholder="Giải thích chi tiết luồng..." style="margin-top: 15px;"></textarea>
+                            <div style="margin-bottom: 20px;">
+                                <div id="container-flow" class="image-upload-grid"></div>
+                                <button type="button" class="btn-add-img" onclick="createUploadBox('flow')">
+                                    <i class="fa-solid fa-plus"></i> Thêm ảnh luồng
+                                </button>
+                            </div>
+
+                            <div class="flow-description-wrapper">
+                                <label class="flow-label">
+                                    <i class="fa-solid fa-pen-to-square"></i> Mô tả/Giải thích chi tiết luồng nghiệp vụ:
+                                </label>
+                                <textarea id="flow-explanation" 
+                                        class="custom-flow-textarea" 
+                                        placeholder="- Bước 1: Người dùng đăng nhập vào hệ thống...&#10;- Bước 2: Hệ thống gọi API xác thực...&#10;- Bước 3: Trả về token..."></textarea>
+                            </div>
                         </div>
 
                         <div class="model-admin-box">
