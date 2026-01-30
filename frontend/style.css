@@ -631,6 +631,22 @@ body {
     background-color: #fff5f5 !important;
 }
 
+/* When the current viewer is a regular user, make admin controls non-interactive */
+body.role-user .admin-eval,
+body.role-user .admin-note,
+.readonly-admin {
+    pointer-events: none !important; /* prevent clicks */
+    cursor: not-allowed !important;
+    opacity: 0.95 !important;
+}
+
+/* Visual cue for disabled admin controls */
+.admin-eval[disabled], .admin-note[disabled] {
+    background-color: #f8f9fa !important;
+    color: #6c757d !important;
+    border-color: #e9ecef !important;
+}
+
 /* ========================================= */
 /* 8. OTHER SECTIONS (Model, Upload Box)     */
 /* ========================================= */

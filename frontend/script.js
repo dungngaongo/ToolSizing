@@ -96,7 +96,12 @@ function applyRolePermissions() {
 
     // Admin (admin1) can edit admin fields, other inputs read-only
     if (role === 'admin1') {
-        document.querySelectorAll('.admin-eval, .admin-note').forEach(el => el.disabled = false);
+        // remove page-level 'role-user' marker so CSS allows interaction
+        document.body.classList.remove('role-user');
+        document.querySelectorAll('.admin-eval, .admin-note').forEach(el => {
+            el.disabled = false;
+            el.classList.remove('readonly-admin');
+        });
         // Disable user-editable inputs inside the three sections
         document.querySelectorAll('#page-request input, #page-request textarea, #page-request select').forEach(el => {
             if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note')) el.disabled = true;
@@ -109,7 +114,12 @@ function applyRolePermissions() {
         });
     } else {
         // Regular user: admin fields readonly, user inputs editable
-        document.querySelectorAll('.admin-eval, .admin-note').forEach(el => el.disabled = true);
+        // add a body class so CSS can make admin controls visually and interactively disabled
+        document.body.classList.add('role-user');
+        document.querySelectorAll('.admin-eval, .admin-note').forEach(el => {
+            el.disabled = true;
+            el.classList.add('readonly-admin');
+        });
         document.querySelectorAll('#page-request input, #page-request textarea, #page-request select').forEach(el => el.disabled = false);
         document.querySelectorAll('#page-input input, #page-input textarea, #page-input select').forEach(el => el.disabled = false);
         document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => el.disabled = false);
@@ -896,6 +906,19 @@ function createInputTableRow(stt, data = {}) {
     // Kích hoạt màu sắc cho ô Select nếu đã có dữ liệu (OK xanh / NOK đỏ)
     const select = tr.querySelector('select');
     if(select && select.value) updateColor(select);
+
+    // Nếu vai trò hiện tại không phải admin, vô hiệu hóa các ô Admin trong dòng mới
+    try {
+        const user = getCurrentUser();
+        if ((user.role || '').toLowerCase() !== 'admin1') {
+            tr.querySelectorAll('.admin-eval, .admin-note').forEach(el => {
+                el.disabled = true;
+                el.classList.add('readonly-admin');
+            });
+        }
+    } catch (e) {
+        // ignore
+    }
 
     // Nếu đã có ảnh tải sẵn, ẩn icon upload để tránh upload thêm
     const pocContainer = tr.querySelector('.row-evidence-container');
