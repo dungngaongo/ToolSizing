@@ -35,6 +35,18 @@ public class ProjectData {
     @Lob
     private String tongHopVaDeXuatContent; // JSON string
 
+    @Column(name = "yeu_cau_admin_review", columnDefinition = "LONGTEXT")
+    @Lob
+    private String yeuCauAdminReview; // JSON string containing admin evaluations/notes for Yêu cầu bài toán
+
+    @Column(name = "thong_tin_admin_review", columnDefinition = "LONGTEXT")
+    @Lob
+    private String thongTinAdminReview; // JSON string containing admin evaluations/notes for Thông tin đầu vào
+
+    @Column(name = "mohinh_admin_review", columnDefinition = "LONGTEXT")
+    @Lob
+    private String moHinhAdminReview; // JSON string containing admin evaluations/notes for Mô hình hệ thống
+
     @PrePersist
     public void generateId() {
         if (this.id == null) {

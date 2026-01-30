@@ -221,7 +221,8 @@
                         </table>
                     </div>
 
-                    <button type="button" class="btn-submit" id="saveBtn">Lưu thông tin</button>
+                    <button type="button" class="btn-submit" id="saveBtn">Lưu</button>
+                    <button type="button" class="btn-evaluate" onclick="evaluateSection('request')">Đánh giá</button>
                     <div id="save-status" style="margin-top: 10px; text-align: center;"></div>
                 </div>
             </div>
@@ -325,8 +326,9 @@
 
                 <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
                     <button type="button" class="btn-submit" onclick="saveThongTinDauVao()">
-                        <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
+                        <i class="fa-solid fa-floppy-disk"></i> Lưu
                     </button>
+                    <button type="button" class="btn-evaluate" onclick="evaluateSection('input')">Đánh giá</button>
                     <div id="input-save-status" style="margin-top: 10px;"></div>
                 </div>
             </div>
@@ -369,7 +371,7 @@
                             <div class="admin-grid-layout">
                                 <div>
                                     <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                    <select id="eval-physical">
+                                    <select id="eval-physical" class="admin-eval">
                                         <option value="">--</option>
                                         <option value="OK" class="status-ok">OK</option>
                                         <option value="NOK" class="status-nok">NOK</option>
@@ -377,7 +379,7 @@
                                 </div>
                                 <div>
                                     <label class="admin-label">Ghi chú (Admin):</label>
-                                    <textarea id="note-physical" rows="1" placeholder="Nhận xét..." style="resize: vertical;"></textarea>
+                                    <textarea id="note-physical" class="admin-note" rows="1" placeholder="Nhận xét..." style="resize: vertical;"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -410,7 +412,7 @@
                             <div class="admin-grid-layout">
                                 <div>
                                     <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                    <select id="eval-logical">
+                                    <select id="eval-logical" class="admin-eval">
                                         <option value="">--</option>
                                         <option value="OK" class="status-ok">OK</option>
                                         <option value="NOK" class="status-nok">NOK</option>
@@ -418,7 +420,7 @@
                                 </div>
                                 <div>
                                     <label class="admin-label">Ghi chú (Admin):</label>
-                                    <textarea id="note-logical" rows="1" placeholder="Nhận xét..." style="resize: vertical;"></textarea>
+                                    <textarea id="note-logical" class="admin-note" rows="1" placeholder="Nhận xét..." style="resize: vertical;"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -452,7 +454,7 @@
                             <div class="admin-grid-layout">
                                 <div>
                                     <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                    <select id="eval-flow">
+                                    <select id="eval-flow" class="admin-eval">
                                         <option value="">--</option>
                                         <option value="OK" class="status-ok">OK</option>
                                         <option value="NOK" class="status-nok">NOK</option>
@@ -460,7 +462,7 @@
                                 </div>
                                 <div>
                                     <label class="admin-label">Ghi chú (Admin):</label>
-                                    <textarea id="note-flow" rows="1" placeholder="Nhận xét..." style="resize: vertical;"></textarea>
+                                    <textarea id="note-flow" class="admin-note" rows="1" placeholder="Nhận xét..." style="resize: vertical;"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -493,8 +495,9 @@
 
                     <div style="text-align: center; margin-top: 30px;">
                         <button type="button" class="btn-submit" id="saveModelBtn">
-                            <i class="fa-solid fa-floppy-disk"></i> Lưu mô hình hệ thống
+                            <i class="fa-solid fa-floppy-disk"></i> Lưu
                         </button>
+                        <button type="button" class="btn-evaluate" onclick="evaluateSection('model')">Đánh giá</button>
                         <div id="model-save-status" style="margin-top: 10px;"></div>
                     </div>
                 </div>
@@ -551,8 +554,9 @@
             
                     <div style="margin-top: 30px; text-align: center;">
                         <button type="button" class="btn-submit" id="saveSummaryBtn" style="margin-right: 10px;">
-                            <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
+                            <i class="fa-solid fa-floppy-disk"></i> Lưu
                         </button>
+                        <button type="button" class="btn-evaluate" onclick="evaluateSection('summary')">Đánh giá</button>
                         <button type="button" class="btn-submit" id="exportBtn">
                             <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
                         </button>

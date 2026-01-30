@@ -6,6 +6,9 @@ import com.example.demo.model.ProjectData;
 import com.example.demo.repository.ProjectDataRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +20,8 @@ public class ProjectDataService {
     public ProjectDataService(ProjectDataRepository projectDataRepository) {
         this.projectDataRepository = projectDataRepository;
     }
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public ProjectData create(CreateProjectDataRequest request) {
         // Kiểm tra xem đã có ProjectData cho project này chưa
@@ -86,6 +91,29 @@ public class ProjectDataService {
         }
         if (request.getTongHopVaDeXuatContent() != null) {
             projectData.setTongHopVaDeXuatContent(request.getTongHopVaDeXuatContent());
+        }
+
+        return projectDataRepository.save(projectData);
+    }
+
+    @Transactional
+    public ProjectData saveEvaluation(String projectId, String section, String reviewJson) {
+        ProjectData projectData = projectDataRepository.findFirstByProjectId(projectId)
+                .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + projectId));
+
+        switch (section) {
+            case "request":
+                // store admin review separately; do NOT merge into content
+                projectData.setYeuCauAdminReview(reviewJson);
+                break;
+            case "input":
+                projectData.setThongTinAdminReview(reviewJson);
+                break;
+            case "model":
+                projectData.setMoHinhAdminReview(reviewJson);
+                break;
+            default:
+                throw new RuntimeException("Unknown section: " + section);
         }
 
         return projectDataRepository.save(projectData);

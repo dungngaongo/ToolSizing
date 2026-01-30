@@ -289,6 +289,24 @@ body {
     box-shadow: 0 4px 8px rgba(238, 0, 51, 0.3);
 }
 
+/* Evaluate button (yellow) */
+.btn-evaluate {
+    background-color: #f0b429; /* warm yellow */
+    color: #222;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 700;
+    margin-left: 10px;
+    box-shadow: 0 2px 6px rgba(240, 180, 41, 0.2);
+}
+.btn-evaluate:hover {
+    background-color: #e09f16;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(224, 159, 22, 0.25);
+}
+
 .btn-add {
     margin-top: 20px;
     background-color: transparent;

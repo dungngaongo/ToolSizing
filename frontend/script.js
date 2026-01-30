@@ -83,6 +83,39 @@ function getCurrentUser() {
     };
 }
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('authToken');
+    const headers = {};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return headers;
+}
+
+function applyRolePermissions() {
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+
+    // Admin (admin1) can edit admin fields, other inputs read-only
+    if (role === 'admin1') {
+        document.querySelectorAll('.admin-eval, .admin-note').forEach(el => el.disabled = false);
+        // Disable user-editable inputs inside the three sections
+        document.querySelectorAll('#page-request input, #page-request textarea, #page-request select').forEach(el => {
+            if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note')) el.disabled = true;
+        });
+        document.querySelectorAll('#page-input input, #page-input textarea, #page-input select').forEach(el => {
+            if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note')) el.disabled = true;
+        });
+        document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => {
+            if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note')) el.disabled = true;
+        });
+    } else {
+        // Regular user: admin fields readonly, user inputs editable
+        document.querySelectorAll('.admin-eval, .admin-note').forEach(el => el.disabled = true);
+        document.querySelectorAll('#page-request input, #page-request textarea, #page-request select').forEach(el => el.disabled = false);
+        document.querySelectorAll('#page-input input, #page-input textarea, #page-input select').forEach(el => el.disabled = false);
+        document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => el.disabled = false);
+    }
+}
+
 // ==================== PROJECT MANAGEMENT ====================
 
 function saveProjectIdToStorage(id) {
@@ -118,6 +151,7 @@ async function loadProjectList() {
     if (emptyEl) emptyEl.style.display = 'none';
     
     try {
+        console.log('DEBUG: loadProjectList called');
         const response = await fetch(`${API_BASE_URL}/projects`);
         if (response.ok) {
             allProjects = await response.json();
@@ -271,7 +305,7 @@ async function startNewProject() {
     try {
         const response = await fetch(`${API_BASE_URL}/projects`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
             body: JSON.stringify({
                 name: projectName,
                 ownerName: user.displayName || user.username || 'Chưa xác định',
@@ -346,19 +380,43 @@ async function loadAllDataFromDB() {
             sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
         }
         
-        const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`);
+        const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+            method: 'GET',
+            headers: Object.assign({}, getAuthHeaders())
+        });
         if (response.ok) {
             const projectData = await response.json();
             saveProjectDataIdToStorage(projectData.id);
-            
+            // Prefer separate admin review columns when present
             if (projectData.yeuCauBaiToanContent) {
-                loadYeuCauBaiToan(JSON.parse(projectData.yeuCauBaiToanContent));
+                let content = JSON.parse(projectData.yeuCauBaiToanContent);
+                if (projectData.yeuCauAdminReview) {
+                    try { content.adminReview = JSON.parse(projectData.yeuCauAdminReview); } catch(e) { /* ignore */ }
+                }
+                loadYeuCauBaiToan(content);
             }
             if (projectData.thongTinDauVaoContent) {
-                loadThongTinDauVao(JSON.parse(projectData.thongTinDauVaoContent));
+                let content = JSON.parse(projectData.thongTinDauVaoContent);
+                if (projectData.thongTinAdminReview) {
+                    try { content.adminReview = JSON.parse(projectData.thongTinAdminReview); } catch(e) { /* ignore */ }
+                }
+                loadThongTinDauVao(content);
             }
-            if (projectData.moHinhHeThongContent) {
-                loadMoHinhHeThong(JSON.parse(projectData.moHinhHeThongContent));
+            // If moHinhHeThongContent exists, use it; otherwise still render admin review if present
+            if (projectData.moHinhHeThongContent || projectData.moHinhAdminReview) {
+                const content = projectData.moHinhHeThongContent ? JSON.parse(projectData.moHinhHeThongContent) : {};
+                // Parse the separate admin review column and pass it into the loader
+                let mohinhAdmin = null;
+                if (projectData.moHinhAdminReview) {
+                    try {
+                        mohinhAdmin = JSON.parse(projectData.moHinhAdminReview);
+                    } catch (e) {
+                        mohinhAdmin = { _raw: projectData.moHinhAdminReview };
+                    }
+                }
+                console.log('DEBUG: projectData.moHinhAdminReview (raw):', projectData.moHinhAdminReview);
+                console.log('DEBUG: parsed mohinhAdmin:', mohinhAdmin);
+                loadMoHinhHeThong(content, mohinhAdmin);
             }
             if (projectData.tongHopVaDeXuatContent) {
                 loadTongHop(JSON.parse(projectData.tongHopVaDeXuatContent));
@@ -373,7 +431,7 @@ async function loadAllDataFromDB() {
     }
 }
 
-// ==================== 1. YÊU CẦU BÀI TOÁN (CẬP NHẬT MỚI) ====================
+// ==================== 1. YÊU CẦU BÀI TOÁN ====================
 
 function loadYeuCauBaiToan(data) {
     const rows = document.querySelectorAll('#request-table-body tr');
@@ -439,6 +497,127 @@ function loadYeuCauBaiToan(data) {
     loadRowData(7, data.importance, data.adminReview?.row7);
     // Dòng 9: Thời gian
     loadRowData(8, data.deploymentTime, data.adminReview?.row8);
+}
+
+function loadMoHinhHeThong(data, admin) {
+    // Load images (use helper if available)
+    try {
+        if (typeof loadImagesToContainer === 'function') {
+            if (data.physicalImages) loadImagesToContainer('physical', data.physicalImages);
+            if (data.logicalImages) loadImagesToContainer('logical', data.logicalImages);
+            if (data.flowImages) loadImagesToContainer('flow', data.flowImages);
+        } else {
+            const physicalContainer = document.getElementById('container-physical');
+            const logicalContainer = document.getElementById('container-logical');
+            const flowContainer = document.getElementById('container-flow');
+            if (physicalContainer) {
+                physicalContainer.innerHTML = '';
+                (data.physicalImages || []).forEach((img, idx) => {
+                    const el = document.createElement('div');
+                    el.className = 'model-image-item';
+                    el.innerHTML = `<img src="${img.base64 || img}" alt="physical-${idx}" onclick="openModal(this.src)" style="cursor: zoom-in; max-width:100%;">`;
+                    physicalContainer.appendChild(el);
+                });
+            }
+            if (logicalContainer) {
+                logicalContainer.innerHTML = '';
+                (data.logicalImages || []).forEach((img, idx) => {
+                    const el = document.createElement('div');
+                    el.className = 'model-image-item';
+                    el.innerHTML = `<img src="${img.base64 || img}" alt="logical-${idx}" onclick="openModal(this.src)" style="cursor: zoom-in; max-width:100%;">`;
+                    logicalContainer.appendChild(el);
+                });
+            }
+            if (flowContainer) {
+                flowContainer.innerHTML = '';
+                (data.flowImages || []).forEach((img, idx) => {
+                    const el = document.createElement('div');
+                    el.className = 'model-image-item';
+                    el.innerHTML = `<img src="${img.base64 || img}" alt="flow-${idx}" onclick="openModal(this.src)" style="cursor: zoom-in; max-width:100%;">`;
+                    flowContainer.appendChild(el);
+                });
+            }
+        }
+
+        // flow explanation
+        const flowExp = document.getElementById('flow-explanation');
+        if (flowExp) flowExp.value = data.flowExplanation || '';
+
+        // Build canonical admin object: prefer explicit admin param (separate column)
+        const adminObj = admin || data.mohinhAdminReview || data.adminReview || {
+            physical: data.adminPhysical || null,
+            logical: data.adminLogical || null,
+            flow: data.adminFlow || null
+        };
+        console.log('DEBUG: resolved adminObj in loadMoHinhHeThong:', adminObj);
+
+        const setAdmin = (type, adminData) => {
+            const select = document.getElementById(`eval-${type}`);
+            const note = document.getElementById(`note-${type}`);
+            if (adminData) {
+                if (select) { select.value = adminData.eval || ''; updateColor(select); }
+                if (note) note.value = adminData.note || '';
+            } else {
+                if (select) { select.value = ''; updateColor(select); }
+                if (note) note.value = '';
+            }
+        };
+
+        setAdmin('physical', adminObj.physical || data.adminPhysical);
+        setAdmin('logical',  adminObj.logical  || data.adminLogical);
+        setAdmin('flow',     adminObj.flow     || data.adminFlow);
+
+        // Architecture rows
+        const archBody = document.getElementById('arch-table-body');
+        if (archBody) {
+            archBody.innerHTML = '';
+            if (data.archRows && data.archRows.length > 0) {
+                data.archRows.forEach((row, index) => {
+                    const tr = createArchTableRow(index + 1, row);
+                    archBody.appendChild(tr);
+                });
+            }
+        }
+    } catch (e) {
+        console.error('loadMoHinhHeThong error', e);
+    }
+}
+
+async function saveMoHinhHeThong() {
+    if (!currentProjectId) {
+        alert('Vui lòng lưu Yêu cầu bài toán trước!');
+        return;
+    }
+
+    const statusDiv = document.getElementById('model-save-status');
+    try {
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
+
+        // collect data: images are not re-uploaded here; collect flow explanation
+        const flowExplanation = document.getElementById('flow-explanation')?.value || '';
+        // For simplicity, do not attempt to collect images here (existing images are kept server-side)
+        const payload = { flowExplanation };
+
+        // send without admin fields to avoid overwriting admin columns
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
+        const resp = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ moHinhHeThongContent: JSON.stringify(payload) })
+        });
+
+        if (resp.ok) {
+            if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
+            alert('Đã lưu Mô hình hệ thống thành công!');
+        } else {
+            const txt = await resp.text();
+            throw new Error(txt || 'Server error');
+        }
+    } catch (err) {
+        console.error('saveMoHinhHeThong error', err);
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi!</span>';
+        alert('Lỗi: ' + err.message);
+    }
 }
 
 function collectYeuCauBaiToan() {
@@ -524,9 +703,9 @@ async function saveYeuCauBaiToan() {
             const project = await projectResponse.json();
             saveProjectIdToStorage(project.id);
         } else {
-            await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+                await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
                 body: JSON.stringify({
                     name: data.projectName,
                     devUnit: data.devUnit,
@@ -536,9 +715,16 @@ async function saveYeuCauBaiToan() {
         }
 
         // 2. Lưu System Info (Chứa cả data user và admin review)
+        // Nếu người dùng không phải admin, bỏ qua phần adminReview để tránh overwrite
+        const user = getCurrentUser();
+        const payloadData = Object.assign({}, data);
+        if ((user.role || '').toLowerCase() !== 'admin1') {
+            delete payloadData.adminReview;
+        }
+
         const systemInfoPayload = {
             projectId: currentProjectId,
-            ...data // Spread data bao gồm cả adminReview
+            ...payloadData
         };
 
         const method = currentProjectDataId ? 'PUT' : 'POST';
@@ -551,19 +737,20 @@ async function saveYeuCauBaiToan() {
         // Lưu nội dung Yêu cầu bài toán vào cột yeuCauBaiToanContent
         
         let response;
+        const baseHeaders = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
         if(currentProjectDataId) {
              response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ yeuCauBaiToanContent: JSON.stringify(data) })
+                headers: baseHeaders,
+                body: JSON.stringify({ yeuCauBaiToanContent: JSON.stringify(systemInfoPayload) })
             });
         } else {
             response = await fetch(`${API_BASE_URL}/project-data`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: baseHeaders,
                 body: JSON.stringify({
                     projectId: currentProjectId,
-                    yeuCauBaiToanContent: JSON.stringify(data)
+                    yeuCauBaiToanContent: JSON.stringify(systemInfoPayload)
                 })
             });
         }
@@ -600,8 +787,15 @@ function loadThongTinDauVao(data) {
     }
     
     if (data.inputRows && data.inputRows.length > 0) {
+        // If adminReview.rows provided, merge admin eval/note into each row object
+        const adminRows = (data.adminReview && data.adminReview.rows) ? data.adminReview.rows : null;
         data.inputRows.forEach((row, index) => {
-            const tr = createInputTableRow(index + 1, row);
+            const rowCopy = Object.assign({}, row);
+            if (adminRows && adminRows[index]) {
+                rowCopy.adminEval = adminRows[index].eval || '';
+                rowCopy.adminNote = adminRows[index].note || '';
+            }
+            const tr = createInputTableRow(index + 1, rowCopy);
             tbody.appendChild(tr);
         });
     }
@@ -829,11 +1023,23 @@ async function saveThongTinDauVao() {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
         
         const data = collectThongTinDauVao();
+        // If user is not admin, strip any admin eval/note fields from payload to avoid overwriting admin columns
+        const user = getCurrentUser();
+        if ((user.role || '').toLowerCase() !== 'admin1') {
+            // remove adminEval/adminNote from each row
+            data.inputRows = data.inputRows.map(r => {
+                const copy = Object.assign({}, r);
+                delete copy.adminEval;
+                delete copy.adminNote;
+                return copy;
+            });
+        }
+
         const content = JSON.stringify(data);
-        
+
         await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
             body: JSON.stringify({
                 thongTinDauVaoContent: content
             })
@@ -879,42 +1085,6 @@ function addBaselineRow() {
     const tbody = document.getElementById('baseline-specs-body');
     const tr = createBaselineTableRow();
     tbody.appendChild(tr);
-}
-
-// ==================== MÔ HÌNH HỆ THỐNG ====================
-
-function loadMoHinhHeThong(data) {
-    // Load ảnh
-    if(data.physicalImages) loadImagesToContainer('physical', data.physicalImages);
-    if(data.logicalImages) loadImagesToContainer('logical', data.logicalImages);
-    if(data.flowImages) loadImagesToContainer('flow', data.flowImages);
-
-    const flowExplanation = document.getElementById('flow-explanation');
-    if (flowExplanation) flowExplanation.value = data.flowExplanation || '';
-    
-    // Load Admin Data (3 phần)
-    const setAdmin = (type, adminData) => {
-        const select = document.getElementById(`eval-${type}`);
-        const note = document.getElementById(`note-${type}`);
-        if(adminData) {
-            if(select) select.value = adminData.eval || '';
-            if(note) note.value = adminData.note || '';
-        }
-    };
-
-    setAdmin('physical', data.adminPhysical);
-    setAdmin('logical', data.adminLogical);
-    setAdmin('flow', data.adminFlow);
-
-    const archBody = document.getElementById('arch-table-body');
-    archBody.innerHTML = '';
-    
-    if (data.archRows && data.archRows.length > 0) {
-        data.archRows.forEach((row, index) => {
-            const tr = createArchTableRow(index + 1, row);
-            archBody.appendChild(tr);
-        });
-    }
 }
 
 function createArchTableRow(stt, data = {}) {
@@ -993,9 +1163,9 @@ async function saveMoHinhHeThong() {
         
         const data = collectMoHinhHeThong();
         
-        await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+            await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
             body: JSON.stringify({ moHinhHeThongContent: JSON.stringify(data) })
         });
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
@@ -1070,7 +1240,7 @@ async function saveTongHop() {
         
         await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
             body: JSON.stringify({ tongHopVaDeXuatContent: JSON.stringify(data) })
         });
         
@@ -1253,6 +1423,88 @@ function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
+// Handler for Đánh giá button clicks
+async function evaluateSection(sectionKey) {
+    const names = {
+        request: 'Yêu cầu bài toán',
+        input: 'Thông tin đầu vào',
+        model: 'Mô hình hệ thống',
+        summary: 'Tổng hợp và đề xuất'
+    };
+    const label = names[sectionKey] || sectionKey;
+    if (!confirm(`Gửi đánh giá cho "${label}"?`)) return;
+
+    const statusIdMap = {
+        request: 'save-status',
+        input: 'input-save-status',
+        model: 'model-save-status',
+        summary: 'summary-save-status'
+    };
+    const statusDiv = document.getElementById(statusIdMap[sectionKey]);
+    if (statusDiv) statusDiv.innerHTML = '<span style="color: #b8860b;">⏳ Đang gửi đánh giá...</span>';
+
+    const user = getCurrentUser();
+    if ((user.role || '').toLowerCase() !== 'admin1') {
+        alert('Chỉ admin mới được gửi đánh giá');
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Chỉ admin mới có quyền đánh giá</span>';
+        return;
+    }
+
+    if (!currentProjectId) {
+        alert('Chưa chọn dự án');
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Chưa chọn dự án</span>';
+        return;
+    }
+
+    // Build reviewJson depending on section
+    let reviewObj = {};
+    try {
+        if (sectionKey === 'request') {
+            const data = collectYeuCauBaiToan();
+            reviewObj = data.adminReview || {};
+        } else if (sectionKey === 'input') {
+            // collect admin evals and notes per input row
+            const rows = Array.from(document.querySelectorAll('#input-table-body tr'));
+            reviewObj.rows = rows.map(row => ({ eval: row.querySelector('.admin-eval')?.value || '', note: row.querySelector('.admin-note')?.value || '' }));
+        } else if (sectionKey === 'model') {
+            reviewObj = {
+                physical: { eval: document.getElementById('eval-physical')?.value || '', note: document.getElementById('note-physical')?.value || '' },
+                logical: { eval: document.getElementById('eval-logical')?.value || '', note: document.getElementById('note-logical')?.value || '' },
+                flow: { eval: document.getElementById('eval-flow')?.value || '', note: document.getElementById('note-flow')?.value || '' }
+            };
+        } else {
+            reviewObj = { message: 'unsupported section' };
+        }
+    } catch (e) {
+        console.error('Error collecting review data', e);
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi thu thập dữ liệu đánh giá</span>';
+        return;
+    }
+
+    // Send to backend evaluate endpoint
+    try {
+        const resp = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            body: JSON.stringify({ section: sectionKey, reviewJson: JSON.stringify(reviewObj) })
+        });
+
+        if (resp.ok) {
+            if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Đã gửi đánh giá</span>';
+            alert('Đã gửi đánh giá cho "' + label + '"');
+            // reload data to reflect saved admin review
+            await loadAllDataFromDB();
+        } else {
+            const txt = await resp.text();
+            throw new Error(txt || 'Server error');
+        }
+    } catch (err) {
+        console.error('Evaluate error', err);
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi gửi đánh giá</span>';
+        alert('Lỗi khi gửi đánh giá: ' + err.message);
+    }
+}
+
 // Open modal when clicking a 'Xem' button; read base64 from data attribute
 function openModalFromElement(el) {
     const base64 = el.getAttribute('data-base64');
@@ -1322,6 +1574,7 @@ async function exportToWord() {
 document.addEventListener("DOMContentLoaded", async function () {
     console.log('Current Project ID:', currentProjectId);
     checkAuthStatus();
+    applyRolePermissions();
 
     if (!currentProjectId) {
         document.getElementById('project-list-page').style.display = 'block';
@@ -1333,6 +1586,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         document.getElementById('project-detail-page').style.display = 'flex';
         document.getElementById('btn-back-to-list').style.display = 'inline-block';
         await loadAllDataFromDB();
+            applyRolePermissions();
     }
 
     const menuLinks = document.querySelectorAll(".side-menu a");

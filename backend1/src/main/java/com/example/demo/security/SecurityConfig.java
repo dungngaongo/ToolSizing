@@ -45,7 +45,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                 // allow preflight requests and public endpoints
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**", "/", "/index.html", "/frontend/**", "/static/**", "/api/projects/**", "/api/project-data/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/", "/index.html", "/frontend/**", "/static/**", "/api/projects/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
