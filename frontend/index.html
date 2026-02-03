@@ -37,6 +37,9 @@
                 <a href="#">Xem theo đơn vị</a>
                 <a href="#">Mới nhất</a>
                 <span class="separator">|</span>
+                <button id="btn-version-history" onclick="openVersionHistory()" class="btn-version-history" style="display: none;">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử
+                </button>
                 <button onclick="startNewProject()" style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
                     <i class="fa-solid fa-plus"></i> Tạo dự án mới
                 </button>
@@ -580,6 +583,60 @@
     </main>
 
     <script src="script.js"></script>
+
+<!-- VERSION HISTORY PANEL (Slide từ phải) -->
+<div id="version-history-panel" class="version-history-panel">
+    <div class="vh-panel-header">
+        <h3><i class="fa-solid fa-clock-rotate-left"></i> Lịch sử phiên bản</h3>
+        <button onclick="closeVersionHistory()" class="btn-close-panel">&times;</button>
+    </div>
+    <div class="vh-panel-info">
+        <p><i class="fa-solid fa-info-circle"></i> Mỗi lần lưu dữ liệu, hệ thống tự động tạo một phiên bản để bạn có thể khôi phục khi cần.</p>
+    </div>
+    <div id="version-list" class="vh-list">
+        <!-- Danh sách phiên bản sẽ được load bằng JavaScript -->
+    </div>
+    <div id="version-list-loading" class="vh-loading" style="display: none;">
+        <i class="fa-solid fa-spinner fa-spin"></i> Đang tải...
+    </div>
+    <div id="version-list-empty" class="vh-empty" style="display: none;">
+        <i class="fa-solid fa-inbox"></i>
+        <p>Chưa có lịch sử phiên bản</p>
+    </div>
+</div>
+
+<!-- VERSION PREVIEW MODAL -->
+<div id="version-preview-modal" class="version-preview-modal" style="display: none;">
+    <div class="vp-modal-content">
+        <div class="vp-modal-header">
+            <h3><i class="fa-solid fa-eye"></i> Xem trước phiên bản</h3>
+            <button onclick="closeVersionPreview()" class="btn-close-modal">&times;</button>
+        </div>
+        <div class="vp-modal-meta" id="vp-meta-info">
+            <!-- Thông tin phiên bản -->
+        </div>
+        <div class="vp-modal-body">
+            <div class="vp-tabs">
+                <button class="vp-tab active" data-tab="request" onclick="switchPreviewTab('request')">Yêu cầu bài toán</button>
+                <button class="vp-tab" data-tab="input" onclick="switchPreviewTab('input')">Thông tin đầu vào</button>
+                <button class="vp-tab" data-tab="model" onclick="switchPreviewTab('model')">Mô hình hệ thống</button>
+                <button class="vp-tab" data-tab="summary" onclick="switchPreviewTab('summary')">Tổng hợp</button>
+            </div>
+            <div class="vp-content" id="vp-content-area">
+                <!-- Nội dung preview sẽ được load bằng JavaScript -->
+            </div>
+        </div>
+        <div class="vp-modal-footer">
+            <button onclick="closeVersionPreview()" class="btn-cancel">
+                <i class="fa-solid fa-xmark"></i> Đóng
+            </button>
+            <button id="btn-restore-version" onclick="restoreCurrentPreviewVersion()" class="btn-restore">
+                <i class="fa-solid fa-rotate-left"></i> Khôi phục phiên bản này
+            </button>
+        </div>
+    </div>
+</div>
+
 <div id="evidence-modal" class="modal-overlay" onclick="closeModal()" style="display: none;">
     <span class="close-btn">&times;</span>
     <img id="modal-img" src="" alt="Full Evidence">

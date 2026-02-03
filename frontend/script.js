@@ -287,6 +287,10 @@ async function openProject(projectId) {
     document.getElementById('project-detail-page').style.display = 'flex';
     document.getElementById('btn-back-to-list').style.display = 'inline-block';
     
+    // Hiện nút Lịch sử phiên bản
+    const btnVersionHistory = document.getElementById('btn-version-history');
+    if (btnVersionHistory) btnVersionHistory.style.display = 'inline-block';
+    
     currentProjectDataId = null;
     localStorage.removeItem('currentProjectDataId');
     
@@ -297,6 +301,14 @@ function showProjectList() {
     document.getElementById('project-list-page').style.display = 'block';
     document.getElementById('project-detail-page').style.display = 'none';
     document.getElementById('btn-back-to-list').style.display = 'none';
+    
+    // Ẩn nút Lịch sử phiên bản
+    const btnVersionHistory = document.getElementById('btn-version-history');
+    if (btnVersionHistory) btnVersionHistory.style.display = 'none';
+    
+    // Đóng panel lịch sử nếu đang mở
+    closeVersionHistory();
+    
     loadProjectList();
 }
 
@@ -344,6 +356,10 @@ async function startNewProject() {
             document.getElementById('project-list-page').style.display = 'none';
             document.getElementById('project-detail-page').style.display = 'flex';
             document.getElementById('btn-back-to-list').style.display = 'inline-block';
+            
+            // Hiện nút Lịch sử phiên bản
+            const btnVersionHistory = document.getElementById('btn-version-history');
+            if (btnVersionHistory) btnVersionHistory.style.display = 'inline-block';
             
             resetAllForms();
             await loadAllDataFromDB();
@@ -785,6 +801,10 @@ async function saveYeuCauBaiToan() {
             const result = await response.json();
             if(!currentProjectDataId) saveProjectDataIdToStorage(result.id);
             if (statusDiv) statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công!</span>`;
+            
+            // Tạo revision sau khi lưu thành công
+            await createRevision(`${user.displayName || user.username || 'User'} cập nhật Yêu cầu bài toán`);
+            
             alert('Đã lưu thông tin thành công!');
         } else {
             throw new Error(await response.text());
@@ -1089,6 +1109,10 @@ async function saveThongTinDauVao() {
         });
         
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
+        
+        // Tạo revision sau khi lưu thành công
+        await createRevision(`${user.displayName || user.username || 'User'} cập nhật Thông tin đầu vào`);
+        
         alert('Đã lưu Thông tin đầu vào thành công!');
         
     } catch (error) {
@@ -1214,6 +1238,11 @@ async function saveMoHinhHeThong() {
             body: JSON.stringify({ moHinhHeThongContent: JSON.stringify(data) })
         });
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
+        
+        // Tạo revision sau khi lưu thành công
+        const user = getCurrentUser();
+        await createRevision(`${user.displayName || user.username || 'User'} cập nhật Mô hình hệ thống`);
+        
         alert('Đã lưu Mô hình hệ thống thành công!');
         
     } catch (error) {
@@ -1291,6 +1320,11 @@ async function saveTongHop() {
         });
         
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
+        
+        // Tạo revision sau khi lưu thành công
+        const user = getCurrentUser();
+        await createRevision(`${user.displayName || user.username || 'User'} cập nhật Tổng hợp và đề xuất`);
+        
         alert('Đã lưu Tổng hợp và đề xuất thành công!');
         
     } catch (error) {
@@ -1629,11 +1663,21 @@ document.addEventListener("DOMContentLoaded", async function () {
         document.getElementById('project-list-page').style.display = 'block';
         document.getElementById('project-detail-page').style.display = 'none';
         document.getElementById('btn-back-to-list').style.display = 'none';
+        
+        // Ẩn nút Lịch sử phiên bản khi ở trang danh sách
+        const btnVersionHistory = document.getElementById('btn-version-history');
+        if (btnVersionHistory) btnVersionHistory.style.display = 'none';
+        
         await loadProjectList();
     } else {
         document.getElementById('project-list-page').style.display = 'none';
         document.getElementById('project-detail-page').style.display = 'flex';
         document.getElementById('btn-back-to-list').style.display = 'inline-block';
+        
+        // Hiện nút Lịch sử phiên bản khi ở trang chi tiết
+        const btnVersionHistory = document.getElementById('btn-version-history');
+        if (btnVersionHistory) btnVersionHistory.style.display = 'inline-block';
+        
         await loadAllDataFromDB();
             applyRolePermissions();
     }
@@ -1715,6 +1759,1021 @@ function closeModal() {
 document.addEventListener('keydown', function(event) {
     if (event.key === "Escape") {
         closeModal();
+        closeVersionHistory();
+        closeVersionPreview();
     }
 });
+
+// ==================== VERSION HISTORY SYSTEM ====================
+
+// Biến lưu phiên bản đang xem trước
+let currentPreviewRevisionId = null;
+let currentPreviewSnapshot = null;
+let previousPreviewSnapshot = null; // Phiên bản trước để so sánh
+let allRevisionsList = []; // Lưu danh sách tất cả revisions
+
+/**
+ * Tạo một revision (snapshot) mới
+ * @param {string} changeDescription - Mô tả thay đổi
+ */
+async function createRevision(changeDescription = '') {
+    if (!currentProjectId) {
+        console.warn('Không có projectId để tạo revision');
+        return null;
+    }
+    
+    const user = getCurrentUser();
+    const changeLog = changeDescription || `Lưu dữ liệu lúc ${new Date().toLocaleString('vi-VN')}`;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/project-revisions`, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            body: JSON.stringify({
+                projectId: currentProjectId,
+                userId: user.username || user.displayName || 'User',
+                changeLog: changeLog
+            })
+        });
+        
+        if (response.ok) {
+            const revision = await response.json();
+            console.log('✅ Đã tạo revision mới:', revision.id);
+            return revision;
+        } else {
+            console.error('Lỗi tạo revision:', await response.text());
+            return null;
+        }
+    } catch (error) {
+        console.error('Lỗi khi tạo revision:', error);
+        return null;
+    }
+}
+
+/**
+ * Mở panel lịch sử phiên bản
+ */
+async function openVersionHistory() {
+    const panel = document.getElementById('version-history-panel');
+    if (!panel) return;
+    
+    panel.classList.add('open');
+    
+    // Load danh sách revisions
+    await loadVersionHistoryList();
+}
+
+/**
+ * Đóng panel lịch sử phiên bản
+ */
+function closeVersionHistory() {
+    const panel = document.getElementById('version-history-panel');
+    if (panel) {
+        panel.classList.remove('open');
+    }
+}
+
+/**
+ * Load danh sách lịch sử phiên bản
+ */
+async function loadVersionHistoryList() {
+    const listContainer = document.getElementById('version-list');
+    const loadingDiv = document.getElementById('version-list-loading');
+    const emptyDiv = document.getElementById('version-list-empty');
+    
+    if (!listContainer) return;
+    
+    // Show loading
+    listContainer.innerHTML = '';
+    if (loadingDiv) loadingDiv.style.display = 'flex';
+    if (emptyDiv) emptyDiv.style.display = 'none';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/project-revisions/project/${currentProjectId}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+        
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        
+        if (response.ok) {
+            const revisions = await response.json();
+            allRevisionsList = revisions; // Lưu lại danh sách để dùng khi preview
+            
+            if (revisions.length === 0) {
+                if (emptyDiv) emptyDiv.style.display = 'flex';
+                return;
+            }
+            
+            // Render danh sách
+            listContainer.innerHTML = revisions.map((rev, index) => {
+                const isFirst = index === 0;
+                const versionNumber = revisions.length - index;
+                const createdDate = formatVersionDate(rev.createdAt);
+                
+                return `
+                    <div class="version-item ${isFirst ? 'current' : ''}" data-revision-id="${rev.id}">
+                        <div class="version-header">
+                            <div class="version-badge">${versionNumber}</div>
+                            <div class="version-info">
+                                <div class="version-user">
+                                    <i class="fa-solid fa-user"></i> ${rev.userId || 'User'}
+                                </div>
+                                <div class="version-time">
+                                    <i class="fa-solid fa-clock"></i> ${createdDate}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="version-description">
+                            ${rev.changeLog || 'Không có mô tả'}
+                        </div>
+                        <div class="version-actions">
+                            <button class="btn-preview-version" onclick="event.stopPropagation(); previewVersion('${rev.id}')">
+                                <i class="fa-solid fa-eye"></i> Xem trước
+                            </button>
+                            ${!isFirst ? `
+                                <button class="btn-restore-mini" onclick="event.stopPropagation(); restoreVersion('${rev.id}')">
+                                    <i class="fa-solid fa-rotate-left"></i> Khôi phục
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+        } else {
+            listContainer.innerHTML = '<p style="color: red; text-align: center;">Lỗi khi tải lịch sử phiên bản</p>';
+        }
+    } catch (error) {
+        console.error('Lỗi load version history:', error);
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        listContainer.innerHTML = '<p style="color: red; text-align: center;">Lỗi kết nối server</p>';
+    }
+}
+
+/**
+ * Format ngày cho version history
+ */
+function formatVersionDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+    
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
+/**
+ * Xem trước một phiên bản
+ */
+async function previewVersion(revisionId) {
+    const modal = document.getElementById('version-preview-modal');
+    const metaInfo = document.getElementById('vp-meta-info');
+    const contentArea = document.getElementById('vp-content-area');
+    
+    if (!modal) return;
+    
+    currentPreviewRevisionId = revisionId;
+    previousPreviewSnapshot = null; // Reset
+    
+    try {
+        // Load revision data
+        const response = await fetch(`${API_BASE_URL}/project-revisions/${revisionId}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) {
+            throw new Error('Không thể tải phiên bản');
+        }
+        
+        const revision = await response.json();
+        currentPreviewSnapshot = JSON.parse(revision.snapshotContent || '{}');
+        
+        // Tìm và load phiên bản trước đó để so sánh
+        const currentIndex = allRevisionsList.findIndex(r => r.id === revisionId);
+        if (currentIndex >= 0 && currentIndex < allRevisionsList.length - 1) {
+            const prevRevisionId = allRevisionsList[currentIndex + 1].id;
+            try {
+                const prevResponse = await fetch(`${API_BASE_URL}/project-revisions/${prevRevisionId}`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+                if (prevResponse.ok) {
+                    const prevRevision = await prevResponse.json();
+                    previousPreviewSnapshot = JSON.parse(prevRevision.snapshotContent || '{}');
+                }
+            } catch(e) {
+                console.warn('Không thể load phiên bản trước:', e);
+            }
+        }
+        
+        // Show meta info
+        if (metaInfo) {
+            const hasPrevious = previousPreviewSnapshot !== null;
+            metaInfo.innerHTML = `
+                <div class="vp-meta-item">
+                    <i class="fa-solid fa-user"></i>
+                    <span>Người sửa: <strong>${revision.userId || 'User'}</strong></span>
+                </div>
+                <div class="vp-meta-item">
+                    <i class="fa-solid fa-clock"></i>
+                    <span>Thời gian: <strong>${formatVersionDate(revision.createdAt)}</strong></span>
+                </div>
+                <div class="vp-meta-item">
+                    <i class="fa-solid fa-edit"></i>
+                    <span>Ghi chú: <strong>${revision.changeLog || 'Không có'}</strong></span>
+                </div>
+                <div class="vp-meta-item" style="margin-left: auto;">
+                    <i class="fa-solid fa-code-compare" style="color: ${hasPrevious ? '#10b981' : '#999'};"></i>
+                    <span style="color: ${hasPrevious ? '#10b981' : '#999'};">
+                        ${hasPrevious ? 'Hiển thị thay đổi so với phiên bản trước' : 'Phiên bản đầu tiên'}
+                    </span>
+                </div>
+            `;
+        }
+        
+        // Show modal
+        modal.style.display = 'flex';
+        
+        // Default tab
+        switchPreviewTab('request');
+        
+    } catch (error) {
+        console.error('Lỗi xem trước phiên bản:', error);
+        alert('Không thể tải phiên bản: ' + error.message);
+    }
+}
+
+/**
+ * Chuyển tab trong preview modal
+ */
+function switchPreviewTab(tabName) {
+    // Update active tab
+    document.querySelectorAll('.vp-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.getAttribute('data-tab') === tabName);
+    });
+    
+    const contentArea = document.getElementById('vp-content-area');
+    if (!contentArea || !currentPreviewSnapshot) return;
+    
+    let html = '';
+    
+    switch(tabName) {
+        case 'request':
+            html = renderRequestDiff(currentPreviewSnapshot, previousPreviewSnapshot);
+            break;
+        case 'input':
+            html = renderInputDiff(currentPreviewSnapshot, previousPreviewSnapshot);
+            break;
+        case 'model':
+            html = renderModelDiff(currentPreviewSnapshot, previousPreviewSnapshot);
+            break;
+        case 'summary':
+            html = renderSummaryDiff(currentPreviewSnapshot, previousPreviewSnapshot);
+            break;
+    }
+    
+    contentArea.innerHTML = html;
+}
+
+// ==================== DIFF HELPER FUNCTIONS ====================
+
+/**
+ * So sánh 2 giá trị và trả về HTML với highlight
+ */
+function renderDiffValue(newVal, oldVal) {
+    const newStr = (newVal || '').toString().trim();
+    const oldStr = (oldVal || '').toString().trim();
+    
+    if (newStr === oldStr) {
+        // Không thay đổi - không hiển thị
+        return null;
+    }
+    
+    let html = '';
+    if (oldStr && oldStr !== newStr) {
+        html += `<span class="diff-removed">${oldStr}</span>`;
+    }
+    if (newStr && newStr !== oldStr) {
+        html += `<span class="diff-added">${newStr}</span>`;
+    }
+    return html || null;
+}
+
+/**
+ * Kiểm tra xem có sự thay đổi giữa 2 object không
+ */
+function hasChanges(newObj, oldObj, keys) {
+    if (!oldObj) return true; // Phiên bản đầu tiên, hiển thị tất cả
+    for (const key of keys) {
+        const newVal = (newObj[key] || '').toString().trim();
+        const oldVal = (oldObj[key] || '').toString().trim();
+        if (newVal !== oldVal) return true;
+    }
+    return false;
+}
+
+/**
+ * Render preview cho Yêu cầu bài toán - DIFF MODE
+ */
+function renderRequestDiff(snapshot, prevSnapshot) {
+    const content = snapshot.yeuCauBaiToanContent;
+    if (!content) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
+    }
+    
+    let data;
+    try {
+        data = typeof content === 'string' ? JSON.parse(content) : content;
+    } catch(e) {
+        return '<p style="color: red;">Lỗi parse dữ liệu</p>';
+    }
+    
+    // Parse previous data
+    let prevData = {};
+    if (prevSnapshot && prevSnapshot.yeuCauBaiToanContent) {
+        try {
+            prevData = typeof prevSnapshot.yeuCauBaiToanContent === 'string' 
+                ? JSON.parse(prevSnapshot.yeuCauBaiToanContent) 
+                : prevSnapshot.yeuCauBaiToanContent;
+        } catch(e) { /* ignore */ }
+    }
+    
+    // Parse admin review
+    let adminReview = {};
+    if (snapshot.yeuCauAdminReview) {
+        try {
+            adminReview = typeof snapshot.yeuCauAdminReview === 'string' 
+                ? JSON.parse(snapshot.yeuCauAdminReview) 
+                : snapshot.yeuCauAdminReview;
+        } catch(e) { /* ignore */ }
+    }
+    
+    let prevAdminReview = {};
+    if (prevSnapshot && prevSnapshot.yeuCauAdminReview) {
+        try {
+            prevAdminReview = typeof prevSnapshot.yeuCauAdminReview === 'string' 
+                ? JSON.parse(prevSnapshot.yeuCauAdminReview) 
+                : prevSnapshot.yeuCauAdminReview;
+        } catch(e) { /* ignore */ }
+    }
+    
+    // Danh sách các field
+    const fields = [
+        { label: 'Đơn vị phát triển', key: 'devUnit', adminKey: 'row0' },
+        { label: 'Tên dự án', key: 'projectName', adminKey: 'row1' },
+        { label: 'Chức năng hệ thống', key: 'sysFeature', adminKey: 'row2' },
+        { label: 'Đầu mối định cỡ', key: 'contactPerson', adminKey: 'row3' },
+        { label: 'Mục đích định cỡ', key: 'sizingPurpose', adminKey: 'row4' },
+        { label: 'Cơ sở định cỡ', key: 'sizingBasis', adminKey: 'row5' },
+        { label: 'Nguyên tắc định cỡ', key: 'sizingRule', adminKey: 'row6' },
+        { label: 'Mức độ quan trọng', key: 'importance', adminKey: 'row7' },
+        { label: 'Thời gian triển khai', key: 'deploymentTime', adminKey: 'row8' }
+    ];
+    
+    // Chỉ lấy những field có thay đổi
+    const changedFields = fields.filter(field => {
+        const newVal = (data[field.key] || '').toString().trim();
+        const oldVal = (prevData[field.key] || '').toString().trim();
+        const newAdmin = adminReview[field.adminKey] || {};
+        const oldAdmin = prevAdminReview[field.adminKey] || {};
+        
+        return newVal !== oldVal || 
+               (newAdmin.eval || '') !== (oldAdmin.eval || '') ||
+               (newAdmin.note || '') !== (oldAdmin.note || '');
+    });
+    
+    if (changedFields.length === 0 && prevSnapshot) {
+        return `
+            <div class="vp-section">
+                <div class="vp-no-changes">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>Không có thay đổi trong phần Yêu cầu bài toán</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    const fieldsHtml = changedFields.map(field => {
+        const newVal = data[field.key] || '';
+        const oldVal = prevData[field.key] || '';
+        const admin = adminReview[field.adminKey] || {};
+        const prevAdmin = prevAdminReview[field.adminKey] || {};
+        
+        // Render diff cho giá trị
+        let valueHtml = '';
+        if (oldVal && oldVal !== newVal) {
+            valueHtml += `<div class="diff-removed">${oldVal}</div>`;
+        }
+        if (newVal && newVal !== oldVal) {
+            valueHtml += `<div class="diff-added">${newVal}</div>`;
+        }
+        if (newVal === oldVal && newVal) {
+            valueHtml = newVal;
+        }
+        
+        // Render diff cho admin eval
+        let evalHtml = renderEvalDiff(admin.eval, prevAdmin.eval);
+        
+        // Render diff cho admin note
+        let noteHtml = '';
+        const newNote = admin.note || '';
+        const oldNote = prevAdmin.note || '';
+        if (oldNote && oldNote !== newNote) {
+            noteHtml += `<div class="diff-removed">${oldNote}</div>`;
+        }
+        if (newNote && newNote !== oldNote) {
+            noteHtml += `<div class="diff-added">${newNote}</div>`;
+        }
+        if (newNote === oldNote) {
+            noteHtml = newNote || '-';
+        }
+        
+        return `
+            <tr>
+                <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: 500; background: #f8fafc; width: 180px;">${field.label}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${valueHtml || '-'}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; width: 80px;">${evalHtml}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0; width: 200px; color: #6366f1; font-style: italic;">${noteHtml}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    return `
+        <div class="vp-section">
+            <div class="vp-section-title">
+                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                Thay đổi trong Yêu cầu bài toán 
+                <span class="diff-count">(${changedFields.length} thay đổi)</span>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead>
+                    <tr style="background: #f1f5f9;">
+                        <th style="padding: 10px; border: 1px solid #e2e8f0; text-align: left;">Tiêu chí</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0; text-align: left;">Nội dung</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; width: 80px;">Đánh giá</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0; text-align: left; width: 200px;">Ghi chú Admin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${fieldsHtml}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+/**
+ * Helper render diff cho eval badge
+ */
+function renderEvalDiff(newEval, oldEval) {
+    const renderBadge = (val) => {
+        if (!val) return '';
+        if (val === 'OK') return '<span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">OK</span>';
+        if (val === 'NOK') return '<span style="background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">NOK</span>';
+        return `<span>${val}</span>`;
+    };
+    
+    if ((newEval || '') === (oldEval || '')) {
+        return renderBadge(newEval) || '-';
+    }
+    
+    let html = '';
+    if (oldEval) {
+        html += `<div class="diff-removed">${renderBadge(oldEval)}</div>`;
+    }
+    if (newEval) {
+        html += `<div class="diff-added">${renderBadge(newEval)}</div>`;
+    }
+    return html || '-';
+}
+
+/**
+ * Render diff cho Thông tin đầu vào
+ */
+function renderInputDiff(snapshot, prevSnapshot) {
+    const content = snapshot.thongTinDauVaoContent;
+    if (!content) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
+    }
+    
+    let data;
+    try {
+        data = typeof content === 'string' ? JSON.parse(content) : content;
+    } catch(e) {
+        return '<p style="color: red;">Lỗi parse dữ liệu</p>';
+    }
+    
+    // Parse previous data
+    let prevData = { inputRows: [] };
+    if (prevSnapshot && prevSnapshot.thongTinDauVaoContent) {
+        try {
+            prevData = typeof prevSnapshot.thongTinDauVaoContent === 'string' 
+                ? JSON.parse(prevSnapshot.thongTinDauVaoContent) 
+                : prevSnapshot.thongTinDauVaoContent;
+        } catch(e) { /* ignore */ }
+    }
+    
+    // Parse admin review
+    let adminReview = {};
+    if (snapshot.thongTinAdminReview) {
+        try {
+            adminReview = typeof snapshot.thongTinAdminReview === 'string' 
+                ? JSON.parse(snapshot.thongTinAdminReview) 
+                : snapshot.thongTinAdminReview;
+        } catch(e) { /* ignore */ }
+    }
+    
+    let prevAdminReview = {};
+    if (prevSnapshot && prevSnapshot.thongTinAdminReview) {
+        try {
+            prevAdminReview = typeof prevSnapshot.thongTinAdminReview === 'string' 
+                ? JSON.parse(prevSnapshot.thongTinAdminReview) 
+                : prevSnapshot.thongTinAdminReview;
+        } catch(e) { /* ignore */ }
+    }
+    
+    if (!data.inputRows || data.inputRows.length === 0) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu đầu vào</p>';
+    }
+    
+    const prevRows = prevData.inputRows || [];
+    
+    // Tìm những hàng có thay đổi
+    let changedRowsHtml = [];
+    let changeCount = 0;
+    
+    data.inputRows.forEach((row, index) => {
+        const prevRow = prevRows[index] || {};
+        const adminData = adminReview['row' + index] || {};
+        const prevAdminData = prevAdminReview['row' + index] || {};
+        
+        // So sánh các trường
+        const fields = ['dauVao', 'module', 'ghiChu'];
+        const pocText = typeof row.taiHeThongPOC === 'object' ? row.taiHeThongPOC.text : (row.taiHeThongPOC || '');
+        const prevPocText = typeof prevRow.taiHeThongPOC === 'object' ? prevRow.taiHeThongPOC.text : (prevRow.taiHeThongPOC || '');
+        const sizingText = typeof row.dinhCo === 'object' ? row.dinhCo.text : (row.dinhCo || '');
+        const prevSizingText = typeof prevRow.dinhCo === 'object' ? prevRow.dinhCo.text : (prevRow.dinhCo || '');
+        
+        let hasChange = false;
+        for (const f of fields) {
+            if ((row[f] || '').trim() !== (prevRow[f] || '').trim()) hasChange = true;
+        }
+        if (pocText.trim() !== prevPocText.trim()) hasChange = true;
+        if (sizingText.trim() !== prevSizingText.trim()) hasChange = true;
+        if ((adminData.eval || '') !== (prevAdminData.eval || '')) hasChange = true;
+        if ((adminData.note || '') !== (prevAdminData.note || '')) hasChange = true;
+        
+        // Nếu là row mới (không có trong prev)
+        const isNewRow = index >= prevRows.length;
+        
+        if (hasChange || isNewRow) {
+            changeCount++;
+            const rowClass = isNewRow ? 'diff-row-added' : '';
+            
+            changedRowsHtml.push(`
+                <tr class="${rowClass}">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${index + 1}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">
+                        ${renderTextDiff(row.dauVao, prevRow.dauVao)}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">
+                        ${renderTextDiff(pocText, prevPocText)}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">
+                        ${renderTextDiff(sizingText, prevSizingText)}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">
+                        ${renderTextDiff(row.module, prevRow.module)}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">
+                        ${renderTextDiff(row.ghiChu, prevRow.ghiChu)}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">
+                        ${renderEvalDiff(adminData.eval, prevAdminData.eval)}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; color: #6366f1; font-style: italic;">
+                        ${renderTextDiff(adminData.note, prevAdminData.note)}
+                    </td>
+                </tr>
+            `);
+        }
+    });
+    
+    // Kiểm tra các hàng bị xóa
+    if (prevRows.length > data.inputRows.length) {
+        for (let i = data.inputRows.length; i < prevRows.length; i++) {
+            const prevRow = prevRows[i];
+            const prevPocText = typeof prevRow.taiHeThongPOC === 'object' ? prevRow.taiHeThongPOC.text : (prevRow.taiHeThongPOC || '');
+            const prevSizingText = typeof prevRow.dinhCo === 'object' ? prevRow.dinhCo.text : (prevRow.dinhCo || '');
+            changeCount++;
+            changedRowsHtml.push(`
+                <tr class="diff-row-removed">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${i + 1}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.dauVao || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevPocText || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevSizingText || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.module || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.ghiChu || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">-</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">-</td>
+                </tr>
+            `);
+        }
+    }
+    
+    if (changedRowsHtml.length === 0 && prevSnapshot) {
+        return `
+            <div class="vp-section">
+                <div class="vp-no-changes">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>Không có thay đổi trong phần Thông tin đầu vào</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="vp-section">
+            <div class="vp-section-title">
+                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                Thay đổi trong Thông tin đầu vào 
+                <span class="diff-count">(${changeCount} dòng thay đổi)</span>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead>
+                    <tr style="background: #f1f5f9;">
+                        <th style="padding: 10px; border: 1px solid #e2e8f0; width: 50px;">STT</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Đầu vào</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Tải POC</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Định cỡ</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Ghi chú</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0; width: 80px; background: #fef3c7;">Đánh giá</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0; width: 150px; background: #fef3c7;">Ghi chú Admin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${changedRowsHtml.join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+/**
+ * Helper render diff cho text
+ */
+function renderTextDiff(newVal, oldVal) {
+    const newStr = (newVal || '').toString().trim();
+    const oldStr = (oldVal || '').toString().trim();
+    
+    if (newStr === oldStr) {
+        return newStr || '-';
+    }
+    
+    let html = '';
+    if (oldStr) {
+        html += `<div class="diff-removed">${oldStr}</div>`;
+    }
+    if (newStr) {
+        html += `<div class="diff-added">${newStr}</div>`;
+    }
+    return html || '-';
+}
+
+/**
+ * Render diff cho Mô hình hệ thống
+ */
+function renderModelDiff(snapshot, prevSnapshot) {
+    const content = snapshot.moHinhHeThongContent;
+    if (!content) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
+    }
+    
+    let data;
+    try {
+        data = typeof content === 'string' ? JSON.parse(content) : content;
+    } catch(e) {
+        return '<p style="color: red;">Lỗi parse dữ liệu</p>';
+    }
+    
+    // Parse previous data
+    let prevData = {};
+    if (prevSnapshot && prevSnapshot.moHinhHeThongContent) {
+        try {
+            prevData = typeof prevSnapshot.moHinhHeThongContent === 'string' 
+                ? JSON.parse(prevSnapshot.moHinhHeThongContent) 
+                : prevSnapshot.moHinhHeThongContent;
+        } catch(e) { /* ignore */ }
+    }
+    
+    // Parse admin review
+    let moHinhAdmin = {};
+    if (snapshot.moHinhAdminReview) {
+        try {
+            moHinhAdmin = typeof snapshot.moHinhAdminReview === 'string' 
+                ? JSON.parse(snapshot.moHinhAdminReview) 
+                : snapshot.moHinhAdminReview;
+        } catch(e) { /* ignore */ }
+    }
+    
+    let prevMoHinhAdmin = {};
+    if (prevSnapshot && prevSnapshot.moHinhAdminReview) {
+        try {
+            prevMoHinhAdmin = typeof prevSnapshot.moHinhAdminReview === 'string' 
+                ? JSON.parse(prevSnapshot.moHinhAdminReview) 
+                : prevSnapshot.moHinhAdminReview;
+        } catch(e) { /* ignore */ }
+    }
+    
+    let changes = [];
+    
+    // So sánh số ảnh
+    const physicalCount = (data.physicalImages || []).length;
+    const prevPhysicalCount = (prevData.physicalImages || []).length;
+    if (physicalCount !== prevPhysicalCount) {
+        changes.push(`<div class="diff-item"><strong>Mô hình Vật lý:</strong> ${renderTextDiff(physicalCount + ' ảnh', prevPhysicalCount + ' ảnh')}</div>`);
+    }
+    
+    const logicalCount = (data.logicalImages || []).length;
+    const prevLogicalCount = (prevData.logicalImages || []).length;
+    if (logicalCount !== prevLogicalCount) {
+        changes.push(`<div class="diff-item"><strong>Mô hình Logic:</strong> ${renderTextDiff(logicalCount + ' ảnh', prevLogicalCount + ' ảnh')}</div>`);
+    }
+    
+    const flowCount = (data.flowImages || []).length;
+    const prevFlowCount = (prevData.flowImages || []).length;
+    if (flowCount !== prevFlowCount) {
+        changes.push(`<div class="diff-item"><strong>Luồng nghiệp vụ (ảnh):</strong> ${renderTextDiff(flowCount + ' ảnh', prevFlowCount + ' ảnh')}</div>`);
+    }
+    
+    // So sánh mô tả
+    const flowExpl = (data.flowExplanation || '').trim();
+    const prevFlowExpl = (prevData.flowExplanation || '').trim();
+    if (flowExpl !== prevFlowExpl) {
+        changes.push(`<div class="diff-item"><strong>Mô tả luồng nghiệp vụ:</strong><br>${renderTextDiff(flowExpl || '(trống)', prevFlowExpl || '(trống)')}</div>`);
+    }
+    
+    // So sánh admin review
+    const adminPhysical = moHinhAdmin.physical || {};
+    const prevAdminPhysical = prevMoHinhAdmin.physical || {};
+    if ((adminPhysical.eval || '') !== (prevAdminPhysical.eval || '') || (adminPhysical.note || '') !== (prevAdminPhysical.note || '')) {
+        changes.push(`<div class="diff-item"><strong>Admin đánh giá Mô hình Vật lý:</strong> ${renderEvalDiff(adminPhysical.eval, prevAdminPhysical.eval)} ${renderTextDiff(adminPhysical.note, prevAdminPhysical.note)}</div>`);
+    }
+    
+    const adminLogical = moHinhAdmin.logical || {};
+    const prevAdminLogical = prevMoHinhAdmin.logical || {};
+    if ((adminLogical.eval || '') !== (prevAdminLogical.eval || '') || (adminLogical.note || '') !== (prevAdminLogical.note || '')) {
+        changes.push(`<div class="diff-item"><strong>Admin đánh giá Mô hình Logic:</strong> ${renderEvalDiff(adminLogical.eval, prevAdminLogical.eval)} ${renderTextDiff(adminLogical.note, prevAdminLogical.note)}</div>`);
+    }
+    
+    const adminFlow = moHinhAdmin.flow || {};
+    const prevAdminFlow = prevMoHinhAdmin.flow || {};
+    if ((adminFlow.eval || '') !== (prevAdminFlow.eval || '') || (adminFlow.note || '') !== (prevAdminFlow.note || '')) {
+        changes.push(`<div class="diff-item"><strong>Admin đánh giá Luồng nghiệp vụ:</strong> ${renderEvalDiff(adminFlow.eval, prevAdminFlow.eval)} ${renderTextDiff(adminFlow.note, prevAdminFlow.note)}</div>`);
+    }
+    
+    // So sánh archRows
+    const archRows = data.archRows || [];
+    const prevArchRows = prevData.archRows || [];
+    if (archRows.length !== prevArchRows.length) {
+        changes.push(`<div class="diff-item"><strong>Chi tiết thành phần:</strong> ${renderTextDiff(archRows.length + ' dòng', prevArchRows.length + ' dòng')}</div>`);
+    } else {
+        // Chi tiết từng dòng
+        archRows.forEach((row, i) => {
+            const prevRow = prevArchRows[i] || {};
+            const fields = ['module', 'zoneMang', 'heDieuHanh', 'soLuongVIP'];
+            for (const f of fields) {
+                if ((row[f] || '').trim() !== (prevRow[f] || '').trim()) {
+                    changes.push(`<div class="diff-item"><strong>Thành phần dòng ${i+1} - ${f}:</strong> ${renderTextDiff(row[f], prevRow[f])}</div>`);
+                }
+            }
+        });
+    }
+    
+    if (changes.length === 0 && prevSnapshot) {
+        return `
+            <div class="vp-section">
+                <div class="vp-no-changes">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>Không có thay đổi trong phần Mô hình hệ thống</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="vp-section">
+            <div class="vp-section-title">
+                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                Thay đổi trong Mô hình hệ thống 
+                <span class="diff-count">(${changes.length} thay đổi)</span>
+            </div>
+            <div class="diff-list">
+                ${changes.join('')}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render diff cho Tổng hợp và đề xuất
+ */
+function renderSummaryDiff(snapshot, prevSnapshot) {
+    const content = snapshot.tongHopVaDeXuatContent;
+    if (!content) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
+    }
+    
+    let data;
+    try {
+        data = typeof content === 'string' ? JSON.parse(content) : content;
+    } catch(e) {
+        return '<p style="color: red;">Lỗi parse dữ liệu</p>';
+    }
+    
+    // Parse previous data
+    let prevData = { summaryRows: [] };
+    if (prevSnapshot && prevSnapshot.tongHopVaDeXuatContent) {
+        try {
+            prevData = typeof prevSnapshot.tongHopVaDeXuatContent === 'string' 
+                ? JSON.parse(prevSnapshot.tongHopVaDeXuatContent) 
+                : prevSnapshot.tongHopVaDeXuatContent;
+        } catch(e) { /* ignore */ }
+    }
+    
+    if (!data.summaryRows || data.summaryRows.length === 0) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">Chưa có đề xuất</p>';
+    }
+    
+    const prevRows = prevData.summaryRows || [];
+    let changedRowsHtml = [];
+    let changeCount = 0;
+    
+    data.summaryRows.forEach((row, index) => {
+        const prevRow = prevRows[index] || {};
+        const fields = ['module', 'soLuong', 'vCPU', 'ram', 'volume', 'ghiChu'];
+        
+        let hasChange = false;
+        for (const f of fields) {
+            if ((row[f] || '').toString().trim() !== (prevRow[f] || '').toString().trim()) hasChange = true;
+        }
+        
+        const isNewRow = index >= prevRows.length;
+        
+        if (hasChange || isNewRow) {
+            changeCount++;
+            const rowClass = isNewRow ? 'diff-row-added' : '';
+            
+            changedRowsHtml.push(`
+                <tr class="${rowClass}">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${index + 1}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(row.module, prevRow.module)}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${renderTextDiff(row.soLuong, prevRow.soLuong)}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${renderTextDiff(row.vCPU, prevRow.vCPU)}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${renderTextDiff(row.ram, prevRow.ram)}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(row.volume, prevRow.volume)}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(row.ghiChu, prevRow.ghiChu)}</td>
+                </tr>
+            `);
+        }
+    });
+    
+    // Kiểm tra các hàng bị xóa
+    if (prevRows.length > data.summaryRows.length) {
+        for (let i = data.summaryRows.length; i < prevRows.length; i++) {
+            const prevRow = prevRows[i];
+            changeCount++;
+            changedRowsHtml.push(`
+                <tr class="diff-row-removed">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${i + 1}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.module || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.soLuong || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.vCPU || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.ram || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.volume || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.ghiChu || '-'}</div></td>
+                </tr>
+            `);
+        }
+    }
+    
+    if (changedRowsHtml.length === 0 && prevSnapshot) {
+        return `
+            <div class="vp-section">
+                <div class="vp-no-changes">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>Không có thay đổi trong phần Tổng hợp</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="vp-section">
+            <div class="vp-section-title">
+                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                Thay đổi trong Tổng hợp đề xuất 
+                <span class="diff-count">(${changeCount} dòng thay đổi)</span>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead>
+                    <tr style="background: #f1f5f9;">
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">STT</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Số lượng</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">vCPU</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">RAM</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Volume</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>${changedRowsHtml.join('')}</tbody>
+            </table>
+        </div>
+    `;
+}
+
+/**
+ * Đóng modal xem trước phiên bản
+ */
+function closeVersionPreview() {
+    const modal = document.getElementById('version-preview-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    currentPreviewRevisionId = null;
+    currentPreviewSnapshot = null;
+}
+
+/**
+ * Khôi phục từ phiên bản đang preview
+ */
+function restoreCurrentPreviewVersion() {
+    if (currentPreviewRevisionId) {
+        restoreVersion(currentPreviewRevisionId);
+    }
+}
+
+/**
+ * Khôi phục phiên bản
+ */
+async function restoreVersion(revisionId) {
+    if (!confirm('⚠️ Bạn có chắc muốn khôi phục phiên bản này?\n\nDữ liệu hiện tại sẽ được thay thế bằng nội dung của phiên bản đã chọn.\n\nLưu ý: Một bản snapshot của dữ liệu hiện tại sẽ được tạo trước khi khôi phục.')) {
+        return;
+    }
+    
+    try {
+        // 1. Tạo snapshot dữ liệu hiện tại trước khi khôi phục
+        await createRevision('Backup trước khi khôi phục phiên bản');
+        
+        // 2. Gọi API restore
+        const response = await fetch(`${API_BASE_URL}/project-revisions/${revisionId}/restore`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+            alert('✅ Đã khôi phục phiên bản thành công!\n\nTrang sẽ được tải lại để hiển thị dữ liệu.');
+            closeVersionPreview();
+            closeVersionHistory();
+            
+            // Reload dữ liệu
+            await loadAllDataFromDB();
+            
+        } else {
+            throw new Error(await response.text() || 'Không thể khôi phục phiên bản');
+        }
+    } catch (error) {
+        console.error('Lỗi khôi phục phiên bản:', error);
+        alert('❌ Lỗi khi khôi phục phiên bản: ' + error.message);
+    }
+}
+
+/**
+ * Wrapper để lưu kèm tạo revision
+ */
+async function saveWithRevision(saveFunction, sectionName) {
+    // Thực hiện save gốc
+    await saveFunction();
+    
+    // Tạo revision
+    const user = getCurrentUser();
+    await createRevision(`${user.displayName || user.username || 'User'} cập nhật ${sectionName}`);
+}
 

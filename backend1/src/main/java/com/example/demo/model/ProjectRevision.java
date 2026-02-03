@@ -20,7 +20,7 @@ public class ProjectRevision {
     @Column(name = "user_id")
     private String userId; // Người thực hiện chỉnh sửa
 
-    @Column(name = "snapshot_content", columnDefinition = "TEXT")
+    @Column(name = "snapshot_content", columnDefinition = "LONGTEXT")
     @Lob
     private String snapshotContent; // JSON (Lưu lại toàn bộ nội dung của project_data tại thời điểm đó)
 
