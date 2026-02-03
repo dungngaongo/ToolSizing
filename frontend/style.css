@@ -301,10 +301,19 @@ body {
     margin-left: 10px;
     box-shadow: 0 2px 6px rgba(240, 180, 41, 0.2);
 }
-.btn-evaluate:hover {
+.btn-evaluate:hover:not(:disabled) {
     background-color: #e09f16;
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(224, 159, 22, 0.25);
+}
+
+/* Disabled buttons styling */
+.btn-evaluate:disabled,
+.btn-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
 .btn-add {
@@ -1162,7 +1171,7 @@ body.role-user .admin-note,
 /* ========================================= */
 
 .btn-version-history {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #ee0033 0%, #c4002a 100%);
     color: white;
     border: none;
     padding: 8px 15px;
@@ -1171,12 +1180,12 @@ body.role-user .admin-note,
     margin-right: 10px;
     font-weight: 600;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 5px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 2px 5px rgba(238, 0, 51, 0.3);
 }
 
 .btn-version-history:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 12px rgba(238, 0, 51, 0.4);
 }
 
 .version-history-panel {
@@ -1198,7 +1207,7 @@ body.role-user .admin-note,
 }
 
 .vh-panel-header {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #ee0033 0%, #c4002a 100%);
     color: white;
     padding: 20px;
     display: flex;
@@ -1231,15 +1240,15 @@ body.role-user .admin-note,
 }
 
 .vh-panel-info {
-    background: #f0f4ff;
+    background: #fff5f5;
     padding: 12px 20px;
-    border-bottom: 1px solid #e0e7ff;
+    border-bottom: 1px solid #ffcccc;
 }
 
 .vh-panel-info p {
     margin: 0;
     font-size: 12px;
-    color: #4f46e5;
+    color: #ee0033;
     display: flex;
     align-items: flex-start;
     gap: 8px;
@@ -1309,7 +1318,7 @@ body.role-user .admin-note,
 }
 
 .version-badge {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #ee0033 0%, #c4002a 100%);
     color: white;
     width: 32px;
     height: 32px;
@@ -1370,12 +1379,12 @@ body.role-user .admin-note,
 }
 
 .btn-preview-version {
-    background: #e0e7ff;
-    color: #4f46e5;
+    background: #ffe5e5;
+    color: #ee0033;
 }
 
 .btn-preview-version:hover {
-    background: #c7d2fe;
+    background: #ffcccc;
 }
 
 .btn-restore-mini {
@@ -1417,7 +1426,7 @@ body.role-user .admin-note,
 }
 
 .vp-modal-header {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #ee0033 0%, #c4002a 100%);
     color: white;
     padding: 20px 25px;
     display: flex;
@@ -1465,7 +1474,7 @@ body.role-user .admin-note,
 }
 
 .vp-meta-item i {
-    color: #6366f1;
+    color: #ee0033;
 }
 
 .vp-meta-item strong {
@@ -1501,12 +1510,12 @@ body.role-user .admin-note,
 
 .vp-tab:hover {
     color: #334155;
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(238, 0, 51, 0.1);
 }
 
 .vp-tab.active {
     background: white;
-    color: #6366f1;
+    color: #ee0033;
     border: 1px solid #e2e8f0;
     border-bottom: 1px solid white;
     margin-bottom: -1px;

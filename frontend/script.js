@@ -120,12 +120,24 @@ function applyRolePermissions() {
         // Disable file inputs (uploads) in those sections
         document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"]').forEach(fi => fi.disabled = true);
 
-        // Disable action buttons that manipulate user content but keep save/evaluate buttons enabled
+        // Disable action buttons that manipulate user content but keep evaluate buttons enabled
+        // DISABLE nút Lưu cho admin1 (btn-submit), chỉ cho bấm nút Đánh giá (btn-evaluate)
         document.querySelectorAll('#page-request button, #page-input button, #page-model button').forEach(btn => {
-            // allow admin to use save/evaluate/export and logout buttons
-            // also allow admin to VIEW evidence images (btn-view-evidence)
-            const allow = btn.classList.contains('btn-evaluate') || btn.classList.contains('btn-submit') || btn.id === 'exportBtn' || btn.classList.contains('btn-logout') || btn.classList.contains('btn-view-evidence');
+            // Admin1 chỉ được bấm nút Đánh giá, btn-view-evidence, btn-logout
+            const allow = btn.classList.contains('btn-evaluate') || btn.classList.contains('btn-logout') || btn.classList.contains('btn-view-evidence');
             if (!allow) btn.disabled = true;
+        });
+        
+        // Disable nút Lưu chính (saveBtn, saveInputDataBtn, saveModelBtn, saveSummaryBtn)
+        const saveButtons = ['saveBtn', 'saveInputDataBtn', 'saveModelBtn', 'saveSummaryBtn'];
+        saveButtons.forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.disabled = true;
+                btn.title = 'Admin không được phép lưu dữ liệu, chỉ được đánh giá';
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            }
         });
     } else {
         // Regular user: admin fields readonly, user inputs editable
@@ -141,6 +153,14 @@ function applyRolePermissions() {
         // Re-enable file inputs and buttons for regular users
         document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"]').forEach(fi => fi.disabled = false);
         document.querySelectorAll('#page-request button, #page-input button, #page-model button').forEach(btn => btn.disabled = false);
+        
+        // DISABLE nút Đánh giá cho user (chỉ admin mới được đánh giá)
+        document.querySelectorAll('.btn-evaluate').forEach(btn => {
+            btn.disabled = true;
+            btn.title = 'Chỉ admin mới có quyền đánh giá';
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        });
     }
 }
 
@@ -1770,6 +1790,16 @@ async function evaluateSection(sectionKey) {
 
         if (resp.ok) {
             if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Đã gửi đánh giá</span>';
+            
+            // Đợi một chút để đảm bảo database đã commit transaction
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Tạo revision khi admin1 đánh giá thành công
+            await createRevision(`${user.displayName || user.username || 'Admin'} đánh giá ${label}`);
+            
+            // Cập nhật trạng thái dự án (admin1 review)
+            await updateProjectStatus('admin1_review');
+            
             alert('Đã gửi đánh giá cho "' + label + '"');
             // reload data to reflect saved admin review
             await loadAllDataFromDB();
@@ -1855,6 +1885,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     checkAuthStatus();
     applyRolePermissions();
 
+    // Luôn chuyển hướng đến danh sách dự án khi đã đăng nhập (trừ khi đang xem dự án cụ thể)
+    // Nếu không có project đang mở, hiện danh sách dự án
     if (!currentProjectId) {
         document.getElementById('project-list-page').style.display = 'block';
         document.getElementById('project-detail-page').style.display = 'none';
@@ -1875,7 +1907,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (btnVersionHistory) btnVersionHistory.style.display = 'inline-block';
         
         await loadAllDataFromDB();
-            applyRolePermissions();
+        applyRolePermissions();
     }
 
     const menuLinks = document.querySelectorAll(".side-menu a");
@@ -2463,15 +2495,21 @@ function renderEvalDiff(newEval, oldEval) {
  */
 function renderInputDiff(snapshot, prevSnapshot) {
     const content = snapshot.thongTinDauVaoContent;
-    if (!content) {
+    const hasAdminReview = snapshot.thongTinAdminReview;
+    const prevHasAdminReview = prevSnapshot && prevSnapshot.thongTinAdminReview;
+    
+    // Kiểm tra xem có dữ liệu gì không (user content hoặc admin review)
+    if (!content && !hasAdminReview) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
     
-    let data;
-    try {
-        data = typeof content === 'string' ? JSON.parse(content) : content;
-    } catch(e) {
-        return '<p style="color: red;">Lỗi parse dữ liệu</p>';
+    let data = { inputRows: [] };
+    if (content) {
+        try {
+            data = typeof content === 'string' ? JSON.parse(content) : content;
+        } catch(e) {
+            console.error('Lỗi parse thongTinDauVaoContent:', e);
+        }
     }
     
     // Parse previous data
@@ -2484,27 +2522,61 @@ function renderInputDiff(snapshot, prevSnapshot) {
         } catch(e) { /* ignore */ }
     }
     
-    // Parse admin review
+    // Parse admin review - có thể ở format { rows: [...] } hoặc { row0: {...}, row1: {...} }
     let adminReview = {};
+    let adminReviewRows = []; // Array format
+    console.log('DEBUG renderInputDiff - snapshot.thongTinAdminReview:', snapshot.thongTinAdminReview);
+    console.log('DEBUG renderInputDiff - prevSnapshot?.thongTinAdminReview:', prevSnapshot?.thongTinAdminReview);
     if (snapshot.thongTinAdminReview) {
         try {
-            adminReview = typeof snapshot.thongTinAdminReview === 'string' 
+            const parsed = typeof snapshot.thongTinAdminReview === 'string' 
                 ? JSON.parse(snapshot.thongTinAdminReview) 
                 : snapshot.thongTinAdminReview;
+            console.log('DEBUG parsed adminReview:', parsed);
+            if (parsed.rows && Array.isArray(parsed.rows)) {
+                // Format { rows: [{ eval, note }, ...] }
+                adminReviewRows = parsed.rows;
+            } else {
+                // Format { row0: {...}, row1: {...} }
+                adminReview = parsed;
+            }
         } catch(e) { /* ignore */ }
     }
     
     let prevAdminReview = {};
+    let prevAdminReviewRows = []; // Array format
     if (prevSnapshot && prevSnapshot.thongTinAdminReview) {
         try {
-            prevAdminReview = typeof prevSnapshot.thongTinAdminReview === 'string' 
+            const parsed = typeof prevSnapshot.thongTinAdminReview === 'string' 
                 ? JSON.parse(prevSnapshot.thongTinAdminReview) 
                 : prevSnapshot.thongTinAdminReview;
+            if (parsed.rows && Array.isArray(parsed.rows)) {
+                prevAdminReviewRows = parsed.rows;
+            } else {
+                prevAdminReview = parsed;
+            }
         } catch(e) { /* ignore */ }
     }
     
-    if (!data.inputRows || data.inputRows.length === 0) {
+    // Nếu không có inputRows nhưng có admin review thay đổi, vẫn hiển thị
+    const hasAdminReviewChange = JSON.stringify(adminReviewRows) !== JSON.stringify(prevAdminReviewRows) ||
+                                  JSON.stringify(adminReview) !== JSON.stringify(prevAdminReview);
+    
+    console.log('DEBUG hasAdminReviewChange:', hasAdminReviewChange);
+    console.log('DEBUG adminReviewRows:', adminReviewRows);
+    console.log('DEBUG prevAdminReviewRows:', prevAdminReviewRows);
+    console.log('DEBUG data.inputRows length:', data.inputRows?.length);
+    
+    if ((!data.inputRows || data.inputRows.length === 0) && !hasAdminReviewChange) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu đầu vào</p>';
+    }
+    
+    // Nếu không có inputRows nhưng có admin review, tạo rows ảo từ số lượng admin review
+    if (!data.inputRows || data.inputRows.length === 0) {
+        const numRows = Math.max(adminReviewRows.length, prevAdminReviewRows.length, 
+                                 Object.keys(adminReview).filter(k => k.startsWith('row')).length,
+                                 Object.keys(prevAdminReview).filter(k => k.startsWith('row')).length);
+        data.inputRows = Array(numRows).fill({});
     }
     
     const prevRows = prevData.inputRows || [];
@@ -2515,8 +2587,12 @@ function renderInputDiff(snapshot, prevSnapshot) {
     
     data.inputRows.forEach((row, index) => {
         const prevRow = prevRows[index] || {};
-        const adminData = adminReview['row' + index] || {};
-        const prevAdminData = prevAdminReview['row' + index] || {};
+        
+        // Lấy admin data từ array hoặc object format
+        const adminData = adminReviewRows[index] || adminReview['row' + index] || {};
+        const prevAdminData = prevAdminReviewRows[index] || prevAdminReview['row' + index] || {};
+        
+        console.log(`DEBUG row ${index}: adminData=`, adminData, 'prevAdminData=', prevAdminData);
         
         // So sánh các trường
         const fields = ['dauVao', 'module', 'ghiChu'];

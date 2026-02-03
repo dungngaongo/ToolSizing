@@ -106,6 +106,10 @@
                     localStorage.setItem('rememberMe', document.getElementById('rememberMe').checked);
                     if (data.token) localStorage.setItem('authToken', data.token);
                     
+                    // Clear currentProjectId để chuyển hướng đến danh sách dự án
+                    localStorage.removeItem('currentProjectId');
+                    localStorage.removeItem('currentProjectDataId');
+                    
                     messageDiv.innerHTML = '<span style="color: green;"><i class="fa-solid fa-check-circle"></i> Đăng nhập thành công! Đang chuyển hướng...</span>';
                     messageDiv.style.display = 'block';
                     setTimeout(() => { window.location.href = 'index.html'; }, 800);
