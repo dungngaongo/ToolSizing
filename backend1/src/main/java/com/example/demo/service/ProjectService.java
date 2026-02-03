@@ -28,7 +28,8 @@ public class ProjectService {
         project.setName(request.getName());
         project.setDevUnit(request.getDevUnit());
         project.setOwnerName(request.getOwnerName());
-        project.setStatus(request.getStatus() != null ? request.getStatus() : "Draft");
+        project.setStatus(request.getStatus() != null ? request.getStatus() : "SIZING");
+        project.setStatusRound(request.getStatusRound() != null ? request.getStatusRound() : 1);
         Project savedProject = projectRepository.save(project);
 
         // Tự động tạo ProjectData rỗng cho project mới
@@ -67,6 +68,9 @@ public class ProjectService {
         }
         if (request.getStatus() != null) {
             project.setStatus(request.getStatus());
+        }
+        if (request.getStatusRound() != null) {
+            project.setStatusRound(request.getStatusRound());
         }
         if (request.getUserId() != null) {
             project.setUserId(request.getUserId());

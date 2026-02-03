@@ -28,7 +28,10 @@ public class Project {
     private String ownerName;
 
     @Column(length = 50)
-    private String status; // Draft, Completed, etc.
+    private String status; // SIZING, THAM_DINH, PHE_DUYET, HOAN_THANH
+    
+    @Column(name = "status_round")
+    private Integer statusRound = 1; // Lần thứ mấy (1, 2, 3, ...)
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

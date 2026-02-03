@@ -33,6 +33,10 @@
                 <button id="btn-back-to-list" onclick="showProjectList()" style="background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px; display: none;">
                     <i class="fa-solid fa-arrow-left"></i> Quay về danh sách
                 </button>
+                
+                <!-- Hiển thị trạng thái dự án hiện tại -->
+                <span id="current-project-status" class="project-status-badge" style="display: none;"></span>
+                
                 <a href="#" class="btn-viettel-group">Viettel Group</a>
                 <a href="#">Xem theo đơn vị</a>
                 <a href="#">Mới nhất</a>
@@ -67,10 +71,10 @@
                 <input type="text" id="search-project" placeholder="Tìm kiếm dự án..." oninput="filterProjects()">
                 <select id="filter-status" onchange="filterProjects()">
                     <option value="">Tất cả trạng thái</option>
-                    <option value="DRAFT">Nháp</option>
-                    <option value="PENDING">Chờ duyệt</option>
-                    <option value="APPROVED">Đã duyệt</option>
-                    <option value="REJECTED">Từ chối</option>
+                    <option value="SIZING">Sizing</option>
+                    <option value="THAM_DINH">Thẩm định</option>
+                    <option value="PHE_DUYET">Phê duyệt</option>
+                    <option value="HOAN_THANH">Hoàn thành</option>
                 </select>
                 <button onclick="loadProjectList()" class="btn-refresh">
                     <i class="fa-solid fa-rotate"></i> Làm mới
@@ -574,6 +578,12 @@
                         <button type="button" class="btn-submit" id="exportBtn">
                             <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
                         </button>
+                        
+                        <!-- Nút Phê duyệt dự án (chỉ hiện cho admin2 khi dự án ở trạng thái PHE_DUYET) -->
+                        <button type="button" class="btn-approve" id="btn-approve-project" onclick="approveProject()" style="display: none;">
+                            <i class="fa-solid fa-check-circle"></i> PHÊ DUYỆT DỰ ÁN
+                        </button>
+                        
                         <div id="summary-save-status" style="margin-top: 10px;"></div>
                     </div>
                 </div>

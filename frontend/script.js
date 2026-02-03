@@ -5,6 +5,10 @@ const API_BASE_URL = 'http://localhost:8081/api';
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
 let currentProjectDataId = localStorage.getItem('currentProjectDataId') || null;
 
+// Biến lưu trạng thái dự án hiện tại
+let currentProjectStatus = null;
+let currentProjectStatusRound = 1;
+
 // Biến lưu danh sách dự án
 let allProjects = [];
 
@@ -214,7 +218,7 @@ function renderProjectList(projects) {
         const createdDate = project.createdAt ? formatDate(project.createdAt) : 'N/A';
         const modifiedDate = project.updatedAt ? formatDate(project.updatedAt) : 'N/A';
         const statusClass = getStatusClass(project.status);
-        const statusText = getStatusText(project.status);
+        const statusText = getStatusText(project.status, project.statusRound);
         
         tr.innerHTML = `
             <td>${index + 1}</td>
@@ -240,22 +244,37 @@ function renderProjectList(projects) {
 }
 
 function getStatusClass(status) {
+    const s = (status || '').toUpperCase();
+    if (s.includes('SIZING') || s === 'SIZING') return 'sizing';
+    if (s.includes('THAM_DINH') || s === 'THAM_DINH') return 'tham-dinh';
+    if (s.includes('PHE_DUYET') || s === 'PHE_DUYET') return 'phe-duyet';
+    if (s.includes('HOAN_THANH') || s === 'HOAN_THANH') return 'hoan-thanh';
+    // Legacy support
     switch (status?.toLowerCase()) {
-        case 'draft': return 'draft';
-        case 'pending': return 'pending';
-        case 'approved': return 'approved';
-        case 'rejected': return 'rejected';
-        default: return 'draft';
+        case 'draft': return 'sizing';
+        case 'pending': return 'tham-dinh';
+        case 'approved': return 'phe-duyet';
+        case 'rejected': return 'sizing';
+        default: return 'sizing';
     }
 }
 
-function getStatusText(status) {
+function getStatusText(status, statusRound) {
+    const round = statusRound || 1;
+    const s = (status || '').toUpperCase();
+    
+    if (s === 'SIZING' || s.includes('SIZING')) return `Sizing lần ${round}`;
+    if (s === 'THAM_DINH' || s.includes('THAM_DINH')) return `Thẩm định lần ${round}`;
+    if (s === 'PHE_DUYET' || s.includes('PHE_DUYET')) return `Phê duyệt lần ${round}`;
+    if (s === 'HOAN_THANH' || s.includes('HOAN_THANH')) return 'Hoàn thành';
+    
+    // Legacy support
     switch (status?.toLowerCase()) {
-        case 'draft': return 'Nháp';
-        case 'pending': return 'Chờ duyệt';
-        case 'approved': return 'Đã duyệt';
-        case 'rejected': return 'Từ chối';
-        default: return 'Nháp';
+        case 'draft': return `Sizing lần ${round}`;
+        case 'pending': return `Thẩm định lần ${round}`;
+        case 'approved': return 'Hoàn thành';
+        case 'rejected': return `Sizing lần ${round}`;
+        default: return `Sizing lần ${round}`;
     }
 }
 
@@ -278,6 +297,131 @@ function filterProjects() {
     }
     
     renderProjectList(filtered);
+}
+
+// ==================== PROJECT STATUS MANAGEMENT ====================
+
+/**
+ * Cập nhật hiển thị trạng thái dự án trên UI
+ */
+function updateProjectStatusDisplay() {
+    const statusBadge = document.getElementById('current-project-status');
+    if (!statusBadge) return;
+    
+    const statusClass = getStatusClass(currentProjectStatus);
+    const statusText = getStatusText(currentProjectStatus, currentProjectStatusRound);
+    
+    statusBadge.className = `project-status-badge ${statusClass}`;
+    statusBadge.innerHTML = `<i class="fa-solid fa-circle-info"></i> ${statusText}`;
+    statusBadge.style.display = 'inline-flex';
+    
+    // Hiển thị/ẩn nút Phê duyệt cho admin2
+    updateApproveButtonVisibility();
+}
+
+/**
+ * Cập nhật trạng thái dự án dựa trên role người dùng
+ * @param {string} actionType - Loại hành động: 'user_edit', 'admin1_review', 'admin2_review', 'admin2_approve'
+ */
+async function updateProjectStatus(actionType) {
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+    
+    let newStatus = currentProjectStatus;
+    let newRound = currentProjectStatusRound;
+    
+    switch (actionType) {
+        case 'user_edit':
+            // User chỉnh sửa: nếu đang ở Thẩm định hoặc Phê duyệt -> quay về Sizing với round+1
+            if (currentProjectStatus === 'THAM_DINH' || currentProjectStatus === 'PHE_DUYET') {
+                newStatus = 'SIZING';
+                newRound = currentProjectStatusRound + 1;
+            } else if (!currentProjectStatus || currentProjectStatus === 'Draft') {
+                newStatus = 'SIZING';
+                newRound = 1;
+            }
+            break;
+            
+        case 'admin1_review':
+            // Admin1 đánh giá: Sizing -> Thẩm định (giữ nguyên round)
+            if (currentProjectStatus === 'SIZING' || currentProjectStatus === 'Draft' || !currentProjectStatus) {
+                newStatus = 'THAM_DINH';
+                // Giữ nguyên round
+            }
+            break;
+            
+        case 'admin2_review':
+            // Admin2 đánh giá: Thẩm định -> Phê duyệt (giữ nguyên round)
+            if (currentProjectStatus === 'THAM_DINH') {
+                newStatus = 'PHE_DUYET';
+                // Giữ nguyên round
+            }
+            break;
+            
+        case 'admin2_approve':
+            // Admin2 phê duyệt: Phê duyệt -> Hoàn thành
+            if (currentProjectStatus === 'PHE_DUYET') {
+                newStatus = 'HOAN_THANH';
+            }
+            break;
+    }
+    
+    // Nếu không thay đổi thì không cần update
+    if (newStatus === currentProjectStatus && newRound === currentProjectStatusRound) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+            method: 'PUT',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            body: JSON.stringify({
+                status: newStatus,
+                statusRound: newRound
+            })
+        });
+        
+        if (response.ok) {
+            currentProjectStatus = newStatus;
+            currentProjectStatusRound = newRound;
+            updateProjectStatusDisplay();
+            console.log(`✅ Đã cập nhật trạng thái: ${newStatus} lần ${newRound}`);
+        }
+    } catch (error) {
+        console.error('Lỗi cập nhật trạng thái:', error);
+    }
+}
+
+/**
+ * Hiển thị/ẩn nút Phê duyệt dự án cho admin2
+ */
+function updateApproveButtonVisibility() {
+    const approveBtn = document.getElementById('btn-approve-project');
+    if (!approveBtn) return;
+    
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+    
+    // Chỉ hiển thị nút Phê duyệt khi:
+    // - User là admin2
+    // - Dự án đang ở trạng thái PHE_DUYET
+    if (role === 'admin2' && currentProjectStatus === 'PHE_DUYET') {
+        approveBtn.style.display = 'inline-flex';
+    } else {
+        approveBtn.style.display = 'none';
+    }
+}
+
+/**
+ * Xử lý khi admin2 bấm nút Phê duyệt
+ */
+async function approveProject() {
+    if (!confirm('Bạn có chắc muốn phê duyệt dự án này? Dự án sẽ chuyển sang trạng thái Hoàn thành.')) {
+        return;
+    }
+    
+    await updateProjectStatus('admin2_approve');
+    alert('✅ Dự án đã được phê duyệt thành công!');
 }
 
 async function openProject(projectId) {
@@ -345,13 +489,19 @@ async function startNewProject() {
             body: JSON.stringify({
                 name: projectName,
                 ownerName: user.displayName || user.username || 'Chưa xác định',
-                status: 'Draft'
+                status: 'SIZING',
+                statusRound: 1
             })
         });
         
         if (response.ok) {
             const project = await response.json();
             saveProjectIdToStorage(project.id);
+            
+            // Cập nhật trạng thái dự án
+            currentProjectStatus = 'SIZING';
+            currentProjectStatusRound = 1;
+            updateProjectStatusDisplay();
             
             document.getElementById('project-list-page').style.display = 'none';
             document.getElementById('project-detail-page').style.display = 'flex';
@@ -414,6 +564,18 @@ function resetAllForms() {
 // ==================== LOAD DATA FROM DATABASE ====================
 async function loadAllDataFromDB() {
     try {
+        // Load project info để lấy trạng thái
+        const projectResponse = await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+        if (projectResponse.ok) {
+            const project = await projectResponse.json();
+            currentProjectStatus = project.status || 'SIZING';
+            currentProjectStatusRound = project.statusRound || 1;
+            updateProjectStatusDisplay();
+        }
+        
         const sizingIframe = document.getElementById('sizing-iframe');
         if (sizingIframe && currentProjectId) {
             const baseUrl = sizingIframe.src.split('?')[0];
@@ -802,6 +964,14 @@ async function saveYeuCauBaiToan() {
             if(!currentProjectDataId) saveProjectDataIdToStorage(result.id);
             if (statusDiv) statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công!</span>`;
             
+            // Cập nhật trạng thái dự án dựa trên role
+            const role = (user.role || '').toLowerCase();
+            if (role === 'admin1') {
+                await updateProjectStatus('admin1_review');
+            } else if (role === 'user' || !role) {
+                await updateProjectStatus('user_edit');
+            }
+            
             // Tạo revision sau khi lưu thành công
             await createRevision(`${user.displayName || user.username || 'User'} cập nhật Yêu cầu bài toán`);
             
@@ -1110,6 +1280,14 @@ async function saveThongTinDauVao() {
         
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
         
+        // Cập nhật trạng thái dự án dựa trên role
+        const role = (user.role || '').toLowerCase();
+        if (role === 'admin1') {
+            await updateProjectStatus('admin1_review');
+        } else if (role === 'user' || !role) {
+            await updateProjectStatus('user_edit');
+        }
+        
         // Tạo revision sau khi lưu thành công
         await createRevision(`${user.displayName || user.username || 'User'} cập nhật Thông tin đầu vào`);
         
@@ -1239,8 +1417,16 @@ async function saveMoHinhHeThong() {
         });
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
         
-        // Tạo revision sau khi lưu thành công
+        // Cập nhật trạng thái dự án dựa trên role
         const user = getCurrentUser();
+        const role = (user.role || '').toLowerCase();
+        if (role === 'admin1') {
+            await updateProjectStatus('admin1_review');
+        } else if (role === 'user' || !role) {
+            await updateProjectStatus('user_edit');
+        }
+        
+        // Tạo revision sau khi lưu thành công
         await createRevision(`${user.displayName || user.username || 'User'} cập nhật Mô hình hệ thống`);
         
         alert('Đã lưu Mô hình hệ thống thành công!');
@@ -1321,8 +1507,18 @@ async function saveTongHop() {
         
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
         
-        // Tạo revision sau khi lưu thành công
+        // Cập nhật trạng thái dự án dựa trên role
         const user = getCurrentUser();
+        const role = (user.role || '').toLowerCase();
+        if (role === 'admin1') {
+            await updateProjectStatus('admin1_review');
+        } else if (role === 'admin2') {
+            await updateProjectStatus('admin2_review');
+        } else if (role === 'user' || !role) {
+            await updateProjectStatus('user_edit');
+        }
+        
+        // Tạo revision sau khi lưu thành công
         await createRevision(`${user.displayName || user.username || 'User'} cập nhật Tổng hợp và đề xuất`);
         
         alert('Đã lưu Tổng hợp và đề xuất thành công!');

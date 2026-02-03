@@ -712,6 +712,54 @@ body.role-user .admin-note,
 .status-badge.approved { background: #d4edda; color: #155724; border: 1px solid #28a745; }
 .status-badge.rejected { background: #f8d7da; color: #721c24; border: 1px solid #dc3545; }
 
+/* Status badges cho workflow mới (Sizing -> Thẩm định -> Phê duyệt -> Hoàn thành) */
+.status-badge.sizing { background: #e3f2fd; color: #1565c0; border: 1px solid #2196f3; }
+.status-badge.tham-dinh { background: #fff3e0; color: #e65100; border: 1px solid #ff9800; }
+.status-badge.phe-duyet { background: #f3e5f5; color: #7b1fa2; border: 1px solid #9c27b0; }
+.status-badge.hoan-thanh { background: #e8f5e9; color: #2e7d32; border: 1px solid #4caf50; }
+
+/* Project status badge trong header */
+.project-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-left: 15px;
+}
+
+.project-status-badge.sizing { background: #e3f2fd; color: #1565c0; border: 1px solid #2196f3; }
+.project-status-badge.tham-dinh { background: #fff3e0; color: #e65100; border: 1px solid #ff9800; }
+.project-status-badge.phe-duyet { background: #f3e5f5; color: #7b1fa2; border: 1px solid #9c27b0; }
+.project-status-badge.hoan-thanh { background: #e8f5e9; color: #2e7d32; border: 1px solid #4caf50; }
+
+/* Nút Phê duyệt dự án */
+.btn-approve {
+    background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    margin-left: 15px;
+}
+
+.btn-approve:hover {
+    background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+}
+
+.btn-approve i {
+    margin-right: 8px;
+}
+
 .project-list-table { width: 100%; border-collapse: collapse; }
 .project-list-table thead { background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); }
 .project-list-table thead th { color: white; padding: 15px; text-align: left; }
