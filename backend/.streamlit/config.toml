@@ -1,6 +1,0 @@
-[server]
-headless = true
-port = 9000
-enableCORS = false
-enableXsrfProtection = false
-maxUploadSize = 200

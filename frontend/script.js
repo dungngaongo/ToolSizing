@@ -450,6 +450,9 @@ async function openProject(projectId) {
     document.getElementById('project-list-page').style.display = 'none';
     document.getElementById('project-detail-page').style.display = 'flex';
     document.getElementById('btn-back-to-list').style.display = 'inline-block';
+
+    // Hiển thị page-request mặc định
+    showSection('page-request', document.querySelector('.side-menu a'));
     
     // Hiện nút Lịch sử phiên bản
     const btnVersionHistory = document.getElementById('btn-version-history');
@@ -1358,6 +1361,7 @@ function createArchTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td>${stt}</td>
+        <td><input type="text" placeholder="Tên nghiệp vụ" value="${data.nghiepVu || ''}"></td>
         <td>
             <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
                 <option value="">-- Chọn --</option>
@@ -1395,10 +1399,11 @@ function collectMoHinhHeThong() {
         const cells = row.querySelectorAll('td');
         
         archRows.push({
-            module: cells[1]?.querySelector('select')?.value || '',
-            zoneMang: cells[2]?.querySelector('input')?.value || '',
-            heDieuHanh: cells[3]?.querySelector('select')?.value || '',
-            soLuongVIP: cells[4]?.querySelector('textarea')?.value || ''
+            nghiepVu: cells[1]?.querySelector('input')?.value || '',
+            module: cells[2]?.querySelector('select')?.value || '',
+            zoneMang: cells[3]?.querySelector('input')?.value || '',
+            heDieuHanh: cells[4]?.querySelector('select')?.value || '',
+            soLuongVIP: cells[5]?.querySelector('textarea')?.value || ''
         });
     });
 
@@ -1666,12 +1671,76 @@ function createUploadBox(type) {
     try { applyRolePermissions(); } catch (e) {}
 }
 
+function addEvidenceSlot() {
+    const container = document.getElementById('evidence-grid');
+    if (!container) return;
+    const boxId = 'evidence-' + Date.now();
+    const div = document.createElement('div');
+    div.className = 'upload-box';
+    div.id = boxId;
+    div.innerHTML = `
+        <div class="upload-controls">
+            <input type="file" accept="image/*" onchange="previewEvidenceImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
+            <label for="input-${boxId}" class="upload-label">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>Chọn ảnh</span>
+            </label>
+            <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
+        </div>
+        <div class="preview-area" id="preview-${boxId}"></div>
+    `;
+    container.appendChild(div);
+}
+
 function previewModelImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px;">`;
+            previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function previewEvidenceImage(input, boxId) {
+    const previewArea = document.getElementById(`preview-${boxId}`);
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function addEvidenceSizingSlot() {
+    const container = document.getElementById('evidence-sizing-grid');
+    if (!container) return;
+    const boxId = 'evidence-sizing-' + Date.now();
+    const div = document.createElement('div');
+    div.className = 'upload-box';
+    div.id = boxId;
+    div.innerHTML = `
+        <div class="upload-controls">
+            <input type="file" accept="image/*" onchange="previewEvidenceSizingImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
+            <label for="input-${boxId}" class="upload-label">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>Chọn ảnh</span>
+            </label>
+            <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
+        </div>
+        <div class="preview-area" id="preview-${boxId}"></div>
+    `;
+    container.appendChild(div);
+}
+
+function previewEvidenceSizingImage(input, boxId) {
+    const previewArea = document.getElementById(`preview-${boxId}`);
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
         };
         reader.readAsDataURL(input.files[0]);
     }
@@ -1991,6 +2060,481 @@ document.addEventListener('keydown', function(event) {
         closeVersionPreview();
     }
 });
+
+// ============================================================
+// LOGIC XỬ LÝ TRANG ĐỊNH CỠ (BASELINE) - FULL TÍNH NĂNG
+// ============================================================
+
+// 1. Danh sách Module để hiển thị trong Dropdown
+const MODULE_LIST = [
+    "APP (Application)", 
+    "DB (Database)", 
+    "WEB (Web Server)", 
+    "LB (Load Balancer)", 
+    "CACHE (Redis/Memcached)", 
+    "SEARCH (Elasticsearch)", 
+    "MQ (Kafka/RabbitMQ)", 
+    "OTHER"
+];
+
+// 2. Hàm Thêm dòng mới
+function addBaselineRow() {
+    const tbody = document.getElementById('baseline-table-body');
+    const inputConfigTbody = document.getElementById('input-config-table-body');
+    if (!tbody) return;
+
+    // Tính số thứ tự (STT)
+    const rowCount = tbody.rows.length + 1;
+    const tr = document.createElement('tr');
+    
+    // Tạo chuỗi HTML các option cho Select Box
+    let optionsHtml = '<option value="">-- Chọn --</option>';
+    MODULE_LIST.forEach(mod => {
+        optionsHtml += `<option value="${mod}">${mod}</option>`;
+    });
+
+    tr.innerHTML = `
+        <td class="text-center stt-cell">${rowCount}</td>
+        
+        <td>
+            <select class="input-full module-select">
+                ${optionsHtml}
+            </select>
+        </td>
+        
+        <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="syncIPToInputConfig(this)"></td>
+        
+        <td><input type="text" class="input-full cpu-input" placeholder="Intel Xeon..."></td>
+        
+        <td>
+            <input type="number" class="input-full text-center ram-input" value="0" min="0" oninput="updateBaselineTotal(); recalculateInputConfigForRow(this)">
+        </td>
+
+        <td>
+            <input type="number" class="input-full text-center disk-input" value="0" min="0" oninput="updateBaselineTotal(); recalculateInputConfigForRow(this)">
+        </td>
+        
+        <td>
+            <input type="number" class="input-full text-center cint-input" value="0" min="0" oninput="updateBaselineTotal(); recalculateInputConfigForRow(this)">
+        </td>
+        
+        <td class="admin-cell">
+            <select class="admin-eval-select" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note" placeholder="Nhận xét...">
+        </td>
+        
+        <td class="text-center">
+            <button class="btn-delete-row-item" onclick="deleteBaselineRow(this)">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(tr);
+    // Tự động thêm dòng tương ứng vào bảng input config
+    if (inputConfigTbody) {
+        addInputConfigRow();
+    }
+}
+
+// 3. Hàm Xóa dòng & Cập nhật lại STT
+function deleteBaselineRow(btn) {
+    if(confirm('Bạn có chắc muốn xóa dòng này?')) {
+        const baselineRow = btn.closest('tr');
+        const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+        
+        baselineRow.remove();
+        
+        // Xóa dòng tương ứng trong input config table
+        const inputConfigTbody = document.getElementById('input-config-table-body');
+        if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+            inputConfigTbody.rows[baselineRowIndex].remove();
+        }
+        updateRowNumbers();   // Đánh lại số STT
+        updateInputConfigRowNumbers();
+        updateBaselineTotal(); // Tính lại tổng
+        updateInputConfigTotal();
+    }
+}
+
+// 4. Helper: Cập nhật lại số thứ tự (1, 2, 3...) khi xóa dòng giữa
+function updateRowNumbers() {
+    const rows = document.querySelectorAll('#baseline-table-body tr');
+    rows.forEach((row, index) => {
+        const sttCell = row.querySelector('.stt-cell');
+        if(sttCell) sttCell.innerText = index + 1;
+    });
+}
+
+// 5. Hàm Tính Tổng (RAM & Cint)
+function updateBaselineTotal() {
+    const totalRamEl = document.getElementById('total-ram');
+    const totalCintEl = document.getElementById('total-cint');
+    const totalDiskEl = document.getElementById('total-disk');
+    if (!totalRamEl || !totalCintEl) return;
+
+    let totalRam = 0;
+    let totalCint = 0;
+    let totalDisk = 0;
+
+    document.querySelectorAll('.ram-input').forEach(input => {
+        totalRam += parseFloat(input.value) || 0;
+    });
+
+    document.querySelectorAll('.cint-input').forEach(input => {
+        totalCint += parseFloat(input.value) || 0;
+    });
+
+    document.querySelectorAll('.disk-input').forEach(input => {
+        totalDisk += parseFloat(input.value) || 0;
+    });
+
+    totalRamEl.innerText = totalRam;
+    totalCintEl.innerText = totalCint;
+    if (totalDiskEl) totalDiskEl.innerText = totalDisk;
+}
+
+// 6. Helper: Đổi màu xanh/đỏ cho ô Admin Select
+function styleAdminSelect(select) {
+    select.classList.remove('ok-status', 'nok-status');
+    if(select.value === 'OK') select.classList.add('ok-status');
+    if(select.value === 'NOK') select.classList.add('nok-status');
+}
+
+// 6a. Helper: Đồng bộ IP từ bảng baseline sang input config
+function syncIPToInputConfig(ipInput) {
+    const baselineRow = ipInput.closest('tr');
+    const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+    const inputConfigTbody = document.getElementById('input-config-table-body');
+    
+    if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+        const inputConfigRow = inputConfigTbody.rows[baselineRowIndex];
+        const ipConfigInput = inputConfigRow.querySelector('.ip-config-input');
+        if (ipConfigInput) {
+            ipConfigInput.value = ipInput.value;
+        }
+    }
+}
+
+// 6b. Helper: Tính lại kết quả cho dòng input config tương ứng khi baseline thay đổi
+function recalculateInputConfigForRow(baselineInput) {
+    const baselineRow = baselineInput.closest('tr');
+    const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+    const inputConfigTbody = document.getElementById('input-config-table-body');
+    
+    if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+        const inputConfigRow = inputConfigTbody.rows[baselineRowIndex];
+        // Lấy input bất kỳ từ input config row để tính toán
+        const cpuLoadInput = inputConfigRow.querySelector('.cpu-load-input');
+        if (cpuLoadInput) {
+            calculateInputConfigRow(cpuLoadInput);
+        }
+    }
+}
+
+// 7. HÀM LƯU DỮ LIỆU (VALIDATE NGHIÊM NGẶT)
+function saveBaselineData() {
+    const rows = document.querySelectorAll('#baseline-table-body tr');
+    
+    // Check 1: Phải có ít nhất 1 dòng
+    if(rows.length === 0) {
+        alert("Vui lòng thêm ít nhất một Server tham chiếu!");
+        return;
+    }
+
+    let isValid = true;
+    let firstError = null;
+    const dataToSave = [];
+
+    // Xóa lỗi cũ
+    document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+
+    rows.forEach((row, index) => {
+        const moduleSel = row.querySelector('.module-select');
+        const adminEval = row.querySelector('.admin-eval-select');
+        const inputs = row.querySelectorAll('input');
+
+        // Rule 1: User bắt buộc chọn Module
+        if(!moduleSel.value) {
+            moduleSel.classList.add('input-error');
+            isValid = false;
+            if(!firstError) firstError = moduleSel;
+        }
+
+        // Rule 2: Admin bắt buộc phải đánh giá (OK/NOK)
+        if(!adminEval.value) {
+            adminEval.classList.add('input-error');
+            isValid = false;
+            if(!firstError) firstError = adminEval;
+        }
+
+        if(isValid) {
+            dataToSave.push({
+                stt: index + 1,
+                module: moduleSel.value,
+                ip: inputs[0].value, // IP
+                cpu: inputs[1].value, // CPU
+                ram: inputs[2].value, // RAM
+                cint: inputs[3].value, // Cint
+                adminRating: adminEval.value,
+                adminNote: inputs[4].value // Ghi chú Admin
+            });
+        }
+    });
+
+    if(!isValid) {
+        alert("KHÔNG THỂ LƯU!\nVui lòng điền các ô bị báo đỏ:\n1. Chọn tên Module.\n2. Admin phải Đánh giá từng dòng.");
+        if(firstError) firstError.focus();
+        return;
+    }
+
+    console.log("Dữ liệu chuẩn bị lưu:", dataToSave);
+    alert("✓ Đã lưu cấu hình tham chiếu thành công!");
+    
+    // TODO: Viết code gọi API lưu vào DB ở đây
+}
+
+// Hàm chuyển Tab (Ẩn hiện các mục nội dung)
+function showSection(sectionId, linkElement) {
+    // 1. Ẩn tất cả các trang nội dung (có class .page-section)
+    const sections = document.querySelectorAll('.page-section');
+    sections.forEach(sec => {
+        sec.classList.remove('active'); // Xóa class active
+        sec.style.display = 'none'; // Ẩn bằng style
+    });
+
+    // 2. Hiện trang nội dung được chọn
+    const target = document.getElementById(sectionId);
+    if (target) {
+        target.classList.add('active'); // Thêm class active
+        target.style.display = 'block'; // Hiện bằng style
+    } else {
+        console.error('Không tìm thấy ID: ' + sectionId);
+    }
+
+    // 3. Cập nhật trạng thái "active" (màu đỏ) cho Menu bên trái
+    const menuLinks = document.querySelectorAll('.side-menu a');
+    menuLinks.forEach(link => link.classList.remove('active')); // Xóa active cũ
+    
+    // Thêm active cho link vừa bấm
+    if (linkElement) {
+        linkElement.classList.add('active');
+    }
+}
+
+// Tự động thêm 1 dòng trắng khi load trang lần đầu
+document.addEventListener("DOMContentLoaded", function() {
+    const tbody = document.getElementById('baseline-table-body');
+    if(tbody && tbody.children.length === 0) {
+        addBaselineRow();
+    }
+    // Tính tổng khi trang load
+    updateBaselineTotal();
+    updateInputConfigTotal();
+});
+// ==================== XỬ LÝ BẢNG TÍNH TOÁN (INPUT CONFIG) ====================
+
+function addInputConfigRow() {
+    const tbody = document.getElementById('input-config-table-body');
+    if (!tbody) return;
+
+    const rowCount = tbody.rows.length + 1;
+    const tr = document.createElement('tr');
+    
+    tr.innerHTML = `
+        <td class="text-center stt-cell">${rowCount}</td>
+        
+        <td><input type="text" class="input-full text-center ip-config-input" placeholder="10.x.x.x"></td>
+        
+        <td>
+            <input type="number" class="input-full text-center cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateInputConfigRow(this)">
+        </td>
+
+        <td>
+            <input type="number" class="input-full text-center ram-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateInputConfigRow(this)">
+        </td>
+
+        <td>
+            <input type="number" class="input-full text-center disk-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateInputConfigRow(this)">
+        </td>
+        
+        <td>
+            <input type="number" class="input-full text-center cint-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;">
+        </td>
+
+        <td>
+            <input type="number" class="input-full text-center ram-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;">
+        </td>
+
+        <td>
+            <input type="number" class="input-full text-center disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;">
+        </td>
+        
+        <td class="text-center">
+            <button class="btn-delete-row-item" onclick="deleteInputConfigRow(this)">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(tr);
+}
+
+function calculateInputConfigRow(input) {
+    const row = input.closest('tr');
+    const cpuLoadInput = row.querySelector('.cpu-load-input');
+    const ramLoadInput = row.querySelector('.ram-load-input');
+    const cintUsedInput = row.querySelector('.cint-used-input');
+    const ramUsedInput = row.querySelector('.ram-used-input');
+    const diskUsedInput = row.querySelector('.disk-used-input');
+    
+    // Lấy giá trị từ bảng baseline tương ứng
+    const baselineRows = document.querySelectorAll('#baseline-table-body tr');
+    const rowIndex = Array.from(row.parentNode.children).indexOf(row);
+    
+    if (rowIndex < baselineRows.length) {
+        const baselineRow = baselineRows[rowIndex];
+        const baselineCint = parseFloat(baselineRow.querySelector('.cint-input').value) || 0;
+        const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
+        const baselineDisk = parseFloat(baselineRow.querySelector('.disk-input').value) || 0;
+        
+        const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
+        const ramLoad = parseFloat(ramLoadInput.value) || 0;
+        const diskLoad = parseFloat(row.querySelector('.disk-load-input')?.value) || 0;
+        
+        // Công thức:
+        // Cint_rate used (Cint) = Cint_rate_2017 (hệ thống tham chiếu) × Tải CPU 95th percentile (%)
+        // RAM used (GB) = RAM (hệ thống tham chiếu) × Tải RAM 95th percentile (%)
+        const cintUsed = (baselineCint * cpuLoad / 100).toFixed(2);
+        const ramUsed = (baselineRam * ramLoad / 100).toFixed(2);
+        const diskUsed = (baselineDisk * diskLoad / 100).toFixed(2);
+        
+        cintUsedInput.value = cintUsed;
+        ramUsedInput.value = ramUsed;
+        diskUsedInput.value = diskUsed;
+    }
+    
+    updateInputConfigTotal();
+}
+
+function deleteInputConfigRow(btn) {
+    if(confirm('Bạn có chắc muốn xóa dòng này?')) {
+        btn.closest('tr').remove();
+        updateInputConfigRowNumbers();
+        updateInputConfigTotal();
+    }
+}
+
+function updateInputConfigRowNumbers() {
+    const rows = document.querySelectorAll('#input-config-table-body tr');
+    rows.forEach((row, index) => {
+        const sttCell = row.querySelector('.stt-cell');
+        if(sttCell) sttCell.innerText = index + 1;
+    });
+}
+
+function updateInputConfigTotal() {
+    const totalCintUsedEl = document.getElementById('total-cint-used');
+    const totalRamUsedEl = document.getElementById('total-ram-used');
+    const totalDiskUsedEl = document.getElementById('total-disk-used');
+    
+    if (!totalCintUsedEl || !totalRamUsedEl || !totalDiskUsedEl) return;
+
+    let totalCintUsed = 0;
+    let totalRamUsed = 0;
+    let totalDiskUsed = 0;
+
+    document.querySelectorAll('.cint-used-input').forEach(input => {
+        totalCintUsed += parseFloat(input.value) || 0;
+    });
+
+    document.querySelectorAll('.ram-used-input').forEach(input => {
+        totalRamUsed += parseFloat(input.value) || 0;
+    });
+
+    document.querySelectorAll('.disk-used-input').forEach(input => {
+        totalDiskUsed += parseFloat(input.value) || 0;
+    });
+
+    totalCintUsedEl.innerText = totalCintUsed.toFixed(2);
+    totalRamUsedEl.innerText = totalRamUsed.toFixed(2);
+    totalDiskUsedEl.innerText = totalDiskUsed.toFixed(2);
+}
+
+// Tính toán đề xuất số server & hiển thị bảng kết quả (lấy POC/Định cỡ từ phần THÔNG TIN ĐẦU VÀO)
+function calculateSizingRecommendations() {
+    const poc = parseFloat(document.getElementById('poc-value')?.value) || 0;
+    const sizing = parseFloat(document.getElementById('sizing-value')?.value) || 0;
+    if (!poc || !sizing) {
+        alert('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".');
+        return;
+    }
+
+    const totalCint = parseFloat(document.getElementById('total-cint-used')?.innerText) || 0;
+    const totalRam = parseFloat(document.getElementById('total-ram-used')?.innerText) || 0;
+    const totalDisk = parseFloat(document.getElementById('total-disk-used')?.innerText) || 0;
+
+    const factor = sizing / poc;
+    const totalCintReq = totalCint * factor / 0.75 * 1.1;
+    const totalRamReq = totalRam * factor / 0.9 * 1.1;
+    const totalDiskReq = totalDisk * factor / 0.8 * 1.1;
+
+    // Giới hạn RAM cho 1 server: dừng khi RAM/server <= 32 GB
+    const ramLimit = 32; // GB
+
+    // Tìm N nhỏ nhất sao cho RAM/server <= giới hạn
+    const MAX_N = 500; // giới hạn trên để tránh vòng lặp vô hạn
+    let minimalN = null;
+    for (let n = 1; n <= MAX_N; n++) {
+        if ((totalRamReq / n) <= ramLimit) {
+            minimalN = n;
+            break;
+        }
+    }
+
+    const upto = minimalN || Math.min(MAX_N, 50); // nếu không tìm thấy, hiển thị một số dòng để tham khảo
+
+    let html = '';
+    html += `<div style="padding:8px 0 6px 0; font-weight:600;">Tổng yêu cầu (sau hệ số): Cint = ${totalCintReq.toFixed(2)}, RAM = ${totalRamReq.toFixed(2)} GB, Disk = ${totalDiskReq.toFixed(2)} GB</div>`;
+
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">N</th>
+                        <th style="width:140px;">Cint / server</th>
+                        <th style="width:140px;">RAM / server (GB)</th>
+                        <th style="width:140px;">Disk / server (GB)</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+    for (let n = 1; n <= upto; n++) {
+        const cintPer = totalCintReq / n;
+        const ramPer = totalRamReq / n;
+        const diskPer = totalDiskReq / n;
+        const ok = (ramPer <= ramLimit);
+        html += `<tr${(minimalN && n === minimalN) ? ' style="background:#e6ffed"' : ''}><td class="text-center">${n}</td><td>${cintPer.toFixed(2)}</td><td>${ramPer.toFixed(2)}</td><td>${diskPer.toFixed(2)}</td><td>${ok ? 'OK' : ''}</td></tr>`;
+    }
+
+    html += `</tbody></table>`;
+
+    if (minimalN) {
+        html += `<p style="margin-top:8px;"><strong>Gợi ý: N tối thiểu = ${minimalN} (sau chia, RAM ≤ ${ramLimit} GB)</strong></p>`;
+    } else {
+        html += `<p style="margin-top:8px;"><strong>Không tìm thấy N ≤ ${MAX_N} để thoả điều kiện. Hãy kiểm tra lại dữ liệu hoặc tăng giới hạn.</strong></p>`;
+    }
+
+    const container = document.getElementById('sizing-result-container');
+    if (container) container.innerHTML = html;
+}
 
 // ==================== VERSION HISTORY SYSTEM ====================
 
@@ -2829,7 +3373,7 @@ function renderModelDiff(snapshot, prevSnapshot) {
         // Chi tiết từng dòng
         archRows.forEach((row, i) => {
             const prevRow = prevArchRows[i] || {};
-            const fields = ['module', 'zoneMang', 'heDieuHanh', 'soLuongVIP'];
+            const fields = ['nghiepVu', 'module', 'zoneMang', 'heDieuHanh', 'soLuongVIP'];
             for (const f of fields) {
                 if ((row[f] || '').trim() !== (prevRow[f] || '').trim()) {
                     changes.push(`<div class="diff-item"><strong>Thành phần dòng ${i+1} - ${f}:</strong> ${renderTextDiff(row[f], prevRow[f])}</div>`);

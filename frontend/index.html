@@ -113,11 +113,35 @@
     <main class="main-content" id="project-detail-page" style="display: none;">
         <aside class="sidebar">
             <ul class="side-menu">
-                <li><a href="#" class="menu-link active" data-target="request"><i class="fa-solid fa-file-invoice"></i> Yêu cầu bài toán</a></li>
-                <li><a href="#" class="menu-link" data-target="input"><i class="fa-solid fa-file-import"></i> Thông tin đầu vào</a></li>
-                <li><a href="#" class="menu-link" data-target="model"><i class="fa-solid fa-sitemap"></i> Mô hình hệ thống</a></li>
-                <li><a href="#" class="menu-link" data-target="sizing"><i class="fa-solid fa-microchip"></i> Định cỡ hệ thống</a></li>
-                <li><a href="#" class="menu-link" data-target="summary"><i class="fa-solid fa-chart-line"></i> Tổng hợp và đề xuất</a></li>
+                <li>
+                    <a href="#" class="active" onclick="showSection('page-request', this)">
+                        <i class="fa-solid fa-file-invoice"></i> Yêu cầu bài toán
+                    </a>
+                </li>
+
+                <li>
+                    <a href="#" onclick="showSection('page-input', this)">
+                        <i class="fa-solid fa-file-import"></i> Thông tin đầu vào
+                    </a>
+                </li>
+
+                <li>
+                    <a href="#" onclick="showSection('page-model', this)">
+                        <i class="fa-solid fa-sitemap"></i> Mô hình hệ thống
+                    </a>
+                </li>
+
+                <li>
+                    <a href="#" onclick="showSection('page-sizing', this)">
+                        <i class="fa-solid fa-microchip"></i> Định cỡ hệ thống
+                    </a>
+                </li>
+
+                <li>
+                    <a href="#" onclick="showSection('page-summary', this)">
+                        <i class="fa-solid fa-chart-line"></i> Tổng hợp và đề xuất
+                    </a>
+                </li>
             </ul>
         </aside>
 
@@ -209,7 +233,7 @@
                                     <td>
                                         <select id="importance-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                             <option value="">-- Chọn mức độ --</option>
-                                            <option value="Cực kì quan trọng">Cực kì quan trọng</option>
+                                            <option value="Đặc biệt quan trọng">Đặc biệt quan trọng</option>
                                             <option value="Rất quan trọng">Rất quan trọng</option>
                                             <option value="Quan trọng">Quan trọng</option>
                                             <option value="Bình thường">Bình thường</option>
@@ -494,7 +518,8 @@
                                     <thead>
                                         <tr>
                                             <th style="width: 50px;">STT</th>
-                                            <th>Module</th>
+                                            <th>Nghiệp vụ</th>
+                                            <th>module</th>
                                             <th>Zone mạng</th>
                                             <th>Hệ điều hành</th>
                                             <th>Số lượng VIP</th>
@@ -522,11 +547,175 @@
             </div>
 
             <div id="page-sizing" class="page-section">
-                <h2 style="color: #333; border-left: 4px solid #ff0000; padding-left: 15px; line-height: 1.1; text-transform: uppercase;">
-                    4. ĐỊNH CỠ HỆ THỐNG
-                </h2>
-                <div class="iframe-wrapper">
-                    <iframe id="sizing-iframe" src="http://localhost:8501" width="100%" height="800" frameborder="0" loading="lazy"></iframe>
+                <div class="form-container">
+                    <h2 class="content-title">4. ĐỊNH CỠ HỆ THỐNG</h2>
+
+                    <div class="model-wrapper" style="overflow: visible !important;">
+                        
+                        <div class="model-user-content">
+                            <h3 class="model-header">
+                                <i class="fa-solid fa-server" style="color: #ee0033;"></i>THÔNG TIN HỆ THỐNG THAM CHIẾU
+                            </h3>
+                            
+                            <p style="font-style: italic; color: #666; font-size: 13px; margin-bottom: 15px;">
+                                1. IP và cấu hình hệ thống tham chiếu (Nhập thông tin các node hiện tại)
+                            </p>
+
+                            <div class="table-responsive">
+                                <table class="sizing-table baseline-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 50px;">STT</th>
+                                            <th style="width: 130px;">Module <span style="color:red">*</span></th>
+                                            <th style="width: 130px;">IP</th>
+                                            <th style="width: 220px;">CPU (Model & Specs)</th>
+                                            <th style="width: 100px;">RAM (GB)</th>
+                                            <th style="width: 100px;">Disk (GB)</th>
+                                            <th style="width: 100px;">Cint_rate</th>
+                                            
+                                            <th style="width: 120px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                <i class="fa-solid fa-user-shield"></i> Đánh giá
+                                            </th>
+                                            <th style="width: 180px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                Ghi chú (Admin)
+                                            </th>
+                                            
+                                            <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="baseline-table-body"></tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="4" class="text-right" style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">
+                                                Tổng cộng:
+                                            </td>
+                                            <td class="text-center" id="total-ram" style="font-weight: bold;">0</td>
+                                            <td class="text-center" id="total-disk" style="font-weight: bold;">0</td>
+                                            <td class="text-center" id="total-cint" style="font-weight: bold;">0</td>
+                                            <td colspan="3" style="background-color: #f8f9fa;"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
+                            <button type="button" class="btn-add" onclick="addBaselineRow()">
+                                <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
+                            </button>
+
+                            <div style="margin-top: 50px; border-top: 2px solid #ddd; padding-top: 20px;">
+                                <h3 class="model-header">
+                                    <i class="fa-solid fa-calculator" style="color: #ee0033;"></i>THÔNG TIN TÀI ĐẦU VÀO (TÍNH TOÁN)
+                                </h3>
+                                <div class="table-responsive">
+                                    <table class="sizing-table input-config-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 50px;">STT</th>
+                                                <th style="width: 140px;">IP</th>
+                                                
+                                                <th style="width: 90px; font-size: 11px; padding: 4px;">
+                                                    Tải CPU<br>95th percentile (%)
+                                                </th>
+                                                <th style="width: 90px; font-size: 11px; padding: 4px;">
+                                                    Tải RAM<br>95th percentile (%)
+                                                </th>
+                                                <th style="width: 90px; font-size: 11px; padding: 4px;">
+                                                    Tải Disk<br>95th percentile (%)
+                                                </th>
+                                                
+                                                <th style="width: 130px;">Cint_rate used (Cint)</th>
+                                                <th style="width: 100px;">RAM used (GB)</th>
+                                                <th style="width: 100px;">Disk used (GB)</th>
+                                                <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="input-config-table-body">
+                                        </tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td colspan="5" class="text-right" style="padding-right: 15px; font-weight:bold;">
+                                                    TỔNG CỘNG:
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="4" class="text-right" style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">Tổng cộng:</td>
+                                                <td class="text-center" id="total-cint-used" style="font-weight: bold;">0</td>
+                                                <td class="text-center" id="total-ram-used" style="font-weight: bold;">0</td>
+                                                <td class="text-center" id="total-disk-used" style="font-weight: bold;">0</td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+
+                                <button type="button" class="btn-add" onclick="addInputConfigRow()">
+                                    <i class="fa-solid fa-plus"></i> Thêm dòng tính toán
+                                </button>
+                            </div>
+
+                            <div style="margin-top: 40px; border-top: 1px dashed #ccc; padding-top: 20px;">
+                                <h3 class="model-header">
+                                    <i class="fa-solid fa-paperclip" style="color: #ee0033;"></i> VI. TÀI LIỆU / ẢNH SỞ CỨ
+                                </h3>
+                                <p style="font-style: italic; color: #666; font-size: 13px; margin-bottom: 15px;">
+                                    * Tải lên ảnh chụp màn hình Task Manager, lệnh top, hoặc các chứng cứ khác về cấu hình hệ thống tham chiếu.
+                                </p>
+
+                                <div id="evidence-sizing-grid" class="image-upload-grid"></div>
+
+                                <button type="button" class="btn-add-img" onclick="addEvidenceSizingSlot()">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                </button>
+                                <!-- Sizing inputs: user-entered POC & Định cỡ -->
+                                <div style="margin-top: 18px; padding: 14px; border: 1px solid #e6e6e6; background-color: #fff; border-radius: 6px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);">
+                                    <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
+                                        <div style="min-width:160px;">
+                                            <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải hệ thống POC</label>
+                                            <input id="poc-value" type="number" min="0" step="0.01" class="input-full" placeholder="Ví dụ: 100">
+                                        </div>
+                                        <div style="min-width:160px;">
+                                            <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định cỡ</label>
+                                            <input id="sizing-value" type="number" min="0" step="0.01" class="input-full" placeholder="Ví dụ: 133">
+                                        </div>
+
+                                        <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+                                            <button type="button" class="btn-submit" onclick="calculateSizingRecommendations()">Tính toán</button>
+                                            <button type="button" class="btn-outline" onclick="document.getElementById('sizing-result-container').innerHTML='';">Xóa kết quả</button>
+                                        </div>
+                                    </div>
+
+                                    <div style="margin-top:10px; color: #333;">
+                                        <p style="margin:0 0 8px 0;">Lưu ý: Hệ thống lấy Tổng Cint, Tổng RAM, Tổng Disk từ bảng 'Tải hệ thống' (bên trên). Sau khi nhấn <strong>Tính toán</strong> hệ số sẽ là Định_cỡ / POC, áp hệ số KPI/Sai số (0.75/0.9/0.8) và tìm số server N nhỏ nhất sao cho <strong>RAM/server ≤ 32 GB</strong>. Bảng kết quả sẽ in giá trị sau khi chia theo từng N.</p>
+                                    </div>
+
+                                    <div id="sizing-result-container" style="margin-top:12px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="model-admin-box" style="margin-top: 30px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                            <div class="admin-grid-layout">
+                                <div>
+                                    <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                    <select id="eval-sizing" class="admin-eval-select" onchange="styleAdminSelect(this)">
+                                        <option value="">-- Chọn --</option>
+                                        <option value="OK">OK (Phê duyệt)</option>
+                                        <option value="NOK">NOK (Từ chối)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="admin-label">Ghi chú tổng hợp:</label>
+                                    <textarea id="note-sizing" class="input-full" rows="2" placeholder="Nhận xét chung về phần định cỡ..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div> 
+
+                    <div style="text-align: center; margin-top: 30px;">
+                        <button type="button" class="btn-submit" onclick="saveBaselineData()">
+                            <i class="fa-solid fa-floppy-disk"></i> Lưu cấu hình tham chiếu
+                        </button>
+                    </div>
                 </div>
             </div>
 

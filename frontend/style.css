@@ -1099,6 +1099,271 @@ body.role-user .admin-note,
 }
 
 /* ========================================= */
+/* 1. RESET & LAYOUT CHÍNH                   */
+/* ========================================= */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
+
+/* Header */
+.header { 
+    background: #fff; padding: 10px 20px; 
+    border-bottom: 1px solid #ddd; 
+    display: flex; justify-content: space-between; align-items: center; 
+}
+.logo-vtf { color: #ee0033; margin: 0; font-size: 20px; font-weight: bold; }
+.container { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+.btn-viettel-group { 
+    background: #ee0033; color: #fff; padding: 5px 15px; 
+    text-decoration: none; border-radius: 4px; font-size: 13px; margin-right: 15px; 
+}
+.user-info { display: flex; align-items: center; gap: 8px; color: #333; }
+
+/* Bố cục Flexbox */
+.main-content { display: flex; min-height: calc(100vh - 60px); }
+.sidebar { width: 250px; background: #fff; border-right: 1px solid #ddd; flex-shrink: 0; }
+.content { flex-grow: 1; padding: 20px; overflow-x: hidden; }
+
+/* Sidebar Menu */
+.side-menu { list-style: none; padding: 0; margin: 0; }
+.side-menu li a {
+    display: block; padding: 12px 20px; cursor: pointer;
+    color: #333; text-decoration: none; border-left: 3px solid transparent;
+    border-bottom: 1px solid #f0f0f0; transition: all 0.2s;
+}
+.side-menu li a:hover, .side-menu li a.active {
+    background: #fff5f5; color: #ee0033; border-left-color: #ee0033; font-weight: bold;
+}
+.side-menu i { width: 25px; text-align: center; margin-right: 5px; }
+
+/* Content Titles */
+.content-title {
+    color: #333; border-left: 4px solid #ee0033; padding-left: 15px;
+    margin-bottom: 20px; text-transform: uppercase; font-size: 18px;
+}
+
+/* ========================================= */
+/* 2. STYLE CHO BẢNG BASELINE (ĐỊNH CỠ)      */
+/* ========================================= */
+.model-wrapper {
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.model-header {
+    font-size: 16px; font-weight: bold; color: #333;
+    margin-bottom: 15px; border-bottom: 1px dashed #eee; padding-bottom: 10px;
+}
+
+/* Bảng */
+.baseline-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+.baseline-table th {
+    background-color: #f5f5f5; color: #333; font-weight: 700; font-size: 13px;
+    text-align: center; vertical-align: middle;
+    border: 1px solid #ccc; padding: 10px 5px;
+}
+.baseline-table td {
+    border: 1px solid #ddd; padding: 5px; vertical-align: middle;
+}
+
+/* Ô nhập liệu */
+.baseline-table input.input-full,
+.baseline-table select.input-full {
+    width: 100%; padding: 8px;
+    border: 1px solid #ccc; border-radius: 4px;
+    font-size: 13px; outline: none; box-sizing: border-box;
+}
+.baseline-table input.input-full:focus,
+.baseline-table select.input-full:focus {
+    border-color: #ee0033; box-shadow: 0 0 0 2px rgba(238,0,51,0.1);
+}
+
+/* --- STYLE CỘT ADMIN (MÀU VÀNG) --- */
+/* Class này dùng trong thẻ TH (Header) */
+.admin-header-cell {
+    background-color: #fff9e6 !important; /* Vàng đậm hơn chút cho header */
+    border-bottom: 2px solid #ffeeba !important;
+    color: #b58900;
+}
+
+/* Class này dùng trong thẻ TD (Body) - JS sẽ gọi class này */
+.baseline-table .admin-cell {
+    background-color: #fffcf5; /* Vàng nhạt */
+}
+
+.admin-eval-select {
+    width: 100%; padding: 6px;
+    border: 1px solid #e0d0ac; border-radius: 4px;
+    font-weight: 600; font-size: 12px; background-color: #fff;
+}
+.admin-eval-select.ok-status { color: green; border-color: green; background-color: #e8f5e9; }
+.admin-eval-select.nok-status { color: red; border-color: red; background-color: #ffebee; }
+
+/* Footer */
+.baseline-table tfoot td {
+    font-weight: bold; color: #ee0033;
+    background-color: #fff0f0; border-top: 2px solid #ee0033;
+    font-size: 14px; padding: 10px;
+}
+
+/* Nút Bấm */
+.btn-add {
+    margin-top: 10px; padding: 8px 15px; background: #fff;
+    color: #ee0033; border: 1px dashed #ee0033; border-radius: 4px; 
+    cursor: pointer; font-size: 13px; font-weight: 600;
+}
+.btn-add:hover { background: #fff5f5; }
+
+.btn-submit {
+    padding: 12px 30px; background: #ee0033; color: #fff;
+    border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold;
+    box-shadow: 0 4px 6px rgba(238,0,51,0.2); transition: all 0.2s;
+}
+.btn-submit:hover { background: #cc0000; transform: translateY(-1px); }
+
+.btn-delete-row-item {
+    background: none; border: none; color: #999; cursor: pointer; font-size: 14px;
+}
+.btn-delete-row-item:hover { color: red; }
+
+/* Helper & Validation */
+.text-center { text-align: center !important; }
+.text-right { text-align: right !important; }
+
+/* Báo lỗi rung lắc */
+.input-error {
+    border: 1px solid red !important;
+    background-color: #fff5f5 !important;
+    animation: shake 0.4s;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+/* Ẩn hiện các tab */
+.page-section {
+    display: none; /* Mặc định ẩn, JS sẽ bật lên */
+    animation: fadeIn 0.3s ease-in-out;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+/* ========================================= */
+/* STYLE CHO PHẦN V. ẢNH SỞ CỨ (EVIDENCE)    */
+/* ========================================= */
+
+/* Lưới chứa các thẻ */
+.image-upload-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+/* Thẻ (Card) sở cứ */
+.evidence-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    padding: 15px 10px;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: all 0.2s;
+}
+.evidence-card:hover {
+    transform: translateY(-3px);
+    border-color: #ee0033;
+    box-shadow: 0 5px 15px rgba(238,0,51,0.1);
+}
+
+/* Icon upload mặc định */
+.evidence-placeholder {
+    display: block;
+    cursor: pointer;
+    color: #888;
+}
+.evidence-placeholder i {
+    font-size: 32px;
+    margin-bottom: 5px;
+    color: #ccc;
+    transition: color 0.2s;
+}
+.evidence-card:hover .evidence-placeholder i { color: #ee0033; }
+
+/* Tên file sau khi upload */
+.evidence-name {
+    font-size: 13px; font-weight: bold; color: #333;
+    margin-bottom: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: none; /* Mặc định ẩn */
+}
+
+/* Nút Xem (Xanh) và Nút Xóa (Đỏ) */
+.btn-view-evidence {
+    background-color: #007bff; color: white;
+    border: none; padding: 6px 12px; border-radius: 4px;
+    font-size: 12px; cursor: pointer; margin-right: 5px;
+    display: none; /* Mặc định ẩn */
+}
+.btn-view-evidence:hover { background-color: #0056b3; }
+
+.btn-remove-evidence {
+    background-color: #dc3545; color: white;
+    border: none; padding: 6px 12px; border-radius: 4px;
+    font-size: 12px; cursor: pointer;
+}
+.btn-remove-evidence:hover { background-color: #a71d2a; }
+
+.hidden-evidence-input { display: none; }
+
+/* ========================================= */
+/* STYLE CHO MODAL (POPUP ẢNH)               */
+/* ========================================= */
+.modal {
+    display: none; 
+    position: fixed; 
+    z-index: 9999; 
+    padding-top: 50px; 
+    left: 0; top: 0; 
+    width: 100%; height: 100%; 
+    background-color: rgba(0,0,0,0.9); /* Nền đen mờ */
+}
+
+.modal-content {
+    margin: auto;
+    display: block;
+    width: auto;
+    max-width: 90%;
+    max-height: 85vh; /* Không cao quá màn hình */
+    border: 2px solid #fff;
+    border-radius: 4px;
+    animation: zoom 0.3s;
+}
+
+@keyframes zoom {
+    from {transform:scale(0)} 
+    to {transform:scale(1)}
+}
+
+.close-modal {
+    position: absolute;
+    top: 20px;
+    right: 35px;
+    color: #f1f1f1;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.close-modal:hover, .close-modal:focus {
+    color: #ee0033;
+}
+
+/* ========================================= */
 /* STYLE RIÊNG CHO PHẦN LUỒNG NGHIỆP VỤ      */
 /* ========================================= */
 
