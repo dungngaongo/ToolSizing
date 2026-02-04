@@ -2481,56 +2481,148 @@ function calculateSizingRecommendations() {
     const totalRam = parseFloat(document.getElementById('total-ram-used')?.innerText) || 0;
     const totalDisk = parseFloat(document.getElementById('total-disk-used')?.innerText) || 0;
 
+    // Tính toán các thông số cơ bản
     const factor = sizing / poc;
-    const totalCintReq = totalCint * factor / 0.75 * 1.1;
-    const totalRamReq = totalRam * factor / 0.9 * 1.1;
-    const totalDiskReq = totalDisk * factor / 0.8 * 1.1;
+    
+    // Các giá trị cần cho TPS
+    const cintForTPS = totalCint * factor;
+    const ramForTPS = totalRam * factor;
+    const diskForTPS = totalDisk * factor;
+    
+    // Các giá trị sau khi nhân hệ số dự phòng và đảm bảo KPI
+    const cintAfterKPI = cintForTPS / 0.75 * 1.1;
+    const ramAfterKPI = ramForTPS / 0.9 * 1.1;
+    const diskAfterKPI = diskForTPS / 0.8 * 1.1;
 
-    // Giới hạn RAM cho 1 server: dừng khi RAM/server <= 32 GB
-    const ramLimit = 32; // GB
-
-    // Tìm N nhỏ nhất sao cho RAM/server <= giới hạn
-    const MAX_N = 500; // giới hạn trên để tránh vòng lặp vô hạn
-    let minimalN = null;
-    for (let n = 1; n <= MAX_N; n++) {
-        if ((totalRamReq / n) <= ramLimit) {
-            minimalN = n;
-            break;
-        }
-    }
-
-    const upto = minimalN || Math.min(MAX_N, 50); // nếu không tìm thấy, hiển thị một số dòng để tham khảo
+    // Tính N = RAM sau KPI / 64 (làm tròn lên)
+    const ketqua = Math.ceil(ramAfterKPI / 64);
 
     let html = '';
-    html += `<div style="padding:8px 0 6px 0; font-weight:600;">Tổng yêu cầu (sau hệ số): Cint = ${totalCintReq.toFixed(2)}, RAM = ${totalRamReq.toFixed(2)} GB, Disk = ${totalDiskReq.toFixed(2)} GB</div>`;
-
+    
+    // ==================== BẢNG 1: Thông số Máy chủ Tiến trình ====================
+    html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;"Bảng tính toán Máy chủ Tiến trình</h4>`;
     html += `<table class="sizing-table" style="margin-top:8px;">
                 <thead>
                     <tr>
-                        <th style="width:50px;">N</th>
-                        <th style="width:140px;">Cint / server</th>
-                        <th style="width:140px;">RAM / server (GB)</th>
-                        <th style="width:140px;">Disk / server (GB)</th>
+                        <th style="width:50px;">STT</th>
+                        <th style="width:350px;">Thông số</th>
+                        <th style="width:150px;">Máy chủ Tiến trình</th>
                         <th>Ghi chú</th>
                     </tr>
                 </thead>
-                <tbody>`;
+                <tbody>
+                    <tr>
+                        <td class="text-center">1</td>
+                        <td>Cintrate cần cho TPS</td>
+                        <td class="text-center">${cintForTPS.toFixed(2)}</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">2</td>
+                        <td>RAM (GB) cần cho TPS</td>
+                        <td class="text-center">${ramForTPS.toFixed(2)}</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">3</td>
+                        <td>Disk (GB) cần cho TPS</td>
+                        <td class="text-center">${diskForTPS.toFixed(2)}</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">4</td>
+                        <td>Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
+                        <td>KPI 75%. Sai số 1.1</td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">5</td>
+                        <td>RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
+                        <td>KPI 90%. Sai số 1.1</td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">6</td>
+                        <td>Disk cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
+                        <td>KPI 80%. Sai số 1.1</td>
+                    </tr>
+                </tbody>
+            </table>`;
 
-    for (let n = 1; n <= upto; n++) {
-        const cintPer = totalCintReq / n;
-        const ramPer = totalRamReq / n;
-        const diskPer = totalDiskReq / n;
-        const ok = (ramPer <= ramLimit);
-        html += `<tr${(minimalN && n === minimalN) ? ' style="background:#e6ffed"' : ''}><td class="text-center">${n}</td><td>${cintPer.toFixed(2)}</td><td>${ramPer.toFixed(2)}</td><td>${diskPer.toFixed(2)}</td><td>${ok ? 'OK' : ''}</td></tr>`;
-    }
+    // ==================== ĐỀ XUẤT ====================
+    html += `<div style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
+                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa <strong>32 vCPU 64 GB RAM</strong>, lựa chọn số N theo RAM: 
+                N = ${ramAfterKPI.toFixed(2)} / 64 ≈ <strong>${ketqua}</strong>
+            </div>`;
+
+    // ==================== BẢNG 2: Giá trị N với Cint/RAM/Disk ====================
+    const nValues = [
+        { label: 'Ketqua - 1', value: Math.max(1, ketqua - 1) },
+        { label: 'Ketqua', value: ketqua },
+        { label: 'Ketqua + 1', value: ketqua + 1 }
+    ];
+
+    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Bảng phân bổ theo số lượng N</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:120px;">Giá trị N</th>
+                        <th>Cint CPU yêu cầu</th>
+                        <th>RAM yêu cầu</th>
+                        <th>Disk yêu cầu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background:#f0f4f8;">
+                        <td class="text-center">1</td>
+                        <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
+                        <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
+                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
+                    </tr>`;
+
+    nValues.forEach(item => {
+        const cintPerN = cintAfterKPI / item.value;
+        const ramPerN = ramAfterKPI / item.value;
+        const diskPerN = diskAfterKPI / item.value;
+        const isMain = item.label === 'Ketqua';
+        
+        html += `<tr${isMain ? ' style="background:#e6ffed; font-weight:600;"' : ''}>
+                    <td class="text-center">${item.value}</td>
+                    <td class="text-center">${cintPerN.toFixed(2)}</td>
+                    <td class="text-center">${ramPerN.toFixed(2)}</td>
+                    <td class="text-center">${diskPerN.toFixed(2)}</td>
+                </tr>`;
+    });
 
     html += `</tbody></table>`;
 
-    if (minimalN) {
-        html += `<p style="margin-top:8px;"><strong>Gợi ý: N tối thiểu = ${minimalN} (sau chia, RAM ≤ ${ramLimit} GB)</strong></p>`;
-    } else {
-        html += `<p style="margin-top:8px;"><strong>Không tìm thấy N ≤ ${MAX_N} để thoả điều kiện. Hãy kiểm tra lại dữ liệu hoặc tăng giới hạn.</strong></p>`;
-    }
+    // ==================== BẢNG 3: Đề xuất thiết bị ====================
+    const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
+    
+    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất thiết bị</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:250px;">Cấu hình</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background:#e6ffed;">
+                        <td>
+                            <ul style="margin:0; padding-left:20px;">
+                                <li>CPU: = 32 vCPU</li>
+                                <li>RAM: = 64 GB</li>
+                                <li>DISK: = ${diskPerServer} GB</li>
+                            </ul>
+                        </td>
+                        <td class="text-center"><strong>${ketqua + 1}</strong></td>
+                        <td>Dự phòng N+1</td>
+                    </tr>
+                </tbody>
+            </table>`;
 
     const container = document.getElementById('sizing-result-container');
     if (container) container.innerHTML = html;

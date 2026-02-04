@@ -604,7 +604,7 @@
 
                             <div style="margin-top: 50px; border-top: 2px solid #ddd; padding-top: 20px;">
                                 <h3 class="model-header">
-                                    <i class="fa-solid fa-calculator" style="color: #ee0033;"></i>THÔNG TIN TÀI ĐẦU VÀO (TÍNH TOÁN)
+                                    <i class="fa-solid fa-calculator" style="color: #ee0033;"></i>THÔNG TIN TẢI ĐẦU VÀO
                                 </h3>
                                 <div class="table-responsive">
                                     <table class="sizing-table input-config-table">
@@ -633,12 +633,7 @@
                                         </tbody>
                                         <tfoot>
                                             <tr>
-                                                <td colspan="5" class="text-right" style="padding-right: 15px; font-weight:bold;">
-                                                    TỔNG CỘNG:
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td colspan="4" class="text-right" style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">Tổng cộng:</td>
+                                                <td colspan="5" class="text-right" style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">Tổng cộng:</td>
                                                 <td class="text-center" id="total-cint-used" style="font-weight: bold;">0</td>
                                                 <td class="text-center" id="total-ram-used" style="font-weight: bold;">0</td>
                                                 <td class="text-center" id="total-disk-used" style="font-weight: bold;">0</td>
@@ -655,7 +650,7 @@
 
                             <div style="margin-top: 40px; border-top: 1px dashed #ccc; padding-top: 20px;">
                                 <h3 class="model-header">
-                                    <i class="fa-solid fa-paperclip" style="color: #ee0033;"></i> VI. TÀI LIỆU / ẢNH SỞ CỨ
+                                    <i class="fa-solid fa-paperclip" style="color: #ee0033;"></i>TÀI LIỆU / ẢNH SỞ CỨ
                                 </h3>
                                 <p style="font-style: italic; color: #666; font-size: 13px; margin-bottom: 15px;">
                                     * Tải lên ảnh chụp màn hình Task Manager, lệnh top, hoặc các chứng cứ khác về cấu hình hệ thống tham chiếu.
@@ -682,10 +677,6 @@
                                             <button type="button" class="btn-submit" onclick="calculateSizingRecommendations()">Tính toán</button>
                                             <button type="button" class="btn-outline" onclick="document.getElementById('sizing-result-container').innerHTML='';">Xóa kết quả</button>
                                         </div>
-                                    </div>
-
-                                    <div style="margin-top:10px; color: #333;">
-                                        <p style="margin:0 0 8px 0;">Lưu ý: Hệ thống lấy Tổng Cint, Tổng RAM, Tổng Disk từ bảng 'Tải hệ thống' (bên trên). Sau khi nhấn <strong>Tính toán</strong> hệ số sẽ là Định_cỡ / POC, áp hệ số KPI/Sai số (0.75/0.9/0.8) và tìm số server N nhỏ nhất sao cho <strong>RAM/server ≤ 32 GB</strong>. Bảng kết quả sẽ in giá trị sau khi chia theo từng N.</p>
                                     </div>
 
                                     <div id="sizing-result-container" style="margin-top:12px;"></div>
