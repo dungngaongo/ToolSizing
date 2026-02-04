@@ -2495,7 +2495,7 @@ function calculateSizingRecommendations() {
     const diskAfterKPI = diskForTPS / 0.8 * 1.1;
 
     // Tính N = RAM sau KPI / 64 (làm tròn lên)
-    const ketqua = Math.ceil(ramAfterKPI / 64);
+    const ketqua = Math.ceil(ramAfterKPI / 32);
 
     let html = '';
     
@@ -2552,8 +2552,8 @@ function calculateSizingRecommendations() {
 
     // ==================== ĐỀ XUẤT ====================
     html += `<div style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
-                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa <strong>32 vCPU 64 GB RAM</strong>, lựa chọn số N theo RAM: 
-                N = ${ramAfterKPI.toFixed(2)} / 64 ≈ <strong>${ketqua}</strong>
+                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa <strong>≈ 32 GB RAM</strong>, lựa chọn số N theo RAM: 
+                N = ${ramAfterKPI.toFixed(2)} / 32 ≈ <strong>${ketqua}</strong>
             </div>`;
 
     // ==================== BẢNG 2: Giá trị N với Cint/RAM/Disk ====================
@@ -2598,6 +2598,8 @@ function calculateSizingRecommendations() {
     html += `</tbody></table>`;
 
     // ==================== BẢNG 3: Đề xuất thiết bị ====================
+    const cintPerServer = Math.ceil(cintAfterKPI / ketqua);
+    const ramPerServer = Math.ceil(ramAfterKPI / ketqua);
     const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
     
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất thiết bị</h4>`;
@@ -2613,8 +2615,8 @@ function calculateSizingRecommendations() {
                     <tr style="background:#e6ffed;">
                         <td>
                             <ul style="margin:0; padding-left:20px;">
-                                <li>CPU: = 32 vCPU</li>
-                                <li>RAM: = 64 GB</li>
+                                <li>CPU: = ${cintPerServer} Cint</li>
+                                <li>RAM: = ${ramPerServer} GB</li>
                                 <li>DISK: = ${diskPerServer} GB</li>
                             </ul>
                         </td>
