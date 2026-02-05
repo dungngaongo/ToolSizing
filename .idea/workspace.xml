@@ -6,11 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="48c3b22b-a743-4972-86f7-20881423ca99" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.streamlit/config.toml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/mo-hinh-he-thong/mongodb_example.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/mo-hinh-he-thong/postgresql_example.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/mo-hinh-he-thong/redis_example.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/sizing.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/model/ProjectData.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/model/ProjectData.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/ProjectDataService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/ProjectDataService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/script.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/script.js" afterDir="false" />
     </list>

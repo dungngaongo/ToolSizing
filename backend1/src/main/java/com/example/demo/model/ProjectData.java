@@ -47,6 +47,10 @@ public class ProjectData {
     @Lob
     private String moHinhAdminReview; // JSON string containing admin evaluations/notes for Mô hình hệ thống
 
+    @Column(name = "dinhco_admin_review", columnDefinition = "LONGTEXT")
+    @Lob
+    private String dinhCoAdminReview; // JSON string containing admin evaluations/notes for Định cỡ hệ thống
+
     @PrePersist
     public void generateId() {
         if (this.id == null) {

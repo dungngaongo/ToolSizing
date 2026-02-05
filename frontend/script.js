@@ -73,6 +73,7 @@ function logout() {
         localStorage.removeItem('displayName');
         localStorage.removeItem('userRole');
         localStorage.removeItem('rememberMe');
+        localStorage.removeItem('authToken');
         clearProjectIds();
         window.location.href = 'login.html';
     }
@@ -94,6 +95,18 @@ function getAuthHeaders() {
     return headers;
 }
 
+// Xử lý lỗi 401 - chuyển hướng đến trang đăng nhập
+function handleUnauthorized(response) {
+    if (response.status === 401) {
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('authToken');
+        window.location.href = 'login.html';
+        return true;
+    }
+    return false;
+}
+
 function applyRolePermissions() {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
@@ -102,7 +115,8 @@ function applyRolePermissions() {
     if (role === 'admin1') {
         // remove page-level 'role-user' marker so CSS allows interaction
         document.body.classList.remove('role-user');
-        document.querySelectorAll('.admin-eval, .admin-note').forEach(el => {
+        document.body.classList.add('role-admin1');
+        document.querySelectorAll('.admin-eval, .admin-note, .admin-eval-select').forEach(el => {
             el.disabled = false;
             el.classList.remove('readonly-admin');
         });
@@ -113,12 +127,53 @@ function applyRolePermissions() {
         document.querySelectorAll('#page-input input, #page-input textarea, #page-input select').forEach(el => {
             if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note')) el.disabled = true;
         });
+        // MODEL PAGE: Disable user fields, enable admin fields
         document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => {
-            if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note')) el.disabled = true;
+            if (!el.classList.contains('admin-eval') && !el.classList.contains('admin-note') && !el.classList.contains('admin-eval-select')) {
+                el.disabled = true;
+            } else {
+                el.disabled = false;
+            }
+        });
+        
+        // SIZING PAGE: Disable ALL user inputs (baseline table, input config table, etc.)
+        document.querySelectorAll('#page-sizing input, #page-sizing textarea, #page-sizing select').forEach(el => {
+            // Only enable admin fields
+            if (!el.classList.contains('admin-eval') && 
+                !el.classList.contains('admin-note') && 
+                !el.classList.contains('admin-eval-select') &&
+                !el.id?.startsWith('eval-') && 
+                !el.id?.startsWith('note-')) {
+                el.disabled = true;
+            }
+        });
+        
+        // Disable user buttons on sizing page
+        document.querySelectorAll('#page-sizing button.sizing-user-btn, #page-sizing button.btn-add, #page-sizing button.btn-add-img').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        });
+        
+        // Disable delete buttons in sizing tables
+        document.querySelectorAll('#page-sizing .btn-delete-row-item, #page-sizing .btn-delete').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        });
+        
+        // Enable admin fields on sizing page
+        document.querySelectorAll('#page-sizing .admin-eval, #page-sizing .admin-note, #page-sizing .admin-eval-select').forEach(el => {
+            el.disabled = false;
+        });
+        document.querySelectorAll('#page-sizing button.sizing-admin-btn, #page-sizing button.btn-evaluate').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
         });
 
         // Disable file inputs (uploads) in those sections
-        document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"]').forEach(fi => fi.disabled = true);
+        document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"], #page-sizing input[type="file"]').forEach(fi => fi.disabled = true);
 
         // Disable action buttons that manipulate user content but keep evaluate buttons enabled
         // DISABLE nút Lưu cho admin1 (btn-submit), chỉ cho bấm nút Đánh giá (btn-evaluate)
@@ -128,8 +183,8 @@ function applyRolePermissions() {
             if (!allow) btn.disabled = true;
         });
         
-        // Disable nút Lưu chính (saveBtn, saveInputDataBtn, saveModelBtn, saveSummaryBtn)
-        const saveButtons = ['saveBtn', 'saveInputDataBtn', 'saveModelBtn', 'saveSummaryBtn'];
+        // Disable nút Lưu chính (saveBtn, saveInputDataBtn, saveModelBtn, saveSummaryBtn, saveSizingBtn)
+        const saveButtons = ['saveBtn', 'saveInputDataBtn', 'saveModelBtn', 'saveSummaryBtn', 'saveSizingBtn'];
         saveButtons.forEach(id => {
             const btn = document.getElementById(id);
             if (btn) {
@@ -143,15 +198,58 @@ function applyRolePermissions() {
         // Regular user: admin fields readonly, user inputs editable
         // add a body class so CSS can make admin controls visually and interactively disabled
         document.body.classList.add('role-user');
-        document.querySelectorAll('.admin-eval, .admin-note').forEach(el => {
+        document.body.classList.remove('role-admin1');
+        document.querySelectorAll('.admin-eval, .admin-note, .admin-eval-select').forEach(el => {
             el.disabled = true;
             el.classList.add('readonly-admin');
         });
         document.querySelectorAll('#page-request input, #page-request textarea, #page-request select').forEach(el => el.disabled = false);
         document.querySelectorAll('#page-input input, #page-input textarea, #page-input select').forEach(el => el.disabled = false);
-        document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => el.disabled = false);
+        
+        // MODEL PAGE: Enable user fields, disable admin fields
+        document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => {
+            if (el.classList.contains('admin-eval') || el.classList.contains('admin-note') || el.classList.contains('admin-eval-select')) {
+                el.disabled = true;
+                el.classList.add('readonly-admin');
+            } else {
+                el.disabled = false;
+            }
+        });
+        
+        // SIZING PAGE: Enable user inputs, disable admin inputs
+        document.querySelectorAll('#page-sizing input, #page-sizing textarea, #page-sizing select').forEach(el => {
+            // Enable by default for user
+            el.disabled = false;
+        });
+        
+        // Re-disable admin fields on sizing page for regular users
+        document.querySelectorAll('#page-sizing .admin-eval, #page-sizing .admin-note, #page-sizing .admin-eval-select').forEach(el => {
+            el.disabled = true;
+            el.classList.add('readonly-admin');
+        });
+        // Also disable admin fields by ID pattern
+        document.querySelectorAll('#page-sizing select[id^="eval-"], #page-sizing textarea[id^="note-"]').forEach(el => {
+            el.disabled = true;
+            el.classList.add('readonly-admin');
+        });
+        
+        // Enable user buttons on sizing page
+        document.querySelectorAll('#page-sizing button.sizing-user-btn, #page-sizing button.btn-add, #page-sizing button.btn-add-img').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        });
+        
+        // Disable admin evaluate button for users
+        document.querySelectorAll('#page-sizing button.sizing-admin-btn, #page-sizing button.btn-evaluate').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+            btn.title = 'Chỉ admin mới có quyền đánh giá';
+        });
+        
         // Re-enable file inputs and buttons for regular users
-        document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"]').forEach(fi => fi.disabled = false);
+        document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"], #page-sizing input[type="file"]').forEach(fi => fi.disabled = false);
         document.querySelectorAll('#page-request button, #page-input button, #page-model button').forEach(btn => btn.disabled = false);
         
         // DISABLE nút Đánh giá cho user (chỉ admin mới được đánh giá)
@@ -162,6 +260,9 @@ function applyRolePermissions() {
             btn.style.cursor = 'not-allowed';
         });
     }
+    
+    // Update project status display after applying permissions
+    updateProjectStatusDisplay();
 }
 
 // ==================== PROJECT MANAGEMENT ====================
@@ -609,6 +710,7 @@ async function loadAllDataFromDB() {
             method: 'GET',
             headers: Object.assign({}, getAuthHeaders())
         });
+        if (handleUnauthorized(response)) return;
         if (response.ok) {
             const projectData = await response.json();
             saveProjectDataIdToStorage(projectData.id);
@@ -645,6 +747,21 @@ async function loadAllDataFromDB() {
             }
             if (projectData.tongHopVaDeXuatContent) {
                 loadTongHop(JSON.parse(projectData.tongHopVaDeXuatContent));
+            }
+            
+            // Load sizing data (dinhCoHeThongContent)
+            if (projectData.dinhCoHeThongContent) {
+                loadSizingData(projectData.dinhCoHeThongContent);
+            }
+            
+            // Load sizing admin review (dinhCoAdminReview)
+            if (projectData.dinhCoAdminReview) {
+                try {
+                    const adminReview = JSON.parse(projectData.dinhCoAdminReview);
+                    loadSizingAdminReview(adminReview);
+                } catch (e) {
+                    console.error('Error parsing sizing admin review:', e);
+                }
             }
             
             console.log('Đã tải dữ liệu từ database thành công!');
@@ -800,6 +917,25 @@ function loadMoHinhHeThong(data, admin) {
                 data.archRows.forEach((row, index) => {
                     const tr = createArchTableRow(index + 1, row);
                     archBody.appendChild(tr);
+                });
+            }
+            
+            // Load admin review for each arch row
+            if (adminObj.archRowReviews && Array.isArray(adminObj.archRowReviews)) {
+                const rows = archBody.querySelectorAll('tr');
+                adminObj.archRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const cells = rows[index].querySelectorAll('td');
+                        const adminEval = cells[6]?.querySelector('.admin-eval-select');
+                        const adminNote = cells[7]?.querySelector('.admin-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
                 });
             }
         }
@@ -1387,13 +1523,23 @@ function createArchTableRow(stt, data = {}) {
             </select>
         </td>
         <td><textarea rows="1" placeholder="Ví dụ: 02 VIP">${data.soLuongVIP || ''}</textarea></td>
+        <td class="admin-cell">
+            <select class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
+                <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
+        </td>
         <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
     `;
     return tr;
 }
 
 function collectMoHinhHeThong() {
-    // Thu thập bảng Zone mạng
+    // Thu thập bảng Zone mạng (USER DATA ONLY - no admin fields)
     const archRows = [];
     document.querySelectorAll('#arch-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
@@ -1404,13 +1550,8 @@ function collectMoHinhHeThong() {
             zoneMang: cells[3]?.querySelector('input')?.value || '',
             heDieuHanh: cells[4]?.querySelector('select')?.value || '',
             soLuongVIP: cells[5]?.querySelector('textarea')?.value || ''
+            // NOTE: Admin eval/note NOT saved here - goes to moHinhAdminReview
         });
-    });
-
-    // Helper lấy giá trị Admin cho gọn
-    const getAdmin = (type) => ({
-        eval: document.getElementById(`eval-${type}`)?.value || '',
-        note: document.getElementById(`note-${type}`)?.value || ''
     });
     
     return {
@@ -1418,12 +1559,35 @@ function collectMoHinhHeThong() {
         logicalImages: collectImagesFromContainer('logical'),
         flowImages: collectImagesFromContainer('flow'),
         flowExplanation: document.getElementById('flow-explanation')?.value || '',
-        archRows: archRows,
+        archRows: archRows
+        // NOTE: Admin data is NOT included in user content - goes to separate admin review column
+    };
+}
 
-        // Dữ liệu Admin (3 phần riêng biệt)
-        adminPhysical: getAdmin('physical'),
-        adminLogical: getAdmin('logical'),
-        adminFlow: getAdmin('flow')
+// Collect admin review data for Mo Hinh He Thong (ADMIN ONLY)
+function collectMoHinhAdminReview() {
+    // Helper lấy giá trị Admin cho gọn
+    const getAdmin = (type) => ({
+        eval: document.getElementById(`eval-${type}`)?.value || '',
+        note: document.getElementById(`note-${type}`)?.value || ''
+    });
+    
+    // Collect admin review for each arch row
+    const archRowReviews = [];
+    document.querySelectorAll('#arch-table-body tr').forEach((row, index) => {
+        const cells = row.querySelectorAll('td');
+        archRowReviews.push({
+            rowIndex: index,
+            eval: cells[6]?.querySelector('.admin-eval-select')?.value || '',
+            note: cells[7]?.querySelector('.admin-note')?.value || ''
+        });
+    });
+    
+    return {
+        physical: getAdmin('physical'),
+        logical: getAdmin('logical'),
+        flow: getAdmin('flow'),
+        archRowReviews: archRowReviews
     };
 }
 
@@ -1835,11 +1999,8 @@ async function evaluateSection(sectionKey) {
             const rows = Array.from(document.querySelectorAll('#input-table-body tr'));
             reviewObj.rows = rows.map(row => ({ eval: row.querySelector('.admin-eval')?.value || '', note: row.querySelector('.admin-note')?.value || '' }));
         } else if (sectionKey === 'model') {
-            reviewObj = {
-                physical: { eval: document.getElementById('eval-physical')?.value || '', note: document.getElementById('note-physical')?.value || '' },
-                logical: { eval: document.getElementById('eval-logical')?.value || '', note: document.getElementById('note-logical')?.value || '' },
-                flow: { eval: document.getElementById('eval-flow')?.value || '', note: document.getElementById('note-flow')?.value || '' }
-            };
+            // Use the new collectMoHinhAdminReview function
+            reviewObj = collectMoHinhAdminReview();
         } else {
             reviewObj = { message: 'unsupported section' };
         }
@@ -1951,6 +2112,16 @@ async function exportToWord() {
 
 document.addEventListener("DOMContentLoaded", async function () {
     console.log('Current Project ID:', currentProjectId);
+    
+    // Kiểm tra xem người dùng đã đăng nhập chưa
+    const isLoggedIn = localStorage.getItem('isLoggedIn');
+    const authToken = localStorage.getItem('authToken');
+    if (!isLoggedIn || !authToken) {
+        // Chưa đăng nhập hoặc không có token, chuyển hướng đến trang đăng nhập
+        window.location.href = 'login.html';
+        return;
+    }
+    
     checkAuthStatus();
     applyRolePermissions();
 
@@ -2142,6 +2313,9 @@ function addBaselineRow() {
     if (inputConfigTbody) {
         addInputConfigRow();
     }
+    
+    // Re-apply role permissions for new row (disable admin fields for user, disable user fields for admin)
+    applyRolePermissions();
 }
 
 // 3. Hàm Xóa dòng & Cập nhật lại STT
@@ -2299,6 +2473,439 @@ function saveBaselineData() {
     alert("✓ Đã lưu cấu hình tham chiếu thành công!");
     
     // TODO: Viết code gọi API lưu vào DB ở đây
+}
+
+// ==================== MODULE COLLAPSIBLE FUNCTIONS ====================
+
+// Toggle collapsible module section
+function toggleModuleCollapsible(contentId) {
+    const content = document.getElementById(contentId);
+    const header = content.previousElementSibling;
+    const icon = header.querySelector('.module-toggle-icon');
+    
+    if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        header.classList.remove('active');
+    } else {
+        content.classList.add('expanded');
+        header.classList.add('active');
+    }
+}
+
+// Collect all baseline/sizing data (USER DATA ONLY - no admin fields)
+function collectBaselineTableData() {
+    const rows = document.querySelectorAll('#baseline-table-body tr');
+    const data = [];
+    
+    rows.forEach((row, index) => {
+        const moduleSel = row.querySelector('.module-select');
+        const inputs = row.querySelectorAll('input');
+        
+        // Only collect user data, NOT admin eval/note
+        data.push({
+            stt: index + 1,
+            module: moduleSel?.value || '',
+            ip: inputs[0]?.value || '',
+            cpu: inputs[1]?.value || '',
+            ram: inputs[2]?.value || '',
+            disk: inputs[3]?.value || '',
+            cintRate: inputs[4]?.value || ''
+        });
+    });
+    
+    return data;
+}
+
+// Collect admin review data for baseline table rows (ADMIN ONLY)
+function collectBaselineAdminReviewData() {
+    const rows = document.querySelectorAll('#baseline-table-body tr');
+    const data = [];
+    
+    rows.forEach((row, index) => {
+        const adminEval = row.querySelector('.admin-eval-select');
+        const adminNoteInput = row.querySelector('.admin-note');
+        
+        data.push({
+            rowIndex: index,
+            eval: adminEval?.value || '',
+            note: adminNoteInput?.value || ''
+        });
+    });
+    
+    return data;
+}
+
+// Collect input config table data
+function collectInputConfigTableData() {
+    const rows = document.querySelectorAll('#input-config-table-body tr');
+    const data = [];
+    
+    rows.forEach((row, index) => {
+        const inputs = row.querySelectorAll('input');
+        data.push({
+            stt: index + 1,
+            ip: inputs[0]?.value || '',
+            cpuLoad: inputs[1]?.value || '',
+            ramLoad: inputs[2]?.value || '',
+            diskLoad: inputs[3]?.value || '',
+            cintUsed: inputs[4]?.value || '',
+            ramUsed: inputs[5]?.value || '',
+            diskUsed: inputs[6]?.value || ''
+        });
+    });
+    
+    return data;
+}
+
+// Collect evidence images from sizing section
+function collectEvidenceSizingData() {
+    const grid = document.getElementById('evidence-sizing-grid');
+    if (!grid) return [];
+    
+    const images = [];
+    // Try the upload-box structure first (from addEvidenceSizingSlot)
+    grid.querySelectorAll('.upload-box').forEach((box, index) => {
+        const img = box.querySelector('.preview-area img');
+        if (img && img.src && !img.src.includes('placeholder') && !img.src.endsWith('#')) {
+            images.push({
+                index: index,
+                dataUrl: img.src
+            });
+        }
+    });
+    
+    // Also try image-upload-item structure (alternate structure)
+    if (images.length === 0) {
+        grid.querySelectorAll('.image-upload-item').forEach((item, index) => {
+            const img = item.querySelector('.image-preview');
+            if (img && img.src && img.style.display !== 'none' && !img.src.includes('placeholder') && !img.src.endsWith('#')) {
+                images.push({
+                    index: index,
+                    dataUrl: img.src
+                });
+            }
+        });
+    }
+    
+    return images;
+}
+
+// Collect all sizing data for saving (USER DATA ONLY)
+function collectAllSizingData() {
+    return {
+        moduleApp: {
+            baselineTable: collectBaselineTableData(),
+            inputConfigTable: collectInputConfigTableData(),
+            evidenceImages: collectEvidenceSizingData(),
+            pocValue: document.getElementById('poc-value')?.value || '',
+            sizingValue: document.getElementById('sizing-value')?.value || '',
+            sizingResult: document.getElementById('sizing-result-container')?.innerHTML || ''
+            // NOTE: Admin review is NOT saved here - it goes to dinhCoAdminReview
+        },
+        moduleMariaDB: collectMariaDBData()
+    };
+}
+
+// Collect all admin review data for sizing section (ADMIN ONLY)
+function collectSizingAdminReviewData() {
+    return {
+        moduleApp: {
+            // Admin review for the whole Module App section
+            overallReview: {
+                eval: document.getElementById('eval-module-app')?.value || '',
+                note: document.getElementById('note-module-app')?.value || ''
+            },
+            // Admin review for each row in baseline table
+            baselineRowReviews: collectBaselineAdminReviewData()
+        },
+        moduleMariaDB: {
+            overallReview: {
+                eval: document.getElementById('eval-module-mariadb')?.value || '',
+                note: document.getElementById('note-module-mariadb')?.value || ''
+            }
+        }
+        // Future modules can be added here: moduleCache, etc.
+    };
+}
+
+// Save all sizing data to database
+async function saveSizingData() {
+    if (!currentProjectId) {
+        alert('Vui lòng tạo hoặc chọn dự án trước!');
+        return;
+    }
+
+    const user = getCurrentUser();
+    if (user.role?.toLowerCase() === 'admin1') {
+        alert('Admin không được phép lưu dữ liệu người dùng. Chỉ được phép đánh giá!');
+        return;
+    }
+
+    try {
+        const sizingData = collectAllSizingData();
+        
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
+        const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ dinhCoHeThongContent: JSON.stringify(sizingData) })
+        });
+
+        if (handleUnauthorized(response)) return;
+
+        if (response.ok) {
+            // Tạo revision sau khi lưu thành công
+            await createRevision(`${user.displayName || user.username || 'User'} cập nhật Định cỡ hệ thống`);
+            alert('✓ Đã lưu dữ liệu Định cỡ hệ thống thành công!');
+        } else {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Lỗi server');
+        }
+    } catch (error) {
+        console.error('Error saving sizing data:', error);
+        alert('Lỗi khi lưu dữ liệu: ' + error.message);
+    }
+}
+
+// Evaluate sizing section (Admin only)
+async function evaluateSizingSection() {
+    if (!currentProjectId) {
+        alert('Vui lòng chọn dự án trước!');
+        return;
+    }
+
+    const user = getCurrentUser();
+    if (user.role?.toLowerCase() !== 'admin1') {
+        alert('Chỉ Admin mới được phép đánh giá!');
+        return;
+    }
+
+    // Check at least one module has evaluation
+    const evalModuleApp = document.getElementById('eval-module-app')?.value;
+    const evalModuleMariaDB = document.getElementById('eval-module-mariadb')?.value;
+    
+    if (!evalModuleApp && !evalModuleMariaDB) {
+        alert('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một module!');
+        return;
+    }
+
+    try {
+        // Collect all admin review data using the new function
+        const adminData = collectSizingAdminReviewData();
+
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
+        const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ 
+                section: 'sizing',
+                reviewJson: JSON.stringify(adminData)
+            })
+        });
+
+        if (handleUnauthorized(response)) return;
+
+        if (response.ok) {
+            // Tạo revision khi admin đánh giá thành công
+            await createRevision(`${user.displayName || user.username || 'Admin'} đánh giá Định cỡ hệ thống`);
+            alert('✓ Đã lưu đánh giá Định cỡ hệ thống thành công!');
+        } else {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Lỗi server');
+        }
+    } catch (error) {
+        console.error('Error evaluating sizing:', error);
+        alert('Lỗi khi lưu đánh giá: ' + error.message);
+    }
+}
+
+// Load sizing data from database
+function loadSizingData(data) {
+    if (!data) return;
+    
+    try {
+        const sizingData = typeof data === 'string' ? JSON.parse(data) : data;
+        
+        // Load Module App data
+        if (sizingData.moduleApp) {
+            const moduleApp = sizingData.moduleApp;
+            
+            // Load baseline table data
+            if (moduleApp.baselineTable && Array.isArray(moduleApp.baselineTable) && moduleApp.baselineTable.length > 0) {
+                const tbody = document.getElementById('baseline-table-body');
+                if (tbody) {
+                    tbody.innerHTML = ''; // Clear existing rows
+                    moduleApp.baselineTable.forEach((row, idx) => {
+                        addBaselineRow(); // Add a new row
+                        const lastRow = tbody.lastElementChild;
+                        if (lastRow) {
+                            const moduleSel = lastRow.querySelector('.module-select');
+                            const inputs = lastRow.querySelectorAll('input');
+                            if (moduleSel) moduleSel.value = row.module || '';
+                            if (inputs[0]) inputs[0].value = row.ip || '';
+                            if (inputs[1]) inputs[1].value = row.cpu || '';
+                            if (inputs[2]) inputs[2].value = row.ram || '';
+                            if (inputs[3]) inputs[3].value = row.disk || '';
+                            if (inputs[4]) inputs[4].value = row.cintRate || '';
+                        }
+                    });
+                    updateBaselineTotal();
+                }
+            }
+            
+            // Load input config table data
+            if (moduleApp.inputConfigTable && Array.isArray(moduleApp.inputConfigTable) && moduleApp.inputConfigTable.length > 0) {
+                const tbody = document.getElementById('input-config-table-body');
+                if (tbody) {
+                    tbody.innerHTML = ''; // Clear existing rows
+                    moduleApp.inputConfigTable.forEach((row, idx) => {
+                        addInputConfigRow(); // Add a new row
+                        const lastRow = tbody.lastElementChild;
+                        if (lastRow) {
+                            const inputs = lastRow.querySelectorAll('input');
+                            if (inputs[0]) inputs[0].value = row.ip || '';
+                            if (inputs[1]) inputs[1].value = row.cpuLoad || '';
+                            if (inputs[2]) inputs[2].value = row.ramLoad || '';
+                            if (inputs[3]) inputs[3].value = row.diskLoad || '';
+                            if (inputs[4]) inputs[4].value = row.cintUsed || '';
+                            if (inputs[5]) inputs[5].value = row.ramUsed || '';
+                            if (inputs[6]) inputs[6].value = row.diskUsed || '';
+                        }
+                    });
+                    updateInputConfigTotal();
+                }
+            }
+            
+            // Load evidence images
+            if (moduleApp.evidenceImages && Array.isArray(moduleApp.evidenceImages) && moduleApp.evidenceImages.length > 0) {
+                const grid = document.getElementById('evidence-sizing-grid');
+                if (grid) {
+                    grid.innerHTML = ''; // Clear existing
+                    moduleApp.evidenceImages.forEach(img => {
+                        addEvidenceSizingSlot();
+                        const lastSlot = grid.lastElementChild;
+                        if (lastSlot && img.dataUrl) {
+                            // For upload-box structure from addEvidenceSizingSlot
+                            const previewArea = lastSlot.querySelector('.preview-area');
+                            if (previewArea) {
+                                previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+                            }
+                        }
+                    });
+                }
+            }
+            
+            // Load POC and Sizing values
+            if (moduleApp.pocValue && document.getElementById('poc-value')) {
+                document.getElementById('poc-value').value = moduleApp.pocValue;
+            }
+            if (moduleApp.sizingValue && document.getElementById('sizing-value')) {
+                document.getElementById('sizing-value').value = moduleApp.sizingValue;
+            }
+            
+            // Load sizing result
+            if (moduleApp.sizingResult && document.getElementById('sizing-result-container')) {
+                document.getElementById('sizing-result-container').innerHTML = moduleApp.sizingResult;
+            }
+            
+            // Auto expand the module if has data
+            if (moduleApp.pocValue || moduleApp.sizingValue || moduleApp.sizingResult || 
+                (moduleApp.baselineTable && moduleApp.baselineTable.length > 0)) {
+                const content = document.getElementById('module-app-content');
+                const header = content?.previousElementSibling;
+                if (content && !content.classList.contains('expanded')) {
+                    content.classList.add('expanded');
+                    if (header) header.classList.add('active');
+                }
+            }
+        }
+        
+        // Load Module MariaDB data
+        if (sizingData.moduleMariaDB) {
+            loadMariaDBData(sizingData.moduleMariaDB);
+            
+            // Auto expand if has data
+            const mariadb = sizingData.moduleMariaDB;
+            if ((mariadb.refTable && mariadb.refTable.length > 0) || 
+                (mariadb.storageTable && mariadb.storageTable.length > 0) ||
+                mariadb.inputCCU || mariadb.sizingCCU) {
+                const content = document.getElementById('module-mariadb-content');
+                const header = content?.previousElementSibling;
+                if (content && !content.classList.contains('expanded')) {
+                    content.classList.add('expanded');
+                    if (header) header.classList.add('active');
+                }
+            }
+        }
+        
+        // Re-apply role permissions after loading data (disable admin fields for user, etc.)
+        applyRolePermissions();
+        
+        console.log('Loaded sizing data successfully');
+    } catch (e) {
+        console.error('Error loading sizing data:', e);
+    }
+}
+
+// Load sizing admin review from separate column
+function loadSizingAdminReview(adminReview) {
+    if (!adminReview) return;
+    
+    try {
+        // Load module app admin review
+        if (adminReview.moduleApp) {
+            // Load overall review
+            if (adminReview.moduleApp.overallReview) {
+                const moduleAppReview = adminReview.moduleApp.overallReview;
+                if (document.getElementById('eval-module-app')) {
+                    document.getElementById('eval-module-app').value = moduleAppReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-app'));
+                }
+                if (document.getElementById('note-module-app')) {
+                    document.getElementById('note-module-app').value = moduleAppReview.note || '';
+                }
+            }
+            
+            // Load baseline row reviews
+            if (adminReview.moduleApp.baselineRowReviews) {
+                const rows = document.querySelectorAll('#baseline-table-body tr');
+                adminReview.moduleApp.baselineRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.admin-eval-select');
+                        const adminNote = rows[index].querySelector('.admin-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Load module MariaDB admin review
+        if (adminReview.moduleMariaDB) {
+            if (adminReview.moduleMariaDB.overallReview) {
+                const mariadbReview = adminReview.moduleMariaDB.overallReview;
+                if (document.getElementById('eval-module-mariadb')) {
+                    document.getElementById('eval-module-mariadb').value = mariadbReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-mariadb'));
+                }
+                if (document.getElementById('note-module-mariadb')) {
+                    document.getElementById('note-module-mariadb').value = mariadbReview.note || '';
+                }
+            }
+        }
+        
+        // Re-apply role permissions after loading admin review
+        applyRolePermissions();
+        
+        console.log('Loaded sizing admin review successfully');
+    } catch (e) {
+        console.error('Error loading sizing admin review:', e);
+    }
 }
 
 // Hàm chuyển Tab (Ẩn hiện các mục nội dung)
@@ -2630,6 +3237,273 @@ function calculateSizingRecommendations() {
     if (container) container.innerHTML = html;
 }
 
+// ==================== MODULE MARIADB FUNCTIONS ====================
+
+// Thêm dòng vào bảng thông tin CPU/RAM MariaDB
+function addMariaDBRefRow(data = {}) {
+    const tbody = document.getElementById('mariadb-ref-table-body');
+    if (!tbody) return;
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-full sizing-user-input mariadb-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
+        <td><input type="number" class="input-full sizing-user-input mariadb-cpu" value="${data.cpu || ''}" placeholder="CPU" min="0"></td>
+        <td><input type="number" class="input-full sizing-user-input mariadb-ram" value="${data.ram || ''}" placeholder="RAM" min="0"></td>
+        <td><input type="number" class="input-full sizing-user-input mariadb-cpu-load" value="${data.cpuLoad || ''}" placeholder="%" min="0" max="100"></td>
+        <td><input type="number" class="input-full sizing-user-input mariadb-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100"></td>
+        <td class="text-center">
+            <input type="radio" name="mariadb-master" class="mariadb-master-radio" ${data.isMaster ? 'checked' : ''}>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove()">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+// Thêm dòng vào bảng Storage MariaDB
+function addMariaDBStorageRow(data = {}) {
+    const tbody = document.getElementById('mariadb-storage-table-body');
+    if (!tbody) return;
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-full sizing-user-input mariadb-storage-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
+        <td><input type="number" class="input-full sizing-user-input mariadb-data" value="${data.data || ''}" placeholder="/data" min="0"></td>
+        <td><input type="number" class="input-full sizing-user-input mariadb-log" value="${data.log || ''}" placeholder="/log" min="0"></td>
+        <td><input type="number" class="input-full sizing-user-input mariadb-backup" value="${data.backup || ''}" placeholder="/backup" min="0"></td>
+        <td class="text-center">
+            <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove()">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+// Thu thập dữ liệu bảng tham chiếu MariaDB
+function collectMariaDBRefTableData() {
+    const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
+    const data = [];
+    rows.forEach(row => {
+        data.push({
+            ip: row.querySelector('.mariadb-ip')?.value || '',
+            cpu: row.querySelector('.mariadb-cpu')?.value || '',
+            ram: row.querySelector('.mariadb-ram')?.value || '',
+            cpuLoad: row.querySelector('.mariadb-cpu-load')?.value || '',
+            ramLoad: row.querySelector('.mariadb-ram-load')?.value || '',
+            isMaster: row.querySelector('.mariadb-master-radio')?.checked || false
+        });
+    });
+    return data;
+}
+
+// Thu thập dữ liệu bảng storage MariaDB
+function collectMariaDBStorageTableData() {
+    const rows = document.querySelectorAll('#mariadb-storage-table-body tr');
+    const data = [];
+    rows.forEach(row => {
+        data.push({
+            ip: row.querySelector('.mariadb-storage-ip')?.value || '',
+            data: row.querySelector('.mariadb-data')?.value || '',
+            log: row.querySelector('.mariadb-log')?.value || '',
+            backup: row.querySelector('.mariadb-backup')?.value || ''
+        });
+    });
+    return data;
+}
+
+// Lấy dữ liệu Master row
+function getMariaDBMasterData() {
+    const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
+    for (const row of rows) {
+        const radio = row.querySelector('.mariadb-master-radio');
+        if (radio && radio.checked) {
+            return {
+                ip: row.querySelector('.mariadb-ip')?.value || '',
+                cpu: parseFloat(row.querySelector('.mariadb-cpu')?.value) || 0,
+                ram: parseFloat(row.querySelector('.mariadb-ram')?.value) || 0,
+                cpuLoad: parseFloat(row.querySelector('.mariadb-cpu-load')?.value) || 0,
+                ramLoad: parseFloat(row.querySelector('.mariadb-ram-load')?.value) || 0
+            };
+        }
+    }
+    return null;
+}
+
+// Lấy storage của Master IP
+function getMariaDBMasterStorage(masterIP) {
+    const rows = document.querySelectorAll('#mariadb-storage-table-body tr');
+    for (const row of rows) {
+        const ip = row.querySelector('.mariadb-storage-ip')?.value || '';
+        if (ip === masterIP) {
+            return {
+                data: parseFloat(row.querySelector('.mariadb-data')?.value) || 0,
+                log: parseFloat(row.querySelector('.mariadb-log')?.value) || 0,
+                backup: parseFloat(row.querySelector('.mariadb-backup')?.value) || 0
+            };
+        }
+    }
+    return null;
+}
+
+// Tính toán sizing MariaDB
+function calculateMariaDBSizing() {
+    const inputCCU = parseFloat(document.getElementById('mariadb-input-ccu')?.value) || 0;
+    const sizingCCU = parseFloat(document.getElementById('mariadb-sizing-ccu')?.value) || 0;
+    
+    if (!inputCCU || !sizingCCU) {
+        alert('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".');
+        return;
+    }
+    
+    const masterData = getMariaDBMasterData();
+    if (!masterData) {
+        alert('Vui lòng chọn một IP làm Master trong bảng thông tin hệ thống tham chiếu.');
+        return;
+    }
+    
+    const masterStorage = getMariaDBMasterStorage(masterData.ip);
+    if (!masterStorage) {
+        alert('Không tìm thấy thông tin storage cho IP Master. Vui lòng thêm storage cho IP: ' + masterData.ip);
+        return;
+    }
+    
+    // Hệ số
+    const factor = sizingCCU / inputCCU;
+    
+    // Công thức tính theo ảnh:
+    // CPU cần = CPU * Tải CPU * (Định cỡ / Đầu vào) * 1.1 / 0.75
+    // RAM cần = RAM * Tải RAM * (Định cỡ / Đầu vào) * 1.1 / 0.9
+    // /data cần = /data * (Định cỡ / Đầu vào) * 1.1 / 0.8
+    // /log cần = /log * (Định cỡ / Đầu vào) * 1.1 / 0.8
+    // /backup cần = /backup * (Định cỡ / Đầu vào) * 1.1 / 0.8
+    
+    const cpuNeeded = masterData.cpu * (masterData.cpuLoad / 100) * factor * 1.1 / 0.75;
+    const ramNeeded = masterData.ram * (masterData.ramLoad / 100) * factor * 1.1 / 0.9;
+    const dataNeeded = masterStorage.data * factor * 1.1 / 0.8;
+    const logNeeded = masterStorage.log * factor * 1.1 / 0.8;
+    const backupNeeded = masterStorage.backup * factor * 1.1 / 0.8;
+    
+    // Tổng NAS = /data + /log + /backup
+    const nasTotal = dataNeeded + logNeeded + backupNeeded;
+    
+    let html = '';
+    
+    // ==================== CÔNG THỨC TÍNH ====================
+    html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Công thức tính toán (dựa trên IP Master: ${masterData.ip})</h4>
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li><strong>CPU cần</strong> = CPU × Tải CPU × (Định cỡ / Đầu vào) × 1.1 / 0.75 = ${masterData.cpu} × ${(masterData.cpuLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.75 = <strong>${cpuNeeded.toFixed(2)} vCPU</strong></li>
+            <li><strong>RAM cần</strong> = RAM × Tải RAM × (Định cỡ / Đầu vào) × 1.1 / 0.9 = ${masterData.ram} × ${(masterData.ramLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/data cần</strong> = /data × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${masterStorage.data} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${dataNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/log cần</strong> = /log × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${masterStorage.log} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${logNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/backup cần</strong> = /backup × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${masterStorage.backup} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
+        </ul>
+    </div>`;
+    
+    // ==================== BẢNG KẾT QUẢ ====================
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
+    </h4>`;
+    
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 120px;">Thành phần</th>
+                <th style="width: 250px;">Cấu hình đề xuất</th>
+                <th style="width: 100px;">Số lượng</th>
+                <th>Ghi chú</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background: #f0f9ff;">
+                <td><strong>MaxScale</strong></td>
+                <td>
+                    <ul style="margin: 0; padding-left: 15px; line-height: 1.6;">
+                        <li>4 vCPU</li>
+                        <li>8 GB RAM</li>
+                        <li>/u01: 100 GB</li>
+                    </ul>
+                </td>
+                <td class="text-center"><strong>2</strong></td>
+                <td>Cấu hình tối thiểu<br>+1 VIP</td>
+            </tr>
+            <tr style="background: #e6ffed;">
+                <td><strong>MariaDB</strong></td>
+                <td>
+                    <ul style="margin: 0; padding-left: 15px; line-height: 1.6;">
+                        <li><strong>${Math.ceil(cpuNeeded)} vCPU</strong></li>
+                        <li><strong>${Math.ceil(ramNeeded)} GB RAM</strong></li>
+                        <li>/data: ${Math.ceil(dataNeeded)} GB</li>
+                        <li>/log: ${Math.ceil(logNeeded)} GB</li>
+                    </ul>
+                </td>
+                <td class="text-center"><strong>3</strong></td>
+                <td>(Giá trị MariaDB lấy giá trị tính được ở trên)</td>
+            </tr>
+            <tr style="background: #fff9e6;">
+                <td><strong>NAS</strong></td>
+                <td class="text-center"><strong>${Math.ceil(nasTotal)} GB</strong></td>
+                <td class="text-center">-</td>
+                <td>Mount chung<br>(/data + /log + /backup)</td>
+            </tr>
+        </tbody>
+    </table>`;
+    
+    const container = document.getElementById('mariadb-result-container');
+    if (container) container.innerHTML = html;
+}
+
+// Load dữ liệu MariaDB từ DB
+function loadMariaDBData(data) {
+    if (!data) return;
+    
+    // Clear existing rows
+    document.getElementById('mariadb-ref-table-body').innerHTML = '';
+    document.getElementById('mariadb-storage-table-body').innerHTML = '';
+    
+    // Load bảng ref
+    if (data.refTable && Array.isArray(data.refTable)) {
+        data.refTable.forEach(row => addMariaDBRefRow(row));
+    }
+    
+    // Load bảng storage
+    if (data.storageTable && Array.isArray(data.storageTable)) {
+        data.storageTable.forEach(row => addMariaDBStorageRow(row));
+    }
+    
+    // Load note
+    const noteEl = document.getElementById('mariadb-note');
+    if (noteEl && data.note) noteEl.value = data.note;
+    
+    // Load input values
+    const inputCCU = document.getElementById('mariadb-input-ccu');
+    const sizingCCU = document.getElementById('mariadb-sizing-ccu');
+    if (inputCCU && data.inputCCU) inputCCU.value = data.inputCCU;
+    if (sizingCCU && data.sizingCCU) sizingCCU.value = data.sizingCCU;
+    
+    // Load result if exists
+    if (data.resultHTML) {
+        const container = document.getElementById('mariadb-result-container');
+        if (container) container.innerHTML = data.resultHTML;
+    }
+}
+
+// Thu thập dữ liệu MariaDB để lưu
+function collectMariaDBData() {
+    return {
+        refTable: collectMariaDBRefTableData(),
+        storageTable: collectMariaDBStorageTableData(),
+        note: document.getElementById('mariadb-note')?.value || '',
+        inputCCU: document.getElementById('mariadb-input-ccu')?.value || '',
+        sizingCCU: document.getElementById('mariadb-sizing-ccu')?.value || '',
+        resultHTML: document.getElementById('mariadb-result-container')?.innerHTML || ''
+    };
+}
+
 // ==================== VERSION HISTORY SYSTEM ====================
 
 // Biến lưu phiên bản đang xem trước
@@ -2907,6 +3781,9 @@ function switchPreviewTab(tabName) {
             break;
         case 'model':
             html = renderModelDiff(currentPreviewSnapshot, previousPreviewSnapshot);
+            break;
+        case 'sizing':
+            html = renderSizingDiff(currentPreviewSnapshot, previousPreviewSnapshot);
             break;
         case 'summary':
             html = renderSummaryDiff(currentPreviewSnapshot, previousPreviewSnapshot);
@@ -3492,6 +4369,130 @@ function renderModelDiff(snapshot, prevSnapshot) {
             <div class="vp-section-title">
                 <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
                 Thay đổi trong Mô hình hệ thống 
+                <span class="diff-count">(${changes.length} thay đổi)</span>
+            </div>
+            <div class="diff-list">
+                ${changes.join('')}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render diff cho Định cỡ hệ thống
+ */
+function renderSizingDiff(snapshot, prevSnapshot) {
+    const content = snapshot.dinhCoHeThongContent;
+    if (!content) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
+    }
+    
+    let data;
+    try {
+        data = typeof content === 'string' ? JSON.parse(content) : content;
+    } catch(e) {
+        return '<p style="color: red;">Lỗi parse dữ liệu</p>';
+    }
+    
+    // Parse previous data
+    let prevData = { moduleApp: {} };
+    if (prevSnapshot && prevSnapshot.dinhCoHeThongContent) {
+        try {
+            prevData = typeof prevSnapshot.dinhCoHeThongContent === 'string' 
+                ? JSON.parse(prevSnapshot.dinhCoHeThongContent) 
+                : prevSnapshot.dinhCoHeThongContent;
+        } catch(e) { /* ignore */ }
+    }
+    
+    // Parse admin review
+    let adminReview = { moduleApp: {} };
+    if (snapshot.dinhCoAdminReview) {
+        try {
+            adminReview = typeof snapshot.dinhCoAdminReview === 'string' 
+                ? JSON.parse(snapshot.dinhCoAdminReview) 
+                : snapshot.dinhCoAdminReview;
+        } catch(e) { /* ignore */ }
+    }
+    
+    let prevAdminReview = { moduleApp: {} };
+    if (prevSnapshot && prevSnapshot.dinhCoAdminReview) {
+        try {
+            prevAdminReview = typeof prevSnapshot.dinhCoAdminReview === 'string' 
+                ? JSON.parse(prevSnapshot.dinhCoAdminReview) 
+                : prevSnapshot.dinhCoAdminReview;
+        } catch(e) { /* ignore */ }
+    }
+    
+    const changes = [];
+    const moduleApp = data.moduleApp || {};
+    const prevModuleApp = prevData.moduleApp || {};
+    
+    // Compare POC and Sizing values
+    if ((moduleApp.pocValue || '') !== (prevModuleApp.pocValue || '')) {
+        changes.push(`<div class="diff-item"><strong>Tải hệ thống POC:</strong> ${renderTextDiff(moduleApp.pocValue, prevModuleApp.pocValue)}</div>`);
+    }
+    if ((moduleApp.sizingValue || '') !== (prevModuleApp.sizingValue || '')) {
+        changes.push(`<div class="diff-item"><strong>Định cỡ:</strong> ${renderTextDiff(moduleApp.sizingValue, prevModuleApp.sizingValue)}</div>`);
+    }
+    
+    // Compare baseline table
+    const baselineRows = moduleApp.baselineTable || [];
+    const prevBaselineRows = prevModuleApp.baselineTable || [];
+    if (baselineRows.length !== prevBaselineRows.length) {
+        changes.push(`<div class="diff-item"><strong>Bảng hệ thống tham chiếu:</strong> ${renderTextDiff(baselineRows.length + ' dòng', prevBaselineRows.length + ' dòng')}</div>`);
+    } else {
+        baselineRows.forEach((row, i) => {
+            const prevRow = prevBaselineRows[i] || {};
+            const fields = ['module', 'ip', 'cpu', 'ram', 'disk', 'cintRate'];
+            for (const f of fields) {
+                if ((row[f] || '').toString().trim() !== (prevRow[f] || '').toString().trim()) {
+                    changes.push(`<div class="diff-item"><strong>Server tham chiếu dòng ${i+1} - ${f}:</strong> ${renderTextDiff(row[f], prevRow[f])}</div>`);
+                }
+            }
+        });
+    }
+    
+    // Compare input config table
+    const inputConfigRows = moduleApp.inputConfigTable || [];
+    const prevInputConfigRows = prevModuleApp.inputConfigTable || [];
+    if (inputConfigRows.length !== prevInputConfigRows.length) {
+        changes.push(`<div class="diff-item"><strong>Bảng thông tin tải đầu vào:</strong> ${renderTextDiff(inputConfigRows.length + ' dòng', prevInputConfigRows.length + ' dòng')}</div>`);
+    }
+    
+    // Compare evidence images count
+    const evidenceCount = (moduleApp.evidenceImages || []).length;
+    const prevEvidenceCount = (prevModuleApp.evidenceImages || []).length;
+    if (evidenceCount !== prevEvidenceCount) {
+        changes.push(`<div class="diff-item"><strong>Ảnh sở cứ:</strong> ${renderTextDiff(evidenceCount + ' ảnh', prevEvidenceCount + ' ảnh')}</div>`);
+    }
+    
+    // Compare admin review
+    const moduleAppAdmin = adminReview.moduleApp || {};
+    const prevModuleAppAdmin = prevAdminReview.moduleApp || {};
+    
+    const overallReview = moduleAppAdmin.overallReview || {};
+    const prevOverallReview = prevModuleAppAdmin.overallReview || {};
+    if ((overallReview.eval || '') !== (prevOverallReview.eval || '') || 
+        (overallReview.note || '') !== (prevOverallReview.note || '')) {
+        changes.push(`<div class="diff-item"><strong>Admin đánh giá Module App:</strong> ${renderEvalDiff(overallReview.eval, prevOverallReview.eval)} ${renderTextDiff(overallReview.note, prevOverallReview.note)}</div>`);
+    }
+    
+    if (changes.length === 0 && prevSnapshot) {
+        return `
+            <div class="vp-section">
+                <div class="vp-no-changes">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>Không có thay đổi trong phần Định cỡ hệ thống</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="vp-section">
+            <div class="vp-section-title">
+                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                Thay đổi trong Định cỡ hệ thống 
                 <span class="diff-count">(${changes.length} thay đổi)</span>
             </div>
             <div class="diff-list">

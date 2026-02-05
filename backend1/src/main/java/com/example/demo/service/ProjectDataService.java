@@ -112,6 +112,9 @@ public class ProjectDataService {
             case "model":
                 projectData.setMoHinhAdminReview(reviewJson);
                 break;
+            case "sizing":
+                projectData.setDinhCoAdminReview(reviewJson);
+                break;
             default:
                 throw new RuntimeException("Unknown section: " + section);
         }

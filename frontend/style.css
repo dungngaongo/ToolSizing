@@ -2012,3 +2012,239 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
     margin-right: 10px;
 }
 
+/* ==================== MODULE COLLAPSIBLE STYLES ==================== */
+.module-collapsible {
+    margin-bottom: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.module-collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #ee0033 0%, #c9302c 100%);
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 15px;
+    transition: all 0.3s ease;
+}
+
+.module-collapsible-header:hover {
+    background: linear-gradient(135deg, #d4002e 0%, #a52a2a 100%);
+}
+
+.module-collapsible-header i:first-child {
+    margin-right: 10px;
+}
+
+.module-toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+.module-collapsible-header.active .module-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.module-collapsible-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, padding 0.3s ease;
+    background: #fafbfc;
+}
+
+.module-collapsible-content.expanded {
+    max-height: 10000px;
+    padding: 20px;
+}
+
+/* Module App Input Grid */
+.module-app-inputs {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 20px;
+}
+
+.module-app-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+@media (max-width: 900px) {
+    .module-app-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .module-app-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.module-app-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.module-app-field label {
+    font-weight: 600;
+    font-size: 13px;
+    color: #4a5568;
+    margin-bottom: 6px;
+}
+
+.module-app-field input,
+.module-app-field select,
+.module-app-field textarea {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.module-app-field input:focus,
+.module-app-field select:focus,
+.module-app-field textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+/* Module App Result */
+.module-app-result {
+    background: linear-gradient(135deg, #f0fff4 0%, #e6fffa 100%);
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #9ae6b4;
+    margin-bottom: 20px;
+}
+
+.module-app-result table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.module-app-result table th {
+    background: #38a169;
+    color: white;
+    padding: 12px 15px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.module-app-result table td {
+    padding: 10px 15px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.module-app-result table tr:last-child td {
+    border-bottom: none;
+}
+
+.module-app-result table tr:hover {
+    background: #f7fafc;
+}
+
+/* Module App Admin Section */
+.module-app-admin-section {
+    background: #fffbeb;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #f6e05e;
+    border-left: 4px solid #d69e2e;
+}
+
+.module-app-admin-grid {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.module-app-admin-grid .module-app-field {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* Sizing User/Admin Buttons */
+.sizing-user-btn,
+.sizing-admin-btn {
+    transition: opacity 0.3s;
+}
+
+/* Role-based styling for sizing page */
+body.role-user .sizing-admin-btn,
+body.role-user .module-app-admin-section {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+body.role-user .module-app-admin-section::after {
+    content: "Chỉ Admin được đánh giá";
+    display: block;
+    color: #b58900;
+    font-style: italic;
+    font-size: 12px;
+    margin-top: 10px;
+}
+
+/* Admin fields disabled for user - more visible */
+body.role-user #page-sizing .admin-eval-select:disabled,
+body.role-user #page-sizing .admin-note:disabled,
+body.role-user #page-sizing select[id^="eval-"]:disabled,
+body.role-user #page-sizing textarea[id^="note-"]:disabled {
+    background-color: #f5f5f5 !important;
+    border-color: #ddd !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Admin role - disable user inputs on sizing page */
+body.role-admin1 #page-sizing input:not(.admin-note):disabled,
+body.role-admin1 #page-sizing select:not(.admin-eval-select):not([id^="eval-"]):disabled,
+body.role-admin1 #page-sizing textarea:not(.admin-note):not([id^="note-"]):disabled {
+    background-color: #f5f5f5 !important;
+    border-color: #ddd !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+body.role-admin1 .sizing-user-input,
+body.role-admin1 .sizing-user-btn:not(.btn-evaluate) {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Evaluate button style */
+.btn-evaluate {
+    background: linear-gradient(135deg, #d69e2e 0%, #b7791f 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-evaluate:hover {
+    background: linear-gradient(135deg, #b7791f 0%, #975a16 100%);
+    transform: translateY(-1px);
+}
+
+.btn-evaluate:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
