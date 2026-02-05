@@ -1016,6 +1016,274 @@
                         </div>
                     </div>
 
+                    <!-- Module Kafka Collapsible Section -->
+                    <div class="module-collapsible">
+                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-kafka-content')">
+                            <span><i class="fa-solid fa-diagram-project"></i> Module Kafka</span>
+                            <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-kafka-icon"></i>
+                        </div>
+                        <div class="module-collapsible-content" id="module-kafka-content">
+                            
+                            <div class="model-user-content">
+                                <!-- Chọn phương pháp tính toán -->
+                                <h3 class="model-header">
+                                    <i class="fa-solid fa-route" style="color: #ee0033;"></i>CHỌN PHƯƠNG PHÁP TÍNH TOÁN
+                                </h3>
+                                <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+                                    <button type="button" class="btn-method sizing-user-btn active" id="kafka-method-throughput" onclick="selectKafkaMethod('throughput')" style="flex: 1; padding: 15px; border: 2px solid #0066cc; background: #e6f3ff; font-weight: 600;">
+                                        <i class="fa-solid fa-gauge-high"></i> Phương án A: Tính theo lưu lượng <span style="color: #28a745; font-size: 12px;">(Recommended)</span>
+                                    </button>
+                                    <button type="button" class="btn-method sizing-user-btn" id="kafka-method-linear" onclick="selectKafkaMethod('linear')" style="flex: 1; padding: 15px; border: 2px solid #ccc; background: #f8f9fa;">
+                                        <i class="fa-solid fa-server"></i> Phương án B: Tính tuyến tính <span style="color: #666; font-size: 12px;">(Existing System)</span>
+                                    </button>
+                                </div>
+
+                                <!-- ==================== PHƯƠNG ÁN A: TÍNH THEO LƯU LƯỢNG ==================== -->
+                                <div id="kafka-method-throughput-content" class="kafka-method-content">
+                                    <h3 class="model-header">
+                                        <i class="fa-solid fa-gauge-high" style="color: #ee0033;"></i>PHƯƠNG ÁN A: TÍNH THEO LƯU LƯỢNG
+                                    </h3>
+                                    
+                                    <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                                        <!-- Cột trái: Input chính -->
+                                        <div style="flex: 1; min-width: 350px;">
+                                            <!-- Lưu lượng vào (Write) -->
+                                            <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fafafa;">
+                                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                                    <label style="font-weight: 600; font-size: 13px;">
+                                                        Lưu lượng vào Write - A (MB/s)
+                                                    </label>
+                                                    <button type="button" class="btn-helper sizing-user-btn" onclick="openKafkaHelperTool()" style="padding: 4px 10px; font-size: 11px; background: #17a2b8; color: white; border-radius: 4px;">
+                                                        <i class="fa-solid fa-calculator"></i> Helper Tool
+                                                    </button>
+                                                </div>
+                                                <input id="kafka-throughput-a" type="number" min="0" step="0.01" class="input-full sizing-user-input" placeholder="Kiểm tra Monitor (Grafana/JMX) - BytesInPerSec">
+                                                <p style="font-size: 11px; color: #666; margin-top: 5px; margin-bottom: 10px;">
+                                                    <i class="fa-solid fa-info-circle"></i> Kiểm tra Monitor (Grafana/JMX) thông số BytesInPerSec
+                                                </p>
+                                                <div id="kafka-throughput-evidence-grid" class="image-upload-grid" style="margin-top: 10px;"></div>
+                                                <button type="button" class="btn-add-img sizing-user-btn" onclick="addKafkaThroughputEvidenceSlot()" style="margin-top: 8px; font-size: 11px;">
+                                                    <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Thời gian lưu trữ -->
+                                            <div style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                                    Thời gian lưu trữ - T (Giờ)
+                                                </label>
+                                                <input id="kafka-retention-time" type="number" min="1" value="168" class="input-full sizing-user-input" style="background: #f0f0f0;">
+                                                <p style="font-size: 11px; color: #856404; margin-top: 5px; background: #fff3cd; padding: 5px 8px; border-radius: 4px;">
+                                                    <i class="fa-solid fa-exclamation-triangle"></i> Mặc định 168h - 7 ngày theo quy định
+                                                </p>
+                                            </div>
+                                            
+                                            <!-- Hệ số nhân bản -->
+                                            <div style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                                    Hệ số nhân bản - R (Replication Factor)
+                                                </label>
+                                                <select id="kafka-replication-factor" class="input-full sizing-user-input">
+                                                    <option value="3">3 (Production - Khuyến nghị)</option>
+                                                    <option value="2">2 (Test/Dev)</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <!-- Hệ số nén -->
+                                            <div style="margin-bottom: 15px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fafafa;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                                    Hệ số nén - C (Compression)
+                                                </label>
+                                                <select id="kafka-compression" class="input-full sizing-user-input">
+                                                    <option value="0.5">Gzip (~0.5)</option>
+                                                    <option value="0.7">Snappy (~0.7)</option>
+                                                    <option value="1.0">Không nén (1.0)</option>
+                                                </select>
+                                                <div id="kafka-compression-evidence-grid" class="image-upload-grid" style="margin-top: 10px;"></div>
+                                                <button type="button" class="btn-add-img sizing-user-btn" onclick="addKafkaCompressionEvidenceSlot()" style="margin-top: 8px; font-size: 11px;">
+                                                    <i class="fa-solid fa-cloud-arrow-up"></i> Ảnh sở cứ hệ số nén
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Cột phải: Công thức -->
+                                        <div style="flex: 1; min-width: 300px;">
+                                            <div style="background: #e8f4fd; padding: 15px; border-radius: 6px; border-left: 4px solid #0066cc;">
+                                                <h4 style="margin: 0 0 15px 0; color: #0066cc;"><i class="fa-solid fa-square-root-alt"></i> Công thức tính toán</h4>
+                                                <ul style="margin: 0; padding-left: 20px; line-height: 2; font-size: 13px;">
+                                                    <li><strong>Tổng Disk Cluster:</strong><br>D = A × 3600 × T × R × C × 1.1 / 0.8 (MB)</li>
+                                                    <li><strong>RAM/Server:</strong><br>RAM = S × R / N + 8GB<br><em>(S = A × 1800, chọn N sao cho 16 < RAM < 64)</em></li>
+                                                    <li><strong>Disk/Server:</strong> D / N</li>
+                                                    <li><strong>vCPU/Server:</strong><br>A < 50MB/s: 8 vCPU<br>A ≥ 50MB/s: 16 vCPU</li>
+                                                </ul>
+                                            </div>
+                                            
+                                            <div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #ffc107;">
+                                                <h4 style="margin: 0 0 10px 0; color: #856404;"><i class="fa-solid fa-lightbulb"></i> Lưu ý</h4>
+                                                <ul style="margin: 0; padding-left: 20px; line-height: 1.8; font-size: 12px; color: #856404;">
+                                                    <li>N tối thiểu = 3 (Kafka cluster)</li>
+                                                    <li>RAM mục tiêu ~32GB (16 < RAM < 64)</li>
+                                                    <li>Zookeeper/KRaft: 3 node tách riêng</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin-top: 20px; text-align: center;">
+                                        <button type="button" class="btn-submit sizing-user-btn" onclick="calculateKafkaThroughputMethod()">
+                                            <i class="fa-solid fa-calculator"></i> Tính toán
+                                        </button>
+                                        <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('kafka-throughput-result-container').innerHTML='';" style="margin-left: 10px;">
+                                            Xóa kết quả
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="kafka-throughput-result-container" style="margin-top: 20px;"></div>
+                                </div>
+
+                                <!-- ==================== PHƯƠNG ÁN B: TÍNH TUYẾN TÍNH ==================== -->
+                                <div id="kafka-method-linear-content" class="kafka-method-content" style="display: none;">
+                                    <h3 class="model-header">
+                                        <i class="fa-solid fa-server" style="color: #ee0033;"></i>PHƯƠNG ÁN B: TÍNH TUYẾN TÍNH (EXISTING SYSTEM)
+                                    </h3>
+                                    
+                                    <p style="font-style: italic; color: #666; font-size: 13px; margin-bottom: 15px;">
+                                        Dành cho trường hợp dự án muốn "bê nguyên" cụm cũ lên hoặc mở rộng. Nhập thông tin các Kafka Broker hiện tại.
+                                    </p>
+
+                                    <!-- Bảng thông tin Kafka hiện tại -->
+                                    <div class="table-responsive">
+                                        <table class="sizing-table kafka-linear-table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 130px;">IP</th>
+                                                    <th style="width: 80px;">vCPU</th>
+                                                    <th style="width: 80px;">RAM (GB)</th>
+                                                    <th style="width: 100px;">Disk (GB)</th>
+                                                    <th style="width: 100px;">Tải CPU (%)</th>
+                                                    <th style="width: 100px;">Tải RAM (%)</th>
+                                                    <th style="width: 100px;">Tải Disk (%)</th>
+                                                    <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="kafka-linear-table-body"></tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <td class="text-right" style="padding-right: 15px; font-weight: bold;">Tổng sử dụng:</td>
+                                                    <td class="text-center" id="kafka-linear-total-cpu" style="font-weight: bold;">0</td>
+                                                    <td class="text-center" id="kafka-linear-total-ram" style="font-weight: bold;">0</td>
+                                                    <td class="text-center" id="kafka-linear-total-disk" style="font-weight: bold;">0</td>
+                                                    <td colspan="4"></td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                    <button type="button" class="btn-add sizing-user-btn" onclick="addKafkaLinearRow()">
+                                        <i class="fa-solid fa-plus"></i> Thêm Broker
+                                    </button>
+
+                                    <!-- Thông tin đầu vào sizing -->
+                                    <div style="margin-top: 30px; border-top: 2px solid #ddd; padding-top: 20px;">
+                                        <h3 class="model-header">
+                                            <i class="fa-solid fa-calculator" style="color: #ee0033;"></i>THÔNG TIN ĐẦU VÀO
+                                        </h3>
+                                        <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
+                                            <div style="min-width: 160px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Đầu vào (CCU)</label>
+                                                <input id="kafka-linear-input-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 1000">
+                                            </div>
+                                            <div style="min-width: 160px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Định cỡ (CCU)</label>
+                                                <input id="kafka-linear-sizing-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 5000">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style="margin-top: 20px; text-align: center;">
+                                        <button type="button" class="btn-submit sizing-user-btn" onclick="calculateKafkaLinearMethod()">
+                                            <i class="fa-solid fa-calculator"></i> Tính toán
+                                        </button>
+                                        <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('kafka-linear-result-container').innerHTML='';" style="margin-left: 10px;">
+                                            Xóa kết quả
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="kafka-linear-result-container" style="margin-top: 20px;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Admin Evaluation Section -->
+                            <div class="model-admin-box" style="margin-top: 30px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                <div class="admin-grid-layout">
+                                    <div>
+                                        <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                        <select id="eval-module-kafka" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                            <option value="">-- Chọn --</option>
+                                            <option value="OK">OK (Phê duyệt)</option>
+                                            <option value="NOK">NOK (Từ chối)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="admin-label">Ghi chú (Admin):</label>
+                                        <textarea id="note-module-kafka" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module Kafka..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Kafka Helper Tool Modal -->
+                    <div id="kafka-helper-modal" class="modal" style="display: none;">
+                        <div class="modal-content" style="max-width: 600px;">
+                            <div class="modal-header">
+                                <h3><i class="fa-solid fa-calculator"></i> Helper Tool - Tính nhanh Throughput</h3>
+                                <span class="close-btn" onclick="closeKafkaHelperTool()">&times;</span>
+                            </div>
+                            <div class="modal-body">
+                                <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                                    <i class="fa-solid fa-info-circle"></i> Dành cho hệ thống không lấy được thông tin monitor trực tiếp
+                                </p>
+                                
+                                <div style="margin-bottom: 20px;">
+                                    <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                        1. Số lượng Message/s
+                                    </label>
+                                    <input id="kafka-helper-msg-count" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 10000">
+                                    <div id="kafka-helper-msg-evidence-grid" class="image-upload-grid" style="margin-top: 8px;"></div>
+                                    <button type="button" class="btn-add-img sizing-user-btn" onclick="addKafkaHelperMsgEvidenceSlot()" style="margin-top: 5px; font-size: 11px;">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i> Ảnh sở cứ
+                                    </button>
+                                </div>
+                                
+                                <div style="margin-bottom: 20px;">
+                                    <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                        2. Kích thước trung bình Message (KB)
+                                    </label>
+                                    <input id="kafka-helper-msg-size" type="number" min="0" step="0.01" class="input-full sizing-user-input" placeholder="VD: 1.5">
+                                    <div id="kafka-helper-size-evidence-grid" class="image-upload-grid" style="margin-top: 8px;"></div>
+                                    <button type="button" class="btn-add-img sizing-user-btn" onclick="addKafkaHelperSizeEvidenceSlot()" style="margin-top: 5px; font-size: 11px;">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i> Ảnh sở cứ
+                                    </button>
+                                </div>
+                                
+                                <div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                                    <strong>Công thức:</strong> A = Số Message/s × Kích thước (KB) / 1024<br>
+                                    <strong>Kết quả:</strong> A = <span id="kafka-helper-result" style="color: #28a745; font-weight: bold; font-size: 18px;">0</span> MB/s
+                                </div>
+                                
+                                <div style="text-align: center;">
+                                    <button type="button" class="btn-submit sizing-user-btn" onclick="calculateKafkaHelperThroughput()">
+                                        <i class="fa-solid fa-calculator"></i> Tính toán
+                                    </button>
+                                    <button type="button" class="btn-submit sizing-user-btn" onclick="applyKafkaHelperResult()" style="margin-left: 10px; background: #28a745;">
+                                        <i class="fa-solid fa-check"></i> Áp dụng kết quả
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div style="text-align: center; margin-top: 30px;">
                         <button type="button" class="btn-submit sizing-user-btn" id="saveSizingBtn" onclick="saveSizingData()">
                             <i class="fa-solid fa-floppy-disk"></i> Lưu

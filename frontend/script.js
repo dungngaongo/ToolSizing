@@ -2603,7 +2603,8 @@ function collectAllSizingData() {
             // NOTE: Admin review is NOT saved here - it goes to dinhCoAdminReview
         },
         moduleMariaDB: collectMariaDBData(),
-        moduleRedis: collectRedisData()
+        moduleRedis: collectRedisData(),
+        moduleKafka: collectKafkaData()
     };
 }
 
@@ -2630,8 +2631,14 @@ function collectSizingAdminReviewData() {
                 eval: document.getElementById('eval-module-redis')?.value || '',
                 note: document.getElementById('note-module-redis')?.value || ''
             }
+        },
+        moduleKafka: {
+            overallReview: {
+                eval: document.getElementById('eval-module-kafka')?.value || '',
+                note: document.getElementById('note-module-kafka')?.value || ''
+            }
         }
-        // Future modules can be added here: moduleCache, etc.
+        // Future modules can be added here
     };
 }
 
@@ -2691,8 +2698,9 @@ async function evaluateSizingSection() {
     const evalModuleApp = document.getElementById('eval-module-app')?.value;
     const evalModuleMariaDB = document.getElementById('eval-module-mariadb')?.value;
     const evalModuleRedis = document.getElementById('eval-module-redis')?.value;
+    const evalModuleKafka = document.getElementById('eval-module-kafka')?.value;
     
-    if (!evalModuleApp && !evalModuleMariaDB && !evalModuleRedis) {
+    if (!evalModuleApp && !evalModuleMariaDB && !evalModuleRedis && !evalModuleKafka) {
         alert('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một module!');
         return;
     }
@@ -2863,6 +2871,25 @@ function loadSizingData(data) {
             }
         }
         
+        // Load Module Kafka data
+        if (sizingData.moduleKafka) {
+            loadKafkaData(sizingData.moduleKafka);
+            
+            // Auto expand if has data
+            const kafka = sizingData.moduleKafka;
+            const hasThroughputData = kafka.throughputMethod && (kafka.throughputMethod.throughputA || kafka.throughputMethod.retentionT);
+            const hasLinearData = kafka.linearMethod && kafka.linearMethod.linearTable && kafka.linearMethod.linearTable.length > 0;
+            
+            if (hasThroughputData || hasLinearData) {
+                const content = document.getElementById('module-kafka-content');
+                const header = content?.previousElementSibling;
+                if (content && !content.classList.contains('expanded')) {
+                    content.classList.add('expanded');
+                    if (header) header.classList.add('active');
+                }
+            }
+        }
+        
         // Re-apply role permissions after loading data (disable admin fields for user, etc.)
         applyRolePermissions();
         
@@ -2934,6 +2961,20 @@ function loadSizingAdminReview(adminReview) {
                 }
                 if (document.getElementById('note-module-redis')) {
                     document.getElementById('note-module-redis').value = redisReview.note || '';
+                }
+            }
+        }
+        
+        // Load module Kafka admin review
+        if (adminReview.moduleKafka) {
+            if (adminReview.moduleKafka.overallReview) {
+                const kafkaReview = adminReview.moduleKafka.overallReview;
+                if (document.getElementById('eval-module-kafka')) {
+                    document.getElementById('eval-module-kafka').value = kafkaReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-kafka'));
+                }
+                if (document.getElementById('note-module-kafka')) {
+                    document.getElementById('note-module-kafka').value = kafkaReview.note || '';
                 }
             }
         }
@@ -4089,6 +4130,590 @@ function loadRedisData(data) {
             if (container) container.innerHTML = cm.resultHTML;
         }
     }
+}
+
+// ==================== MODULE KAFKA FUNCTIONS ====================
+
+// Chọn phương pháp tính toán Kafka
+function selectKafkaMethod(method) {
+    const throughputBtn = document.getElementById('kafka-method-throughput');
+    const linearBtn = document.getElementById('kafka-method-linear');
+    const throughputContent = document.getElementById('kafka-method-throughput-content');
+    const linearContent = document.getElementById('kafka-method-linear-content');
+    
+    if (method === 'throughput') {
+        throughputBtn.classList.add('active');
+        throughputBtn.style.border = '2px solid #0066cc';
+        throughputBtn.style.background = '#e6f3ff';
+        linearBtn.classList.remove('active');
+        linearBtn.style.border = '2px solid #ccc';
+        linearBtn.style.background = '#f8f9fa';
+        throughputContent.style.display = 'block';
+        linearContent.style.display = 'none';
+    } else {
+        linearBtn.classList.add('active');
+        linearBtn.style.border = '2px solid #0066cc';
+        linearBtn.style.background = '#e6f3ff';
+        throughputBtn.classList.remove('active');
+        throughputBtn.style.border = '2px solid #ccc';
+        throughputBtn.style.background = '#f8f9fa';
+        linearContent.style.display = 'block';
+        throughputContent.style.display = 'none';
+    }
+}
+
+// Thêm ảnh sở cứ cho Throughput
+function addKafkaThroughputEvidenceSlot() {
+    const grid = document.getElementById('kafka-throughput-evidence-grid');
+    if (!grid) return;
+    addImageUploadSlot(grid, 'handleKafkaImageUpload');
+}
+
+// Thêm ảnh sở cứ cho Compression
+function addKafkaCompressionEvidenceSlot() {
+    const grid = document.getElementById('kafka-compression-evidence-grid');
+    if (!grid) return;
+    addImageUploadSlot(grid, 'handleKafkaImageUpload');
+}
+
+// Helper function để thêm image upload slot
+function addImageUploadSlot(grid, handlerName) {
+    const slot = document.createElement('div');
+    slot.className = 'upload-box';
+    slot.innerHTML = `
+        <div class="preview-area"></div>
+        <input type="file" accept="image/*" onchange="${handlerName}(this)" style="display:none;">
+        <button type="button" class="btn-upload sizing-user-btn" onclick="this.previousElementSibling.click()">
+            <i class="fa-solid fa-upload"></i> Chọn ảnh
+        </button>
+        <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('.upload-box').remove()" style="margin-left: 5px;">
+            <i class="fa-solid fa-times"></i>
+        </button>
+    `;
+    grid.appendChild(slot);
+}
+
+// Xử lý upload ảnh Kafka
+function handleKafkaImageUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const previewArea = input.closest('.upload-box').querySelector('.preview-area');
+        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+    };
+    reader.readAsDataURL(file);
+}
+
+// Mở Helper Tool popup
+function openKafkaHelperTool() {
+    document.getElementById('kafka-helper-modal').style.display = 'flex';
+}
+
+// Đóng Helper Tool popup
+function closeKafkaHelperTool() {
+    document.getElementById('kafka-helper-modal').style.display = 'none';
+}
+
+// Thêm ảnh sở cứ cho Helper Tool - Message count
+function addKafkaHelperMsgEvidenceSlot() {
+    const grid = document.getElementById('kafka-helper-msg-evidence-grid');
+    if (!grid) return;
+    addImageUploadSlot(grid, 'handleKafkaImageUpload');
+}
+
+// Thêm ảnh sở cứ cho Helper Tool - Message size
+function addKafkaHelperSizeEvidenceSlot() {
+    const grid = document.getElementById('kafka-helper-size-evidence-grid');
+    if (!grid) return;
+    addImageUploadSlot(grid, 'handleKafkaImageUpload');
+}
+
+// Tính throughput từ Helper Tool
+function calculateKafkaHelperThroughput() {
+    const msgCount = parseFloat(document.getElementById('kafka-helper-msg-count')?.value) || 0;
+    const msgSize = parseFloat(document.getElementById('kafka-helper-msg-size')?.value) || 0;
+    
+    if (!msgCount || !msgSize) {
+        alert('Vui lòng nhập đầy đủ thông tin!');
+        return;
+    }
+    
+    // A = msgCount * msgSize / 1024 (KB -> MB)
+    const A = (msgCount * msgSize) / 1024;
+    document.getElementById('kafka-helper-result').innerText = A.toFixed(4);
+}
+
+// Áp dụng kết quả từ Helper Tool
+function applyKafkaHelperResult() {
+    const result = parseFloat(document.getElementById('kafka-helper-result')?.innerText) || 0;
+    if (result <= 0) {
+        alert('Vui lòng tính toán trước khi áp dụng!');
+        return;
+    }
+    
+    document.getElementById('kafka-throughput-a').value = result.toFixed(4);
+    closeKafkaHelperTool();
+}
+
+// Thêm dòng vào bảng Linear (Existing System)
+function addKafkaLinearRow(data = {}) {
+    const tbody = document.getElementById('kafka-linear-table-body');
+    if (!tbody) return;
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-full sizing-user-input kafka-linear-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-vcpu" value="${data.vcpu || ''}" placeholder="vCPU" min="0" onchange="updateKafkaLinearTotal()"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-ram" value="${data.ram || ''}" placeholder="RAM" min="0" onchange="updateKafkaLinearTotal()"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-disk" value="${data.disk || ''}" placeholder="Disk" min="0" onchange="updateKafkaLinearTotal()"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-cpu-load" value="${data.cpuLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-disk-load" value="${data.diskLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
+        <td class="text-center">
+            <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove(); updateKafkaLinearTotal();">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+// Cập nhật tổng cho bảng Linear
+function updateKafkaLinearTotal() {
+    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+    let totalCPU = 0, totalRAM = 0, totalDisk = 0;
+    
+    rows.forEach(row => {
+        const vcpu = parseFloat(row.querySelector('.kafka-linear-vcpu')?.value) || 0;
+        const ram = parseFloat(row.querySelector('.kafka-linear-ram')?.value) || 0;
+        const disk = parseFloat(row.querySelector('.kafka-linear-disk')?.value) || 0;
+        const cpuLoad = parseFloat(row.querySelector('.kafka-linear-cpu-load')?.value) || 0;
+        const ramLoad = parseFloat(row.querySelector('.kafka-linear-ram-load')?.value) || 0;
+        const diskLoad = parseFloat(row.querySelector('.kafka-linear-disk-load')?.value) || 0;
+        
+        totalCPU += vcpu * (cpuLoad / 100);
+        totalRAM += ram * (ramLoad / 100);
+        totalDisk += disk * (diskLoad / 100);
+    });
+    
+    document.getElementById('kafka-linear-total-cpu').innerText = totalCPU.toFixed(2);
+    document.getElementById('kafka-linear-total-ram').innerText = totalRAM.toFixed(2);
+    document.getElementById('kafka-linear-total-disk').innerText = totalDisk.toFixed(2);
+}
+
+// Thu thập dữ liệu bảng Linear
+function collectKafkaLinearTableData() {
+    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+    const data = [];
+    rows.forEach(row => {
+        data.push({
+            ip: row.querySelector('.kafka-linear-ip')?.value || '',
+            vcpu: row.querySelector('.kafka-linear-vcpu')?.value || '',
+            ram: row.querySelector('.kafka-linear-ram')?.value || '',
+            disk: row.querySelector('.kafka-linear-disk')?.value || '',
+            cpuLoad: row.querySelector('.kafka-linear-cpu-load')?.value || '',
+            ramLoad: row.querySelector('.kafka-linear-ram-load')?.value || '',
+            diskLoad: row.querySelector('.kafka-linear-disk-load')?.value || ''
+        });
+    });
+    return data;
+}
+
+// Thu thập ảnh sở cứ
+function collectKafkaEvidenceData(gridId) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return [];
+    
+    const images = [];
+    grid.querySelectorAll('.upload-box').forEach(slot => {
+        const img = slot.querySelector('.preview-area img');
+        if (img) {
+            images.push({ dataUrl: img.src });
+        }
+    });
+    return images;
+}
+
+// Tìm số N tối ưu cho Kafka (N >= 3, RAM mục tiêu 16 < RAM < 64, ~32GB)
+function findOptimalKafkaN(S, R) {
+    // RAM = S * R / N + 8GB
+    // Tìm N sao cho 16 < RAM < 64 (mục tiêu ~32GB)
+    let N = 3; // Kafka cluster tối thiểu 3 broker
+    
+    while (N < 100) { // Giới hạn tìm kiếm
+        const RAM = (S * R / N) + 8;
+        if (RAM < 64) {
+            // Kiểm tra nếu RAM > 16
+            if (RAM > 16) {
+                return N;
+            }
+        }
+        N++;
+    }
+    
+    return 3; // Mặc định
+}
+
+// Tính toán theo phương pháp Throughput
+function calculateKafkaThroughputMethod() {
+    const A = parseFloat(document.getElementById('kafka-throughput-a')?.value) || 0;
+    const T = parseFloat(document.getElementById('kafka-retention-time')?.value) || 168;
+    const R = parseFloat(document.getElementById('kafka-replication-factor')?.value) || 3;
+    const C = parseFloat(document.getElementById('kafka-compression')?.value) || 0.5;
+    
+    if (!A) {
+        alert('Vui lòng nhập Lưu lượng vào (Write) - A!');
+        return;
+    }
+    
+    // Tổng Disk Cluster: D = A * 3600 * T * R * C * 1.1 / 0.8 (MB)
+    const D_MB = A * 3600 * T * R * C * 1.1 / 0.8;
+    const D_GB = D_MB / 1024;
+    const D_TB = D_GB / 1024;
+    
+    // S = A * 1800 (dữ liệu trong 30 phút)
+    const S = A * 1800;
+    
+    // Tìm N tối ưu
+    const optimalN = findOptimalKafkaN(S, R);
+    
+    // vCPU: A < 50MB/s: 8 vCPU; A >= 50MB/s: 16 vCPU
+    const vCPU = A < 50 ? 8 : 16;
+    
+    let html = '';
+    
+    // ==================== CÔNG THỨC TÍNH ====================
+    html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin đầu vào</h4>
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li><strong>Lưu lượng vào (A):</strong> ${A} MB/s</li>
+            <li><strong>Thời gian lưu trữ (T):</strong> ${T} giờ (${T/24} ngày)</li>
+            <li><strong>Hệ số nhân bản (R):</strong> ${R}</li>
+            <li><strong>Hệ số nén (C):</strong> ${C}</li>
+            <li><strong>S (dữ liệu 30 phút):</strong> A × 1800 = ${A} × 1800 = ${S.toFixed(2)} MB</li>
+        </ul>
+    </div>`;
+    
+    html += `<div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;"><i class="fa-solid fa-hard-drive"></i> Tổng Disk Cluster</h4>
+        <p style="margin: 0; font-size: 14px;">
+            <strong>D = A × 3600 × T × R × C × 1.1 / 0.8</strong><br>
+            D = ${A} × 3600 × ${T} × ${R} × ${C} × 1.1 / 0.8<br>
+            D = <strong>${D_MB.toFixed(2)} MB</strong> = <strong>${D_GB.toFixed(2)} GB</strong> = <strong>${D_TB.toFixed(4)} TB</strong>
+        </p>
+    </div>`;
+    
+    // ==================== BẢNG PHÂN BỔ THEO N ====================
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-table"></i> Bảng phân bổ theo số lượng Broker (N)
+    </h4>`;
+    
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 80px;">N (Broker)</th>
+                <th>Disk/Server</th>
+                <th>RAM/Server</th>
+                <th>vCPU/Server</th>
+                <th>Ghi chú</th>
+            </tr>
+        </thead>
+        <tbody>`;
+    
+    for (let n = 3; n <= 7; n++) {
+        const diskPerServer = D_GB / n;
+        const ramPerServer = (S * R / n) + 8;
+        const isOptimal = n === optimalN;
+        const ramStatus = ramPerServer >= 16 && ramPerServer <= 64 ? '✓' : '✗';
+        const rowStyle = isOptimal ? 'background: #e6ffed; font-weight: 600;' : '';
+        
+        html += `<tr style="${rowStyle}">
+            <td class="text-center">${n}${isOptimal ? ' ★' : ''}</td>
+            <td class="text-center">${diskPerServer >= 1024 ? (diskPerServer/1024).toFixed(2) + ' TB' : diskPerServer.toFixed(2) + ' GB'}</td>
+            <td class="text-center">${ramPerServer.toFixed(2)} GB ${ramStatus}</td>
+            <td class="text-center">${vCPU}</td>
+            <td>${isOptimal ? 'Khuyến nghị (16 < RAM < 64)' : (ramPerServer > 64 ? 'RAM quá cao' : (ramPerServer < 16 ? 'RAM thấp' : ''))}</td>
+        </tr>`;
+    }
+    
+    html += `</tbody></table>`;
+    
+    // ==================== KẾT QUẢ ĐỀ XUẤT ====================
+    const diskPerServer = D_GB / optimalN;
+    const ramPerServer = (S * R / optimalN) + 8;
+    
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình (N = ${optimalN})
+    </h4>`;
+    
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 150px;">Thành phần</th>
+                <th style="width: 100px;">Số lượng Node</th>
+                <th style="width: 100px;">vCPU/Node</th>
+                <th style="width: 100px;">RAM/Node</th>
+                <th style="width: 150px;">Disk/Node (SSD)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background: #e6ffed;">
+                <td><strong>Kafka Broker</strong></td>
+                <td class="text-center"><strong>${optimalN}</strong></td>
+                <td class="text-center"><strong>${vCPU}</strong></td>
+                <td class="text-center"><strong>${Math.ceil(ramPerServer)} GB</strong></td>
+                <td class="text-center"><strong>${diskPerServer >= 1024 ? (diskPerServer/1024).toFixed(2) + ' TB' : Math.ceil(diskPerServer) + ' GB'}</strong></td>
+            </tr>
+            <tr style="background: #fff3cd;">
+                <td><strong>Zookeeper/KRaft</strong></td>
+                <td class="text-center"><strong>3</strong></td>
+                <td class="text-center"><strong>2</strong></td>
+                <td class="text-center"><strong>4 GB</strong></td>
+                <td class="text-center"><strong>100 GB</strong></td>
+            </tr>
+        </tbody>
+        <tfoot>
+            <tr style="background: #f0f9ff; font-weight: bold;">
+                <td>Tổng cộng</td>
+                <td class="text-center">${optimalN + 3}</td>
+                <td class="text-center">${vCPU * optimalN + 6}</td>
+                <td class="text-center">${Math.ceil(ramPerServer) * optimalN + 12} GB</td>
+                <td class="text-center">${((diskPerServer * optimalN) + 300) >= 1024 ? ((diskPerServer * optimalN + 300)/1024).toFixed(2) + ' TB' : Math.ceil(diskPerServer * optimalN + 300) + ' GB'}</td>
+            </tr>
+        </tfoot>
+    </table>`;
+    
+    html += `<div style="background: #d4edda; padding: 15px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #28a745;">
+        <h4 style="margin: 0 0 10px 0; color: #155724;"><i class="fa-solid fa-info-circle"></i> Khuyến nghị</h4>
+        <p style="margin: 0; font-size: 13px; color: #155724;">
+            Tách rời 3 node Zookeeper/KRaft Controller (2 vCPU / 4GB RAM / 100GB DISK) để đảm bảo độ ổn định cao nhất.
+        </p>
+    </div>`;
+    
+    const container = document.getElementById('kafka-throughput-result-container');
+    if (container) container.innerHTML = html;
+}
+
+// Tính toán theo phương pháp Linear (Existing System)
+function calculateKafkaLinearMethod() {
+    const inputCCU = parseFloat(document.getElementById('kafka-linear-input-ccu')?.value) || 0;
+    const sizingCCU = parseFloat(document.getElementById('kafka-linear-sizing-ccu')?.value) || 0;
+    
+    if (!inputCCU || !sizingCCU) {
+        alert('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".');
+        return;
+    }
+    
+    // Lấy tổng từ bảng
+    const totalCPU = parseFloat(document.getElementById('kafka-linear-total-cpu')?.innerText) || 0;
+    const totalRAM = parseFloat(document.getElementById('kafka-linear-total-ram')?.innerText) || 0;
+    const totalDisk = parseFloat(document.getElementById('kafka-linear-total-disk')?.innerText) || 0;
+    
+    if (totalCPU <= 0 && totalRAM <= 0 && totalDisk <= 0) {
+        alert('Vui lòng nhập thông tin các Broker hiện tại!');
+        return;
+    }
+    
+    // Hệ số
+    const factor = sizingCCU / inputCCU;
+    
+    // Tính toán cần
+    const cpuNeeded = totalCPU * factor * 1.1 / 0.75;
+    const ramNeeded = totalRAM * factor * 1.1 / 0.9;
+    const diskNeeded = totalDisk * factor * 1.1 / 0.8;
+    
+    // Tìm N tối ưu (RAM mục tiêu ~32GB)
+    let optimalN = 3;
+    for (let n = 3; n <= 20; n++) {
+        const ramPerNode = ramNeeded / n;
+        if (ramPerNode >= 16 && ramPerNode <= 64) {
+            optimalN = n;
+            break;
+        }
+        if (ramPerNode < 16) {
+            optimalN = Math.max(3, n - 1);
+            break;
+        }
+    }
+    
+    const cpuPerNode = Math.ceil(cpuNeeded / optimalN);
+    const ramPerNode = Math.ceil(ramNeeded / optimalN);
+    const diskPerNode = Math.ceil(diskNeeded / optimalN);
+    
+    let html = '';
+    
+    html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin tính toán</h4>
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li><strong>Tổng CPU sử dụng hiện tại:</strong> ${totalCPU.toFixed(2)} vCPU</li>
+            <li><strong>Tổng RAM sử dụng hiện tại:</strong> ${totalRAM.toFixed(2)} GB</li>
+            <li><strong>Tổng Disk sử dụng hiện tại:</strong> ${totalDisk.toFixed(2)} GB</li>
+            <li><strong>Hệ số (Định cỡ/Đầu vào):</strong> ${sizingCCU} / ${inputCCU} = ${factor.toFixed(2)}</li>
+        </ul>
+    </div>`;
+    
+    html += `<div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;">Tài nguyên cần cho hệ thống mới</h4>
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li><strong>CPU cần:</strong> ${totalCPU.toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.75 = <strong>${cpuNeeded.toFixed(2)} vCPU</strong></li>
+            <li><strong>RAM cần:</strong> ${totalRAM.toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>Disk cần:</strong> ${totalDisk.toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${diskNeeded.toFixed(2)} GB</strong></li>
+        </ul>
+    </div>`;
+    
+    // Bảng kết quả
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình (N = ${optimalN})
+    </h4>`;
+    
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 150px;">Thành phần</th>
+                <th style="width: 100px;">Số lượng Node</th>
+                <th style="width: 100px;">vCPU/Node</th>
+                <th style="width: 100px;">RAM/Node</th>
+                <th style="width: 150px;">Disk/Node (SSD)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background: #e6ffed;">
+                <td><strong>Kafka Broker</strong></td>
+                <td class="text-center"><strong>${optimalN}</strong></td>
+                <td class="text-center"><strong>${cpuPerNode}</strong></td>
+                <td class="text-center"><strong>${ramPerNode} GB</strong></td>
+                <td class="text-center"><strong>${diskPerNode >= 1024 ? (diskPerNode/1024).toFixed(2) + ' TB' : diskPerNode + ' GB'}</strong></td>
+            </tr>
+            <tr style="background: #fff3cd;">
+                <td><strong>Zookeeper/KRaft</strong></td>
+                <td class="text-center"><strong>3</strong></td>
+                <td class="text-center"><strong>2</strong></td>
+                <td class="text-center"><strong>4 GB</strong></td>
+                <td class="text-center"><strong>100 GB</strong></td>
+            </tr>
+        </tbody>
+        <tfoot>
+            <tr style="background: #f0f9ff; font-weight: bold;">
+                <td>Tổng cộng</td>
+                <td class="text-center">${optimalN + 3}</td>
+                <td class="text-center">${cpuPerNode * optimalN + 6}</td>
+                <td class="text-center">${ramPerNode * optimalN + 12} GB</td>
+                <td class="text-center">${(diskPerNode * optimalN + 300) >= 1024 ? ((diskPerNode * optimalN + 300)/1024).toFixed(2) + ' TB' : (diskPerNode * optimalN + 300) + ' GB'}</td>
+            </tr>
+        </tfoot>
+    </table>`;
+    
+    const container = document.getElementById('kafka-linear-result-container');
+    if (container) container.innerHTML = html;
+}
+
+// Thu thập dữ liệu Kafka để lưu
+function collectKafkaData() {
+    const throughputBtn = document.getElementById('kafka-method-throughput');
+    const selectedMethod = throughputBtn?.classList.contains('active') ? 'throughput' : 'linear';
+    
+    return {
+        selectedMethod: selectedMethod,
+        // Phương pháp Throughput
+        throughputMethod: {
+            throughputA: document.getElementById('kafka-throughput-a')?.value || '',
+            retentionTime: document.getElementById('kafka-retention-time')?.value || '168',
+            replicationFactor: document.getElementById('kafka-replication-factor')?.value || '3',
+            compression: document.getElementById('kafka-compression')?.value || '0.5',
+            throughputEvidence: collectKafkaEvidenceData('kafka-throughput-evidence-grid'),
+            compressionEvidence: collectKafkaEvidenceData('kafka-compression-evidence-grid'),
+            resultHTML: document.getElementById('kafka-throughput-result-container')?.innerHTML || '',
+            // Helper tool data
+            helperMsgCount: document.getElementById('kafka-helper-msg-count')?.value || '',
+            helperMsgSize: document.getElementById('kafka-helper-msg-size')?.value || '',
+            helperMsgEvidence: collectKafkaEvidenceData('kafka-helper-msg-evidence-grid'),
+            helperSizeEvidence: collectKafkaEvidenceData('kafka-helper-size-evidence-grid')
+        },
+        // Phương pháp Linear
+        linearMethod: {
+            linearTable: collectKafkaLinearTableData(),
+            inputCCU: document.getElementById('kafka-linear-input-ccu')?.value || '',
+            sizingCCU: document.getElementById('kafka-linear-sizing-ccu')?.value || '',
+            resultHTML: document.getElementById('kafka-linear-result-container')?.innerHTML || ''
+        }
+    };
+}
+
+// Load dữ liệu Kafka từ DB
+function loadKafkaData(data) {
+    if (!data) return;
+    
+    // Load phương pháp đã chọn
+    if (data.selectedMethod) {
+        selectKafkaMethod(data.selectedMethod);
+    }
+    
+    // Load phương pháp Throughput
+    if (data.throughputMethod) {
+        const tm = data.throughputMethod;
+        if (tm.throughputA) document.getElementById('kafka-throughput-a').value = tm.throughputA;
+        if (tm.retentionTime) document.getElementById('kafka-retention-time').value = tm.retentionTime;
+        if (tm.replicationFactor) document.getElementById('kafka-replication-factor').value = tm.replicationFactor;
+        if (tm.compression) document.getElementById('kafka-compression').value = tm.compression;
+        
+        // Load ảnh sở cứ throughput
+        loadKafkaEvidenceImages('kafka-throughput-evidence-grid', tm.throughputEvidence, addKafkaThroughputEvidenceSlot);
+        loadKafkaEvidenceImages('kafka-compression-evidence-grid', tm.compressionEvidence, addKafkaCompressionEvidenceSlot);
+        
+        // Load helper tool data
+        if (tm.helperMsgCount) document.getElementById('kafka-helper-msg-count').value = tm.helperMsgCount;
+        if (tm.helperMsgSize) document.getElementById('kafka-helper-msg-size').value = tm.helperMsgSize;
+        loadKafkaEvidenceImages('kafka-helper-msg-evidence-grid', tm.helperMsgEvidence, addKafkaHelperMsgEvidenceSlot);
+        loadKafkaEvidenceImages('kafka-helper-size-evidence-grid', tm.helperSizeEvidence, addKafkaHelperSizeEvidenceSlot);
+        
+        // Load kết quả
+        if (tm.resultHTML) {
+            const container = document.getElementById('kafka-throughput-result-container');
+            if (container) container.innerHTML = tm.resultHTML;
+        }
+    }
+    
+    // Load phương pháp Linear
+    if (data.linearMethod) {
+        const lm = data.linearMethod;
+        if (lm.inputCCU) document.getElementById('kafka-linear-input-ccu').value = lm.inputCCU;
+        if (lm.sizingCCU) document.getElementById('kafka-linear-sizing-ccu').value = lm.sizingCCU;
+        
+        // Load bảng linear
+        if (lm.linearTable && Array.isArray(lm.linearTable)) {
+            document.getElementById('kafka-linear-table-body').innerHTML = '';
+            lm.linearTable.forEach(row => addKafkaLinearRow(row));
+            updateKafkaLinearTotal();
+        }
+        
+        // Load kết quả
+        if (lm.resultHTML) {
+            const container = document.getElementById('kafka-linear-result-container');
+            if (container) container.innerHTML = lm.resultHTML;
+        }
+    }
+}
+
+// Helper để load ảnh sở cứ
+function loadKafkaEvidenceImages(gridId, images, addSlotFn) {
+    if (!images || !Array.isArray(images) || images.length === 0) return;
+    
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    images.forEach(img => {
+        addSlotFn();
+        const lastSlot = grid.lastElementChild;
+        if (lastSlot && img.dataUrl) {
+            const previewArea = lastSlot.querySelector('.preview-area');
+            if (previewArea) {
+                previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+            }
+        }
+    });
 }
 
 // ==================== VERSION HISTORY SYSTEM ====================
