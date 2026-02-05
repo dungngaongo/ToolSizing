@@ -829,6 +829,193 @@
                         </div>
                     </div>
 
+                    <!-- Module Redis Collapsible Section -->
+                    <div class="module-collapsible">
+                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-redis-content')">
+                            <span><i class="fa-solid fa-memory"></i> Module Redis</span>
+                            <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-redis-icon"></i>
+                        </div>
+                        <div class="module-collapsible-content" id="module-redis-content">
+                            
+                            <div class="model-user-content">
+                                <!-- Chọn phương pháp tính toán -->
+                                <h3 class="model-header">
+                                    <i class="fa-solid fa-route" style="color: #ee0033;"></i>CHỌN PHƯƠNG PHÁP TÍNH TOÁN
+                                </h3>
+                                <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+                                    <button type="button" class="btn-method sizing-user-btn active" id="redis-method-key" onclick="selectRedisMethod('key')" style="flex: 1; padding: 15px; border: 2px solid #0066cc; background: #e6f3ff; font-weight: 600;">
+                                        <i class="fa-solid fa-key"></i> Tính theo Key dự kiến <span style="color: #28a745; font-size: 12px;">(recommend)</span>
+                                    </button>
+                                    <button type="button" class="btn-method sizing-user-btn" id="redis-method-config" onclick="selectRedisMethod('config')" style="flex: 1; padding: 15px; border: 2px solid #ccc; background: #f8f9fa;">
+                                        <i class="fa-solid fa-server"></i> Tính theo cấu hình hiện có <span style="color: #dc3545; font-size: 12px;">(không khuyến khích)</span>
+                                    </button>
+                                </div>
+
+                                <!-- ==================== PHƯƠNG PHÁP 1: TÍNH THEO KEY ==================== -->
+                                <div id="redis-method-key-content" class="redis-method-content">
+                                    <h3 class="model-header">
+                                        <i class="fa-solid fa-calculator" style="color: #ee0033;"></i>TÍNH THEO KEY DỰ KIẾN
+                                    </h3>
+                                    
+                                    <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                                        <!-- Cột trái: Input -->
+                                        <div style="flex: 1; min-width: 300px;">
+                                            <div style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                                    Tổng lượng Key dự kiến là: A
+                                                    <span class="tooltip-icon" title="Số lượng key Redis dự kiến trong hệ thống">?</span>
+                                                </label>
+                                                <input id="redis-key-count" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 1000000">
+                                            </div>
+                                            <div style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                                    Kích thước trung bình 1 bản ghi (bytes): B
+                                                    <span class="tooltip-icon" title="Kích thước trung bình của mỗi key-value pair (bytes)">?</span>
+                                                </label>
+                                                <input id="redis-record-size" type="number" min="0" step="0.01" class="input-full sizing-user-input" placeholder="VD: 500">
+                                            </div>
+                                            <div style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                                    Mức độ quan trọng của hệ thống
+                                                </label>
+                                                <select id="redis-key-importance" class="input-full sizing-user-input">
+                                                    <option value="normal">Bình thường (1 master 1 slave)</option>
+                                                    <option value="dbqt">DBQT - Đảm bảo quốc gia (1 master 2 slave)</option>
+                                                </select>
+                                            </div>
+                                            <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+                                                <strong>Tổng dung lượng Key Redis:</strong> C = A × B = <span id="redis-total-capacity" style="color: #0066cc; font-weight: bold;">0</span> GB
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Cột phải: Upload ảnh sở cứ -->
+                                        <div style="flex: 1; min-width: 300px;">
+                                            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                                <i class="fa-solid fa-image"></i> Hình ảnh sở cứ
+                                            </label>
+                                            <div id="redis-key-evidence-grid" class="image-upload-grid"></div>
+                                            <button type="button" class="btn-add-img sizing-user-btn" onclick="addRedisKeyEvidenceSlot()" style="margin-top: 10px;">
+                                                <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin-top: 20px; text-align: center;">
+                                        <button type="button" class="btn-submit sizing-user-btn" onclick="calculateRedisKeyMethod()">
+                                            <i class="fa-solid fa-calculator"></i> Tính toán
+                                        </button>
+                                        <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('redis-key-result-container').innerHTML='';" style="margin-left: 10px;">
+                                            Xóa kết quả
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="redis-key-result-container" style="margin-top: 20px;"></div>
+                                </div>
+
+                                <!-- ==================== PHƯƠNG PHÁP 2: TÍNH THEO CẤU HÌNH HIỆN CÓ ==================== -->
+                                <div id="redis-method-config-content" class="redis-method-content" style="display: none;">
+                                    <h3 class="model-header">
+                                        <i class="fa-solid fa-server" style="color: #ee0033;"></i>TÍNH THEO CẤU HÌNH HIỆN CÓ
+                                    </h3>
+                                    
+                                    <div style="margin-bottom: 15px;">
+                                        <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                            Mô hình hiện tại của hệ thống
+                                        </label>
+                                        <select id="redis-current-model" class="input-full sizing-user-input" style="max-width: 300px;">
+                                            <option value="cluster">Redis Cluster</option>
+                                            <option value="sentinel">Redis Sentinel</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <p style="font-style: italic; color: #666; font-size: 13px; margin-bottom: 15px;">
+                                        Nhập thông tin các node Redis hiện tại. Tick chọn Master cho các node master (có thể chọn nhiều).
+                                    </p>
+
+                                    <!-- Bảng thông tin Redis hiện tại -->
+                                    <div class="table-responsive">
+                                        <table class="sizing-table redis-config-table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 130px;">IP</th>
+                                                    <th style="width: 100px;">RAM (GB)</th>
+                                                    <th style="width: 100px;">Tải RAM (%)</th>
+                                                    <th style="width: 80px;">Master</th>
+                                                    <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="redis-config-table-body"></tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <td class="text-right" style="padding-right: 15px; font-weight: bold;">Tổng RAM Master:</td>
+                                                    <td class="text-center" id="redis-total-master-ram" style="font-weight: bold; color: #0066cc;">0</td>
+                                                    <td colspan="3"></td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                    <button type="button" class="btn-add sizing-user-btn" onclick="addRedisConfigRow()">
+                                        <i class="fa-solid fa-plus"></i> Thêm dòng
+                                    </button>
+
+                                    <!-- Thông tin đầu vào sizing -->
+                                    <div style="margin-top: 30px; border-top: 2px solid #ddd; padding-top: 20px;">
+                                        <h3 class="model-header">
+                                            <i class="fa-solid fa-calculator" style="color: #ee0033;"></i>THÔNG TIN ĐẦU VÀO
+                                        </h3>
+                                        <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
+                                            <div style="min-width: 160px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Đầu vào (CCU)</label>
+                                                <input id="redis-config-input-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 1000">
+                                            </div>
+                                            <div style="min-width: 160px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Định cỡ (CCU)</label>
+                                                <input id="redis-config-sizing-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 5000">
+                                            </div>
+                                            <div style="min-width: 200px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Mức độ quan trọng</label>
+                                                <select id="redis-config-importance" class="input-full sizing-user-input">
+                                                    <option value="normal">Bình thường (1 master 1 slave)</option>
+                                                    <option value="dbqt">DBQT (1 master 2 slave)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style="margin-top: 20px; text-align: center;">
+                                        <button type="button" class="btn-submit sizing-user-btn" onclick="calculateRedisConfigMethod()">
+                                            <i class="fa-solid fa-calculator"></i> Tính toán
+                                        </button>
+                                        <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('redis-config-result-container').innerHTML='';" style="margin-left: 10px;">
+                                            Xóa kết quả
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="redis-config-result-container" style="margin-top: 20px;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Admin Evaluation Section -->
+                            <div class="model-admin-box" style="margin-top: 30px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                <div class="admin-grid-layout">
+                                    <div>
+                                        <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                        <select id="eval-module-redis" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                            <option value="">-- Chọn --</option>
+                                            <option value="OK">OK (Phê duyệt)</option>
+                                            <option value="NOK">NOK (Từ chối)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="admin-label">Ghi chú (Admin):</label>
+                                        <textarea id="note-module-redis" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module Redis..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
                     <div style="text-align: center; margin-top: 30px;">
                         <button type="button" class="btn-submit sizing-user-btn" id="saveSizingBtn" onclick="saveSizingData()">
                             <i class="fa-solid fa-floppy-disk"></i> Lưu

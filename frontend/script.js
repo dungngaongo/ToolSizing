@@ -2602,7 +2602,8 @@ function collectAllSizingData() {
             sizingResult: document.getElementById('sizing-result-container')?.innerHTML || ''
             // NOTE: Admin review is NOT saved here - it goes to dinhCoAdminReview
         },
-        moduleMariaDB: collectMariaDBData()
+        moduleMariaDB: collectMariaDBData(),
+        moduleRedis: collectRedisData()
     };
 }
 
@@ -2622,6 +2623,12 @@ function collectSizingAdminReviewData() {
             overallReview: {
                 eval: document.getElementById('eval-module-mariadb')?.value || '',
                 note: document.getElementById('note-module-mariadb')?.value || ''
+            }
+        },
+        moduleRedis: {
+            overallReview: {
+                eval: document.getElementById('eval-module-redis')?.value || '',
+                note: document.getElementById('note-module-redis')?.value || ''
             }
         }
         // Future modules can be added here: moduleCache, etc.
@@ -2683,8 +2690,9 @@ async function evaluateSizingSection() {
     // Check at least one module has evaluation
     const evalModuleApp = document.getElementById('eval-module-app')?.value;
     const evalModuleMariaDB = document.getElementById('eval-module-mariadb')?.value;
+    const evalModuleRedis = document.getElementById('eval-module-redis')?.value;
     
-    if (!evalModuleApp && !evalModuleMariaDB) {
+    if (!evalModuleApp && !evalModuleMariaDB && !evalModuleRedis) {
         alert('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một module!');
         return;
     }
@@ -2838,6 +2846,23 @@ function loadSizingData(data) {
             }
         }
         
+        // Load Module Redis data
+        if (sizingData.moduleRedis) {
+            loadRedisData(sizingData.moduleRedis);
+            
+            // Auto expand if has data
+            const redis = sizingData.moduleRedis;
+            if ((redis.keyMethod && (redis.keyMethod.keyCount || redis.keyMethod.recordSize)) ||
+                (redis.configMethod && redis.configMethod.configTable && redis.configMethod.configTable.length > 0)) {
+                const content = document.getElementById('module-redis-content');
+                const header = content?.previousElementSibling;
+                if (content && !content.classList.contains('expanded')) {
+                    content.classList.add('expanded');
+                    if (header) header.classList.add('active');
+                }
+            }
+        }
+        
         // Re-apply role permissions after loading data (disable admin fields for user, etc.)
         applyRolePermissions();
         
@@ -2895,6 +2920,20 @@ function loadSizingAdminReview(adminReview) {
                 }
                 if (document.getElementById('note-module-mariadb')) {
                     document.getElementById('note-module-mariadb').value = mariadbReview.note || '';
+                }
+            }
+        }
+        
+        // Load module Redis admin review
+        if (adminReview.moduleRedis) {
+            if (adminReview.moduleRedis.overallReview) {
+                const redisReview = adminReview.moduleRedis.overallReview;
+                if (document.getElementById('eval-module-redis')) {
+                    document.getElementById('eval-module-redis').value = redisReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-redis'));
+                }
+                if (document.getElementById('note-module-redis')) {
+                    document.getElementById('note-module-redis').value = redisReview.note || '';
                 }
             }
         }
@@ -3502,6 +3541,554 @@ function collectMariaDBData() {
         sizingCCU: document.getElementById('mariadb-sizing-ccu')?.value || '',
         resultHTML: document.getElementById('mariadb-result-container')?.innerHTML || ''
     };
+}
+
+// ==================== MODULE REDIS FUNCTIONS ====================
+
+// Chọn phương pháp tính toán Redis
+function selectRedisMethod(method) {
+    const keyBtn = document.getElementById('redis-method-key');
+    const configBtn = document.getElementById('redis-method-config');
+    const keyContent = document.getElementById('redis-method-key-content');
+    const configContent = document.getElementById('redis-method-config-content');
+    
+    if (method === 'key') {
+        keyBtn.classList.add('active');
+        keyBtn.style.border = '2px solid #0066cc';
+        keyBtn.style.background = '#e6f3ff';
+        configBtn.classList.remove('active');
+        configBtn.style.border = '2px solid #ccc';
+        configBtn.style.background = '#f8f9fa';
+        keyContent.style.display = 'block';
+        configContent.style.display = 'none';
+    } else {
+        configBtn.classList.add('active');
+        configBtn.style.border = '2px solid #0066cc';
+        configBtn.style.background = '#e6f3ff';
+        keyBtn.classList.remove('active');
+        keyBtn.style.border = '2px solid #ccc';
+        keyBtn.style.background = '#f8f9fa';
+        configContent.style.display = 'block';
+        keyContent.style.display = 'none';
+    }
+}
+
+// Thêm slot ảnh sở cứ cho phương pháp Key
+function addRedisKeyEvidenceSlot() {
+    const grid = document.getElementById('redis-key-evidence-grid');
+    if (!grid) return;
+    
+    const slot = document.createElement('div');
+    slot.className = 'upload-box';
+    slot.innerHTML = `
+        <div class="preview-area"></div>
+        <input type="file" accept="image/*" onchange="handleRedisKeyImageUpload(this)" style="display:none;">
+        <button type="button" class="btn-upload sizing-user-btn" onclick="this.previousElementSibling.click()">
+            <i class="fa-solid fa-upload"></i> Chọn ảnh
+        </button>
+        <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('.upload-box').remove()" style="margin-left: 5px;">
+            <i class="fa-solid fa-times"></i>
+        </button>
+    `;
+    grid.appendChild(slot);
+}
+
+// Xử lý upload ảnh
+function handleRedisKeyImageUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const previewArea = input.closest('.upload-box').querySelector('.preview-area');
+        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+    };
+    reader.readAsDataURL(file);
+}
+
+// Thêm dòng vào bảng cấu hình Redis
+function addRedisConfigRow(data = {}) {
+    const tbody = document.getElementById('redis-config-table-body');
+    if (!tbody) return;
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-full sizing-user-input redis-config-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
+        <td><input type="number" class="input-full sizing-user-input redis-config-ram" value="${data.ram || ''}" placeholder="RAM (GB)" min="0" onchange="updateRedisTotalMasterRAM()"></td>
+        <td><input type="number" class="input-full sizing-user-input redis-config-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100" onchange="updateRedisTotalMasterRAM()"></td>
+        <td class="text-center">
+            <input type="checkbox" class="redis-master-checkbox" ${data.isMaster ? 'checked' : ''} onchange="updateRedisTotalMasterRAM()">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove(); updateRedisTotalMasterRAM();">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+// Cập nhật tổng RAM của các Master
+function updateRedisTotalMasterRAM() {
+    const rows = document.querySelectorAll('#redis-config-table-body tr');
+    let totalMasterRAM = 0;
+    
+    rows.forEach(row => {
+        const isMaster = row.querySelector('.redis-master-checkbox')?.checked;
+        if (isMaster) {
+            const ram = parseFloat(row.querySelector('.redis-config-ram')?.value) || 0;
+            const ramLoad = parseFloat(row.querySelector('.redis-config-ram-load')?.value) || 0;
+            totalMasterRAM += ram * (ramLoad / 100);
+        }
+    });
+    
+    const totalEl = document.getElementById('redis-total-master-ram');
+    if (totalEl) totalEl.innerText = totalMasterRAM.toFixed(2);
+}
+
+// Thu thập dữ liệu bảng cấu hình Redis
+function collectRedisConfigTableData() {
+    const rows = document.querySelectorAll('#redis-config-table-body tr');
+    const data = [];
+    rows.forEach(row => {
+        data.push({
+            ip: row.querySelector('.redis-config-ip')?.value || '',
+            ram: row.querySelector('.redis-config-ram')?.value || '',
+            ramLoad: row.querySelector('.redis-config-ram-load')?.value || '',
+            isMaster: row.querySelector('.redis-master-checkbox')?.checked || false
+        });
+    });
+    return data;
+}
+
+// Thu thập ảnh sở cứ Redis Key
+function collectRedisKeyEvidenceData() {
+    const grid = document.getElementById('redis-key-evidence-grid');
+    if (!grid) return [];
+    
+    const images = [];
+    grid.querySelectorAll('.upload-box').forEach(slot => {
+        const img = slot.querySelector('.preview-area img');
+        if (img) {
+            images.push({ dataUrl: img.src });
+        }
+    });
+    return images;
+}
+
+// Tìm số N (số lẻ > 1 sao cho RAM1svr < 64)
+function findOptimalN(totalRAM) {
+    const targetRAM = totalRAM * 1.1 / 0.8;
+    let N = 1;
+    
+    // Nếu targetRAM < 64, N = 1 là đủ
+    if (targetRAM < 64) {
+        return 1;
+    }
+    
+    // Tìm N là số lẻ > 1 sao cho RAM/N < 64
+    N = 3; // Bắt đầu từ 3 (số lẻ > 1)
+    while (targetRAM / N >= 64) {
+        N += 2; // Tăng lên số lẻ tiếp theo
+    }
+    
+    return N;
+}
+
+// Tính toán theo phương pháp Key dự kiến
+function calculateRedisKeyMethod() {
+    const keyCount = parseFloat(document.getElementById('redis-key-count')?.value) || 0;
+    const recordSize = parseFloat(document.getElementById('redis-record-size')?.value) || 0;
+    const importance = document.getElementById('redis-key-importance')?.value || 'normal';
+    
+    if (!keyCount || !recordSize) {
+        alert('Vui lòng nhập đầy đủ thông tin: Tổng lượng Key và Kích thước bản ghi!');
+        return;
+    }
+    
+    // Tính C = A * B (bytes -> GB)
+    const C = (keyCount * recordSize) / (1024 * 1024 * 1024); // Convert to GB
+    
+    // Update display
+    document.getElementById('redis-total-capacity').innerText = C.toFixed(4);
+    
+    let html = '';
+    let model = '';
+    let vcpu = 0;
+    let ramPerServer = 0;
+    let diskPerServer = 0;
+    let masterCount = 1;
+    let slavePerMaster = importance === 'dbqt' ? 2 : 1;
+    let totalServers = 0;
+    
+    if (C < 32) {
+        // Redis Sentinel: 1 master 2 slave
+        model = 'Redis Sentinel';
+        vcpu = 8;
+        ramPerServer = C * 1.1 / 0.8;
+        diskPerServer = 4 * ramPerServer;
+        masterCount = 1;
+        slavePerMaster = 2;
+        totalServers = 1 + 2; // 1 master + 2 slave
+    } else {
+        // Redis Cluster
+        model = 'Redis Cluster';
+        vcpu = 16;
+        
+        // Tìm N
+        const N = findOptimalN(C);
+        masterCount = N;
+        ramPerServer = (C * 1.1 / 0.8) / N;
+        diskPerServer = 4 * ramPerServer;
+        totalServers = N * (1 + slavePerMaster); // N master * (1 + số slave mỗi master)
+    }
+    
+    // ==================== HIỂN THỊ KẾT QUẢ ====================
+    html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin tính toán</h4>
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li><strong>Tổng số Key:</strong> ${keyCount.toLocaleString()}</li>
+            <li><strong>Kích thước trung bình 1 bản ghi:</strong> ${recordSize} bytes</li>
+            <li><strong>Tổng dung lượng Key Redis (C):</strong> ${keyCount.toLocaleString()} × ${recordSize} = <strong>${C.toFixed(4)} GB</strong></li>
+            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT - Đảm bảo quốc gia' : 'Bình thường'}</li>
+        </ul>
+    </div>`;
+    
+    html += `<div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;"><i class="fa-solid fa-lightbulb"></i> Đề xuất mô hình</h4>
+        <p style="margin: 0; font-size: 15px;">
+            <strong>${model}</strong> - ${masterCount} master ${slavePerMaster} slave
+            ${C >= 32 ? `<br><em>(C = ${C.toFixed(2)} GB > 32 GB → Sử dụng Cluster với N = ${masterCount} master)</em>` : `<br><em>(C = ${C.toFixed(2)} GB < 32 GB → Sử dụng Sentinel)</em>`}
+        </p>
+    </div>`;
+    
+    html += `<div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #856404;">Công thức tính toán</h4>
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li><strong>RAM mỗi server:</strong> RAM1svr = C × 1.1 / 0.8${masterCount > 1 ? ' / N' : ''} = ${C.toFixed(2)} × 1.1 / 0.8${masterCount > 1 ? ` / ${masterCount}` : ''} = <strong>${ramPerServer.toFixed(2)} GB</strong></li>
+            <li><strong>vCPU mỗi server:</strong> ${vcpu} vCPU (mặc định cho ${model})</li>
+            <li><strong>DISK mỗi server:</strong> 4 × RAM = 4 × ${ramPerServer.toFixed(2)} = <strong>${diskPerServer.toFixed(2)} GB</strong></li>
+        </ul>
+    </div>`;
+    
+    // Bảng kết quả
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
+    </h4>`;
+    
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 150px;">Thành phần</th>
+                <th style="width: 200px;">Cấu hình đề xuất</th>
+                <th style="width: 100px;">Số lượng</th>
+                <th>Ghi chú</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background: #e6ffed;">
+                <td><strong>Redis ${model === 'Redis Sentinel' ? 'Sentinel' : 'Cluster'}</strong></td>
+                <td>
+                    <ul style="margin: 0; padding-left: 15px; line-height: 1.6;">
+                        <li><strong>${vcpu} vCPU</strong></li>
+                        <li><strong>${Math.ceil(ramPerServer)} GB RAM</strong></li>
+                        <li><strong>${Math.ceil(diskPerServer)} GB DISK</strong></li>
+                    </ul>
+                </td>
+                <td class="text-center"><strong>${totalServers}</strong></td>
+                <td>${masterCount} master × (1 + ${slavePerMaster} slave)</td>
+            </tr>
+        </tbody>
+    </table>`;
+    
+    // Bảng tổng hợp
+    const totalVCPU = vcpu * totalServers;
+    const totalRAM = Math.ceil(ramPerServer) * totalServers;
+    const totalDisk = Math.ceil(diskPerServer) * totalServers;
+    
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-table"></i> Bảng tổng hợp tài nguyên
+    </h4>`;
+    
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th>Module</th>
+                <th>Số lượng</th>
+                <th>vCPU/server</th>
+                <th>RAM/server (GB)</th>
+                <th>Disk/server (GB)</th>
+                <th>Tổng vCPU</th>
+                <th>Tổng RAM (GB)</th>
+                <th>Tổng Disk (GB)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background: #f0f9ff;">
+                <td><strong>Redis</strong></td>
+                <td class="text-center">${totalServers}</td>
+                <td class="text-center">${vcpu}</td>
+                <td class="text-center">${Math.ceil(ramPerServer)}</td>
+                <td class="text-center">${Math.ceil(diskPerServer)}</td>
+                <td class="text-center"><strong>${totalVCPU}</strong></td>
+                <td class="text-center"><strong>${totalRAM}</strong></td>
+                <td class="text-center"><strong>${totalDisk}</strong></td>
+            </tr>
+        </tbody>
+    </table>`;
+    
+    const container = document.getElementById('redis-key-result-container');
+    if (container) container.innerHTML = html;
+}
+
+// Tính toán theo phương pháp cấu hình hiện có
+function calculateRedisConfigMethod() {
+    const inputCCU = parseFloat(document.getElementById('redis-config-input-ccu')?.value) || 0;
+    const sizingCCU = parseFloat(document.getElementById('redis-config-sizing-ccu')?.value) || 0;
+    const importance = document.getElementById('redis-config-importance')?.value || 'normal';
+    const currentModel = document.getElementById('redis-current-model')?.value || 'cluster';
+    
+    if (!inputCCU || !sizingCCU) {
+        alert('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".');
+        return;
+    }
+    
+    // Lấy tổng RAM từ các Master
+    const totalMasterRAM = parseFloat(document.getElementById('redis-total-master-ram')?.innerText) || 0;
+    
+    if (totalMasterRAM <= 0) {
+        alert('Vui lòng nhập thông tin và tick chọn ít nhất một Master trong bảng cấu hình!');
+        return;
+    }
+    
+    // Hệ số
+    const factor = sizingCCU / inputCCU;
+    
+    // RAM cần = RAM * Tải RAM * (Định cỡ / Đầu vào) * 1.1 / 0.9
+    const ramNeeded = totalMasterRAM * factor * 1.1 / 0.9;
+    
+    // Sau đó áp dụng công thức tương tự phương pháp Key
+    const C = ramNeeded;
+    
+    let html = '';
+    let model = '';
+    let vcpu = 0;
+    let ramPerServer = 0;
+    let diskPerServer = 0;
+    let masterCount = 1;
+    let slavePerMaster = importance === 'dbqt' ? 2 : 1;
+    let totalServers = 0;
+    
+    if (C < 32) {
+        // Redis Sentinel
+        model = 'Redis Sentinel';
+        vcpu = 8;
+        ramPerServer = C * 1.1 / 0.8;
+        diskPerServer = 4 * ramPerServer;
+        masterCount = 1;
+        slavePerMaster = 2;
+        totalServers = 1 + 2;
+    } else {
+        // Redis Cluster
+        model = 'Redis Cluster';
+        vcpu = 16;
+        
+        const N = findOptimalN(C);
+        masterCount = N;
+        ramPerServer = (C * 1.1 / 0.8) / N;
+        diskPerServer = 4 * ramPerServer;
+        totalServers = N * (1 + slavePerMaster);
+    }
+    
+    // ==================== HIỂN THỊ KẾT QUẢ ====================
+    html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin tính toán</h4>
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li><strong>Mô hình hiện tại:</strong> ${currentModel === 'cluster' ? 'Redis Cluster' : 'Redis Sentinel'}</li>
+            <li><strong>Tổng RAM Master hiện tại (đã nhân tải):</strong> ${totalMasterRAM.toFixed(2)} GB</li>
+            <li><strong>Hệ số (Định cỡ/Đầu vào):</strong> ${sizingCCU} / ${inputCCU} = ${factor.toFixed(2)}</li>
+            <li><strong>RAM cần cho hệ thống mới:</strong> ${totalMasterRAM.toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT - Đảm bảo quốc gia' : 'Bình thường'}</li>
+        </ul>
+    </div>`;
+    
+    html += `<div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;"><i class="fa-solid fa-lightbulb"></i> Đề xuất mô hình</h4>
+        <p style="margin: 0; font-size: 15px;">
+            <strong>${model}</strong> - ${masterCount} master ${slavePerMaster} slave
+            ${C >= 32 ? `<br><em>(RAM = ${C.toFixed(2)} GB > 32 GB → Sử dụng Cluster với N = ${masterCount} master)</em>` : `<br><em>(RAM = ${C.toFixed(2)} GB < 32 GB → Sử dụng Sentinel)</em>`}
+        </p>
+    </div>`;
+    
+    html += `<div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #856404;">Công thức tính toán</h4>
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li><strong>RAM mỗi server:</strong> RAM1svr = C × 1.1 / 0.8${masterCount > 1 ? ' / N' : ''} = ${C.toFixed(2)} × 1.1 / 0.8${masterCount > 1 ? ` / ${masterCount}` : ''} = <strong>${ramPerServer.toFixed(2)} GB</strong></li>
+            <li><strong>vCPU mỗi server:</strong> ${vcpu} vCPU (mặc định cho ${model})</li>
+            <li><strong>DISK mỗi server:</strong> 4 × RAM = 4 × ${ramPerServer.toFixed(2)} = <strong>${diskPerServer.toFixed(2)} GB</strong></li>
+        </ul>
+    </div>`;
+    
+    // Bảng kết quả
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
+    </h4>`;
+    
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 150px;">Thành phần</th>
+                <th style="width: 200px;">Cấu hình đề xuất</th>
+                <th style="width: 100px;">Số lượng</th>
+                <th>Ghi chú</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background: #e6ffed;">
+                <td><strong>Redis ${model === 'Redis Sentinel' ? 'Sentinel' : 'Cluster'}</strong></td>
+                <td>
+                    <ul style="margin: 0; padding-left: 15px; line-height: 1.6;">
+                        <li><strong>${vcpu} vCPU</strong></li>
+                        <li><strong>${Math.ceil(ramPerServer)} GB RAM</strong></li>
+                        <li><strong>${Math.ceil(diskPerServer)} GB DISK</strong></li>
+                    </ul>
+                </td>
+                <td class="text-center"><strong>${totalServers}</strong></td>
+                <td>${masterCount} master × (1 + ${slavePerMaster} slave)</td>
+            </tr>
+        </tbody>
+    </table>`;
+    
+    // Bảng tổng hợp
+    const totalVCPU = vcpu * totalServers;
+    const totalRAM = Math.ceil(ramPerServer) * totalServers;
+    const totalDisk = Math.ceil(diskPerServer) * totalServers;
+    
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-table"></i> Bảng tổng hợp tài nguyên
+    </h4>`;
+    
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th>Module</th>
+                <th>Số lượng</th>
+                <th>vCPU/server</th>
+                <th>RAM/server (GB)</th>
+                <th>Disk/server (GB)</th>
+                <th>Tổng vCPU</th>
+                <th>Tổng RAM (GB)</th>
+                <th>Tổng Disk (GB)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background: #f0f9ff;">
+                <td><strong>Redis</strong></td>
+                <td class="text-center">${totalServers}</td>
+                <td class="text-center">${vcpu}</td>
+                <td class="text-center">${Math.ceil(ramPerServer)}</td>
+                <td class="text-center">${Math.ceil(diskPerServer)}</td>
+                <td class="text-center"><strong>${totalVCPU}</strong></td>
+                <td class="text-center"><strong>${totalRAM}</strong></td>
+                <td class="text-center"><strong>${totalDisk}</strong></td>
+            </tr>
+        </tbody>
+    </table>`;
+    
+    const container = document.getElementById('redis-config-result-container');
+    if (container) container.innerHTML = html;
+}
+
+// Thu thập dữ liệu Redis để lưu
+function collectRedisData() {
+    // Xác định phương pháp đang chọn
+    const keyBtn = document.getElementById('redis-method-key');
+    const selectedMethod = keyBtn?.classList.contains('active') ? 'key' : 'config';
+    
+    return {
+        selectedMethod: selectedMethod,
+        // Phương pháp Key
+        keyMethod: {
+            keyCount: document.getElementById('redis-key-count')?.value || '',
+            recordSize: document.getElementById('redis-record-size')?.value || '',
+            importance: document.getElementById('redis-key-importance')?.value || 'normal',
+            evidenceImages: collectRedisKeyEvidenceData(),
+            resultHTML: document.getElementById('redis-key-result-container')?.innerHTML || ''
+        },
+        // Phương pháp Config
+        configMethod: {
+            currentModel: document.getElementById('redis-current-model')?.value || 'cluster',
+            configTable: collectRedisConfigTableData(),
+            inputCCU: document.getElementById('redis-config-input-ccu')?.value || '',
+            sizingCCU: document.getElementById('redis-config-sizing-ccu')?.value || '',
+            importance: document.getElementById('redis-config-importance')?.value || 'normal',
+            resultHTML: document.getElementById('redis-config-result-container')?.innerHTML || ''
+        }
+    };
+}
+
+// Load dữ liệu Redis từ DB
+function loadRedisData(data) {
+    if (!data) return;
+    
+    // Load phương pháp đã chọn
+    if (data.selectedMethod) {
+        selectRedisMethod(data.selectedMethod);
+    }
+    
+    // Load phương pháp Key
+    if (data.keyMethod) {
+        const km = data.keyMethod;
+        if (km.keyCount) document.getElementById('redis-key-count').value = km.keyCount;
+        if (km.recordSize) document.getElementById('redis-record-size').value = km.recordSize;
+        if (km.importance) document.getElementById('redis-key-importance').value = km.importance;
+        
+        // Load ảnh sở cứ
+        if (km.evidenceImages && Array.isArray(km.evidenceImages)) {
+            const grid = document.getElementById('redis-key-evidence-grid');
+            if (grid) {
+                grid.innerHTML = '';
+                km.evidenceImages.forEach(img => {
+                    addRedisKeyEvidenceSlot();
+                    const lastSlot = grid.lastElementChild;
+                    if (lastSlot && img.dataUrl) {
+                        const previewArea = lastSlot.querySelector('.preview-area');
+                        if (previewArea) {
+                            previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Load kết quả
+        if (km.resultHTML) {
+            const container = document.getElementById('redis-key-result-container');
+            if (container) container.innerHTML = km.resultHTML;
+        }
+    }
+    
+    // Load phương pháp Config
+    if (data.configMethod) {
+        const cm = data.configMethod;
+        if (cm.currentModel) document.getElementById('redis-current-model').value = cm.currentModel;
+        if (cm.inputCCU) document.getElementById('redis-config-input-ccu').value = cm.inputCCU;
+        if (cm.sizingCCU) document.getElementById('redis-config-sizing-ccu').value = cm.sizingCCU;
+        if (cm.importance) document.getElementById('redis-config-importance').value = cm.importance;
+        
+        // Load bảng config
+        if (cm.configTable && Array.isArray(cm.configTable)) {
+            document.getElementById('redis-config-table-body').innerHTML = '';
+            cm.configTable.forEach(row => addRedisConfigRow(row));
+            updateRedisTotalMasterRAM();
+        }
+        
+        // Load kết quả
+        if (cm.resultHTML) {
+            const container = document.getElementById('redis-config-result-container');
+            if (container) container.innerHTML = cm.resultHTML;
+        }
+    }
 }
 
 // ==================== VERSION HISTORY SYSTEM ====================
