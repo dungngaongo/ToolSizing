@@ -37,9 +37,11 @@
                 <!-- Hiển thị trạng thái dự án hiện tại -->
                 <span id="current-project-status" class="project-status-badge" style="display: none;"></span>
                 
-                <a href="#" class="btn-viettel-group">Viettel Group</a>
-                <a href="#">Xem theo đơn vị</a>
-                <a href="#">Mới nhất</a>
+                <!-- Nút Phê duyệt trên header (luôn hiển thị, chỉ admin2 mới bấm được) -->
+                <button type="button" class="btn-approve" id="btn-approve-header" onclick="approveProject()" style="display: none; padding: 8px 18px; font-size: 13px;">
+                    <i class="fa-solid fa-check-circle"></i> PHÊ DUYỆT
+                </button>
+                
                 <span class="separator">|</span>
                 <button id="btn-version-history" onclick="openVersionHistory()" class="btn-version-history" style="display: none;">
                     <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử
@@ -297,26 +299,30 @@
                                 <td>
                                     <div class="cell-wrapper">
                                         <input type="text" placeholder="Giá trị...">
-                                        <label class="upload-icon-btn" title="Tải ảnh">
-                                            <i class="fa-solid fa-cloud-arrow-up"></i>
-                                            <input type="file" accept="image/*" class="hidden-file-input" 
-                                                onclick="event.stopPropagation()" 
-                                                onchange="handleRowEvidenceUpload(this, 'poc')">
-                                        </label>
-                                        <i class="fa-solid fa-times btn-remove-file" style="display: none;" onclick="clearImage(this)" title="Xóa ảnh này"></i>
+                                        <div class="row-evidence-controls">
+                                            <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
+                                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                                                <input type="file" accept="image/*" class="hidden-file-input" 
+                                                    onclick="event.stopPropagation()" 
+                                                    onchange="handleRowEvidenceUpload(this, 'poc')">
+                                            </label>
+                                        </div>
+                                        <div class="row-evidence-container"></div>
                                     </div>
                                 </td>
                                 
                                 <td>
                                     <div class="cell-wrapper">
                                         <input type="text" placeholder="Giá trị...">
-                                        <label class="upload-icon-btn" title="Tải ảnh">
-                                            <i class="fa-solid fa-cloud-arrow-up"></i>
-                                            <input type="file" accept="image/*" class="hidden-file-input" 
-                                                onclick="event.stopPropagation()" 
-                                                onchange="handleRowEvidenceUpload(this, 'sizing')">
-                                        </label>
-                                        <i class="fa-solid fa-times btn-remove-file" style="display: none;" onclick="clearRowImages(this)" title="Xóa ảnh này"></i>
+                                        <div class="row-evidence-controls">
+                                            <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
+                                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                                                <input type="file" accept="image/*" class="hidden-file-input" 
+                                                    onclick="event.stopPropagation()" 
+                                                    onchange="handleRowEvidenceUpload(this, 'sizing')">
+                                            </label>
+                                        </div>
+                                        <div class="row-evidence-container"></div>
                                     </div>
                                 </td>
                                 
@@ -363,12 +369,7 @@
                     <div id="input-save-status" style="margin-top: 10px;"></div>
                 </div>
             </div>
-        </div>   
-            <div id="evidence-modal" class="modal-overlay" onclick="closeModal()" style="display: none;">
-                <span class="close-btn">&times;</span>
-                <img id="modal-img" src="" alt="Full Evidence">
-                <div id="modal-caption">Ảnh sở cứ</div>
-            </div>
+        </div>
 
             <div id="page-model" class="page-section">
                 <div class="form-container">
@@ -578,7 +579,6 @@
                                         <thead>
                                             <tr>
                                                 <th style="width: 50px;">STT</th>
-                                                <th style="width: 130px;">Module <span style="color:red">*</span></th>
                                                 <th style="width: 130px;">IP</th>
                                                 <th style="width: 220px;">CPU (Model & Specs)</th>
                                                 <th style="width: 100px;">RAM (GB)</th>
@@ -598,7 +598,7 @@
                                         <tbody id="baseline-table-body"></tbody>
                                         <tfoot>
                                             <tr>
-                                                <td colspan="4" class="text-right" style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">
+                                                <td colspan="3" class="text-right" style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">
                                                     Tổng cộng:
                                                 </td>
                                                 <td class="text-center" id="total-ram" style="font-weight: bold;">0</td>
@@ -613,6 +613,20 @@
                                 <button type="button" class="btn-add sizing-user-btn" onclick="addBaselineRow()">
                                     <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
                                 </button>
+
+                                <!-- Ảnh sở cứ cho bảng thông tin hệ thống tham chiếu -->
+                                <div style="margin-top: 20px; padding: 15px; border: 1px dashed #ccc; border-radius: 6px; background: #fafafa;">
+                                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #333;">
+                                        <i class="fa-solid fa-image" style="color: #ee0033;"></i> Ảnh sở cứ - Hệ thống tham chiếu
+                                    </h4>
+                                    <p style="font-style: italic; color: #666; font-size: 12px; margin-bottom: 10px;">
+                                        Tải lên ảnh chứng minh cấu hình hệ thống tham chiếu (Task Manager, top, htop...)
+                                    </p>
+                                    <div id="baseline-evidence-grid" class="image-upload-grid"></div>
+                                    <button type="button" class="btn-add-img sizing-user-btn" onclick="addBaselineEvidenceSlot()">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                    </button>
+                                </div>
 
                                 <div style="margin-top: 50px; border-top: 2px solid #ddd; padding-top: 20px;">
                                     <h3 class="model-header">
@@ -654,10 +668,6 @@
                                             </tfoot>
                                         </table>
                                     </div>
-
-                                    <button type="button" class="btn-add sizing-user-btn" onclick="addInputConfigRow()">
-                                        <i class="fa-solid fa-plus"></i> Thêm dòng tính toán
-                                    </button>
                                 </div>
 
                                 <div style="margin-top: 40px; border-top: 1px dashed #ccc; padding-top: 20px;">
@@ -744,6 +754,12 @@
                                                 <th style="width: 100px;">Tải CPU (%)</th>
                                                 <th style="width: 100px;">Tải RAM (%)</th>
                                                 <th style="width: 80px;">Master</th>
+                                                <th style="width: 100px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                    <i class="fa-solid fa-user-shield"></i> Đánh giá
+                                                </th>
+                                                <th style="width: 150px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                    Ghi chú (Admin)
+                                                </th>
                                                 <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
                                             </tr>
                                         </thead>
@@ -754,24 +770,71 @@
                                     <i class="fa-solid fa-plus"></i> Thêm dòng
                                 </button>
 
-                                <!-- Bảng 2: Thông tin Storage -->
-                                <div class="table-responsive" style="margin-top: 20px;">
-                                    <table class="sizing-table mariadb-storage-table">
-                                        <thead>
-                                            <tr>
-                                                <th style="width: 130px;">IP</th>
-                                                <th style="width: 100px;">/data</th>
-                                                <th style="width: 100px;">/log</th>
-                                                <th style="width: 100px;">/backup</th>
-                                                <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="mariadb-storage-table-body"></tbody>
-                                    </table>
+                                <!-- Ảnh sở cứ cho bảng thông tin hệ thống tham chiếu MariaDB -->
+                                <div style="margin-top: 20px; padding: 15px; border: 1px dashed #ccc; border-radius: 6px; background: #fafafa;">
+                                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #333;">
+                                        <i class="fa-solid fa-image" style="color: #ee0033;"></i> Ảnh sở cứ - Hệ thống tham chiếu MariaDB
+                                    </h4>
+                                    <p style="font-style: italic; color: #666; font-size: 12px; margin-bottom: 10px;">
+                                        Tải lên ảnh chứng minh cấu hình hệ thống tham chiếu MariaDB (top, htop, show status...)
+                                    </p>
+                                    <div id="mariadb-ref-evidence-grid" class="image-upload-grid"></div>
+                                    <button type="button" class="btn-add-img sizing-user-btn" onclick="addMariaDBRefEvidenceSlot()">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                    </button>
                                 </div>
-                                <button type="button" class="btn-add sizing-user-btn" onclick="addMariaDBStorageRow()">
-                                    <i class="fa-solid fa-plus"></i> Thêm dòng
-                                </button>
+
+                                <!-- Bảng 2: Thông tin Storage (1 dòng cố định) -->
+                                <div style="margin-top: 25px;">
+                                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #333;">
+                                        <i class="fa-solid fa-hard-drive" style="color: #ee0033;"></i> Thông tin Storage
+                                    </h4>
+                                    <div class="table-responsive">
+                                        <table class="sizing-table mariadb-storage-table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 120px;">/data (GB)</th>
+                                                    <th style="width: 120px;">/log (GB)</th>
+                                                    <th style="width: 120px;">/backup (GB)</th>
+                                                    <th style="width: 100px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                        <i class="fa-solid fa-user-shield"></i> Đánh giá
+                                                    </th>
+                                                    <th style="width: 180px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                        Ghi chú (Admin)
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td><input type="number" id="mariadb-storage-data" class="input-full sizing-user-input" placeholder="/data" min="0"></td>
+                                                    <td><input type="number" id="mariadb-storage-log" class="input-full sizing-user-input" placeholder="/log" min="0"></td>
+                                                    <td><input type="number" id="mariadb-storage-backup" class="input-full sizing-user-input" placeholder="/backup" min="0"></td>
+                                                    <td class="admin-cell">
+                                                        <select id="eval-mariadb-storage" class="admin-eval-select" onchange="styleAdminSelect(this)">
+                                                            <option value="">--</option>
+                                                            <option value="OK">OK</option>
+                                                            <option value="NOK">NOK</option>
+                                                        </select>
+                                                    </td>
+                                                    <td class="admin-cell">
+                                                        <input type="text" id="note-mariadb-storage" class="input-full admin-note" placeholder="Nhận xét...">
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Ảnh sở cứ -->
+                                <div style="margin-top: 25px;">
+                                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #333;">
+                                        <i class="fa-solid fa-image" style="color: #ee0033;"></i> Hình ảnh sở cứ
+                                    </h4>
+                                    <div id="mariadb-evidence-grid" class="image-upload-grid"></div>
+                                    <button type="button" class="btn-add-img sizing-user-btn" onclick="addMariaDBEvidenceSlot()" style="margin-top: 10px;">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                    </button>
+                                </div>
 
                                 <!-- Ghi chú -->
                                 <div style="margin-top: 20px;">
@@ -941,6 +1004,12 @@
                                                     <th style="width: 100px;">RAM (GB)</th>
                                                     <th style="width: 100px;">Tải RAM (%)</th>
                                                     <th style="width: 80px;">Master</th>
+                                                    <th style="width: 100px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                        <i class="fa-solid fa-user-shield"></i> Đánh giá
+                                                    </th>
+                                                    <th style="width: 150px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                        Ghi chú (Admin)
+                                                    </th>
                                                     <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
                                                 </tr>
                                             </thead>
@@ -949,7 +1018,7 @@
                                                 <tr>
                                                     <td class="text-right" style="padding-right: 15px; font-weight: bold;">Tổng RAM Master:</td>
                                                     <td class="text-center" id="redis-total-master-ram" style="font-weight: bold; color: #0066cc;">0</td>
-                                                    <td colspan="3"></td>
+                                                    <td colspan="5"></td>
                                                 </tr>
                                             </tfoot>
                                         </table>
@@ -1163,6 +1232,12 @@
                                                     <th style="width: 100px;">Tải CPU (%)</th>
                                                     <th style="width: 100px;">Tải RAM (%)</th>
                                                     <th style="width: 100px;">Tải Disk (%)</th>
+                                                    <th style="width: 100px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                        <i class="fa-solid fa-user-shield"></i> Đánh giá
+                                                    </th>
+                                                    <th style="width: 150px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                        Ghi chú (Admin)
+                                                    </th>
                                                     <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
                                                 </tr>
                                             </thead>
@@ -1173,7 +1248,7 @@
                                                     <td class="text-center" id="kafka-linear-total-cpu" style="font-weight: bold;">0</td>
                                                     <td class="text-center" id="kafka-linear-total-ram" style="font-weight: bold;">0</td>
                                                     <td class="text-center" id="kafka-linear-total-disk" style="font-weight: bold;">0</td>
-                                                    <td colspan="4"></td>
+                                                    <td colspan="6"></td>
                                                 </tr>
                                             </tfoot>
                                         </table>
@@ -1342,11 +1417,6 @@
                         <button type="button" class="btn-evaluate" onclick="evaluateSection('summary')">Đánh giá</button>
                         <button type="button" class="btn-submit" id="exportBtn">
                             <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
-                        </button>
-                        
-                        <!-- Nút Phê duyệt dự án (chỉ hiện cho admin2 khi dự án ở trạng thái PHE_DUYET) -->
-                        <button type="button" class="btn-approve" id="btn-approve-project" onclick="approveProject()" style="display: none;">
-                            <i class="fa-solid fa-check-circle"></i> PHÊ DUYỆT DỰ ÁN
                         </button>
                         
                         <div id="summary-save-status" style="margin-top: 10px;"></div>

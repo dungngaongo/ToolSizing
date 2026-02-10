@@ -138,7 +138,7 @@ body {
     gap: 25px;
 }
 
-.sidebar { width: 260px; flex-shrink: 0; }
+.sidebar { width: 260px; flex-shrink: 0; position: sticky; top: 70px; align-self: flex-start; max-height: calc(100vh - 80px); overflow-y: auto; }
 .content { flex: 1; padding-right: 25px; min-height: 600px; }
 
 .side-menu {
@@ -857,21 +857,25 @@ body.role-user .admin-note,
     gap: 6px;
 }
 
-/* View evidence button (small pill) */
+/* View evidence button (small round icon) */
 .btn-view-evidence {
-    background: linear-gradient(180deg, #ffffff, #f8f9fb);
-    border: 1px solid #dfe6ee;
+    background: #e6f3ff;
+    border: 1px solid #b3d9ff;
     color: #0b5ed7;
-    padding: 6px 10px;
-    font-size: 12px;
-    border-radius: 16px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
+    font-size: 14px;
     box-shadow: 0 1px 2px rgba(11,94,215,0.08);
     transition: all 0.15s ease-in-out;
 }
 .btn-view-evidence:hover {
-    background: #e9f2ff;
-    transform: translateY(-1px);
+    background: #cce5ff;
+    transform: scale(1.1);
 }
 
 /* Remove evidence button (small round icon) */
@@ -1120,7 +1124,7 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
 
 /* Bố cục Flexbox */
 .main-content { display: flex; min-height: calc(100vh - 60px); }
-.sidebar { width: 250px; background: #fff; border-right: 1px solid #ddd; flex-shrink: 0; }
+.sidebar { width: 250px; background: #fff; border-right: 1px solid #ddd; flex-shrink: 0; position: sticky; top: 70px; align-self: flex-start; max-height: calc(100vh - 80px); overflow-y: auto; }
 .content { flex-grow: 1; padding: 20px; overflow-x: hidden; }
 
 /* Sidebar Menu */
@@ -1302,21 +1306,7 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
     display: none; /* Mặc định ẩn */
 }
 
-/* Nút Xem (Xanh) và Nút Xóa (Đỏ) */
-.btn-view-evidence {
-    background-color: #007bff; color: white;
-    border: none; padding: 6px 12px; border-radius: 4px;
-    font-size: 12px; cursor: pointer; margin-right: 5px;
-    display: none; /* Mặc định ẩn */
-}
-.btn-view-evidence:hover { background-color: #0056b3; }
-
-.btn-remove-evidence {
-    background-color: #dc3545; color: white;
-    border: none; padding: 6px 12px; border-radius: 4px;
-    font-size: 12px; cursor: pointer;
-}
-.btn-remove-evidence:hover { background-color: #a71d2a; }
+/* Nút Xem và Xóa đã được định nghĩa ở trên (compact round icon style) */
 
 .hidden-evidence-input { display: none; }
 
@@ -2221,7 +2211,7 @@ body.role-admin1 #page-sizing textarea:not(.admin-note):not([id^="note-"]):disab
 }
 
 body.role-admin1 .sizing-user-input,
-body.role-admin1 .sizing-user-btn:not(.btn-evaluate) {
+body.role-admin1 .sizing-user-btn:not(.btn-evaluate):not(.btn-method) {
     opacity: 0.5;
     pointer-events: none;
 }

@@ -69,9 +69,11 @@ public class ProjectDataController {
 
     @PostMapping("/project/{projectId}/evaluate")
     public ResponseEntity<?> evaluateSection(@PathVariable String projectId, @RequestBody EvaluateProjectDataRequest request) {
-        // Verify authenticated user has admin role (ROLE_ADMIN1)
+        // Verify authenticated user has admin role (ROLE_ADMIN1 or ROLE_ADMIN2)
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equalsIgnoreCase("ROLE_ADMIN1"))) {
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equalsIgnoreCase("ROLE_ADMIN1") || a.getAuthority().equalsIgnoreCase("ROLE_ADMIN2"));
+        if (!isAdmin) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Forbidden: requires admin role");
         }
 

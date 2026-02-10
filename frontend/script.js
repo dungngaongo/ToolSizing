@@ -110,9 +110,15 @@ function handleUnauthorized(response) {
 function applyRolePermissions() {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
+    
+    // Check if project is completed (read-only for everyone)
+    if (currentProjectStatus === 'HOAN_THANH') {
+        applyReadOnlyMode();
+        return;
+    }
 
-    // Admin (admin1) can edit admin fields, other inputs read-only
-    if (role === 'admin1') {
+    // Admin (admin1 or admin2) can edit admin fields, other inputs read-only
+    if (role === 'admin1' || role === 'admin2') {
         // remove page-level 'role-user' marker so CSS allows interaction
         document.body.classList.remove('role-user');
         document.body.classList.add('role-admin1');
@@ -150,9 +156,16 @@ function applyRolePermissions() {
         
         // Disable user buttons on sizing page
         document.querySelectorAll('#page-sizing button.sizing-user-btn, #page-sizing button.btn-add, #page-sizing button.btn-add-img').forEach(btn => {
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
-            btn.style.cursor = 'not-allowed';
+            // Allow method toggle buttons (btn-method) to remain clickable for admin to view data
+            if (btn.classList.contains('btn-method')) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+            } else {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            }
         });
         
         // Disable delete buttons in sizing tables
@@ -263,6 +276,39 @@ function applyRolePermissions() {
     
     // Update project status display after applying permissions
     updateProjectStatusDisplay();
+}
+
+// Apply read-only mode for completed projects
+function applyReadOnlyMode() {
+    document.body.classList.add('role-readonly');
+    document.body.classList.remove('role-user', 'role-admin1');
+    
+    // Disable ALL inputs, textareas, selects across all pages
+    document.querySelectorAll('input, textarea, select').forEach(el => {
+        el.disabled = true;
+    });
+    
+    // Disable ALL buttons except navigation and logout
+    document.querySelectorAll('button').forEach(btn => {
+        const isNavOrLogout = btn.classList.contains('btn-logout') || 
+                             btn.closest('.side-menu') || 
+                             btn.closest('.header') ||
+                             btn.id === 'exportBtn' ||
+                             btn.classList.contains('btn-close-panel') ||
+                             btn.classList.contains('btn-close-modal');
+        if (!isNavOrLogout) {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        }
+    });
+    
+    // Hide approve button
+    const approveBtn = document.getElementById('btn-approve-project');
+    if (approveBtn) approveBtn.style.display = 'none';
+    
+    // Show completed notification
+    showCompletedNotification();
 }
 
 // ==================== PROJECT MANAGEMENT ====================
@@ -517,26 +563,38 @@ async function updateProjectStatus(actionType) {
  * Hiển thị/ẩn nút Phê duyệt dự án cho admin2
  */
 function updateApproveButtonVisibility() {
-    const approveBtn = document.getElementById('btn-approve-project');
-    if (!approveBtn) return;
+    const approveHeaderBtn = document.getElementById('btn-approve-header');
+    if (!approveHeaderBtn) return;
     
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
     
-    // Chỉ hiển thị nút Phê duyệt khi:
-    // - User là admin2
-    // - Dự án đang ở trạng thái PHE_DUYET
-    if (role === 'admin2' && currentProjectStatus === 'PHE_DUYET') {
-        approveBtn.style.display = 'inline-flex';
-    } else {
-        approveBtn.style.display = 'none';
-    }
+    // Nút phê duyệt luôn hiển thị trên header khi đang ở trong project detail
+    const inProject = document.getElementById('project-detail-page')?.style.display !== 'none';
+    approveHeaderBtn.style.display = inProject ? 'inline-flex' : 'none';
+    
+    // Chỉ admin2 mới bấm được, và chỉ khi dự án ở trạng thái PHE_DUYET
+    const canApprove = (role === 'admin2' && currentProjectStatus === 'PHE_DUYET');
+    approveHeaderBtn.disabled = !canApprove;
+    approveHeaderBtn.style.opacity = canApprove ? '1' : '0.5';
+    approveHeaderBtn.style.cursor = canApprove ? 'pointer' : 'not-allowed';
+    approveHeaderBtn.title = canApprove ? 'Phê duyệt dự án' : (role !== 'admin2' ? 'Chỉ admin2 mới có quyền phê duyệt' : 'Dự án chưa sẵn sàng phê duyệt');
 }
 
 /**
  * Xử lý khi admin2 bấm nút Phê duyệt
  */
 async function approveProject() {
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+    if (role !== 'admin2') {
+        alert('Chỉ admin2 mới có quyền phê duyệt dự án.');
+        return;
+    }
+    if (currentProjectStatus !== 'PHE_DUYET') {
+        alert('Dự án chưa sẵn sàng để phê duyệt.');
+        return;
+    }
     if (!confirm('Bạn có chắc muốn phê duyệt dự án này? Dự án sẽ chuyển sang trạng thái Hoàn thành.')) {
         return;
     }
@@ -563,6 +621,9 @@ async function openProject(projectId) {
     localStorage.removeItem('currentProjectDataId');
     
     await loadAllDataFromDB();
+    
+    // Cập nhật nút Phê duyệt sau khi load dữ liệu
+    updateApproveButtonVisibility();
 }
 
 function showProjectList() {
@@ -573,6 +634,9 @@ function showProjectList() {
     // Ẩn nút Lịch sử phiên bản
     const btnVersionHistory = document.getElementById('btn-version-history');
     if (btnVersionHistory) btnVersionHistory.style.display = 'none';
+    
+    // Ẩn nút Phê duyệt khi không ở trong dự án
+    updateApproveButtonVisibility();
     
     // Đóng panel lịch sử nếu đang mở
     closeVersionHistory();
@@ -1081,7 +1145,7 @@ async function saveYeuCauBaiToan() {
         // Nếu người dùng không phải admin, bỏ qua phần adminReview để tránh overwrite
         const user = getCurrentUser();
         const payloadData = Object.assign({}, data);
-        if ((user.role || '').toLowerCase() !== 'admin1') {
+        if ((user.role || '').toLowerCase() !== 'admin1' && (user.role || '').toLowerCase() !== 'admin2') {
             delete payloadData.adminReview;
         }
 
@@ -1127,6 +1191,8 @@ async function saveYeuCauBaiToan() {
             const role = (user.role || '').toLowerCase();
             if (role === 'admin1') {
                 await updateProjectStatus('admin1_review');
+            } else if (role === 'admin2') {
+                await updateProjectStatus('admin2_review');
             } else if (role === 'user' || !role) {
                 await updateProjectStatus('user_edit');
             }
@@ -1224,7 +1290,7 @@ function createInputTableRow(stt, data = {}) {
                     </label>
                 </div>
                 <div class="row-evidence-container">
-                    ${pocImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-base64="${img.base64}" onclick="openModalFromElement(this)">Xem</button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)">✖</button></div>`).join('')}
+                    ${pocImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-base64="${img.base64}" onclick="openModalFromElement(this)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh">✖</button></div>`).join('')}
                 </div>
             </div>
         </td>
@@ -1241,7 +1307,7 @@ function createInputTableRow(stt, data = {}) {
                     </label>
                 </div>
                 <div class="row-evidence-container">
-                    ${sizingImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-base64="${img.base64}" onclick="openModalFromElement(this)">Xem</button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)">✖</button></div>`).join('')}
+                    ${sizingImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-base64="${img.base64}" onclick="openModalFromElement(this)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh">✖</button></div>`).join('')}
                 </div>
             </div>
         </td>
@@ -1277,7 +1343,7 @@ function createInputTableRow(stt, data = {}) {
     // Nếu vai trò hiện tại không phải admin, vô hiệu hóa các ô Admin trong dòng mới
     try {
         const user = getCurrentUser();
-        if ((user.role || '').toLowerCase() !== 'admin1') {
+        if ((user.role || '').toLowerCase() !== 'admin1' && (user.role || '').toLowerCase() !== 'admin2') {
             tr.querySelectorAll('.admin-eval, .admin-note').forEach(el => {
                 el.disabled = true;
                 el.classList.add('readonly-admin');
@@ -1417,7 +1483,7 @@ async function saveThongTinDauVao() {
         const data = collectThongTinDauVao();
         // If user is not admin, strip any admin eval/note fields from payload to avoid overwriting admin columns
         const user = getCurrentUser();
-        if ((user.role || '').toLowerCase() !== 'admin1') {
+        if ((user.role || '').toLowerCase() !== 'admin1' && (user.role || '').toLowerCase() !== 'admin2') {
             // remove adminEval/adminNote from each row
             data.inputRows = data.inputRows.map(r => {
                 const copy = Object.assign({}, r);
@@ -1443,6 +1509,8 @@ async function saveThongTinDauVao() {
         const role = (user.role || '').toLowerCase();
         if (role === 'admin1') {
             await updateProjectStatus('admin1_review');
+        } else if (role === 'admin2') {
+            await updateProjectStatus('admin2_review');
         } else if (role === 'user' || !role) {
             await updateProjectStatus('user_edit');
         }
@@ -1611,6 +1679,8 @@ async function saveMoHinhHeThong() {
         const role = (user.role || '').toLowerCase();
         if (role === 'admin1') {
             await updateProjectStatus('admin1_review');
+        } else if (role === 'admin2') {
+            await updateProjectStatus('admin2_review');
         } else if (role === 'user' || !role) {
             await updateProjectStatus('user_edit');
         }
@@ -1803,7 +1873,7 @@ function loadImagesToContainer(type, images) {
                 <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
             </div>
             <div class="preview-area" id="preview-${boxId}">
-                <img src="${imgData.base64}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px;">
+                <img src="${imgData.base64}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">
             </div>
         `;
         container.appendChild(div);
@@ -1872,7 +1942,7 @@ function previewEvidenceImage(input, boxId) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+            previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
         };
         reader.readAsDataURL(input.files[0]);
     }
@@ -1886,27 +1956,44 @@ function addEvidenceSizingSlot() {
     div.className = 'upload-box';
     div.id = boxId;
     div.innerHTML = `
-        <div class="upload-controls">
-            <input type="file" accept="image/*" onchange="previewEvidenceSizingImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
-            <label for="input-${boxId}" class="upload-label">
-                <i class="fa-solid fa-cloud-arrow-up"></i>
-                <span>Chọn ảnh</span>
-            </label>
-            <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
-        </div>
+        <input type="file" accept="image/*" onchange="previewEvidenceSizingImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
         <div class="preview-area" id="preview-${boxId}"></div>
+        <div class="upload-placeholder" onclick="document.getElementById('input-${boxId}').click()">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Click để upload</span>
+        </div>
     `;
     container.appendChild(div);
 }
 
 function previewEvidenceSizingImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
+    const placeholder = document.querySelector(`#${boxId} .upload-placeholder`);
+    
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+            previewArea.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                    <img src="${e.target.result}" alt="Evidence" style="display:none;">
+                    <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button type="button" class="btn-remove-evidence" onclick="deleteEvidenceSizingSlot(this)" title="Xóa ảnh">
+                        ✖
+                    </button>
+                </div>
+            `;
+            if (placeholder) placeholder.style.display = 'none';
         };
         reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function deleteEvidenceSizingSlot(btn) {
+    if (confirm('Bạn có chắc muốn xóa ảnh này?')) {
+        const slot = btn.closest('.upload-box');
+        slot.remove();
     }
 }
 
@@ -1924,7 +2011,7 @@ function handleRowEvidenceUpload(input, kind) {
         const div = document.createElement('div');
         div.className = 'row-evidence-item';
         const safeBase64 = e.target.result.replace(/"/g, '&quot;');
-        div.innerHTML = `<button type="button" class="btn-view-evidence" data-base64="${safeBase64}" onclick="openModalFromElement(this)">Xem</button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)">✖</button>`;
+        div.innerHTML = `<button type="button" class="btn-view-evidence" data-base64="${safeBase64}" onclick="openModalFromElement(this)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh">✖</button>`;
         // append and then hide upload icon to prevent uploading more
         container.appendChild(div);
         const label = cellWrapper.querySelector('.upload-icon-btn');
@@ -1976,7 +2063,8 @@ async function evaluateSection(sectionKey) {
     if (statusDiv) statusDiv.innerHTML = '<span style="color: #b8860b;">⏳ Đang gửi đánh giá...</span>';
 
     const user = getCurrentUser();
-    if ((user.role || '').toLowerCase() !== 'admin1') {
+    const role = (user.role || '').toLowerCase();
+    if (role !== 'admin1' && role !== 'admin2') {
         alert('Chỉ admin mới được gửi đánh giá');
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Chỉ admin mới có quyền đánh giá</span>';
         return;
@@ -2024,11 +2112,15 @@ async function evaluateSection(sectionKey) {
             // Đợi một chút để đảm bảo database đã commit transaction
             await new Promise(resolve => setTimeout(resolve, 300));
             
-            // Tạo revision khi admin1 đánh giá thành công
+            // Tạo revision khi admin đánh giá thành công
             await createRevision(`${user.displayName || user.username || 'Admin'} đánh giá ${label}`);
             
-            // Cập nhật trạng thái dự án (admin1 review)
-            await updateProjectStatus('admin1_review');
+            // Cập nhật trạng thái dự án (admin review)
+            if (role === 'admin1') {
+                await updateProjectStatus('admin1_review');
+            } else if (role === 'admin2') {
+                await updateProjectStatus('admin2_review');
+            }
             
             alert('Đã gửi đánh giá cho "' + label + '"');
             // reload data to reflect saved admin review
@@ -2257,21 +2349,10 @@ function addBaselineRow() {
     // Tính số thứ tự (STT)
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
-    
-    // Tạo chuỗi HTML các option cho Select Box
-    let optionsHtml = '<option value="">-- Chọn --</option>';
-    MODULE_LIST.forEach(mod => {
-        optionsHtml += `<option value="${mod}">${mod}</option>`;
-    });
+    const rowId = 'baseline-row-' + Date.now() + '-' + rowCount;
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
-        
-        <td>
-            <select class="input-full module-select">
-                ${optionsHtml}
-            </select>
-        </td>
         
         <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="syncIPToInputConfig(this)"></td>
         
@@ -2316,6 +2397,100 @@ function addBaselineRow() {
     
     // Re-apply role permissions for new row (disable admin fields for user, disable user fields for admin)
     applyRolePermissions();
+}
+
+// Handle baseline row image upload - DEPRECATED, now using separate grid
+// function handleBaselineImageUpload - removed, use addBaselineEvidenceSlot instead
+
+// Baseline Evidence Grid functions
+function addBaselineEvidenceSlot() {
+    const grid = document.getElementById('baseline-evidence-grid');
+    if (!grid) return;
+    
+    const slot = document.createElement('div');
+    slot.className = 'upload-box';
+    slot.innerHTML = `
+        <input type="file" accept="image/*" onchange="handleBaselineEvidenceUpload(this)" style="display:none">
+        <div class="preview-area"></div>
+        <div class="upload-placeholder" onclick="this.parentElement.querySelector('input[type=file]').click()">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Click để upload</span>
+        </div>
+    `;
+    grid.appendChild(slot);
+}
+
+function handleBaselineEvidenceUpload(input) {
+    const slot = input.closest('.upload-box');
+    const previewArea = slot.querySelector('.preview-area');
+    const placeholder = slot.querySelector('.upload-placeholder');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewArea.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                    <img src="${e.target.result}" alt="Evidence" style="display:none;">
+                    <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button type="button" class="btn-remove-evidence" onclick="deleteBaselineEvidenceSlot(this)" title="Xóa ảnh">
+                        ✖
+                    </button>
+                </div>
+            `;
+            placeholder.style.display = 'none';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function deleteBaselineEvidenceSlot(btn) {
+    if (confirm('Bạn có chắc muốn xóa ảnh này?')) {
+        const slot = btn.closest('.upload-box');
+        slot.remove();
+    }
+}
+
+function collectBaselineEvidenceData() {
+    const grid = document.getElementById('baseline-evidence-grid');
+    if (!grid) return [];
+    
+    const images = [];
+    grid.querySelectorAll('.upload-box').forEach(slot => {
+        const img = slot.querySelector('.preview-area img');
+        if (img && img.src) {
+            images.push({ dataUrl: img.src });
+        }
+    });
+    return images;
+}
+
+// Open image modal for viewing
+function openImageModal(src) {
+    // Check if modal exists, if not create it
+    let modal = document.getElementById('image-view-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'image-view-modal';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 10000; cursor: pointer;';
+        modal.innerHTML = `
+            <img id="modal-image" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px;">
+            <button onclick="closeImageModal()" style="position: absolute; top: 20px; right: 30px; background: none; border: none; color: white; font-size: 40px; cursor: pointer;">&times;</button>
+        `;
+        modal.onclick = function(e) {
+            if (e.target === modal) closeImageModal();
+        };
+        document.body.appendChild(modal);
+    }
+    
+    document.getElementById('modal-image').src = src;
+    modal.style.display = 'flex';
+}
+
+function closeImageModal() {
+    const modal = document.getElementById('image-view-modal');
+    if (modal) modal.style.display = 'none';
 }
 
 // 3. Hàm Xóa dòng & Cập nhật lại STT
@@ -2498,18 +2673,14 @@ function collectBaselineTableData() {
     const data = [];
     
     rows.forEach((row, index) => {
-        const moduleSel = row.querySelector('.module-select');
-        const inputs = row.querySelectorAll('input');
-        
-        // Only collect user data, NOT admin eval/note
+        // Collect user data
         data.push({
             stt: index + 1,
-            module: moduleSel?.value || '',
-            ip: inputs[0]?.value || '',
-            cpu: inputs[1]?.value || '',
-            ram: inputs[2]?.value || '',
-            disk: inputs[3]?.value || '',
-            cintRate: inputs[4]?.value || ''
+            ip: row.querySelector('.ip-input')?.value || '',
+            cpu: row.querySelector('.cpu-input')?.value || '',
+            ram: row.querySelector('.ram-input')?.value || '',
+            disk: row.querySelector('.disk-input')?.value || '',
+            cintRate: row.querySelector('.cint-input')?.value || ''
         });
     });
     
@@ -2595,6 +2766,7 @@ function collectAllSizingData() {
     return {
         moduleApp: {
             baselineTable: collectBaselineTableData(),
+            baselineEvidence: collectBaselineEvidenceData(),
             inputConfigTable: collectInputConfigTableData(),
             evidenceImages: collectEvidenceSizingData(),
             pocValue: document.getElementById('poc-value')?.value || '',
@@ -2606,6 +2778,20 @@ function collectAllSizingData() {
         moduleRedis: collectRedisData(),
         moduleKafka: collectKafkaData()
     };
+}
+
+// Collect admin review data for MariaDB ref table rows
+function collectMariaDBRefAdminReviewData() {
+    const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
+    const data = [];
+    rows.forEach((row, index) => {
+        data.push({
+            rowIndex: index,
+            eval: row.querySelector('.mariadb-ref-eval')?.value || '',
+            note: row.querySelector('.mariadb-ref-note')?.value || ''
+        });
+    });
+    return data;
 }
 
 // Collect all admin review data for sizing section (ADMIN ONLY)
@@ -2624,6 +2810,11 @@ function collectSizingAdminReviewData() {
             overallReview: {
                 eval: document.getElementById('eval-module-mariadb')?.value || '',
                 note: document.getElementById('note-module-mariadb')?.value || ''
+            },
+            refRowReviews: collectMariaDBRefAdminReviewData(),
+            storageReview: {
+                eval: document.getElementById('eval-mariadb-storage')?.value || '',
+                note: document.getElementById('note-mariadb-storage')?.value || ''
             }
         },
         moduleRedis: {
@@ -2650,7 +2841,7 @@ async function saveSizingData() {
     }
 
     const user = getCurrentUser();
-    if (user.role?.toLowerCase() === 'admin1') {
+    if (user.role?.toLowerCase() === 'admin1' || user.role?.toLowerCase() === 'admin2') {
         alert('Admin không được phép lưu dữ liệu người dùng. Chỉ được phép đánh giá!');
         return;
     }
@@ -2689,7 +2880,7 @@ async function evaluateSizingSection() {
     }
 
     const user = getCurrentUser();
-    if (user.role?.toLowerCase() !== 'admin1') {
+    if (user.role?.toLowerCase() !== 'admin1' && user.role?.toLowerCase() !== 'admin2') {
         alert('Chỉ Admin mới được phép đánh giá!');
         return;
     }
@@ -2751,21 +2942,59 @@ function loadSizingData(data) {
                 const tbody = document.getElementById('baseline-table-body');
                 if (tbody) {
                     tbody.innerHTML = ''; // Clear existing rows
+                    // Also clear input-config-table-body since addBaselineRow adds rows there
+                    const inputConfigTbody = document.getElementById('input-config-table-body');
+                    if (inputConfigTbody) inputConfigTbody.innerHTML = '';
+                    
                     moduleApp.baselineTable.forEach((row, idx) => {
                         addBaselineRow(); // Add a new row
                         const lastRow = tbody.lastElementChild;
                         if (lastRow) {
-                            const moduleSel = lastRow.querySelector('.module-select');
-                            const inputs = lastRow.querySelectorAll('input');
-                            if (moduleSel) moduleSel.value = row.module || '';
-                            if (inputs[0]) inputs[0].value = row.ip || '';
-                            if (inputs[1]) inputs[1].value = row.cpu || '';
-                            if (inputs[2]) inputs[2].value = row.ram || '';
-                            if (inputs[3]) inputs[3].value = row.disk || '';
-                            if (inputs[4]) inputs[4].value = row.cintRate || '';
+                            // Use specific class selectors
+                            const ipInput = lastRow.querySelector('.ip-input');
+                            const cpuInput = lastRow.querySelector('.cpu-input');
+                            const ramInput = lastRow.querySelector('.ram-input');
+                            const diskInput = lastRow.querySelector('.disk-input');
+                            const cintInput = lastRow.querySelector('.cint-input');
+                            
+                            if (ipInput) ipInput.value = row.ip || '';
+                            if (cpuInput) cpuInput.value = row.cpu || '';
+                            if (ramInput) ramInput.value = row.ram || '';
+                            if (diskInput) diskInput.value = row.disk || '';
+                            if (cintInput) cintInput.value = row.cintRate || '';
                         }
                     });
                     updateBaselineTotal();
+                }
+            }
+            
+            // Load baseline evidence images
+            if (moduleApp.baselineEvidence && Array.isArray(moduleApp.baselineEvidence) && moduleApp.baselineEvidence.length > 0) {
+                const grid = document.getElementById('baseline-evidence-grid');
+                if (grid) {
+                    grid.innerHTML = ''; // Clear existing
+                    moduleApp.baselineEvidence.forEach(img => {
+                        addBaselineEvidenceSlot();
+                        const lastSlot = grid.lastElementChild;
+                        if (lastSlot && img.dataUrl) {
+                            const previewArea = lastSlot.querySelector('.preview-area');
+                            const placeholder = lastSlot.querySelector('.upload-placeholder');
+                            if (previewArea) {
+                                previewArea.innerHTML = `
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                                        <img src="${img.dataUrl}" alt="Evidence" style="display:none;">
+                                        <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn-remove-evidence" onclick="deleteBaselineEvidenceSlot(this)" title="Xóa ảnh">
+                                            ✖
+                                        </button>
+                                    </div>
+                                `;
+                            }
+                            if (placeholder) placeholder.style.display = 'none';
+                        }
+                    });
                 }
             }
             
@@ -2801,11 +3030,22 @@ function loadSizingData(data) {
                         addEvidenceSizingSlot();
                         const lastSlot = grid.lastElementChild;
                         if (lastSlot && img.dataUrl) {
-                            // For upload-box structure from addEvidenceSizingSlot
                             const previewArea = lastSlot.querySelector('.preview-area');
+                            const placeholder = lastSlot.querySelector('.upload-placeholder');
                             if (previewArea) {
-                                previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+                                previewArea.innerHTML = `
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                                        <img src="${img.dataUrl}" alt="Evidence" style="display:none;">
+                                        <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn-remove-evidence" onclick="deleteEvidenceSizingSlot(this)" title="Xóa ảnh">
+                                            ✖
+                                        </button>
+                                    </div>
+                                `;
                             }
+                            if (placeholder) placeholder.style.display = 'none';
                         }
                     });
                 }
@@ -2947,6 +3187,36 @@ function loadSizingAdminReview(adminReview) {
                 }
                 if (document.getElementById('note-module-mariadb')) {
                     document.getElementById('note-module-mariadb').value = mariadbReview.note || '';
+                }
+            }
+            
+            // Load ref table row reviews
+            if (adminReview.moduleMariaDB.refRowReviews) {
+                const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
+                adminReview.moduleMariaDB.refRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.mariadb-ref-eval');
+                        const adminNote = rows[index].querySelector('.mariadb-ref-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
+                });
+            }
+            
+            // Load storage review
+            if (adminReview.moduleMariaDB.storageReview) {
+                const storageReview = adminReview.moduleMariaDB.storageReview;
+                if (document.getElementById('eval-mariadb-storage')) {
+                    document.getElementById('eval-mariadb-storage').value = storageReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-mariadb-storage'));
+                }
+                if (document.getElementById('note-mariadb-storage')) {
+                    document.getElementById('note-mariadb-storage').value = storageReview.note || '';
                 }
             }
         }
@@ -3334,6 +3604,16 @@ function addMariaDBRefRow(data = {}) {
         <td class="text-center">
             <input type="radio" name="mariadb-master" class="mariadb-master-radio" ${data.isMaster ? 'checked' : ''}>
         </td>
+        <td class="admin-cell">
+            <select class="admin-eval-select mariadb-ref-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
+                <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note mariadb-ref-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
+        </td>
         <td class="text-center">
             <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove()">
                 <i class="fa-solid fa-times"></i>
@@ -3341,29 +3621,15 @@ function addMariaDBRefRow(data = {}) {
         </td>
     `;
     tbody.appendChild(tr);
-}
-
-// Thêm dòng vào bảng Storage MariaDB
-function addMariaDBStorageRow(data = {}) {
-    const tbody = document.getElementById('mariadb-storage-table-body');
-    if (!tbody) return;
     
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-        <td><input type="text" class="input-full sizing-user-input mariadb-storage-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
-        <td><input type="number" class="input-full sizing-user-input mariadb-data" value="${data.data || ''}" placeholder="/data" min="0"></td>
-        <td><input type="number" class="input-full sizing-user-input mariadb-log" value="${data.log || ''}" placeholder="/log" min="0"></td>
-        <td><input type="number" class="input-full sizing-user-input mariadb-backup" value="${data.backup || ''}" placeholder="/backup" min="0"></td>
-        <td class="text-center">
-            <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove()">
-                <i class="fa-solid fa-times"></i>
-            </button>
-        </td>
-    `;
-    tbody.appendChild(tr);
+    // Apply role permissions for new row
+    applyRolePermissions();
 }
 
-// Thu thập dữ liệu bảng tham chiếu MariaDB
+// Thêm dòng vào bảng Storage MariaDB (DEPRECATED - storage is now fixed inputs)
+// function addMariaDBStorageRow is no longer used
+
+// Thu thập dữ liệu bảng tham chiếu MariaDB (user data only)
 function collectMariaDBRefTableData() {
     const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
     const data = [];
@@ -3380,19 +3646,13 @@ function collectMariaDBRefTableData() {
     return data;
 }
 
-// Thu thập dữ liệu bảng storage MariaDB
-function collectMariaDBStorageTableData() {
-    const rows = document.querySelectorAll('#mariadb-storage-table-body tr');
-    const data = [];
-    rows.forEach(row => {
-        data.push({
-            ip: row.querySelector('.mariadb-storage-ip')?.value || '',
-            data: row.querySelector('.mariadb-data')?.value || '',
-            log: row.querySelector('.mariadb-log')?.value || '',
-            backup: row.querySelector('.mariadb-backup')?.value || ''
-        });
-    });
-    return data;
+// Thu thập dữ liệu storage MariaDB (now fixed inputs)
+function collectMariaDBStorageData() {
+    return {
+        data: document.getElementById('mariadb-storage-data')?.value || '',
+        log: document.getElementById('mariadb-storage-log')?.value || '',
+        backup: document.getElementById('mariadb-storage-backup')?.value || ''
+    };
 }
 
 // Lấy dữ liệu Master row
@@ -3413,20 +3673,13 @@ function getMariaDBMasterData() {
     return null;
 }
 
-// Lấy storage của Master IP
-function getMariaDBMasterStorage(masterIP) {
-    const rows = document.querySelectorAll('#mariadb-storage-table-body tr');
-    for (const row of rows) {
-        const ip = row.querySelector('.mariadb-storage-ip')?.value || '';
-        if (ip === masterIP) {
-            return {
-                data: parseFloat(row.querySelector('.mariadb-data')?.value) || 0,
-                log: parseFloat(row.querySelector('.mariadb-log')?.value) || 0,
-                backup: parseFloat(row.querySelector('.mariadb-backup')?.value) || 0
-            };
-        }
-    }
-    return null;
+// Lấy storage (now fixed inputs, not per IP)
+function getMariaDBStorage() {
+    return {
+        data: parseFloat(document.getElementById('mariadb-storage-data')?.value) || 0,
+        log: parseFloat(document.getElementById('mariadb-storage-log')?.value) || 0,
+        backup: parseFloat(document.getElementById('mariadb-storage-backup')?.value) || 0
+    };
 }
 
 // Tính toán sizing MariaDB
@@ -3445,9 +3698,9 @@ function calculateMariaDBSizing() {
         return;
     }
     
-    const masterStorage = getMariaDBMasterStorage(masterData.ip);
-    if (!masterStorage) {
-        alert('Không tìm thấy thông tin storage cho IP Master. Vui lòng thêm storage cho IP: ' + masterData.ip);
+    const storage = getMariaDBStorage();
+    if (!storage.data && !storage.log && !storage.backup) {
+        alert('Vui lòng nhập thông tin storage (/data, /log, /backup).');
         return;
     }
     
@@ -3463,9 +3716,9 @@ function calculateMariaDBSizing() {
     
     const cpuNeeded = masterData.cpu * (masterData.cpuLoad / 100) * factor * 1.1 / 0.75;
     const ramNeeded = masterData.ram * (masterData.ramLoad / 100) * factor * 1.1 / 0.9;
-    const dataNeeded = masterStorage.data * factor * 1.1 / 0.8;
-    const logNeeded = masterStorage.log * factor * 1.1 / 0.8;
-    const backupNeeded = masterStorage.backup * factor * 1.1 / 0.8;
+    const dataNeeded = storage.data * factor * 1.1 / 0.8;
+    const logNeeded = storage.log * factor * 1.1 / 0.8;
+    const backupNeeded = storage.backup * factor * 1.1 / 0.8;
     
     // Tổng NAS = /data + /log + /backup
     const nasTotal = dataNeeded + logNeeded + backupNeeded;
@@ -3478,9 +3731,9 @@ function calculateMariaDBSizing() {
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
             <li><strong>CPU cần</strong> = CPU × Tải CPU × (Định cỡ / Đầu vào) × 1.1 / 0.75 = ${masterData.cpu} × ${(masterData.cpuLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.75 = <strong>${cpuNeeded.toFixed(2)} vCPU</strong></li>
             <li><strong>RAM cần</strong> = RAM × Tải RAM × (Định cỡ / Đầu vào) × 1.1 / 0.9 = ${masterData.ram} × ${(masterData.ramLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>/data cần</strong> = /data × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${masterStorage.data} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${dataNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>/log cần</strong> = /log × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${masterStorage.log} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${logNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>/backup cần</strong> = /backup × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${masterStorage.backup} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/data cần</strong> = /data × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.data} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${dataNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/log cần</strong> = /log × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.log} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${logNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/backup cần</strong> = /backup × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.backup} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
         </ul>
     </div>`;
     
@@ -3543,16 +3796,30 @@ function loadMariaDBData(data) {
     
     // Clear existing rows
     document.getElementById('mariadb-ref-table-body').innerHTML = '';
-    document.getElementById('mariadb-storage-table-body').innerHTML = '';
     
     // Load bảng ref
     if (data.refTable && Array.isArray(data.refTable)) {
         data.refTable.forEach(row => addMariaDBRefRow(row));
     }
     
-    // Load bảng storage
-    if (data.storageTable && Array.isArray(data.storageTable)) {
-        data.storageTable.forEach(row => addMariaDBStorageRow(row));
+    // Load storage (now fixed inputs)
+    if (data.storage) {
+        const dataEl = document.getElementById('mariadb-storage-data');
+        const logEl = document.getElementById('mariadb-storage-log');
+        const backupEl = document.getElementById('mariadb-storage-backup');
+        if (dataEl) dataEl.value = data.storage.data || '';
+        if (logEl) logEl.value = data.storage.log || '';
+        if (backupEl) backupEl.value = data.storage.backup || '';
+    }
+    // Backward compatibility for old data format
+    else if (data.storageTable && Array.isArray(data.storageTable) && data.storageTable.length > 0) {
+        const firstRow = data.storageTable[0];
+        const dataEl = document.getElementById('mariadb-storage-data');
+        const logEl = document.getElementById('mariadb-storage-log');
+        const backupEl = document.getElementById('mariadb-storage-backup');
+        if (dataEl) dataEl.value = firstRow.data || '';
+        if (logEl) logEl.value = firstRow.log || '';
+        if (backupEl) backupEl.value = firstRow.backup || '';
     }
     
     // Load note
@@ -3570,18 +3837,226 @@ function loadMariaDBData(data) {
         const container = document.getElementById('mariadb-result-container');
         if (container) container.innerHTML = data.resultHTML;
     }
+    
+    // Load evidence images
+    if (data.evidence && Array.isArray(data.evidence)) {
+        const grid = document.getElementById('mariadb-evidence-grid');
+        if (grid) {
+            grid.innerHTML = '';
+            data.evidence.forEach(img => {
+                const slot = document.createElement('div');
+                slot.className = 'upload-box';
+                slot.innerHTML = `
+                    <input type="file" accept="image/*" onchange="handleMariaDBEvidenceUpload(this)" style="display:none;">
+                    <div class="preview-area">
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                            <img src="${img.dataUrl}" alt="Evidence" style="display:none;">
+                            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            <button type="button" class="btn-remove-evidence" onclick="deleteMariaDBEvidenceSlot(this)" title="Xóa ảnh">
+                                ✖
+                            </button>
+                        </div>
+                    </div>
+                    <div class="upload-placeholder" style="display: none;">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Click để upload</span>
+                    </div>
+                `;
+                grid.appendChild(slot);
+            });
+        }
+    }
+    
+    // Load reference evidence images
+    loadMariaDBRefEvidence(data);
+    
+    // Apply role permissions
+    applyRolePermissions();
 }
 
-// Thu thập dữ liệu MariaDB để lưu
+// Load ảnh sở cứ bảng tham chiếu MariaDB
+function loadMariaDBRefEvidence(data) {
+    if (!data || !data.refEvidence || !Array.isArray(data.refEvidence)) return;
+    
+    const grid = document.getElementById('mariadb-ref-evidence-grid');
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    data.refEvidence.forEach(img => {
+        const slot = document.createElement('div');
+        slot.className = 'upload-box';
+        slot.innerHTML = `
+            <input type="file" accept="image/*" onchange="handleMariaDBRefEvidenceUpload(this)" style="display:none;">
+            <div class="preview-area">
+                <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                    <img src="${img.dataUrl}" alt="Evidence" style="display:none;">
+                    <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button type="button" class="btn-remove-evidence" onclick="deleteMariaDBRefEvidenceSlot(this)" title="Xóa ảnh">
+                        ✖
+                    </button>
+                </div>
+            </div>
+            <div class="upload-placeholder" style="display: none;">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>Click để upload</span>
+            </div>
+        `;
+        grid.appendChild(slot);
+    });
+}
+
+// Thu thập dữ liệu MariaDB để lưu (user data only)
 function collectMariaDBData() {
     return {
         refTable: collectMariaDBRefTableData(),
-        storageTable: collectMariaDBStorageTableData(),
+        storage: collectMariaDBStorageData(),
+        evidence: collectMariaDBEvidenceData(),
+        refEvidence: collectMariaDBRefEvidenceData(),
         note: document.getElementById('mariadb-note')?.value || '',
         inputCCU: document.getElementById('mariadb-input-ccu')?.value || '',
         sizingCCU: document.getElementById('mariadb-sizing-ccu')?.value || '',
         resultHTML: document.getElementById('mariadb-result-container')?.innerHTML || ''
     };
+}
+
+// Thêm slot ảnh sở cứ cho MariaDB
+function addMariaDBEvidenceSlot() {
+    const grid = document.getElementById('mariadb-evidence-grid');
+    if (!grid) return;
+    
+    const slot = document.createElement('div');
+    slot.className = 'upload-box';
+    slot.innerHTML = `
+        <input type="file" accept="image/*" onchange="handleMariaDBEvidenceUpload(this)" style="display:none;">
+        <div class="preview-area"></div>
+        <div class="upload-placeholder" onclick="this.parentElement.querySelector('input[type=file]').click()">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Click để upload</span>
+        </div>
+    `;
+    grid.appendChild(slot);
+}
+
+// Xử lý upload ảnh MariaDB
+function handleMariaDBEvidenceUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const slot = input.closest('.upload-box');
+    const previewArea = slot.querySelector('.preview-area');
+    const placeholder = slot.querySelector('.upload-placeholder');
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        previewArea.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                <img src="${e.target.result}" alt="Evidence" style="display:none;">
+                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button type="button" class="btn-remove-evidence" onclick="deleteMariaDBEvidenceSlot(this)" title="Xóa ảnh">
+                    ✖
+                </button>
+            </div>
+        `;
+        placeholder.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+}
+
+// Xóa slot ảnh MariaDB
+function deleteMariaDBEvidenceSlot(btn) {
+    if (confirm('Bạn có chắc muốn xóa ảnh này?')) {
+        const slot = btn.closest('.upload-box');
+        slot.remove();
+    }
+}
+
+// Thu thập dữ liệu ảnh sở cứ MariaDB
+function collectMariaDBEvidenceData() {
+    const grid = document.getElementById('mariadb-evidence-grid');
+    if (!grid) return [];
+    
+    const images = [];
+    grid.querySelectorAll('.upload-box').forEach(slot => {
+        const img = slot.querySelector('.preview-area img');
+        if (img && img.src) {
+            images.push({ dataUrl: img.src });
+        }
+    });
+    return images;
+}
+
+// Thêm slot ảnh sở cứ cho bảng hệ thống tham chiếu MariaDB
+function addMariaDBRefEvidenceSlot() {
+    const grid = document.getElementById('mariadb-ref-evidence-grid');
+    if (!grid) return;
+    
+    const slot = document.createElement('div');
+    slot.className = 'upload-box';
+    slot.innerHTML = `
+        <input type="file" accept="image/*" onchange="handleMariaDBRefEvidenceUpload(this)" style="display:none;">
+        <div class="preview-area"></div>
+        <div class="upload-placeholder" onclick="this.parentElement.querySelector('input[type=file]').click()">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Click để upload</span>
+        </div>
+    `;
+    grid.appendChild(slot);
+}
+
+// Xử lý upload ảnh sở cứ bảng tham chiếu MariaDB
+function handleMariaDBRefEvidenceUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const slot = input.closest('.upload-box');
+    const previewArea = slot.querySelector('.preview-area');
+    const placeholder = slot.querySelector('.upload-placeholder');
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        previewArea.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                <img src="${e.target.result}" alt="Evidence" style="display:none;">
+                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button type="button" class="btn-remove-evidence" onclick="deleteMariaDBRefEvidenceSlot(this)" title="Xóa ảnh">
+                    ✖
+                </button>
+            </div>
+        `;
+        placeholder.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+}
+
+// Xóa slot ảnh sở cứ bảng tham chiếu MariaDB
+function deleteMariaDBRefEvidenceSlot(btn) {
+    if (confirm('Bạn có chắc muốn xóa ảnh này?')) {
+        const slot = btn.closest('.upload-box');
+        slot.remove();
+    }
+}
+
+// Thu thập dữ liệu ảnh sở cứ bảng tham chiếu MariaDB
+function collectMariaDBRefEvidenceData() {
+    const grid = document.getElementById('mariadb-ref-evidence-grid');
+    if (!grid) return [];
+    
+    const images = [];
+    grid.querySelectorAll('.upload-box').forEach(slot => {
+        const img = slot.querySelector('.preview-area img');
+        if (img && img.src) {
+            images.push({ dataUrl: img.src });
+        }
+    });
+    return images;
 }
 
 // ==================== MODULE REDIS FUNCTIONS ====================
@@ -3642,7 +4117,7 @@ function handleRedisKeyImageUpload(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const previewArea = input.closest('.upload-box').querySelector('.preview-area');
-        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
     };
     reader.readAsDataURL(file);
 }
@@ -3660,6 +4135,16 @@ function addRedisConfigRow(data = {}) {
         <td class="text-center">
             <input type="checkbox" class="redis-master-checkbox" ${data.isMaster ? 'checked' : ''} onchange="updateRedisTotalMasterRAM()">
         </td>
+        <td class="admin-cell">
+            <select class="admin-eval-select redis-config-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
+                <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note redis-config-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
+        </td>
         <td class="text-center">
             <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove(); updateRedisTotalMasterRAM();">
                 <i class="fa-solid fa-times"></i>
@@ -3667,6 +4152,9 @@ function addRedisConfigRow(data = {}) {
         </td>
     `;
     tbody.appendChild(tr);
+    
+    // Apply role permissions for new row
+    applyRolePermissions();
 }
 
 // Cập nhật tổng RAM của các Master
@@ -3696,7 +4184,9 @@ function collectRedisConfigTableData() {
             ip: row.querySelector('.redis-config-ip')?.value || '',
             ram: row.querySelector('.redis-config-ram')?.value || '',
             ramLoad: row.querySelector('.redis-config-ram-load')?.value || '',
-            isMaster: row.querySelector('.redis-master-checkbox')?.checked || false
+            isMaster: row.querySelector('.redis-master-checkbox')?.checked || false,
+            adminEval: row.querySelector('.redis-config-eval')?.value || '',
+            adminNote: row.querySelector('.redis-config-note')?.value || ''
         });
     });
     return data;
@@ -4095,7 +4585,7 @@ function loadRedisData(data) {
                     if (lastSlot && img.dataUrl) {
                         const previewArea = lastSlot.querySelector('.preview-area');
                         if (previewArea) {
-                            previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+                            previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
                         }
                     }
                 });
@@ -4201,7 +4691,7 @@ function handleKafkaImageUpload(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const previewArea = input.closest('.upload-box').querySelector('.preview-area');
-        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
     };
     reader.readAsDataURL(file);
 }
@@ -4271,6 +4761,16 @@ function addKafkaLinearRow(data = {}) {
         <td><input type="number" class="input-full sizing-user-input kafka-linear-cpu-load" value="${data.cpuLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
         <td><input type="number" class="input-full sizing-user-input kafka-linear-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
         <td><input type="number" class="input-full sizing-user-input kafka-linear-disk-load" value="${data.diskLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
+        <td class="admin-cell">
+            <select class="admin-eval-select kafka-linear-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
+                <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note kafka-linear-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
+        </td>
         <td class="text-center">
             <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove(); updateKafkaLinearTotal();">
                 <i class="fa-solid fa-times"></i>
@@ -4278,6 +4778,9 @@ function addKafkaLinearRow(data = {}) {
         </td>
     `;
     tbody.appendChild(tr);
+    
+    // Apply role permissions for new row
+    applyRolePermissions();
 }
 
 // Cập nhật tổng cho bảng Linear
@@ -4315,7 +4818,9 @@ function collectKafkaLinearTableData() {
             disk: row.querySelector('.kafka-linear-disk')?.value || '',
             cpuLoad: row.querySelector('.kafka-linear-cpu-load')?.value || '',
             ramLoad: row.querySelector('.kafka-linear-ram-load')?.value || '',
-            diskLoad: row.querySelector('.kafka-linear-disk-load')?.value || ''
+            diskLoad: row.querySelector('.kafka-linear-disk-load')?.value || '',
+            adminEval: row.querySelector('.kafka-linear-eval')?.value || '',
+            adminNote: row.querySelector('.kafka-linear-note')?.value || ''
         });
     });
     return data;
@@ -4374,7 +4879,7 @@ function calculateKafkaThroughputMethod() {
     const D_TB = D_GB / 1024;
     
     // S = A * 1800 (dữ liệu trong 30 phút)
-    const S = A * 1800;
+    const S = A * 1800 / 1024;
     
     // Tìm N tối ưu
     const optimalN = findOptimalKafkaN(S, R);
@@ -4392,7 +4897,7 @@ function calculateKafkaThroughputMethod() {
             <li><strong>Thời gian lưu trữ (T):</strong> ${T} giờ (${T/24} ngày)</li>
             <li><strong>Hệ số nhân bản (R):</strong> ${R}</li>
             <li><strong>Hệ số nén (C):</strong> ${C}</li>
-            <li><strong>S (dữ liệu 30 phút):</strong> A × 1800 = ${A} × 1800 = ${S.toFixed(2)} MB</li>
+            <li><strong>S (dữ liệu 30 phút):</strong> A × 1800 / 1024 = ${A} × 1800 = ${S.toFixed(2)} GB</li>
         </ul>
     </div>`;
     
@@ -4474,15 +4979,7 @@ function calculateKafkaThroughputMethod() {
                 <td class="text-center"><strong>100 GB</strong></td>
             </tr>
         </tbody>
-        <tfoot>
-            <tr style="background: #f0f9ff; font-weight: bold;">
-                <td>Tổng cộng</td>
-                <td class="text-center">${optimalN + 3}</td>
-                <td class="text-center">${vCPU * optimalN + 6}</td>
-                <td class="text-center">${Math.ceil(ramPerServer) * optimalN + 12} GB</td>
-                <td class="text-center">${((diskPerServer * optimalN) + 300) >= 1024 ? ((diskPerServer * optimalN + 300)/1024).toFixed(2) + ' TB' : Math.ceil(diskPerServer * optimalN + 300) + ' GB'}</td>
-            </tr>
-        </tfoot>
+        
     </table>`;
     
     html += `<div style="background: #d4edda; padding: 15px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #28a745;">
@@ -4710,7 +5207,7 @@ function loadKafkaEvidenceImages(gridId, images, addSlotFn) {
         if (lastSlot && img.dataUrl) {
             const previewArea = lastSlot.querySelector('.preview-area');
             if (previewArea) {
-                previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+                previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
             }
         }
     });
