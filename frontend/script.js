@@ -288,19 +288,37 @@ function applyReadOnlyMode() {
         el.disabled = true;
     });
     
-    // Disable ALL buttons except navigation and logout
+    // Disable ALL buttons except navigation, logout, and image viewing
     document.querySelectorAll('button').forEach(btn => {
         const isNavOrLogout = btn.classList.contains('btn-logout') || 
                              btn.closest('.side-menu') || 
                              btn.closest('.header') ||
                              btn.id === 'exportBtn' ||
                              btn.classList.contains('btn-close-panel') ||
-                             btn.classList.contains('btn-close-modal');
+                             btn.classList.contains('btn-close-modal') ||
+                             btn.classList.contains('btn-view-evidence') ||
+                             btn.onclick?.toString().includes('openModal') ||
+                             btn.onclick?.toString().includes('openModalFromElement') ||
+                             btn.onclick?.toString().includes('openImageModal');
         if (!isNavOrLogout) {
             btn.disabled = true;
             btn.style.opacity = '0.5';
             btn.style.cursor = 'not-allowed';
         }
+    });
+    
+    // Ensure all image view buttons are explicitly enabled
+    document.querySelectorAll('.btn-view-evidence').forEach(btn => {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.style.pointerEvents = 'auto';
+    });
+    
+    // Ensure images with onclick for modal are clickable
+    document.querySelectorAll('img[onclick]').forEach(img => {
+        img.style.pointerEvents = 'auto';
+        img.style.cursor = 'zoom-in';
     });
     
     // Hide approve button
@@ -503,14 +521,20 @@ async function updateProjectStatus(actionType) {
     
     switch (actionType) {
         case 'user_edit':
-            // User chỉnh sửa: nếu đang ở Thẩm định hoặc Phê duyệt -> quay về Sizing với round+1
-            if (currentProjectStatus === 'THAM_DINH' || currentProjectStatus === 'PHE_DUYET') {
+            // User chỉnh sửa: quay về Sizing
+            // Round chỉ tăng khi quay về từ PHE_DUYET (tức admin2 đã từ chối)
+            if (currentProjectStatus === 'PHE_DUYET') {
                 newStatus = 'SIZING';
                 newRound = currentProjectStatusRound + 1;
+            } else if (currentProjectStatus === 'THAM_DINH') {
+                // Quay về từ Thẩm định -> giữ nguyên round (vẫn trong cùng chu kỳ phê duyệt)
+                newStatus = 'SIZING';
+                // Giữ nguyên round
             } else if (!currentProjectStatus || currentProjectStatus === 'Draft') {
                 newStatus = 'SIZING';
                 newRound = 1;
             }
+            // Nếu đang ở SIZING thì giữ nguyên round
             break;
             
         case 'admin1_review':
@@ -625,6 +649,11 @@ async function openProject(projectId) {
     localStorage.removeItem('currentProjectDataId');
     
     await loadAllDataFromDB();
+    
+    // Kiểm tra session editor: nếu account mới mở project -> tạo revision cho account cũ
+    const user = getCurrentUser();
+    const currentUsername = user.username || user.displayName || 'unknown';
+    await checkAndCreateRevisionForPreviousEditor(currentUsername);
     
     // Cập nhật nút Phê duyệt sau khi load dữ liệu
     updateApproveButtonVisibility();
@@ -885,7 +914,7 @@ function loadYeuCauBaiToan(data) {
         // Cột Admin (Cột 3 & 4)
         if (adminData) {
             const adminEval = row.cells[2].querySelector('select');
-            const adminNote = row.cells[3].querySelector('input');
+            const adminNote = row.cells[3].querySelector('textarea') || row.cells[3].querySelector('input');
             if (adminEval) {
                 adminEval.value = adminData.eval || '';
                 updateColor(adminEval); // Cập nhật màu
@@ -915,7 +944,7 @@ function loadYeuCauBaiToan(data) {
         const adminData = data.adminReview?.row3;
         if(adminData) {
             const adminEval = contactRow.cells[2].querySelector('select');
-            const adminNote = contactRow.cells[3].querySelector('input');
+            const adminNote = contactRow.cells[3].querySelector('textarea') || contactRow.cells[3].querySelector('input');
             if (adminEval) { adminEval.value = adminData.eval || ''; updateColor(adminEval); }
             if (adminNote) adminNote.value = adminData.note || '';
         }
@@ -1031,47 +1060,39 @@ function loadMoHinhHeThong(data, admin) {
                 });
             }
         }
+        // Load connection info table
+        if (data.connectionRows) loadConnectionInfo(data.connectionRows);
+        if (data.connectionImages && typeof loadImagesToContainer === 'function') {
+            loadImagesToContainer('connection', data.connectionImages);
+        }
+
+        // Load connection admin review
+        if (adminObj && adminObj.connection) {
+            const connEval = document.getElementById('eval-connection');
+            const connNote = document.getElementById('note-connection');
+            if (connEval) { connEval.value = adminObj.connection.eval || ''; styleAdminSelect(connEval); }
+            if (connNote) connNote.value = adminObj.connection.note || '';
+        }
+        if (adminObj && adminObj.connectionRowReviews && Array.isArray(adminObj.connectionRowReviews)) {
+            const connBody = document.getElementById('connection-info-table-body');
+            if (connBody) {
+                const rows = connBody.querySelectorAll('tr');
+                adminObj.connectionRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const cells = rows[index].querySelectorAll('td');
+                        const adminEval = cells[6]?.querySelector('.admin-eval-select');
+                        const adminNote = cells[7]?.querySelector('.admin-note');
+                        if (adminEval) { adminEval.value = review.eval || ''; styleAdminSelect(adminEval); }
+                        if (adminNote) adminNote.value = review.note || '';
+                    }
+                });
+            }
+        }
+
         // Ensure role permissions applied after building model section
         try { applyRolePermissions(); } catch (e) {}
     } catch (e) {
         console.error('loadMoHinhHeThong error', e);
-    }
-}
-
-async function saveMoHinhHeThong() {
-    if (!currentProjectId) {
-        alert('Vui lòng lưu Yêu cầu bài toán trước!');
-        return;
-    }
-
-    const statusDiv = document.getElementById('model-save-status');
-    try {
-        if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
-
-        // collect data: images are not re-uploaded here; collect flow explanation
-        const flowExplanation = document.getElementById('flow-explanation')?.value || '';
-        // For simplicity, do not attempt to collect images here (existing images are kept server-side)
-        const payload = { flowExplanation };
-
-        // send without admin fields to avoid overwriting admin columns
-        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
-        const resp = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify({ moHinhHeThongContent: JSON.stringify(payload) })
-        });
-
-        if (resp.ok) {
-            if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
-            alert('Đã lưu Mô hình hệ thống thành công!');
-        } else {
-            const txt = await resp.text();
-            throw new Error(txt || 'Server error');
-        }
-    } catch (err) {
-        console.error('saveMoHinhHeThong error', err);
-        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi!</span>';
-        alert('Lỗi: ' + err.message);
     }
 }
 
@@ -1093,7 +1114,7 @@ function collectYeuCauBaiToan() {
         if (!row) return { eval: '', note: '' };
         return {
             eval: row.cells[2].querySelector('select')?.value || '',
-            note: row.cells[3].querySelector('input')?.value || ''
+            note: row.cells[3].querySelector('textarea')?.value || row.cells[3].querySelector('input')?.value || ''
         };
     };
 
@@ -1655,7 +1676,9 @@ function collectMoHinhHeThong() {
         logicalImages: collectImagesFromContainer('logical'),
         flowImages: collectImagesFromContainer('flow'),
         flowExplanation: document.getElementById('flow-explanation')?.value || '',
-        archRows: archRows
+        archRows: archRows,
+        connectionRows: collectConnectionInfo(),
+        connectionImages: collectImagesFromContainer('connection')
         // NOTE: Admin data is NOT included in user content - goes to separate admin review column
     };
 }
@@ -1679,11 +1702,24 @@ function collectMoHinhAdminReview() {
         });
     });
     
+    // Collect admin review for each connection row
+    const connectionRowReviews = [];
+    document.querySelectorAll('#connection-info-table-body tr').forEach((row, index) => {
+        const cells = row.querySelectorAll('td');
+        connectionRowReviews.push({
+            rowIndex: index,
+            eval: cells[6]?.querySelector('.admin-eval-select')?.value || '',
+            note: cells[7]?.querySelector('.admin-note')?.value || ''
+        });
+    });
+
     return {
         physical: getAdmin('physical'),
         logical: getAdmin('logical'),
         flow: getAdmin('flow'),
-        archRowReviews: archRowReviews
+        connection: getAdmin('connection'),
+        archRowReviews: archRowReviews,
+        connectionRowReviews: connectionRowReviews
     };
 }
 
@@ -2248,30 +2284,18 @@ document.addEventListener("DOMContentLoaded", async function () {
     checkAuthStatus();
     applyRolePermissions();
 
-    // Luôn chuyển hướng đến danh sách dự án khi đã đăng nhập (trừ khi đang xem dự án cụ thể)
-    // Nếu không có project đang mở, hiện danh sách dự án
-    if (!currentProjectId) {
-        document.getElementById('project-list-page').style.display = 'block';
-        document.getElementById('project-detail-page').style.display = 'none';
-        document.getElementById('btn-back-to-list').style.display = 'none';
-        
-        // Ẩn nút Lịch sử phiên bản khi ở trang danh sách
-        const btnVersionHistory = document.getElementById('btn-version-history');
-        if (btnVersionHistory) btnVersionHistory.style.display = 'none';
-        
-        await loadProjectList();
-    } else {
-        document.getElementById('project-list-page').style.display = 'none';
-        document.getElementById('project-detail-page').style.display = 'flex';
-        document.getElementById('btn-back-to-list').style.display = 'inline-block';
-        
-        // Hiện nút Lịch sử phiên bản khi ở trang chi tiết
-        const btnVersionHistory = document.getElementById('btn-version-history');
-        if (btnVersionHistory) btnVersionHistory.style.display = 'inline-block';
-        
-        await loadAllDataFromDB();
-        applyRolePermissions();
-    }
+    // Luôn hiển thị danh sách dự án khi load/reload trang
+    // Clear currentProjectId để luôn về trang danh sách trước
+    clearProjectIds();
+    document.getElementById('project-list-page').style.display = 'block';
+    document.getElementById('project-detail-page').style.display = 'none';
+    document.getElementById('btn-back-to-list').style.display = 'none';
+    
+    // Ẩn nút Lịch sử phiên bản khi ở trang danh sách
+    const btnVersionHistory = document.getElementById('btn-version-history');
+    if (btnVersionHistory) btnVersionHistory.style.display = 'none';
+    
+    await loadProjectList();
 
     const menuLinks = document.querySelectorAll(".side-menu a");
     const pages = document.querySelectorAll(".page-section");
@@ -2296,24 +2320,21 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
     });
 
-    const saveBtn = document.getElementById('saveBtn');
-    if (saveBtn) saveBtn.onclick = saveYeuCauBaiToan;
     const addRowBtn = document.getElementById('addRowBtn');
     if (addRowBtn) addRowBtn.onclick = addInputRow;
-    const saveInputDataBtn = document.getElementById('saveInputDataBtn');
-    if (saveInputDataBtn) saveInputDataBtn.onclick = saveThongTinDauVao;
     const addBaselineBtn = document.getElementById('addBaselineRowBtn');
     if (addBaselineBtn) addBaselineBtn.onclick = addBaselineRow;
     const addArchBtn = document.getElementById('addArchRowBtn');
     if (addArchBtn) addArchBtn.onclick = addArchRow;
-    const saveModelBtn = document.getElementById('saveModelBtn');
-    if (saveModelBtn) saveModelBtn.onclick = saveMoHinhHeThong;
     const addSummaryBtn = document.getElementById('addSummaryRowBtn');
     if (addSummaryBtn) addSummaryBtn.onclick = addSummaryRow;
-    const saveSummaryBtn = document.getElementById('saveSummaryBtn');
-    if (saveSummaryBtn) saveSummaryBtn.onclick = saveTongHop;
     const exportBtn = document.getElementById('exportBtn');
     if (exportBtn) exportBtn.onclick = exportToWord;
+    const addConnectionBtn = document.getElementById('addConnectionRowBtn');
+    if (addConnectionBtn) addConnectionBtn.onclick = addConnectionRow;
+    
+    // Khởi tạo auto-save
+    initAutoSave();
 });
 // Hàm xóa dòng cuối cùng của bảng
 function removeLastRow(tbodyId) {
@@ -2803,7 +2824,18 @@ function collectAllSizingData() {
             evidenceImages: collectEvidenceSizingData(),
             pocValue: document.getElementById('poc-value')?.value || '',
             sizingValue: document.getElementById('sizing-value')?.value || '',
-            sizingResult: document.getElementById('sizing-result-container')?.innerHTML || ''
+            sizingResult: (() => {
+                // Sync textarea values into DOM trước khi lấy innerHTML
+                // (textarea.value không tự phản ánh vào innerHTML)
+                const container = document.getElementById('sizing-result-container');
+                if (container) {
+                    container.querySelectorAll('textarea').forEach(ta => {
+                        ta.textContent = ta.value;
+                    });
+                    return container.innerHTML;
+                }
+                return '';
+            })()
             // NOTE: Admin review is NOT saved here - it goes to dinhCoAdminReview
         },
         moduleMariaDB: collectMariaDBData(),
@@ -2891,8 +2923,12 @@ function collectSizingAdminReviewData() {
                 });
                 return reviews;
             })()
+        },
+        // POC/Sizing admin evaluation
+        pocSizing: {
+            eval: document.getElementById('eval-poc-sizing')?.value || '',
+            note: document.getElementById('note-poc-sizing')?.value || ''
         }
-        // Future modules can be added here
     };
 }
 
@@ -2978,7 +3014,17 @@ async function evaluateSizingSection() {
         if (response.ok) {
             // Tạo revision khi admin đánh giá thành công
             await createRevision(`${user.displayName || user.username || 'Admin'} đánh giá Định cỡ hệ thống`);
+            
+            // Cập nhật trạng thái dự án (admin review)
+            if (role === 'admin1') {
+                await updateProjectStatus('admin1_review');
+            } else if (role === 'admin2') {
+                await updateProjectStatus('admin2_review');
+            }
+            
             alert('✓ Đã lưu đánh giá Định cỡ hệ thống thành công!');
+            // reload data to reflect saved admin review
+            await loadAllDataFromDB();
         } else {
             const errorText = await response.text();
             throw new Error(errorText || 'Lỗi server');
@@ -3377,6 +3423,14 @@ function loadSizingAdminReview(adminReview) {
             }
         }
         
+        // Load POC/Sizing admin evaluation
+        if (adminReview.pocSizing) {
+            const pocEval = document.getElementById('eval-poc-sizing');
+            const pocNote = document.getElementById('note-poc-sizing');
+            if (pocEval) { pocEval.value = adminReview.pocSizing.eval || ''; styleAdminSelect(pocEval); }
+            if (pocNote) pocNote.value = adminReview.pocSizing.note || '';
+        }
+
         // Re-apply role permissions after loading admin review
         applyRolePermissions();
         
@@ -3612,37 +3666,37 @@ function calculateSizingRecommendations() {
                         <td class="text-center">1</td>
                         <td>Cintrate cần cho hệ thống</td>
                         <td class="text-center">${cintForTPS.toFixed(2)}</td>
-                        <td></td>
+                        <td><textarea class="input-full sizing-note" rows="1" placeholder="Ghi chú..." style="resize:vertical;min-height:30px;"></textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">2</td>
                         <td>RAM (GB) cần cho hệ thống</td>
                         <td class="text-center">${ramForTPS.toFixed(2)}</td>
-                        <td></td>
+                        <td><textarea class="input-full sizing-note" rows="1" placeholder="Ghi chú..." style="resize:vertical;min-height:30px;"></textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">3</td>
                         <td>Disk (GB) cần cho hệ thống</td>
                         <td class="text-center">${diskForTPS.toFixed(2)}</td>
-                        <td></td>
+                        <td><textarea class="input-full sizing-note" rows="1" placeholder="Ghi chú..." style="resize:vertical;min-height:30px;"></textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">4</td>
                         <td>Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
                         <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
-                        <td>KPI 75%. Sai số 1.1</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">KPI 75%. Sai số 1.1</textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">5</td>
                         <td>RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
                         <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
-                        <td>KPI 90%. Sai số 1.1</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">KPI 90%. Sai số 1.1</textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">6</td>
                         <td>Disk cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
                         <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
-                        <td>KPI 80%. Sai số 1.1</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">KPI 80%. Sai số 1.1</textarea></td>
                     </tr>
                 </tbody>
             </table>`;
@@ -3718,7 +3772,7 @@ function calculateSizingRecommendations() {
                             </ul>
                         </td>
                         <td class="text-center"><strong>${ketqua + 1}</strong></td>
-                        <td>Dự phòng N+1</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Dự phòng N+1</textarea></td>
                     </tr>
                 </tbody>
             </table>`;
@@ -6787,5 +6841,330 @@ async function saveWithRevision(saveFunction, sectionName) {
     // Tạo revision
     const user = getCurrentUser();
     await createRevision(`${user.displayName || user.username || 'User'} cập nhật ${sectionName}`);
+}
+
+// ==================== AUTO-SAVE SYSTEM ====================
+
+let autoSaveTimer = null;
+let isAutoSaving = false;
+let lastEditorUsername = localStorage.getItem('lastEditorUsername') || null;
+
+/**
+ * Khởi tạo hệ thống auto-save: lắng nghe sự kiện input/change trên toàn bộ form
+ */
+function initAutoSave() {
+    // Debounce save sau 3 giây khi user ngừng typing
+    const debounceSave = () => {
+        if (!currentProjectId) return; // Chưa có project thì không save
+        if (currentProjectStatus === 'HOAN_THANH') return; // Đã hoàn thành thì không save
+
+        clearTimeout(autoSaveTimer);
+        showAutoSaveStatus('pending');
+        autoSaveTimer = setTimeout(() => {
+            performAutoSave();
+        }, 3000);
+    };
+
+    // Lắng nghe input/change trên project-detail-page
+    const detailPage = document.getElementById('project-detail-page');
+    if (detailPage) {
+        detailPage.addEventListener('input', (e) => {
+            if (e.target.matches('input, textarea, select')) {
+                debounceSave();
+            }
+        });
+        detailPage.addEventListener('change', (e) => {
+            if (e.target.matches('select')) {
+                debounceSave();
+            }
+        });
+    }
+}
+
+/**
+ * Thực hiện auto-save: lưu tất cả dữ liệu hiện tại
+ */
+async function performAutoSave() {
+    if (isAutoSaving || !currentProjectId) return;
+    if (currentProjectStatus === 'HOAN_THANH') return;
+    
+    isAutoSaving = true;
+    showAutoSaveStatus('saving');
+    
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+    
+    try {
+        // Kiểm tra xem có phải account mới edit không -> tạo revision cho account trước
+        const currentUsername = user.username || user.displayName || 'unknown';
+        await checkAndCreateRevisionForPreviousEditor(currentUsername);
+        
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
+        
+        // Xác định section đang active để chỉ save section đó
+        const activeSection = document.querySelector('.page-section.active');
+        const activeSectionId = activeSection ? activeSection.id : null;
+        
+        let payload = {};
+        
+        if (activeSectionId === 'page-request') {
+            const data = collectYeuCauBaiToan();
+            // Nếu không phải admin thì bỏ adminReview
+            if (role !== 'admin1' && role !== 'admin2') {
+                delete data.adminReview;
+            }
+            payload.yeuCauBaiToanContent = JSON.stringify(data);
+            // Cập nhật project name/devUnit
+            if (data.projectName) {
+                await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+                    method: 'PUT', headers,
+                    body: JSON.stringify({ name: data.projectName, devUnit: data.devUnit, ownerName: data.contactPerson })
+                }).catch(() => {});
+            }
+        } else if (activeSectionId === 'page-input') {
+            const data = collectThongTinDauVao();
+            if (role !== 'admin1' && role !== 'admin2') {
+                data.inputRows = data.inputRows.map(r => { const c = Object.assign({}, r); delete c.adminEval; delete c.adminNote; return c; });
+            }
+            payload.thongTinDauVaoContent = JSON.stringify(data);
+        } else if (activeSectionId === 'page-model') {
+            const data = collectMoHinhHeThong();
+            payload.moHinhHeThongContent = JSON.stringify(data);
+        } else if (activeSectionId === 'page-sizing') {
+            // Save sizing data for both user and admin
+            if (typeof collectAllSizingData === 'function') {
+                const sizingData = collectAllSizingData();
+                payload.dinhCoHeThongContent = JSON.stringify(sizingData);
+            }
+        } else if (activeSectionId === 'page-summary') {
+            const data = collectTongHop();
+            payload.tongHopVaDeXuatContent = JSON.stringify(data);
+        }
+        
+        if (Object.keys(payload).length > 0) {
+            // Đảm bảo projectData tồn tại
+            if (!currentProjectDataId) {
+                payload.projectId = currentProjectId;
+                const resp = await fetch(`${API_BASE_URL}/project-data`, {
+                    method: 'POST', headers,
+                    body: JSON.stringify(payload)
+                });
+                if (resp.ok) {
+                    const result = await resp.json();
+                    saveProjectDataIdToStorage(result.id);
+                }
+            } else {
+                await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+                    method: 'PUT', headers,
+                    body: JSON.stringify(payload)
+                });
+            }
+            
+            // Auto-save: chỉ thay đổi trạng thái khi dự án ở trạng thái khởi tạo
+            // Không thay đổi từ THAM_DINH/PHE_DUYET → SIZING qua auto-save
+            // (việc đó chỉ nên xảy ra khi admin trả về qua evaluateSection)
+            if (role === 'user' || !role || role === '') {
+                if (!currentProjectStatus || currentProjectStatus === 'Draft') {
+                    await updateProjectStatus('user_edit');
+                }
+            }
+        }
+        
+        // Auto-save admin review data nếu là admin
+        if (role === 'admin1' || role === 'admin2') {
+            let reviewObj = null;
+            let sectionKey = null;
+            
+            if (activeSectionId === 'page-request') {
+                sectionKey = 'request';
+                const data = collectYeuCauBaiToan();
+                reviewObj = data.adminReview || {};
+            } else if (activeSectionId === 'page-input') {
+                sectionKey = 'input';
+                const rows = Array.from(document.querySelectorAll('#input-table-body tr'));
+                reviewObj = { rows: rows.map(row => ({ eval: row.querySelector('.admin-eval')?.value || '', note: row.querySelector('.admin-note')?.value || '' })) };
+            } else if (activeSectionId === 'page-model') {
+                sectionKey = 'model';
+                reviewObj = collectMoHinhAdminReview();
+            } else if (activeSectionId === 'page-sizing') {
+                sectionKey = 'sizing';
+                reviewObj = collectSizingAdminReviewData();
+            } else if (activeSectionId === 'page-summary') {
+                sectionKey = 'summary';
+                reviewObj = {};
+            }
+            
+            if (reviewObj && sectionKey) {
+                await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+                    method: 'POST', headers,
+                    body: JSON.stringify({ section: sectionKey, reviewJson: JSON.stringify(reviewObj) })
+                }).catch(e => console.error('Auto-save admin review error:', e));
+            }
+        }
+        
+        showAutoSaveStatus('saved');
+    } catch (error) {
+        console.error('Auto-save error:', error);
+        showAutoSaveStatus('error');
+    } finally {
+        isAutoSaving = false;
+    }
+}
+
+/**
+ * Kiểm tra và tạo revision cho editor trước đó khi account mới bắt đầu edit
+ */
+async function checkAndCreateRevisionForPreviousEditor(currentUsername) {
+    const prevEditor = localStorage.getItem('lastEditorUsername');
+    
+    if (prevEditor && prevEditor !== currentUsername && currentProjectId) {
+        // Account mới bắt đầu edit -> tạo revision cho account trước
+        try {
+            await fetch(`${API_BASE_URL}/project-revisions`, {
+                method: 'POST',
+                headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+                body: JSON.stringify({
+                    projectId: currentProjectId,
+                    userId: prevEditor,
+                    changeLog: `${prevEditor} - Lưu phiên làm việc`
+                })
+            });
+            console.log(`✅ Đã tạo revision cho editor trước: ${prevEditor}`);
+        } catch (e) {
+            console.error('Lỗi tạo revision cho editor trước:', e);
+        }
+    }
+    
+    // Cập nhật editor hiện tại
+    localStorage.setItem('lastEditorUsername', currentUsername);
+}
+
+/**
+ * Hiển thị trạng thái auto-save
+ */
+function showAutoSaveStatus(status) {
+    // Tìm tất cả các status div và cập nhật
+    const statusDivs = ['save-status', 'input-save-status', 'model-save-status', 'summary-save-status'];
+    const activeSection = document.querySelector('.page-section.active');
+    
+    let targetStatusId = null;
+    if (activeSection) {
+        if (activeSection.id === 'page-request') targetStatusId = 'save-status';
+        else if (activeSection.id === 'page-input') targetStatusId = 'input-save-status';
+        else if (activeSection.id === 'page-model') targetStatusId = 'model-save-status';
+        else if (activeSection.id === 'page-sizing') targetStatusId = 'sizing-save-status';
+        else if (activeSection.id === 'page-summary') targetStatusId = 'summary-save-status';
+    }
+    
+    const statusDiv = targetStatusId ? document.getElementById(targetStatusId) : null;
+    if (!statusDiv) return;
+    
+    switch (status) {
+        case 'pending':
+            statusDiv.innerHTML = '<span style="color: #999; font-size: 12px;"><i class="fa-solid fa-clock"></i> Chờ lưu...</span>';
+            break;
+        case 'saving':
+            statusDiv.innerHTML = '<span style="color: #b8860b; font-size: 12px;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tự động lưu...</span>';
+            break;
+        case 'saved':
+            statusDiv.innerHTML = '<span style="color: green; font-size: 12px;"><i class="fa-solid fa-check"></i> Đã tự động lưu</span>';
+            setTimeout(() => {
+                if (statusDiv.innerHTML.includes('Đã tự động lưu')) {
+                    statusDiv.innerHTML = '';
+                }
+            }, 5000);
+            break;
+        case 'error':
+            statusDiv.innerHTML = '<span style="color: red; font-size: 12px;"><i class="fa-solid fa-exclamation-triangle"></i> Lỗi tự động lưu</span>';
+            break;
+    }
+}
+
+// ==================== CONNECTION INFO TABLE ====================
+
+function createConnectionTableRow(stt, data = {}) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="text-center">${stt}</td>
+        <td><input type="text" class="input-full" value="${escapeHtml(data.source || '')}" placeholder="VD: 10.0.0.1"></td>
+        <td><input type="text" class="input-full" value="${escapeHtml(data.destination || '')}" placeholder="VD: 10.0.0.2"></td>
+        <td><input type="text" class="input-full" value="${escapeHtml(data.port || '')}" placeholder="VD: 8080"></td>
+        <td>
+            <select class="input-full">
+                <option value="">-- Chọn --</option>
+                <option value="TCP" ${data.protocol === 'TCP' ? 'selected' : ''}>TCP</option>
+                <option value="UDP" ${data.protocol === 'UDP' ? 'selected' : ''}>UDP</option>
+                <option value="HTTP" ${data.protocol === 'HTTP' ? 'selected' : ''}>HTTP</option>
+                <option value="HTTPS" ${data.protocol === 'HTTPS' ? 'selected' : ''}>HTTPS</option>
+                <option value="gRPC" ${data.protocol === 'gRPC' ? 'selected' : ''}>gRPC</option>
+                <option value="WebSocket" ${data.protocol === 'WebSocket' ? 'selected' : ''}>WebSocket</option>
+                <option value="Other" ${data.protocol === 'Other' ? 'selected' : ''}>Khác</option>
+            </select>
+        </td>
+        <td><input type="text" class="input-full" value="${escapeHtml(data.description || '')}" placeholder="Mô tả kết nối..."></td>
+        <td class="admin-cell">
+            <select class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
+                <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <textarea rows="1" class="input-full admin-note" placeholder="Nhận xét..." style="resize: vertical; min-height: 34px;">${data.adminNote || ''}</textarea>
+        </td>
+        <td class="text-center">
+            <button class="btn-delete" onclick="removeConnectionRow(this)">✖</button>
+        </td>
+    `;
+    return tr;
+}
+
+function addConnectionRow(data = {}) {
+    const tbody = document.getElementById('connection-info-table-body');
+    if (!tbody) return;
+    const stt = tbody.rows.length + 1;
+    const tr = createConnectionTableRow(stt, data);
+    tbody.appendChild(tr);
+    try { applyRolePermissions(); } catch (e) {}
+}
+
+function removeConnectionRow(btn) {
+    const row = btn.closest('tr');
+    const tbody = row.parentElement;
+    row.remove();
+    // Update STT
+    Array.from(tbody.rows).forEach((r, idx) => {
+        if (r.cells[0]) r.cells[0].innerText = idx + 1;
+    });
+}
+
+function collectConnectionInfo() {
+    const rows = [];
+    document.querySelectorAll('#connection-info-table-body tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        rows.push({
+            source: cells[1]?.querySelector('input')?.value || '',
+            destination: cells[2]?.querySelector('input')?.value || '',
+            port: cells[3]?.querySelector('input')?.value || '',
+            protocol: cells[4]?.querySelector('select')?.value || '',
+            description: cells[5]?.querySelector('input')?.value || '',
+            adminEval: cells[6]?.querySelector('select')?.value || '',
+            adminNote: cells[7]?.querySelector('textarea')?.value || ''
+        });
+    });
+    return rows;
+}
+
+function loadConnectionInfo(data) {
+    const tbody = document.getElementById('connection-info-table-body');
+    if (!tbody || !data) return;
+    tbody.innerHTML = '';
+    
+    if (Array.isArray(data) && data.length > 0) {
+        data.forEach((row, idx) => {
+            const tr = createConnectionTableRow(idx + 1, row);
+            tbody.appendChild(tr);
+        });
+    }
 }
 
