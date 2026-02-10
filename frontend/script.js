@@ -308,7 +308,11 @@ function applyReadOnlyMode() {
     if (approveBtn) approveBtn.style.display = 'none';
     
     // Show completed notification
-    showCompletedNotification();
+    const notif = document.createElement('div');
+    notif.style.cssText = 'position:fixed;top:20px;right:20px;background:#28a745;color:#fff;padding:12px 24px;border-radius:8px;z-index:99999;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.2);';
+    notif.textContent = 'Dự án đã hoàn thành - Chế độ chỉ đọc';
+    document.body.appendChild(notif);
+    setTimeout(() => notif.remove(), 4000);
 }
 
 // ==================== PROJECT MANAGEMENT ====================
@@ -751,6 +755,14 @@ function resetAllForms() {
 
 // ==================== LOAD DATA FROM DATABASE ====================
 async function loadAllDataFromDB() {
+    // Lưu vị trí scroll hiện tại trước khi reload dữ liệu
+    const scrollY = window.scrollY || window.pageYOffset;
+    const scrollX = window.scrollX || window.pageXOffset;
+    // Lưu tab đang active
+    const activeSection = document.querySelector('.page-section.active');
+    const activeSectionId = activeSection ? activeSection.id : null;
+    const activeMenuLink = document.querySelector('.side-menu a.active');
+
     try {
         // Load project info để lấy trạng thái
         const projectResponse = await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
@@ -835,6 +847,22 @@ async function loadAllDataFromDB() {
     } catch (error) {
         console.error('Lỗi khi tải dữ liệu:', error);
     }
+
+    // Khôi phục tab đang xem
+    if (activeSectionId) {
+        showSection(activeSectionId, activeMenuLink);
+    }
+    // Khôi phục vị trí scroll sau khi DOM đã cập nhật
+    // Dùng double requestAnimationFrame + setTimeout để đảm bảo DOM đã render xong
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            window.scrollTo(scrollX, scrollY);
+        });
+    });
+    // Fallback: setTimeout để xử lý trường hợp DOM render chậm (ảnh, bảng lớn)
+    setTimeout(() => {
+        window.scrollTo(scrollX, scrollY);
+    }, 150);
 }
 
 // ==================== 1. YÊU CẦU BÀI TOÁN ====================
@@ -2164,7 +2192,10 @@ async function exportToWord() {
         // Gọi API export từ backend1
         const response = await fetch(`${API_BASE_URL}/export/project/${currentProjectId}`, {
             method: 'GET',
-            headers: { 'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
+            headers: {
+                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Authorization': 'Bearer ' + localStorage.getItem('authToken')
+            }
         });
         
         if (response.ok) {
@@ -2712,16 +2743,17 @@ function collectInputConfigTableData() {
     const data = [];
     
     rows.forEach((row, index) => {
-        const inputs = row.querySelectorAll('input');
         data.push({
             stt: index + 1,
-            ip: inputs[0]?.value || '',
-            cpuLoad: inputs[1]?.value || '',
-            ramLoad: inputs[2]?.value || '',
-            diskLoad: inputs[3]?.value || '',
-            cintUsed: inputs[4]?.value || '',
-            ramUsed: inputs[5]?.value || '',
-            diskUsed: inputs[6]?.value || ''
+            ip: row.querySelector('.ip-config-input')?.value || '',
+            cpuLoad: row.querySelector('.cpu-load-input')?.value || '',
+            ramLoad: row.querySelector('.ram-load-input')?.value || '',
+            diskLoad: row.querySelector('.disk-load-input')?.value || '',
+            cintUsed: row.querySelector('.cint-used-input')?.value || '',
+            ramUsed: row.querySelector('.ram-used-input')?.value || '',
+            diskUsed: row.querySelector('.disk-used-input')?.value || '',
+            adminEval: row.querySelector('.input-config-eval')?.value || '',
+            adminNote: row.querySelector('.input-config-note')?.value || ''
         });
     });
     
@@ -2804,7 +2836,18 @@ function collectSizingAdminReviewData() {
                 note: document.getElementById('note-module-app')?.value || ''
             },
             // Admin review for each row in baseline table
-            baselineRowReviews: collectBaselineAdminReviewData()
+            baselineRowReviews: collectBaselineAdminReviewData(),
+            // Admin review for each row in input config table
+            inputConfigRowReviews: (() => {
+                const reviews = [];
+                document.querySelectorAll('#input-config-table-body tr').forEach(row => {
+                    reviews.push({
+                        eval: row.querySelector('.input-config-eval')?.value || '',
+                        note: row.querySelector('.input-config-note')?.value || ''
+                    });
+                });
+                return reviews;
+            })()
         },
         moduleMariaDB: {
             overallReview: {
@@ -2821,13 +2864,33 @@ function collectSizingAdminReviewData() {
             overallReview: {
                 eval: document.getElementById('eval-module-redis')?.value || '',
                 note: document.getElementById('note-module-redis')?.value || ''
-            }
+            },
+            configRowReviews: (() => {
+                const reviews = [];
+                document.querySelectorAll('#redis-config-table-body tr').forEach(row => {
+                    reviews.push({
+                        eval: row.querySelector('.redis-config-eval')?.value || '',
+                        note: row.querySelector('.redis-config-note')?.value || ''
+                    });
+                });
+                return reviews;
+            })()
         },
         moduleKafka: {
             overallReview: {
                 eval: document.getElementById('eval-module-kafka')?.value || '',
                 note: document.getElementById('note-module-kafka')?.value || ''
-            }
+            },
+            linearRowReviews: (() => {
+                const reviews = [];
+                document.querySelectorAll('#kafka-linear-table-body tr').forEach(row => {
+                    reviews.push({
+                        eval: row.querySelector('.kafka-linear-eval')?.value || '',
+                        note: row.querySelector('.kafka-linear-note')?.value || ''
+                    });
+                });
+                return reviews;
+            })()
         }
         // Future modules can be added here
     };
@@ -3007,14 +3070,25 @@ function loadSizingData(data) {
                         addInputConfigRow(); // Add a new row
                         const lastRow = tbody.lastElementChild;
                         if (lastRow) {
-                            const inputs = lastRow.querySelectorAll('input');
-                            if (inputs[0]) inputs[0].value = row.ip || '';
-                            if (inputs[1]) inputs[1].value = row.cpuLoad || '';
-                            if (inputs[2]) inputs[2].value = row.ramLoad || '';
-                            if (inputs[3]) inputs[3].value = row.diskLoad || '';
-                            if (inputs[4]) inputs[4].value = row.cintUsed || '';
-                            if (inputs[5]) inputs[5].value = row.ramUsed || '';
-                            if (inputs[6]) inputs[6].value = row.diskUsed || '';
+                            const ipInput = lastRow.querySelector('.ip-config-input');
+                            const cpuLoadInput = lastRow.querySelector('.cpu-load-input');
+                            const ramLoadInput = lastRow.querySelector('.ram-load-input');
+                            const diskLoadInput = lastRow.querySelector('.disk-load-input');
+                            const cintUsedInput = lastRow.querySelector('.cint-used-input');
+                            const ramUsedInput = lastRow.querySelector('.ram-used-input');
+                            const diskUsedInput = lastRow.querySelector('.disk-used-input');
+                            if (ipInput) ipInput.value = row.ip || '';
+                            if (cpuLoadInput) cpuLoadInput.value = row.cpuLoad || '';
+                            if (ramLoadInput) ramLoadInput.value = row.ramLoad || '';
+                            if (diskLoadInput) diskLoadInput.value = row.diskLoad || '';
+                            if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
+                            if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
+                            if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
+                            // Admin eval/note
+                            const evalSelect = lastRow.querySelector('.input-config-eval');
+                            const noteInput = lastRow.querySelector('.input-config-note');
+                            if (evalSelect && row.adminEval) { evalSelect.value = row.adminEval; styleAdminSelect(evalSelect); }
+                            if (noteInput && row.adminNote) noteInput.value = row.adminNote;
                         }
                     });
                     updateInputConfigTotal();
@@ -3175,6 +3249,24 @@ function loadSizingAdminReview(adminReview) {
                     }
                 });
             }
+            
+            // Load input config row reviews
+            if (adminReview.moduleApp.inputConfigRowReviews) {
+                const rows = document.querySelectorAll('#input-config-table-body tr');
+                adminReview.moduleApp.inputConfigRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.input-config-eval');
+                        const adminNote = rows[index].querySelector('.input-config-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
+                });
+            }
         }
         
         // Load module MariaDB admin review
@@ -3233,6 +3325,24 @@ function loadSizingAdminReview(adminReview) {
                     document.getElementById('note-module-redis').value = redisReview.note || '';
                 }
             }
+            
+            // Load Redis config row reviews
+            if (adminReview.moduleRedis.configRowReviews) {
+                const rows = document.querySelectorAll('#redis-config-table-body tr');
+                adminReview.moduleRedis.configRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.redis-config-eval');
+                        const adminNote = rows[index].querySelector('.redis-config-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
+                });
+            }
         }
         
         // Load module Kafka admin review
@@ -3246,6 +3356,24 @@ function loadSizingAdminReview(adminReview) {
                 if (document.getElementById('note-module-kafka')) {
                     document.getElementById('note-module-kafka').value = kafkaReview.note || '';
                 }
+            }
+            
+            // Load Kafka linear row reviews
+            if (adminReview.moduleKafka.linearRowReviews) {
+                const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+                adminReview.moduleKafka.linearRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.kafka-linear-eval');
+                        const adminNote = rows[index].querySelector('.kafka-linear-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
+                });
             }
         }
         
@@ -3333,6 +3461,17 @@ function addInputConfigRow() {
         <td>
             <input type="number" class="input-full text-center disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;">
         </td>
+
+        <td class="admin-cell">
+            <select class="admin-eval-select input-config-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note input-config-note" placeholder="Nhận xét...">
+        </td>
         
         <td class="text-center">
             <button class="btn-delete-row-item" onclick="deleteInputConfigRow(this)">
@@ -3342,6 +3481,7 @@ function addInputConfigRow() {
     `;
     
     tbody.appendChild(tr);
+    applyRolePermissions();
 }
 
 function calculateInputConfigRow(input) {
@@ -3470,19 +3610,19 @@ function calculateSizingRecommendations() {
                 <tbody>
                     <tr>
                         <td class="text-center">1</td>
-                        <td>Cintrate cần cho TPS</td>
+                        <td>Cintrate cần cho hệ thống</td>
                         <td class="text-center">${cintForTPS.toFixed(2)}</td>
                         <td></td>
                     </tr>
                     <tr>
                         <td class="text-center">2</td>
-                        <td>RAM (GB) cần cho TPS</td>
+                        <td>RAM (GB) cần cho hệ thống</td>
                         <td class="text-center">${ramForTPS.toFixed(2)}</td>
                         <td></td>
                     </tr>
                     <tr>
                         <td class="text-center">3</td>
-                        <td>Disk (GB) cần cho TPS</td>
+                        <td>Disk (GB) cần cho hệ thống</td>
                         <td class="text-center">${diskForTPS.toFixed(2)}</td>
                         <td></td>
                     </tr>
@@ -5997,91 +6137,111 @@ function renderModelDiff(snapshot, prevSnapshot) {
         } catch(e) { /* ignore */ }
     }
     
-    let changes = [];
+    let html = '';
     
-    // So sánh số ảnh
-    const physicalCount = (data.physicalImages || []).length;
-    const prevPhysicalCount = (prevData.physicalImages || []).length;
-    if (physicalCount !== prevPhysicalCount) {
-        changes.push(`<div class="diff-item"><strong>Mô hình Vật lý:</strong> ${renderTextDiff(physicalCount + ' ảnh', prevPhysicalCount + ' ảnh')}</div>`);
-    }
-    
-    const logicalCount = (data.logicalImages || []).length;
-    const prevLogicalCount = (prevData.logicalImages || []).length;
-    if (logicalCount !== prevLogicalCount) {
-        changes.push(`<div class="diff-item"><strong>Mô hình Logic:</strong> ${renderTextDiff(logicalCount + ' ảnh', prevLogicalCount + ' ảnh')}</div>`);
-    }
-    
-    const flowCount = (data.flowImages || []).length;
-    const prevFlowCount = (prevData.flowImages || []).length;
-    if (flowCount !== prevFlowCount) {
-        changes.push(`<div class="diff-item"><strong>Luồng nghiệp vụ (ảnh):</strong> ${renderTextDiff(flowCount + ' ảnh', prevFlowCount + ' ảnh')}</div>`);
-    }
-    
-    // So sánh mô tả
-    const flowExpl = (data.flowExplanation || '').trim();
-    const prevFlowExpl = (prevData.flowExplanation || '').trim();
-    if (flowExpl !== prevFlowExpl) {
-        changes.push(`<div class="diff-item"><strong>Mô tả luồng nghiệp vụ:</strong><br>${renderTextDiff(flowExpl || '(trống)', prevFlowExpl || '(trống)')}</div>`);
-    }
-    
-    // So sánh admin review
-    const adminPhysical = moHinhAdmin.physical || {};
-    const prevAdminPhysical = prevMoHinhAdmin.physical || {};
-    if ((adminPhysical.eval || '') !== (prevAdminPhysical.eval || '') || (adminPhysical.note || '') !== (prevAdminPhysical.note || '')) {
-        changes.push(`<div class="diff-item"><strong>Admin đánh giá Mô hình Vật lý:</strong> ${renderEvalDiff(adminPhysical.eval, prevAdminPhysical.eval)} ${renderTextDiff(adminPhysical.note, prevAdminPhysical.note)}</div>`);
-    }
-    
-    const adminLogical = moHinhAdmin.logical || {};
-    const prevAdminLogical = prevMoHinhAdmin.logical || {};
-    if ((adminLogical.eval || '') !== (prevAdminLogical.eval || '') || (adminLogical.note || '') !== (prevAdminLogical.note || '')) {
-        changes.push(`<div class="diff-item"><strong>Admin đánh giá Mô hình Logic:</strong> ${renderEvalDiff(adminLogical.eval, prevAdminLogical.eval)} ${renderTextDiff(adminLogical.note, prevAdminLogical.note)}</div>`);
-    }
-    
-    const adminFlow = moHinhAdmin.flow || {};
-    const prevAdminFlow = prevMoHinhAdmin.flow || {};
-    if ((adminFlow.eval || '') !== (prevAdminFlow.eval || '') || (adminFlow.note || '') !== (prevAdminFlow.note || '')) {
-        changes.push(`<div class="diff-item"><strong>Admin đánh giá Luồng nghiệp vụ:</strong> ${renderEvalDiff(adminFlow.eval, prevAdminFlow.eval)} ${renderTextDiff(adminFlow.note, prevAdminFlow.note)}</div>`);
-    }
-    
-    // So sánh archRows
-    const archRows = data.archRows || [];
-    const prevArchRows = prevData.archRows || [];
-    if (archRows.length !== prevArchRows.length) {
-        changes.push(`<div class="diff-item"><strong>Chi tiết thành phần:</strong> ${renderTextDiff(archRows.length + ' dòng', prevArchRows.length + ' dòng')}</div>`);
-    } else {
-        // Chi tiết từng dòng
-        archRows.forEach((row, i) => {
-            const prevRow = prevArchRows[i] || {};
-            const fields = ['nghiepVu', 'module', 'zoneMang', 'heDieuHanh', 'soLuongVIP'];
-            for (const f of fields) {
-                if ((row[f] || '').trim() !== (prevRow[f] || '').trim()) {
-                    changes.push(`<div class="diff-item"><strong>Thành phần dòng ${i+1} - ${f}:</strong> ${renderTextDiff(row[f], prevRow[f])}</div>`);
-                }
-            }
-        });
-    }
-    
-    if (changes.length === 0 && prevSnapshot) {
+    // Helper: render image gallery
+    const renderImageGallery = (title, images, adminData) => {
+        if (!images || images.length === 0) return '';
+        const thumbs = images.map((img, i) => {
+            const src = img.base64 || img.dataUrl || img;
+            return `<img src="${src}" alt="${title}-${i}" onclick="openModal(this.src)" style="cursor:zoom-in; max-width:180px; max-height:120px; border-radius:6px; border:1px solid #e2e8f0; margin:4px;">`;
+        }).join('');
+        const evalHtml = adminData && adminData.eval ? renderEvalDiff(adminData.eval, null) : '';
+        const noteHtml = adminData && adminData.note ? `<span style="color:#6366f1; font-style:italic; margin-left:8px;">${adminData.note}</span>` : '';
         return `
-            <div class="vp-section">
-                <div class="vp-no-changes">
-                    <i class="fa-solid fa-check-circle"></i>
-                    <span>Không có thay đổi trong phần Mô hình hệ thống</span>
-                </div>
+            <div class="diff-item" style="margin-bottom:16px;">
+                <strong>${title}</strong> (${images.length} ảnh) ${evalHtml} ${noteHtml}
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">${thumbs}</div>
             </div>
         `;
+    };
+    
+    // Render images
+    html += renderImageGallery('Mô hình Vật lý', data.physicalImages, moHinhAdmin.physical);
+    html += renderImageGallery('Mô hình Logic', data.logicalImages, moHinhAdmin.logical);
+    html += renderImageGallery('Luồng nghiệp vụ', data.flowImages, moHinhAdmin.flow);
+    
+    // Mô tả luồng nghiệp vụ
+    const flowExpl = (data.flowExplanation || '').trim();
+    if (flowExpl) {
+        const prevFlowExpl = (prevData.flowExplanation || '').trim();
+        html += `<div class="diff-item"><strong>Mô tả luồng nghiệp vụ:</strong><br>${flowExpl !== prevFlowExpl && prevSnapshot ? renderTextDiff(flowExpl, prevFlowExpl) : `<div style="margin-top:4px; white-space:pre-wrap;">${flowExpl}</div>`}</div>`;
+    }
+    
+    // Architecture table
+    const archRows = data.archRows || [];
+    const prevArchRows = prevData.archRows || [];
+    const archAdminReviews = moHinhAdmin.archRowReviews || [];
+    const prevArchAdminReviews = prevMoHinhAdmin.archRowReviews || [];
+    
+    if (archRows.length > 0) {
+        const fieldLabels = { nghiepVu: 'Nghiệp vụ', module: 'Module', zoneMang: 'Zone mạng', heDieuHanh: 'Hệ điều hành', soLuongVIP: 'Số lượng/VIP' };
+        let archRowsHtml = '';
+        archRows.forEach((row, i) => {
+            const prevRow = prevArchRows[i] || {};
+            const adminRow = archAdminReviews[i] || {};
+            const prevAdminRow = prevArchAdminReviews[i] || {};
+            const isNew = i >= prevArchRows.length;
+            const rowClass = isNew ? 'diff-row-added' : '';
+            
+            archRowsHtml += `
+                <tr class="${rowClass}">
+                    <td style="padding:8px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.nghiepVu, prevRow.nghiepVu) : (row.nghiepVu || '-')}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.module, prevRow.module) : (row.module || '-')}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.zoneMang, prevRow.zoneMang) : (row.zoneMang || '-')}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.heDieuHanh, prevRow.heDieuHanh) : (row.heDieuHanh || '-')}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.soLuongVIP, prevRow.soLuongVIP) : (row.soLuongVIP || '-')}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(adminRow.eval, prevSnapshot ? (prevAdminRow.eval || '') : null)}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${prevSnapshot ? renderTextDiff(adminRow.note, prevAdminRow.note) : (adminRow.note || '-')}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+            <div class="diff-item" style="margin-top:16px;">
+                <strong>Chi tiết thành phần kiến trúc</strong>
+                <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:8px;">
+                    <thead>
+                        <tr style="background:#f1f5f9;">
+                            <th style="padding:8px; border:1px solid #e2e8f0; width:40px;">STT</th>
+                            <th style="padding:8px; border:1px solid #e2e8f0;">Nghiệp vụ</th>
+                            <th style="padding:8px; border:1px solid #e2e8f0;">Module</th>
+                            <th style="padding:8px; border:1px solid #e2e8f0;">Zone mạng</th>
+                            <th style="padding:8px; border:1px solid #e2e8f0;">Hệ ĐH</th>
+                            <th style="padding:8px; border:1px solid #e2e8f0;">SL/VIP</th>
+                            <th style="padding:8px; border:1px solid #e2e8f0; width:70px; background:#fef3c7;">Đánh giá</th>
+                            <th style="padding:8px; border:1px solid #e2e8f0; width:140px; background:#fef3c7;">Ghi chú Admin</th>
+                        </tr>
+                    </thead>
+                    <tbody>${archRowsHtml}</tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    if (!html.trim()) {
+        if (prevSnapshot) {
+            return `
+                <div class="vp-section">
+                    <div class="vp-no-changes">
+                        <i class="fa-solid fa-check-circle"></i>
+                        <span>Không có thay đổi trong phần Mô hình hệ thống</span>
+                    </div>
+                </div>
+            `;
+        }
+        return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
     
     return `
         <div class="vp-section">
             <div class="vp-section-title">
-                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
-                Thay đổi trong Mô hình hệ thống 
-                <span class="diff-count">(${changes.length} thay đổi)</span>
+                <i class="fa-solid fa-sitemap" style="color: #6366f1;"></i> 
+                Mô hình hệ thống
             </div>
             <div class="diff-list">
-                ${changes.join('')}
+                ${html}
             </div>
         </div>
     `;
@@ -6114,7 +6274,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
     }
     
     // Parse admin review
-    let adminReview = { moduleApp: {} };
+    let adminReview = {};
     if (snapshot.dinhCoAdminReview) {
         try {
             adminReview = typeof snapshot.dinhCoAdminReview === 'string' 
@@ -6123,7 +6283,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
         } catch(e) { /* ignore */ }
     }
     
-    let prevAdminReview = { moduleApp: {} };
+    let prevAdminReview = {};
     if (prevSnapshot && prevSnapshot.dinhCoAdminReview) {
         try {
             prevAdminReview = typeof prevSnapshot.dinhCoAdminReview === 'string' 
@@ -6132,81 +6292,313 @@ function renderSizingDiff(snapshot, prevSnapshot) {
         } catch(e) { /* ignore */ }
     }
     
-    const changes = [];
+    let html = '';
+    
+    // ===================== MODULE APP =====================
     const moduleApp = data.moduleApp || {};
     const prevModuleApp = prevData.moduleApp || {};
+    const moduleAppAdmin = (adminReview.moduleApp || {}).overallReview || {};
     
-    // Compare POC and Sizing values
-    if ((moduleApp.pocValue || '') !== (prevModuleApp.pocValue || '')) {
-        changes.push(`<div class="diff-item"><strong>Tải hệ thống POC:</strong> ${renderTextDiff(moduleApp.pocValue, prevModuleApp.pocValue)}</div>`);
-    }
-    if ((moduleApp.sizingValue || '') !== (prevModuleApp.sizingValue || '')) {
-        changes.push(`<div class="diff-item"><strong>Định cỡ:</strong> ${renderTextDiff(moduleApp.sizingValue, prevModuleApp.sizingValue)}</div>`);
+    let appHtml = '';
+    
+    // POC / Sizing
+    const pocVal = moduleApp.pocValue || '';
+    const sizVal = moduleApp.sizingValue || '';
+    if (pocVal || sizVal) {
+        appHtml += `<div class="diff-item"><strong>Tải hệ thống POC:</strong> ${prevSnapshot ? renderTextDiff(pocVal, prevModuleApp.pocValue) : (pocVal || '-')} &nbsp; | &nbsp; <strong>Định cỡ:</strong> ${prevSnapshot ? renderTextDiff(sizVal, prevModuleApp.sizingValue) : (sizVal || '-')}</div>`;
     }
     
-    // Compare baseline table
+    // Baseline table
     const baselineRows = moduleApp.baselineTable || [];
-    const prevBaselineRows = prevModuleApp.baselineTable || [];
-    if (baselineRows.length !== prevBaselineRows.length) {
-        changes.push(`<div class="diff-item"><strong>Bảng hệ thống tham chiếu:</strong> ${renderTextDiff(baselineRows.length + ' dòng', prevBaselineRows.length + ' dòng')}</div>`);
-    } else {
-        baselineRows.forEach((row, i) => {
-            const prevRow = prevBaselineRows[i] || {};
-            const fields = ['module', 'ip', 'cpu', 'ram', 'disk', 'cintRate'];
-            for (const f of fields) {
-                if ((row[f] || '').toString().trim() !== (prevRow[f] || '').toString().trim()) {
-                    changes.push(`<div class="diff-item"><strong>Server tham chiếu dòng ${i+1} - ${f}:</strong> ${renderTextDiff(row[f], prevRow[f])}</div>`);
-                }
-            }
-        });
+    if (baselineRows.length > 0) {
+        const prevBaselineRows = prevModuleApp.baselineTable || [];
+        const baselineAdminReviews = ((adminReview.moduleApp || {}).baselineRowReviews) || [];
+        let bRowsHtml = baselineRows.map((row, i) => {
+            const prev = prevBaselineRows[i] || {};
+            const ar = baselineAdminReviews[i] || {};
+            return `<tr>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i+1}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.ip, prev.ip) : (row.ip || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.cpu, prev.cpu) : (row.cpu || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.ram, prev.ram) : (row.ram || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.disk, prev.disk) : (row.disk || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.cintRate, prev.cintRate) : (row.cintRate || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(ar.eval, null)}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${ar.note || '-'}</td>
+            </tr>`;
+        }).join('');
+        appHtml += `<div class="diff-item"><strong>Hệ thống tham chiếu</strong>
+            <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
+                <thead><tr style="background:#f1f5f9;">
+                    <th style="padding:6px; border:1px solid #e2e8f0;">STT</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">IP</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">CPU</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">RAM</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Disk</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Cint</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
+                </tr></thead>
+                <tbody>${bRowsHtml}</tbody>
+            </table></div>`;
     }
     
-    // Compare input config table
+    // Input config table
     const inputConfigRows = moduleApp.inputConfigTable || [];
-    const prevInputConfigRows = prevModuleApp.inputConfigTable || [];
-    if (inputConfigRows.length !== prevInputConfigRows.length) {
-        changes.push(`<div class="diff-item"><strong>Bảng thông tin tải đầu vào:</strong> ${renderTextDiff(inputConfigRows.length + ' dòng', prevInputConfigRows.length + ' dòng')}</div>`);
+    const inputConfigReviews = ((adminReview.moduleApp || {}).inputConfigRowReviews) || [];
+    if (inputConfigRows.length > 0) {
+        const prevInputConfigRows = prevModuleApp.inputConfigTable || [];
+        let icRowsHtml = inputConfigRows.map((row, i) => {
+            const prev = prevInputConfigRows[i] || {};
+            const ar = inputConfigReviews[i] || {};
+            const evalVal = ar.eval || row.adminEval || '';
+            const noteVal = ar.note || row.adminNote || '';
+            return `<tr>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i+1}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.ip, prev.ip) : (row.ip || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.cpuLoad, prev.cpuLoad) : (row.cpuLoad || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.ramLoad, prev.ramLoad) : (row.ramLoad || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.diskLoad, prev.diskLoad) : (row.diskLoad || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.cintUsed || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.ramUsed || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.diskUsed || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(evalVal, null)}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${noteVal || '-'}</td>
+            </tr>`;
+        }).join('');
+        appHtml += `<div class="diff-item"><strong>Thông tin tải đầu vào</strong>
+            <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
+                <thead><tr style="background:#f1f5f9;">
+                    <th style="padding:6px; border:1px solid #e2e8f0;">STT</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">IP</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">CPU Load %</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">RAM Load %</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Disk Load %</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Cint used</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">RAM used</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Disk used</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
+                </tr></thead>
+                <tbody>${icRowsHtml}</tbody>
+            </table></div>`;
     }
     
-    // Compare evidence images count
-    const evidenceCount = (moduleApp.evidenceImages || []).length;
-    const prevEvidenceCount = (prevModuleApp.evidenceImages || []).length;
-    if (evidenceCount !== prevEvidenceCount) {
-        changes.push(`<div class="diff-item"><strong>Ảnh sở cứ:</strong> ${renderTextDiff(evidenceCount + ' ảnh', prevEvidenceCount + ' ảnh')}</div>`);
+    // Evidence images
+    const evidenceImgs = moduleApp.evidenceImages || [];
+    if (evidenceImgs.length > 0) {
+        const thumbs = evidenceImgs.map((img, i) => {
+            const src = img.dataUrl || img.base64 || img;
+            return `<img src="${src}" alt="evidence-${i}" onclick="openModal(this.src)" style="cursor:zoom-in; max-width:150px; max-height:100px; border-radius:4px; border:1px solid #e2e8f0; margin:3px;">`;
+        }).join('');
+        appHtml += `<div class="diff-item"><strong>Ảnh sở cứ Module App</strong> (${evidenceImgs.length} ảnh)<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">${thumbs}</div></div>`;
     }
     
-    // Compare admin review
-    const moduleAppAdmin = adminReview.moduleApp || {};
-    const prevModuleAppAdmin = prevAdminReview.moduleApp || {};
-    
-    const overallReview = moduleAppAdmin.overallReview || {};
-    const prevOverallReview = prevModuleAppAdmin.overallReview || {};
-    if ((overallReview.eval || '') !== (prevOverallReview.eval || '') || 
-        (overallReview.note || '') !== (prevOverallReview.note || '')) {
-        changes.push(`<div class="diff-item"><strong>Admin đánh giá Module App:</strong> ${renderEvalDiff(overallReview.eval, prevOverallReview.eval)} ${renderTextDiff(overallReview.note, prevOverallReview.note)}</div>`);
+    // Admin overall review
+    if (moduleAppAdmin.eval || moduleAppAdmin.note) {
+        appHtml += `<div class="diff-item"><strong>Admin đánh giá Module App:</strong> ${renderEvalDiff(moduleAppAdmin.eval, null)} <span style="color:#6366f1; font-style:italic;">${moduleAppAdmin.note || ''}</span></div>`;
     }
     
-    if (changes.length === 0 && prevSnapshot) {
-        return `
-            <div class="vp-section">
-                <div class="vp-no-changes">
-                    <i class="fa-solid fa-check-circle"></i>
-                    <span>Không có thay đổi trong phần Định cỡ hệ thống</span>
-                </div>
-            </div>
-        `;
+    if (appHtml) {
+        html += `<div style="margin-bottom:20px; padding:12px; background:#f8fafc; border-radius:8px; border-left:4px solid #3b82f6;">
+            <h4 style="margin:0 0 10px 0; color:#1e40af;"><i class="fa-solid fa-server"></i> Module App</h4>${appHtml}</div>`;
+    }
+    
+    // ===================== MODULE MARIADB =====================
+    const moduleMariaDB = data.moduleMariaDB || {};
+    const prevModuleMariaDB = prevData.moduleMariaDB || {};
+    const mariadbAdmin = (adminReview.moduleMariaDB || {}).overallReview || {};
+    let mariadbHtml = '';
+    
+    // Ref table
+    const refRows = moduleMariaDB.refTable || [];
+    const mariadbRefReviews = ((adminReview.moduleMariaDB || {}).refRowReviews) || [];
+    if (refRows.length > 0) {
+        let rRowsHtml = refRows.map((row, i) => {
+            const ar = mariadbRefReviews[i] || {};
+            return `<tr>
+            <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i+1}</td>
+            <td style="padding:6px; border:1px solid #e2e8f0;">${row.dbName || '-'}</td>
+            <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.cpuLoad || '-'}</td>
+            <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.ramLoad || '-'}</td>
+            <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.storage || '-'}</td>
+            <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(ar.eval, null)}</td>
+            <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${ar.note || '-'}</td>
+        </tr>`;
+        }).join('');
+        mariadbHtml += `<div class="diff-item"><strong>Bảng tham chiếu</strong>
+            <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
+                <thead><tr style="background:#f1f5f9;">
+                    <th style="padding:6px; border:1px solid #e2e8f0;">STT</th><th style="padding:6px; border:1px solid #e2e8f0;">Database</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">CPU %</th><th style="padding:6px; border:1px solid #e2e8f0;">RAM %</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Storage</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
+                </tr></thead><tbody>${rRowsHtml}</tbody>
+            </table></div>`;
+    }
+    
+    // Storage review
+    const mariadbStorageReview = (adminReview.moduleMariaDB || {}).storageReview || {};
+    if (mariadbStorageReview.eval || mariadbStorageReview.note) {
+        mariadbHtml += `<div class="diff-item"><strong>Đánh giá Storage:</strong> ${renderEvalDiff(mariadbStorageReview.eval, null)} <span style="color:#6366f1; font-style:italic;">${mariadbStorageReview.note || ''}</span></div>`;
+    }
+    
+    if (mariadbAdmin.eval || mariadbAdmin.note) {
+        mariadbHtml += `<div class="diff-item"><strong>Admin đánh giá tổng thể:</strong> ${renderEvalDiff(mariadbAdmin.eval, null)} <span style="color:#6366f1; font-style:italic;">${mariadbAdmin.note || ''}</span></div>`;
+    }
+    
+    if (mariadbHtml) {
+        html += `<div style="margin-bottom:20px; padding:12px; background:#fefce8; border-radius:8px; border-left:4px solid #eab308;">
+            <h4 style="margin:0 0 10px 0; color:#854d0e;"><i class="fa-solid fa-database"></i> Module MariaDB</h4>${mariadbHtml}</div>`;
+    }
+    
+    // ===================== MODULE REDIS =====================
+    const moduleRedis = data.moduleRedis || {};
+    const prevModuleRedis = prevData.moduleRedis || {};
+    const redisAdmin = (adminReview.moduleRedis || {}).overallReview || {};
+    let redisHtml = '';
+    
+    if (moduleRedis.selectedMethod) {
+        redisHtml += `<div class="diff-item"><strong>Phương pháp:</strong> ${moduleRedis.selectedMethod === 'key' ? 'Tính theo Key' : 'Tính theo cấu hình hiện có'}</div>`;
+    }
+    
+    // Key method
+    if (moduleRedis.keyMethod) {
+        const km = moduleRedis.keyMethod;
+        if (km.keyCount || km.recordSize) {
+            redisHtml += `<div class="diff-item"><strong>Key Count:</strong> ${km.keyCount || '-'} &nbsp; <strong>Record Size:</strong> ${km.recordSize || '-'}</div>`;
+        }
+    }
+    
+    // Config method
+    if (moduleRedis.configMethod) {
+        const cm = moduleRedis.configMethod;
+        const configRows = cm.configTable || [];
+        const redisConfigReviews = ((adminReview.moduleRedis || {}).configRowReviews) || [];
+        if (configRows.length > 0) {
+            let cRowsHtml = configRows.map((row, i) => {
+                const ar = redisConfigReviews[i] || {};
+                const evalVal = ar.eval || row.adminEval || '';
+                const noteVal = ar.note || row.adminNote || '';
+                return `<tr>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${row.ip || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.ram || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.ramLoad || '-'}%</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.isMaster ? '✓' : ''}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(evalVal, null)}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${noteVal || '-'}</td>
+            </tr>`;
+            }).join('');
+            redisHtml += `<div class="diff-item"><strong>Bảng cấu hình Redis</strong>
+                <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
+                    <thead><tr style="background:#f1f5f9;">
+                        <th style="padding:6px; border:1px solid #e2e8f0;">IP</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">RAM</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">RAM Load</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">Master</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
+                    </tr></thead><tbody>${cRowsHtml}</tbody>
+                </table></div>`;
+        }
+        if (cm.inputCCU || cm.sizingCCU) {
+            redisHtml += `<div class="diff-item"><strong>CCU đầu vào:</strong> ${cm.inputCCU || '-'} &nbsp; <strong>CCU Định cỡ:</strong> ${cm.sizingCCU || '-'}</div>`;
+        }
+    }
+    
+    if (redisAdmin.eval || redisAdmin.note) {
+        redisHtml += `<div class="diff-item"><strong>Admin đánh giá:</strong> ${renderEvalDiff(redisAdmin.eval, null)} <span style="color:#6366f1; font-style:italic;">${redisAdmin.note || ''}</span></div>`;
+    }
+    
+    if (redisHtml) {
+        html += `<div style="margin-bottom:20px; padding:12px; background:#fef2f2; border-radius:8px; border-left:4px solid #ef4444;">
+            <h4 style="margin:0 0 10px 0; color:#991b1b;"><i class="fa-solid fa-memory"></i> Module Redis</h4>${redisHtml}</div>`;
+    }
+    
+    // ===================== MODULE KAFKA =====================
+    const moduleKafka = data.moduleKafka || {};
+    const prevModuleKafka = prevData.moduleKafka || {};
+    const kafkaAdmin = (adminReview.moduleKafka || {}).overallReview || {};
+    let kafkaHtml = '';
+    
+    if (moduleKafka.selectedMethod) {
+        kafkaHtml += `<div class="diff-item"><strong>Phương pháp:</strong> ${moduleKafka.selectedMethod === 'throughput' ? 'Throughput' : 'Linear (Phương án B)'}</div>`;
+    }
+    
+    // Throughput method
+    if (moduleKafka.throughputMethod) {
+        const tm = moduleKafka.throughputMethod;
+        if (tm.throughputA) {
+            kafkaHtml += `<div class="diff-item"><strong>Throughput A:</strong> ${tm.throughputA} &nbsp; <strong>Retention:</strong> ${tm.retentionTime || '168'}h &nbsp; <strong>Replication:</strong> ${tm.replicationFactor || '3'} &nbsp; <strong>Compression:</strong> ${tm.compression || '0.5'}</div>`;
+        }
+    }
+    
+    // Linear method
+    if (moduleKafka.linearMethod) {
+        const lm = moduleKafka.linearMethod;
+        const linearRows = lm.linearTable || [];
+        const kafkaLinearReviews = ((adminReview.moduleKafka || {}).linearRowReviews) || [];
+        if (linearRows.length > 0) {
+            let lRowsHtml = linearRows.map((row, i) => {
+                const ar = kafkaLinearReviews[i] || {};
+                const evalVal = ar.eval || row.adminEval || '';
+                const noteVal = ar.note || row.adminNote || '';
+                return `<tr>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${row.ip || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.vcpu || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.ram || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.disk || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.cpuLoad || '-'}%</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.ramLoad || '-'}%</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.diskLoad || '-'}%</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(evalVal, null)}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${noteVal || '-'}</td>
+            </tr>`;
+            }).join('');
+            kafkaHtml += `<div class="diff-item"><strong>Bảng Linear (Existing System)</strong>
+                <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
+                    <thead><tr style="background:#f1f5f9;">
+                        <th style="padding:6px; border:1px solid #e2e8f0;">IP</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">vCPU</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">RAM</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">Disk</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">CPU %</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">RAM %</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0;">Disk %</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                        <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
+                    </tr></thead><tbody>${lRowsHtml}</tbody>
+                </table></div>`;
+        }
+        if (lm.inputCCU || lm.sizingCCU) {
+            kafkaHtml += `<div class="diff-item"><strong>CCU đầu vào:</strong> ${lm.inputCCU || '-'} &nbsp; <strong>CCU Định cỡ:</strong> ${lm.sizingCCU || '-'}</div>`;
+        }
+    }
+    
+    if (kafkaAdmin.eval || kafkaAdmin.note) {
+        kafkaHtml += `<div class="diff-item"><strong>Admin đánh giá:</strong> ${renderEvalDiff(kafkaAdmin.eval, null)} <span style="color:#6366f1; font-style:italic;">${kafkaAdmin.note || ''}</span></div>`;
+    }
+    
+    if (kafkaHtml) {
+        html += `<div style="margin-bottom:20px; padding:12px; background:#f0fdf4; border-radius:8px; border-left:4px solid #22c55e;">
+            <h4 style="margin:0 0 10px 0; color:#166534;"><i class="fa-solid fa-stream"></i> Module Kafka</h4>${kafkaHtml}</div>`;
+    }
+    
+    if (!html.trim()) {
+        if (prevSnapshot) {
+            return `<div class="vp-section"><div class="vp-no-changes"><i class="fa-solid fa-check-circle"></i><span>Không có thay đổi trong phần Định cỡ hệ thống</span></div></div>`;
+        }
+        return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
     
     return `
         <div class="vp-section">
             <div class="vp-section-title">
-                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
-                Thay đổi trong Định cỡ hệ thống 
-                <span class="diff-count">(${changes.length} thay đổi)</span>
+                <i class="fa-solid fa-sliders" style="color: #6366f1;"></i> 
+                Định cỡ hệ thống
             </div>
-            <div class="diff-list">
-                ${changes.join('')}
-            </div>
+            ${html}
         </div>
     `;
 }
