@@ -210,7 +210,36 @@ public class ExportService {
         addSubHeading(doc, "2. M\u00f4 h\u00ecnh logic");
         addImagesFromArray(doc, root.path("logicalImages"));
 
-        addSubHeading(doc, "3. Lu\u1ed3ng nghi\u1ec7p v\u1ee5");
+        // B2. Thông tin kết nối (đặt sau mô hình logic)
+        JsonNode connectionRows = root.path("connectionRows");
+        if (connectionRows.isArray() && connectionRows.size() > 0) {
+            addSubHeading(doc, "3. Th\u00f4ng tin k\u1ebft n\u1ed1i");
+            XWPFTable connTable = doc.createTable(connectionRows.size() + 1, 6);
+            styleTable(connTable);
+
+            setCell(connTable, 0, 0, "STT", true, "D9E2F3");
+            setCell(connTable, 0, 1, "IP Ngu\u1ed3n", true, "D9E2F3");
+            setCell(connTable, 0, 2, "IP \u0110\u00edch", true, "D9E2F3");
+            setCell(connTable, 0, 3, "Port", true, "D9E2F3");
+            setCell(connTable, 0, 4, "Giao th\u1ee9c", true, "D9E2F3");
+            setCell(connTable, 0, 5, "M\u00f4 t\u1ea3", true, "D9E2F3");
+
+            for (int i = 0; i < connectionRows.size(); i++) {
+                JsonNode r = connectionRows.get(i);
+                setCell(connTable, i + 1, 0, String.valueOf(i + 1), false, null);
+                setCell(connTable, i + 1, 1, txt(r, "source"), false, null);
+                setCell(connTable, i + 1, 2, txt(r, "destination"), false, null);
+                setCell(connTable, i + 1, 3, txt(r, "port"), false, null);
+                setCell(connTable, i + 1, 4, txt(r, "protocol"), false, null);
+                setCell(connTable, i + 1, 5, txt(r, "description"), false, null);
+            }
+            doc.createParagraph();
+
+            // Connection evidence images
+            addImagesFromArray(doc, root.path("connectionImages"));
+        }
+
+        addSubHeading(doc, "4. Lu\u1ed3ng nghi\u1ec7p v\u1ee5");
         addImagesFromArray(doc, root.path("flowImages"));
 
         String flowExplanation = txt(root, "flowExplanation");
@@ -221,7 +250,7 @@ public class ExportService {
 
         JsonNode archRows = root.path("archRows");
         if (archRows.isArray() && archRows.size() > 0) {
-            addSubHeading(doc, "4. Chi ti\u1ebft th\u00e0nh ph\u1ea7n");
+            addSubHeading(doc, "5. Chi ti\u1ebft th\u00e0nh ph\u1ea7n");
             XWPFTable table = doc.createTable(archRows.size() + 1, 6);
             styleTable(table);
 
@@ -247,7 +276,7 @@ public class ExportService {
 
     // ======================== IV. DINH CO HE THONG ========================
     private void writeDinhCoHeThong(XWPFDocument doc, JsonNode root) {
-        addSectionHeading(doc, "IV. \u0110\u1eccNH C\u1ee0 H\u1ec6 TH\u1ed0NG");
+        addSectionHeading(doc, "IV. ĐỊNH C\u1ee0 H\u1ec6 TH\u1ed0NG");
         writeModuleApp(doc, root.path("moduleApp"));
         writeModuleMariaDB(doc, root.path("moduleMariaDB"));
         writeModuleRedis(doc, root.path("moduleRedis"));
@@ -362,7 +391,139 @@ public class ExportService {
         String sizingResult = txt(moduleApp, "sizingResult");
         if (!sizingResult.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-            String plainText = sizingResult.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+            parseAndWriteAppSizingResult(doc, sizingResult);
+        }
+    }
+
+    // Parse Module App sizing result HTML and write to DOC with proper formatting
+    private void parseAndWriteAppSizingResult(XWPFDocument doc, String html) {
+        try {
+            // Extract data from HTML using regex patterns
+            // Bảng 1: Thông số Máy chủ Tiến trình
+            java.util.regex.Pattern rowPattern = java.util.regex.Pattern.compile(
+                "<tr>\\s*<td[^>]*>\\s*(\\d+)\\s*</td>\\s*<td>([^<]+)</td>\\s*<td[^>]*>([\\d.]+)</td>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher rowMatcher = rowPattern.matcher(html);
+            
+            java.util.List<String[]> tableData = new java.util.ArrayList<>();
+            while (rowMatcher.find()) {
+                tableData.add(new String[]{
+                    rowMatcher.group(1).trim(),
+                    rowMatcher.group(2).trim(),
+                    rowMatcher.group(3).trim()
+                });
+            }
+            
+            if (!tableData.isEmpty()) {
+                addSubHeading2(doc, "B\u1ea3ng t\u00ednh to\u00e1n M\u00e1y ch\u1ee7 Ti\u1ebfn tr\u00ecnh");
+                XWPFTable table = doc.createTable(tableData.size() + 1, 4);
+                styleTable(table);
+                
+                setCell(table, 0, 0, "STT", true, "D9E2F3");
+                setCell(table, 0, 1, "Th\u00f4ng s\u1ed1", true, "D9E2F3");
+                setCell(table, 0, 2, "M\u00e1y ch\u1ee7 Ti\u1ebfn tr\u00ecnh", true, "D9E2F3");
+                setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+                
+                String[] notes = {
+                    "", "", "",
+                    "KPI 75%. Sai s\u1ed1 1.1",
+                    "KPI 90%. Sai s\u1ed1 1.1",
+                    "KPI 80%. Sai s\u1ed1 1.1"
+                };
+                
+                for (int i = 0; i < tableData.size(); i++) {
+                    String[] row = tableData.get(i);
+                    setCell(table, i + 1, 0, row[0], false, null);
+                    setCell(table, i + 1, 1, row[1], false, null);
+                    setCell(table, i + 1, 2, row[2], false, null);
+                    setCell(table, i + 1, 3, i < notes.length ? notes[i] : "", false, null);
+                }
+                doc.createParagraph();
+            }
+            
+            // Extract Đề xuất section
+            java.util.regex.Pattern deXuatPattern = java.util.regex.Pattern.compile(
+                "N\\s*=\\s*([\\d.]+)\\s*/\\s*32\\s*[≈~=]\\s*<strong>([\\d]+)</strong>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher deXuatMatcher = deXuatPattern.matcher(html);
+            if (deXuatMatcher.find()) {
+                String ramValue = deXuatMatcher.group(1);
+                String nValue = deXuatMatcher.group(2);
+                addNormalText(doc, "\u0110\u1ec1 xu\u1ea5t: L\u1ef1a ch\u1ecdn c\u1ea5u h\u00ecnh \u1ea3o h\u00f3a \u2248 32 GB RAM, l\u1ef1a ch\u1ecdn s\u1ed1 N theo RAM: N = " + ramValue + " / 32 \u2248 " + nValue);
+                doc.createParagraph();
+            }
+            
+            // Extract Bảng phân bổ theo số lượng N
+            java.util.regex.Pattern nTablePattern = java.util.regex.Pattern.compile(
+                "Gi\u00e1 tr\u1ecb N.*?</thead>\\s*<tbody>(.*?)</tbody>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher nTableMatcher = nTablePattern.matcher(html);
+            if (nTableMatcher.find()) {
+                String tableContent = nTableMatcher.group(1);
+                java.util.regex.Pattern nRowPattern = java.util.regex.Pattern.compile(
+                    "<tr[^>]*>\\s*<td[^>]*>([^<]+)</td>\\s*<td[^>]*>([\\d.]+)</td>\\s*<td[^>]*>([\\d.]+)</td>\\s*<td[^>]*>([\\d.]+)</td>\\s*</tr>",
+                    java.util.regex.Pattern.DOTALL
+                );
+                java.util.regex.Matcher nRowMatcher = nRowPattern.matcher(tableContent);
+                
+                java.util.List<String[]> nTableData = new java.util.ArrayList<>();
+                while (nRowMatcher.find()) {
+                    nTableData.add(new String[]{
+                        nRowMatcher.group(1).trim(),
+                        nRowMatcher.group(2).trim(),
+                        nRowMatcher.group(3).trim(),
+                        nRowMatcher.group(4).trim()
+                    });
+                }
+                
+                if (!nTableData.isEmpty()) {
+                    addSubHeading2(doc, "B\u1ea3ng ph\u00e2n b\u1ed5 theo s\u1ed1 l\u01b0\u1ee3ng N");
+                    XWPFTable nTable = doc.createTable(nTableData.size() + 1, 4);
+                    styleTable(nTable);
+                    
+                    setCell(nTable, 0, 0, "Gi\u00e1 tr\u1ecb N", true, "D9E2F3");
+                    setCell(nTable, 0, 1, "Cint CPU y\u00eau c\u1ea7u", true, "D9E2F3");
+                    setCell(nTable, 0, 2, "RAM y\u00eau c\u1ea7u", true, "D9E2F3");
+                    setCell(nTable, 0, 3, "Disk y\u00eau c\u1ea7u", true, "D9E2F3");
+                    
+                    for (int i = 0; i < nTableData.size(); i++) {
+                        String[] row = nTableData.get(i);
+                        setCell(nTable, i + 1, 0, row[0], false, null);
+                        setCell(nTable, i + 1, 1, row[1], false, null);
+                        setCell(nTable, i + 1, 2, row[2], false, null);
+                        setCell(nTable, i + 1, 3, row[3], false, null);
+                    }
+                    doc.createParagraph();
+                }
+            }
+            
+            // Extract Đề xuất thiết bị
+            java.util.regex.Pattern devicePattern = java.util.regex.Pattern.compile(
+                "CPU:\\s*=?\\s*(\\d+)\\s*Cint.*?RAM:\\s*=?\\s*(\\d+)\\s*GB.*?DISK:\\s*=?\\s*(\\d+)\\s*GB.*?<strong>(\\d+)</strong>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher deviceMatcher = devicePattern.matcher(html);
+            if (deviceMatcher.find()) {
+                addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t thi\u1ebft b\u1ecb");
+                XWPFTable deviceTable = doc.createTable(2, 3);
+                styleTable(deviceTable);
+                
+                setCell(deviceTable, 0, 0, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                setCell(deviceTable, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                setCell(deviceTable, 0, 2, "Ghi ch\u00fa", true, "D9E2F3");
+                
+                String config = "CPU: " + deviceMatcher.group(1) + " Cint\nRAM: " + deviceMatcher.group(2) + " GB\nDISK: " + deviceMatcher.group(3) + " GB";
+                setCell(deviceTable, 1, 0, config, false, "E6FFED");
+                setCell(deviceTable, 1, 1, deviceMatcher.group(4), true, "E6FFED");
+                setCell(deviceTable, 1, 2, "D\u1ef1 ph\u00f2ng N+1", false, "E6FFED");
+                doc.createParagraph();
+            }
+        } catch (Exception e) {
+            // Fallback to plain text if parsing fails
+            String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
             if (!plainText.isEmpty()) addNormalText(doc, plainText);
         }
     }
@@ -407,9 +568,30 @@ public class ExportService {
         JsonNode storage = moduleMariaDB.path("storage");
         if (!storage.isMissingNode()) {
             addSubHeading2(doc, "Storage MariaDB");
-            addLabelValue(doc, "Data:", txt(storage, "data"));
-            addLabelValue(doc, "Log:", txt(storage, "log"));
-            addLabelValue(doc, "Backup:", txt(storage, "backup"));
+            
+            // Create 7-column table for storage: /data, /log, /backup, Tải DISK(%), /data used, /log used, /backup used
+            XWPFTable storageTable = doc.createTable(2, 7);
+            storageTable.setWidth("100%");
+            
+            // Header row
+            setCell(storageTable, 0, 0, "/data (GB)", true, null);
+            setCell(storageTable, 0, 1, "/log (GB)", true, null);
+            setCell(storageTable, 0, 2, "/backup (GB)", true, null);
+            setCell(storageTable, 0, 3, "T\u1ea3i DISK (%)", true, null);
+            setCell(storageTable, 0, 4, "/data used (GB)", true, null);
+            setCell(storageTable, 0, 5, "/log used (GB)", true, null);
+            setCell(storageTable, 0, 6, "/backup used (GB)", true, null);
+            
+            // Data row
+            setCell(storageTable, 1, 0, txt(storage, "data"), false, null);
+            setCell(storageTable, 1, 1, txt(storage, "log"), false, null);
+            setCell(storageTable, 1, 2, txt(storage, "backup"), false, null);
+            setCell(storageTable, 1, 3, txt(storage, "diskLoad"), false, null);
+            setCell(storageTable, 1, 4, txt(storage, "dataUsed"), false, null);
+            setCell(storageTable, 1, 5, txt(storage, "logUsed"), false, null);
+            setCell(storageTable, 1, 6, txt(storage, "backupUsed"), false, null);
+            
+            doc.createParagraph();
         }
 
         // Evidence
@@ -434,11 +616,73 @@ public class ExportService {
         String resultHTML = txt(moduleMariaDB, "resultHTML");
         if (!resultHTML.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-            String plainText = resultHTML.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
-            if (!plainText.isEmpty()) addNormalText(doc, plainText);
+            parseAndWriteMariaDBResult(doc, resultHTML);
         }
 
         doc.createParagraph();
+    }
+
+    // Parse Module MariaDB result HTML and write to DOC with proper formatting
+    private void parseAndWriteMariaDBResult(XWPFDocument doc, String html) {
+        try {
+            // Extract thông tin tính toán
+            java.util.regex.Pattern infoPattern = java.util.regex.Pattern.compile(
+                "Th\u00f4ng tin t\u00ednh to\u00e1n.*?</ul>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher infoMatcher = infoPattern.matcher(html);
+            if (infoMatcher.find()) {
+                String infoContent = infoMatcher.group(0);
+                java.util.regex.Pattern liPattern = java.util.regex.Pattern.compile("<li>([^<]+)</li>");
+                java.util.regex.Matcher liMatcher = liPattern.matcher(infoContent);
+                while (liMatcher.find()) {
+                    String text = liMatcher.group(1).replaceAll("<[^>]*>", "").trim();
+                    addNormalText(doc, "\u2022 " + text);
+                }
+            }
+            
+            // Extract bảng kết quả đề xuất
+            java.util.regex.Pattern configPattern = java.util.regex.Pattern.compile(
+                "(\\d+)\\s*vCPU.*?(\\d+)\\s*GB\\s*RAM.*?/data:\\s*(\\d+)\\s*GB.*?/log:\\s*(\\d+)\\s*GB",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher configMatcher = configPattern.matcher(html);
+            if (configMatcher.find()) {
+                doc.createParagraph();
+                addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                XWPFTable table = doc.createTable(3, 4);
+                styleTable(table);
+                
+                setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                setCell(table, 0, 1, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+                
+                String config = configMatcher.group(1) + " vCPU\n" + configMatcher.group(2) + " GB RAM\n/data: " + configMatcher.group(3) + " GB\n/log: " + configMatcher.group(4) + " GB";
+                setCell(table, 1, 0, "MariaDB", true, "E6FFED");
+                setCell(table, 1, 1, config, false, "E6FFED");
+                setCell(table, 1, 2, "3", true, "E6FFED");
+                setCell(table, 1, 3, "Gi\u00e1 tr\u1ecb MariaDB l\u1ea5y gi\u00e1 tr\u1ecb t\u00ednh \u0111\u01b0\u1ee3c \u1edf tr\u00ean", false, "E6FFED");
+                
+                // Extract NAS
+                java.util.regex.Pattern nasPattern = java.util.regex.Pattern.compile(
+                    "NAS.*?<strong>(\\d+)\\s*GB</strong>",
+                    java.util.regex.Pattern.DOTALL
+                );
+                java.util.regex.Matcher nasMatcher = nasPattern.matcher(html);
+                if (nasMatcher.find()) {
+                    setCell(table, 2, 0, "NAS", true, "FFF9E6");
+                    setCell(table, 2, 1, nasMatcher.group(1) + " GB", false, "FFF9E6");
+                    setCell(table, 2, 2, "-", true, "FFF9E6");
+                    setCell(table, 2, 3, "Mount chung (/data + /log + /backup)", false, "FFF9E6");
+                }
+                doc.createParagraph();
+            }
+        } catch (Exception e) {
+            // Fallback to plain text if parsing fails
+            String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+            if (!plainText.isEmpty()) addNormalText(doc, plainText);
+        }
     }
 
     // ---------- Module Redis ----------
@@ -452,79 +696,152 @@ public class ExportService {
                     selectedMethod.equals("key") ? "T\u00ednh theo Key" : "T\u00ednh theo c\u1ea5u h\u00ecnh hi\u1ec7n c\u00f3");
         }
 
-        // Key method
-        JsonNode keyMethod = moduleRedis.path("keyMethod");
-        if (!keyMethod.isMissingNode()) {
-            String keyCount = txt(keyMethod, "keyCount");
-            String recordSize = txt(keyMethod, "recordSize");
-            String importance = txt(keyMethod, "importance");
-            if (!keyCount.isEmpty() || !recordSize.isEmpty()) {
-                addSubHeading2(doc, "Ph\u01b0\u01a1ng ph\u00e1p t\u00ednh theo Key");
-                addLabelValue(doc, "T\u1ed5ng l\u01b0\u1ee3ng Key d\u1ef1 ki\u1ebfn:", keyCount);
-                addLabelValue(doc, "K\u00edch th\u01b0\u1edbc trung b\u00ecnh 1 b\u1ea3n ghi (KB):", recordSize);
-                if (!importance.isEmpty()) addLabelValue(doc, "M\u1ee9c \u0111\u1ed9 quan tr\u1ecdng:", importance);
-                addImagesFromArray(doc, keyMethod.path("evidenceImages"));
+        // Only export the selected method
+        if ("key".equals(selectedMethod)) {
+            // Key method
+            JsonNode keyMethod = moduleRedis.path("keyMethod");
+            if (!keyMethod.isMissingNode()) {
+                String keyCount = txt(keyMethod, "keyCount");
+                String recordSize = txt(keyMethod, "recordSize");
+                String importance = txt(keyMethod, "importance");
+                if (!keyCount.isEmpty() || !recordSize.isEmpty()) {
+                    addSubHeading2(doc, "Ph\u01b0\u01a1ng ph\u00e1p t\u00ednh theo Key");
+                    addLabelValue(doc, "T\u1ed5ng l\u01b0\u1ee3ng Key d\u1ef1 ki\u1ebfn:", keyCount);
+                    addLabelValue(doc, "K\u00edch th\u01b0\u1edbc trung b\u00ecnh 1 b\u1ea3n ghi (KB):", recordSize);
+                    if (!importance.isEmpty()) addLabelValue(doc, "M\u1ee9c \u0111\u1ed9 quan tr\u1ecdng:", importance);
+                    addImagesFromArray(doc, keyMethod.path("evidenceImages"));
 
-                String resultHTML = txt(keyMethod, "resultHTML");
+                    String resultHTML = txt(keyMethod, "resultHTML");
+                    if (!resultHTML.isEmpty()) {
+                        addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
+                        parseAndWriteRedisResult(doc, resultHTML);
+                    }
+                }
+            }
+        } else if ("config".equals(selectedMethod)) {
+            // Config method
+            JsonNode configMethod = moduleRedis.path("configMethod");
+            if (!configMethod.isMissingNode()) {
+                JsonNode configTable = configMethod.path("configTable");
+                if (configTable.isArray() && configTable.size() > 0) {
+                    addSubHeading2(doc, "Ph\u01b0\u01a1ng ph\u00e1p t\u00ednh theo c\u1ea5u h\u00ecnh hi\u1ec7n c\u00f3");
+
+                    String currentModel = txt(configMethod, "currentModel");
+                    if (!currentModel.isEmpty()) addLabelValue(doc, "Model hi\u1ec7n t\u1ea1i:", currentModel);
+
+                    int rows = configTable.size();
+                    XWPFTable table = doc.createTable(rows + 1, 5);
+                    styleTable(table);
+
+                    setCell(table, 0, 0, "STT", true, "D9E2F3");
+                    setCell(table, 0, 1, "IP", true, "D9E2F3");
+                    setCell(table, 0, 2, "RAM (GB)", true, "D9E2F3");
+                    setCell(table, 0, 3, "RAM Load (%)", true, "D9E2F3");
+                    setCell(table, 0, 4, "Master", true, "D9E2F3");
+
+                    for (int i = 0; i < rows; i++) {
+                        JsonNode r = configTable.get(i);
+                        setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
+                        setCell(table, i + 1, 1, txt(r, "ip"), false, null);
+                        setCell(table, i + 1, 2, txt(r, "ram"), false, null);
+                        setCell(table, i + 1, 3, txt(r, "ramLoad"), false, null);
+                        boolean isMaster = r.path("isMaster").asBoolean(false);
+                        setCell(table, i + 1, 4, isMaster ? "\u2713" : "", false, null);
+                    }
+                    doc.createParagraph();
+                }
+
+                String configImportance = txt(configMethod, "importance");
+                if (!configImportance.isEmpty()) addLabelValue(doc, "M\u1ee9c \u0111\u1ed9 quan tr\u1ecdng:", configImportance);
+
+                String inputCCU = txt(configMethod, "inputCCU");
+                String sizingCCU = txt(configMethod, "sizingCCU");
+                if (!inputCCU.isEmpty() || !sizingCCU.isEmpty()) {
+                    addLabelValue(doc, "CCU \u0111\u1ea7u v\u00e0o:", inputCCU);
+                    addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingCCU);
+                }
+
+                String resultHTML = txt(configMethod, "resultHTML");
                 if (!resultHTML.isEmpty()) {
                     addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-                    String plainText = resultHTML.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
-                    if (!plainText.isEmpty()) addNormalText(doc, plainText);
+                    parseAndWriteRedisResult(doc, resultHTML);
                 }
-            }
-        }
-
-        // Config method
-        JsonNode configMethod = moduleRedis.path("configMethod");
-        if (!configMethod.isMissingNode()) {
-            JsonNode configTable = configMethod.path("configTable");
-            if (configTable.isArray() && configTable.size() > 0) {
-                addSubHeading2(doc, "Ph\u01b0\u01a1ng ph\u00e1p t\u00ednh theo c\u1ea5u h\u00ecnh hi\u1ec7n c\u00f3");
-
-                String currentModel = txt(configMethod, "currentModel");
-                if (!currentModel.isEmpty()) addLabelValue(doc, "Model hi\u1ec7n t\u1ea1i:", currentModel);
-
-                int rows = configTable.size();
-                XWPFTable table = doc.createTable(rows + 1, 5);
-                styleTable(table);
-
-                setCell(table, 0, 0, "STT", true, "D9E2F3");
-                setCell(table, 0, 1, "IP", true, "D9E2F3");
-                setCell(table, 0, 2, "RAM (GB)", true, "D9E2F3");
-                setCell(table, 0, 3, "RAM Load (%)", true, "D9E2F3");
-                setCell(table, 0, 4, "Master", true, "D9E2F3");
-
-                for (int i = 0; i < rows; i++) {
-                    JsonNode r = configTable.get(i);
-                    setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
-                    setCell(table, i + 1, 1, txt(r, "ip"), false, null);
-                    setCell(table, i + 1, 2, txt(r, "ram"), false, null);
-                    setCell(table, i + 1, 3, txt(r, "ramLoad"), false, null);
-                    boolean isMaster = r.path("isMaster").asBoolean(false);
-                    setCell(table, i + 1, 4, isMaster ? "\u2713" : "", false, null);
-                }
-                doc.createParagraph();
-            }
-
-            String configImportance = txt(configMethod, "importance");
-            if (!configImportance.isEmpty()) addLabelValue(doc, "M\u1ee9c \u0111\u1ed9 quan tr\u1ecdng:", configImportance);
-
-            String inputCCU = txt(configMethod, "inputCCU");
-            String sizingCCU = txt(configMethod, "sizingCCU");
-            if (!inputCCU.isEmpty() || !sizingCCU.isEmpty()) {
-                addLabelValue(doc, "CCU \u0111\u1ea7u v\u00e0o:", inputCCU);
-                addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingCCU);
-            }
-
-            String resultHTML = txt(configMethod, "resultHTML");
-            if (!resultHTML.isEmpty()) {
-                addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-                String plainText = resultHTML.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
-                if (!plainText.isEmpty()) addNormalText(doc, plainText);
             }
         }
 
         doc.createParagraph();
+    }
+
+    // Parse Redis result HTML and write to DOC with proper formatting
+    private void parseAndWriteRedisResult(XWPFDocument doc, String html) {
+        try {
+            // Extract thông tin tính toán
+            java.util.regex.Pattern infoPattern = java.util.regex.Pattern.compile(
+                "Th\u00f4ng tin t\u00ednh to\u00e1n.*?</ul>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher infoMatcher = infoPattern.matcher(html);
+            if (infoMatcher.find()) {
+                String infoContent = infoMatcher.group(0);
+                java.util.regex.Pattern liPattern = java.util.regex.Pattern.compile("<li>([^<]*(?:<[^>]*>[^<]*)*)</li>");
+                java.util.regex.Matcher liMatcher = liPattern.matcher(infoContent);
+                while (liMatcher.find()) {
+                    String text = liMatcher.group(1).replaceAll("<[^>]*>", "").trim();
+                    addNormalText(doc, "\u2022 " + text);
+                }
+            }
+            
+            // Extract đề xuất mô hình
+            java.util.regex.Pattern modelPattern = java.util.regex.Pattern.compile(
+                "\u0110\u1ec1 xu\u1ea5t m\u00f4 h\u00ecnh.*?<strong>([^<]+)</strong>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher modelMatcher = modelPattern.matcher(html);
+            if (modelMatcher.find()) {
+                doc.createParagraph();
+                addNormalText(doc, "\u0110\u1ec1 xu\u1ea5t m\u00f4 h\u00ecnh: " + modelMatcher.group(1));
+            }
+            
+            // Extract bảng kết quả đề xuất cấu hình
+            java.util.regex.Pattern configPattern = java.util.regex.Pattern.compile(
+                "(\\d+)\\s*vCPU.*?(\\d+)\\s*GB\\s*RAM.*?(\\d+)\\s*GB\\s*DISK.*?<strong>(\\d+)</strong>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher configMatcher = configPattern.matcher(html);
+            if (configMatcher.find()) {
+                doc.createParagraph();
+                addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                XWPFTable table = doc.createTable(2, 4);
+                styleTable(table);
+                
+                setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                setCell(table, 0, 1, "C\u1ea5u h\u00ecnh \u0111\u1ec1 xu\u1ea5t", true, "D9E2F3");
+                setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+                
+                String config = configMatcher.group(1) + " vCPU\n" + configMatcher.group(2) + " GB RAM\n" + configMatcher.group(3) + " GB DISK";
+                setCell(table, 1, 0, "Redis", true, "E6FFED");
+                setCell(table, 1, 1, config, false, "E6FFED");
+                setCell(table, 1, 2, configMatcher.group(4), true, "E6FFED");
+                setCell(table, 1, 3, "", false, "E6FFED");
+                doc.createParagraph();
+            }
+            
+            // Extract bảng tổng hợp tài nguyên
+            java.util.regex.Pattern summaryPattern = java.util.regex.Pattern.compile(
+                "T\u1ed5ng vCPU.*?<strong>(\\d+)</strong>.*?T\u1ed5ng RAM.*?<strong>(\\d+)</strong>.*?T\u1ed5ng Disk.*?<strong>(\\d+)</strong>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher summaryMatcher = summaryPattern.matcher(html);
+            if (summaryMatcher.find()) {
+                addSubHeading2(doc, "B\u1ea3ng t\u1ed5ng h\u1ee3p t\u00e0i nguy\u00ean");
+                addNormalText(doc, "T\u1ed5ng vCPU: " + summaryMatcher.group(1) + ", T\u1ed5ng RAM: " + summaryMatcher.group(2) + " GB, T\u1ed5ng Disk: " + summaryMatcher.group(3) + " GB");
+            }
+        } catch (Exception e) {
+            // Fallback to plain text if parsing fails
+            String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+            if (!plainText.isEmpty()) addNormalText(doc, plainText);
+        }
     }
 
     // ---------- Module Kafka ----------
@@ -538,78 +855,146 @@ public class ExportService {
                     selectedMethod.equals("throughput") ? "Throughput" : "Linear (Ph\u01b0\u01a1ng \u00e1n B)");
         }
 
-        // Throughput method
-        JsonNode throughputMethod = moduleKafka.path("throughputMethod");
-        if (!throughputMethod.isMissingNode()) {
-            String throughputA = txt(throughputMethod, "throughputA");
-            if (!throughputA.isEmpty()) {
-                addSubHeading2(doc, "Ph\u01b0\u01a1ng ph\u00e1p Throughput");
-                addLabelValue(doc, "Throughput A:", throughputA);
-                addLabelValue(doc, "Retention Time (h):", txt(throughputMethod, "retentionTime"));
-                addLabelValue(doc, "Replication Factor:", txt(throughputMethod, "replicationFactor"));
-                addLabelValue(doc, "Compression:", txt(throughputMethod, "compression"));
-                addImagesFromArray(doc, throughputMethod.path("throughputEvidence"));
-                addImagesFromArray(doc, throughputMethod.path("compressionEvidence"));
+        // Only export the selected method
+        if ("throughput".equals(selectedMethod)) {
+            // Throughput method
+            JsonNode throughputMethod = moduleKafka.path("throughputMethod");
+            if (!throughputMethod.isMissingNode()) {
+                String throughputA = txt(throughputMethod, "throughputA");
+                if (!throughputA.isEmpty()) {
+                    addSubHeading2(doc, "Ph\u01b0\u01a1ng ph\u00e1p Throughput");
+                    addLabelValue(doc, "Throughput A:", throughputA);
+                    addLabelValue(doc, "Retention Time (h):", txt(throughputMethod, "retentionTime"));
+                    addLabelValue(doc, "Replication Factor:", txt(throughputMethod, "replicationFactor"));
+                    addLabelValue(doc, "Compression:", txt(throughputMethod, "compression"));
+                    addImagesFromArray(doc, throughputMethod.path("throughputEvidence"));
+                    addImagesFromArray(doc, throughputMethod.path("compressionEvidence"));
 
-                String resultHTML = txt(throughputMethod, "resultHTML");
+                    String resultHTML = txt(throughputMethod, "resultHTML");
+                    if (!resultHTML.isEmpty()) {
+                        addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
+                        parseAndWriteKafkaResult(doc, resultHTML);
+                    }
+                }
+            }
+        } else if ("linear".equals(selectedMethod)) {
+            // Linear method
+            JsonNode linearMethod = moduleKafka.path("linearMethod");
+            if (!linearMethod.isMissingNode()) {
+                JsonNode linearTable = linearMethod.path("linearTable");
+                if (linearTable.isArray() && linearTable.size() > 0) {
+                    addSubHeading2(doc, "Ph\u01b0\u01a1ng ph\u00e1p Linear (Ph\u01b0\u01a1ng \u00e1n B)");
+
+                    int rows = linearTable.size();
+                    XWPFTable table = doc.createTable(rows + 1, 8);
+                    styleTable(table);
+
+                    setCell(table, 0, 0, "STT", true, "D9E2F3");
+                    setCell(table, 0, 1, "IP", true, "D9E2F3");
+                    setCell(table, 0, 2, "vCPU", true, "D9E2F3");
+                    setCell(table, 0, 3, "RAM (GB)", true, "D9E2F3");
+                    setCell(table, 0, 4, "Disk (GB)", true, "D9E2F3");
+                    setCell(table, 0, 5, "CPU Load (%)", true, "D9E2F3");
+                    setCell(table, 0, 6, "RAM Load (%)", true, "D9E2F3");
+                    setCell(table, 0, 7, "Disk Load (%)", true, "D9E2F3");
+
+                    for (int i = 0; i < rows; i++) {
+                        JsonNode r = linearTable.get(i);
+                        setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
+                        setCell(table, i + 1, 1, txt(r, "ip"), false, null);
+                        setCell(table, i + 1, 2, txt(r, "vcpu"), false, null);
+                        setCell(table, i + 1, 3, txt(r, "ram"), false, null);
+                        setCell(table, i + 1, 4, txt(r, "disk"), false, null);
+                        setCell(table, i + 1, 5, txt(r, "cpuLoad"), false, null);
+                        setCell(table, i + 1, 6, txt(r, "ramLoad"), false, null);
+                        setCell(table, i + 1, 7, txt(r, "diskLoad"), false, null);
+                    }
+                    doc.createParagraph();
+                }
+
+                String inputCCU = txt(linearMethod, "inputCCU");
+                String sizingCCU = txt(linearMethod, "sizingCCU");
+                if (!inputCCU.isEmpty() || !sizingCCU.isEmpty()) {
+                    addLabelValue(doc, "CCU \u0111\u1ea7u v\u00e0o:", inputCCU);
+                    addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingCCU);
+                }
+
+                String resultHTML = txt(linearMethod, "resultHTML");
                 if (!resultHTML.isEmpty()) {
                     addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-                    String plainText = resultHTML.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
-                    if (!plainText.isEmpty()) addNormalText(doc, plainText);
+                    parseAndWriteKafkaResult(doc, resultHTML);
                 }
-            }
-        }
-
-        // Linear method
-        JsonNode linearMethod = moduleKafka.path("linearMethod");
-        if (!linearMethod.isMissingNode()) {
-            JsonNode linearTable = linearMethod.path("linearTable");
-            if (linearTable.isArray() && linearTable.size() > 0) {
-                addSubHeading2(doc, "Ph\u01b0\u01a1ng ph\u00e1p Linear (Ph\u01b0\u01a1ng \u00e1n B)");
-
-                int rows = linearTable.size();
-                XWPFTable table = doc.createTable(rows + 1, 8);
-                styleTable(table);
-
-                setCell(table, 0, 0, "STT", true, "D9E2F3");
-                setCell(table, 0, 1, "IP", true, "D9E2F3");
-                setCell(table, 0, 2, "vCPU", true, "D9E2F3");
-                setCell(table, 0, 3, "RAM (GB)", true, "D9E2F3");
-                setCell(table, 0, 4, "Disk (GB)", true, "D9E2F3");
-                setCell(table, 0, 5, "CPU Load (%)", true, "D9E2F3");
-                setCell(table, 0, 6, "RAM Load (%)", true, "D9E2F3");
-                setCell(table, 0, 7, "Disk Load (%)", true, "D9E2F3");
-
-                for (int i = 0; i < rows; i++) {
-                    JsonNode r = linearTable.get(i);
-                    setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
-                    setCell(table, i + 1, 1, txt(r, "ip"), false, null);
-                    setCell(table, i + 1, 2, txt(r, "vcpu"), false, null);
-                    setCell(table, i + 1, 3, txt(r, "ram"), false, null);
-                    setCell(table, i + 1, 4, txt(r, "disk"), false, null);
-                    setCell(table, i + 1, 5, txt(r, "cpuLoad"), false, null);
-                    setCell(table, i + 1, 6, txt(r, "ramLoad"), false, null);
-                    setCell(table, i + 1, 7, txt(r, "diskLoad"), false, null);
-                }
-                doc.createParagraph();
-            }
-
-            String inputCCU = txt(linearMethod, "inputCCU");
-            String sizingCCU = txt(linearMethod, "sizingCCU");
-            if (!inputCCU.isEmpty() || !sizingCCU.isEmpty()) {
-                addLabelValue(doc, "CCU \u0111\u1ea7u v\u00e0o:", inputCCU);
-                addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingCCU);
-            }
-
-            String resultHTML = txt(linearMethod, "resultHTML");
-            if (!resultHTML.isEmpty()) {
-                addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-                String plainText = resultHTML.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
-                if (!plainText.isEmpty()) addNormalText(doc, plainText);
             }
         }
 
         doc.createParagraph();
+    }
+
+    // Parse Kafka result HTML and write to DOC with proper formatting
+    private void parseAndWriteKafkaResult(XWPFDocument doc, String html) {
+        try {
+            // Extract thông tin tính toán
+            java.util.regex.Pattern infoPattern = java.util.regex.Pattern.compile(
+                "Th\u00f4ng tin t\u00ednh to\u00e1n.*?</ul>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher infoMatcher = infoPattern.matcher(html);
+            if (infoMatcher.find()) {
+                String infoContent = infoMatcher.group(0);
+                java.util.regex.Pattern liPattern = java.util.regex.Pattern.compile("<li>([^<]*(?:<[^>]*>[^<]*)*)</li>");
+                java.util.regex.Matcher liMatcher = liPattern.matcher(infoContent);
+                while (liMatcher.find()) {
+                    String text = liMatcher.group(1).replaceAll("<[^>]*>", "").trim();
+                    addNormalText(doc, "\u2022 " + text);
+                }
+            }
+            
+            // Extract bảng kết quả đề xuất cấu hình
+            java.util.regex.Pattern brokerPattern = java.util.regex.Pattern.compile(
+                "Kafka Broker.*?<strong>(\\d+)</strong>.*?<strong>(\\d+)</strong>.*?<strong>(\\d+)\\s*GB</strong>.*?<strong>([^<]+)</strong>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher brokerMatcher = brokerPattern.matcher(html);
+            if (brokerMatcher.find()) {
+                doc.createParagraph();
+                addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                XWPFTable table = doc.createTable(3, 5);
+                styleTable(table);
+                
+                setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                setCell(table, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng Node", true, "D9E2F3");
+                setCell(table, 0, 2, "vCPU/Node", true, "D9E2F3");
+                setCell(table, 0, 3, "RAM/Node", true, "D9E2F3");
+                setCell(table, 0, 4, "Disk/Node", true, "D9E2F3");
+                
+                setCell(table, 1, 0, "Kafka Broker", true, "E6FFED");
+                setCell(table, 1, 1, brokerMatcher.group(1), false, "E6FFED");
+                setCell(table, 1, 2, brokerMatcher.group(2), false, "E6FFED");
+                setCell(table, 1, 3, brokerMatcher.group(3) + " GB", false, "E6FFED");
+                setCell(table, 1, 4, brokerMatcher.group(4), false, "E6FFED");
+                
+                setCell(table, 2, 0, "Zookeeper/KRaft", true, "FFF9E6");
+                setCell(table, 2, 1, "3", false, "FFF9E6");
+                setCell(table, 2, 2, "2", false, "FFF9E6");
+                setCell(table, 2, 3, "4 GB", false, "FFF9E6");
+                setCell(table, 2, 4, "100 GB", false, "FFF9E6");
+                doc.createParagraph();
+            }
+            
+            // Extract khuyến nghị
+            java.util.regex.Pattern recPattern = java.util.regex.Pattern.compile(
+                "Khuy\u1ebfn ngh\u1ecb.*?<p[^>]*>([^<]+)</p>",
+                java.util.regex.Pattern.DOTALL
+            );
+            java.util.regex.Matcher recMatcher = recPattern.matcher(html);
+            if (recMatcher.find()) {
+                addNormalText(doc, "Khuy\u1ebfn ngh\u1ecb: " + recMatcher.group(1).trim());
+            }
+        } catch (Exception e) {
+            // Fallback to plain text if parsing fails
+            String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+            if (!plainText.isEmpty()) addNormalText(doc, plainText);
+        }
     }
 
     // ======================== V. TONG HOP VA DE XUAT ========================
@@ -618,29 +1003,47 @@ public class ExportService {
 
         JsonNode summaryRows = root.path("summaryRows");
         if (summaryRows.isArray() && summaryRows.size() > 0) {
-            XWPFTable table = doc.createTable(summaryRows.size() + 1, 7);
+            XWPFTable table = doc.createTable(summaryRows.size() + 1, 5);
             styleTable(table);
 
             setCell(table, 0, 0, "STT", true, "D9E2F3");
             setCell(table, 0, 1, "Module", true, "D9E2F3");
-            setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-            setCell(table, 0, 3, "vCPU", true, "D9E2F3");
-            setCell(table, 0, 4, "RAM", true, "D9E2F3");
-            setCell(table, 0, 5, "Volume", true, "D9E2F3");
-            setCell(table, 0, 6, "Ghi ch\u00fa", true, "D9E2F3");
+            setCell(table, 0, 2, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+            setCell(table, 0, 3, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+            setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
 
             for (int i = 0; i < summaryRows.size(); i++) {
                 JsonNode r = summaryRows.get(i);
                 setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
                 setCell(table, i + 1, 1, txt(r, "module"), false, null);
-                setCell(table, i + 1, 2, txt(r, "soLuong"), false, null);
-                setCell(table, i + 1, 3, txt(r, "vCPU"), false, null);
-                setCell(table, i + 1, 4, txt(r, "ram"), false, null);
-                setCell(table, i + 1, 5, txt(r, "volume"), false, null);
-                setCell(table, i + 1, 6, txt(r, "ghiChu"), false, null);
+                // Xử lý cấu hình: thay thế <br> bằng newline
+                String cauHinh = txt(r, "cauHinh").replaceAll("<br>", "\n").replaceAll("<[^>]+>", "");
+                setCellWithLineBreaks(table, i + 1, 2, cauHinh);
+                setCell(table, i + 1, 3, txt(r, "soLuong"), false, null);
+                setCell(table, i + 1, 4, txt(r, "ghiChu"), false, null);
             }
         }
         doc.createParagraph();
+    }
+
+    // Helper để set cell với line breaks
+    private void setCellWithLineBreaks(XWPFTable table, int row, int col, String text) {
+        XWPFTableCell cell = table.getRow(row).getCell(col);
+        cell.removeParagraph(0);
+        XWPFParagraph p = cell.addParagraph();
+        p.setSpacingAfter(0);
+        p.setSpacingBefore(0);
+        
+        String[] lines = text.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            XWPFRun r = p.createRun();
+            r.setText(lines[i].trim());
+            r.setFontSize(FONT_SIZE);
+            r.setFontFamily(FONT);
+            if (i < lines.length - 1) {
+                r.addBreak();
+            }
+        }
     }
 
     // ======================== HELPER METHODS ========================
@@ -698,10 +1101,17 @@ public class ExportService {
 
     private void addNormalText(XWPFDocument doc, String text) {
         XWPFParagraph p = doc.createParagraph();
-        XWPFRun r = p.createRun();
-        r.setText(text);
-        r.setFontSize(FONT_SIZE);
-        r.setFontFamily(FONT);
+        // Xử lý line breaks: tách theo \n và thêm break
+        String[] lines = text.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            XWPFRun r = p.createRun();
+            r.setText(lines[i]);
+            r.setFontSize(FONT_SIZE);
+            r.setFontFamily(FONT);
+            if (i < lines.length - 1) {
+                r.addBreak();
+            }
+        }
     }
 
     private void addLabelValue(XWPFDocument doc, String label, String value) {

@@ -57,6 +57,35 @@ body {
     margin: 0;
 }
 
+.logo-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.header-save-indicator {
+    font-size: 14px;
+    color: #28a745;
+    opacity: 0;
+    transition: opacity 0.3s, color 0.3s;
+}
+
+.header-save-indicator.visible {
+    opacity: 1;
+}
+
+.header-save-indicator.saving {
+    color: #ffc107;
+}
+
+.header-save-indicator.saved {
+    color: #28a745;
+}
+
+.header-save-indicator.error {
+    color: #dc3545;
+}
+
 .nav-right {
     display: flex;
     align-items: center;
@@ -664,15 +693,15 @@ body.role-user .admin-note,
 .upload-box {
     border: 2px dashed #ddd;
     border-radius: 6px;
-    padding: 15px;
+    padding: 10px;
     background: #fafafa;
-    min-height: 150px;
+    min-height: 100px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .upload-box:hover {
@@ -1262,9 +1291,9 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
 /* Lưới chứa các thẻ */
 .image-upload-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 15px;
-    margin-bottom: 15px;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
 }
 
 /* Thẻ (Card) sở cứ */

@@ -1784,34 +1784,360 @@ function loadTongHop(data) {
 
 function createSummaryTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
+    // Escape HTML để tránh XSS và đảm bảo ký tự đặc biệt hiển thị đúng
+    const escapedModule = escapeHtml(data.module || '');
+    const escapedRam = escapeHtml(data.ram || '');
+    const escapedVolume = escapeHtml(data.volume || '');
+    const escapedGhiChu = escapeHtml(data.ghiChu || '');
+    
     tr.innerHTML = `
         <td>${stt}</td>
-        <td><input type="text" placeholder="Ví dụ: APP Service" value="${data.module || ''}"></td>
+        <td><input type="text" placeholder="Ví dụ: APP Service" value="${escapedModule}"></td>
         <td><input type="number" value="${data.soLuong || 1}"></td>
         <td><input type="number" value="${data.vCPU || 1}"></td>
-        <td><input type="text" placeholder="Ví dụ: 24" value="${data.ram || ''}"></td>
-        <td><input type="text" placeholder="/u01: 100" value="${data.volume || ''}"></td>
-        <td><textarea rows="1">${data.ghiChu || ''}</textarea></td>
+        <td><input type="text" placeholder="Ví dụ: 24" value="${escapedRam}"></td>
+        <td><input type="text" placeholder="/u01: 100" value="${escapedVolume}"></td>
+        <td><textarea rows="1">${escapedGhiChu}</textarea></td>
         <td><button class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
     `;
     return tr;
 }
 
 function collectTongHop() {
+    // Collect aggregated data from the summary table (read-only)
     const summaryRows = [];
     document.querySelectorAll('#summary-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
-        summaryRows.push({
-            module: cells[1]?.querySelector('input')?.value || '',
-            soLuong: parseInt(cells[2]?.querySelector('input')?.value) || 1,
-            vCPU: parseInt(cells[3]?.querySelector('input')?.value) || 1,
-            ram: cells[4]?.querySelector('input')?.value || '',
-            volume: cells[5]?.querySelector('input')?.value || '',
-            ghiChu: cells[6]?.querySelector('textarea')?.value || ''
-        });
+        if (cells.length >= 5 && !cells[0].hasAttribute('colspan')) {
+            summaryRows.push({
+                module: cells[1]?.textContent?.trim() || '',
+                cauHinh: cells[2]?.innerHTML || '',
+                soLuong: cells[3]?.textContent?.trim() || '',
+                ghiChu: cells[4]?.textContent?.trim() || ''
+            });
+        }
     });
     
     return { summaryRows: summaryRows };
+}
+
+// Hàm tổng hợp kết quả định cỡ từ tất cả module
+function aggregateSizingResults() {
+    const tbody = document.getElementById('summary-table-body');
+    if (!tbody) return;
+    
+    const results = [];
+    let stt = 1;
+    
+    // 1. Module App - Parse từ sizing-result-container
+    const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
+    const appData = parseAppSizingResult(appResult);
+    if (appData) {
+        results.push({
+            stt: stt++,
+            module: 'App',
+            cauHinh: appData.cauHinh,
+            soLuong: appData.soLuong,
+            ghiChu: appData.ghiChu
+        });
+    }
+    
+    // 2. Module MariaDB - Parse từ mariadb-result-container
+    const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
+    const mariaData = parseMariaDBSizingResult(mariaResult);
+    if (mariaData) {
+        results.push({
+            stt: stt++,
+            module: 'MariaDB',
+            cauHinh: mariaData.cauHinh,
+            soLuong: mariaData.soLuong,
+            ghiChu: mariaData.ghiChu
+        });
+    }
+    
+    // 3. Module Redis - Parse từ redis key hoặc config result
+    const redisKeyResult = document.getElementById('redis-key-result-container')?.innerHTML || '';
+    const redisConfigResult = document.getElementById('redis-config-result-container')?.innerHTML || '';
+    const redisResult = redisKeyResult || redisConfigResult;
+    const redisData = parseRedisSizingResult(redisResult);
+    if (redisData) {
+        results.push({
+            stt: stt++,
+            module: 'Redis',
+            cauHinh: redisData.cauHinh,
+            soLuong: redisData.soLuong,
+            ghiChu: redisData.ghiChu
+        });
+    }
+    
+    // 4. Module Kafka - Parse từ kafka throughput hoặc linear result
+    const kafkaThroughputResult = document.getElementById('kafka-throughput-result-container')?.innerHTML || '';
+    const kafkaLinearResult = document.getElementById('kafka-linear-result-container')?.innerHTML || '';
+    const kafkaResult = kafkaThroughputResult || kafkaLinearResult;
+    const kafkaData = parseKafkaSizingResult(kafkaResult);
+    if (kafkaData) {
+        results.push({
+            stt: stt++,
+            module: 'Kafka',
+            cauHinh: kafkaData.cauHinh,
+            soLuong: kafkaData.soLuong,
+            ghiChu: kafkaData.ghiChu
+        });
+        // Add Zookeeper/KRaft row
+        if (kafkaData.zookeeper) {
+            results.push({
+                stt: stt++,
+                module: 'Zookeeper/KRaft',
+                cauHinh: kafkaData.zookeeper.cauHinh,
+                soLuong: kafkaData.zookeeper.soLuong,
+                ghiChu: kafkaData.zookeeper.ghiChu
+            });
+        }
+    }
+    
+    // 5. FW/LB từ module App nếu có
+    if (appData && appData.fwlb) {
+        results.push({
+            stt: stt++,
+            module: 'FW/LB',
+            cauHinh: appData.fwlb.cauHinh,
+            soLuong: '',
+            ghiChu: ''
+        });
+    }
+    
+    // Render bảng
+    if (results.length === 0) {
+        tbody.innerHTML = `<tr>
+            <td colspan="5" class="text-center" style="color: #999; padding: 30px;">
+                <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực hiện tính toán ở các module trước.
+            </td>
+        </tr>`;
+    } else {
+        tbody.innerHTML = results.map(r => `
+            <tr>
+                <td class="text-center">${r.stt}</td>
+                <td><strong>${r.module}</strong></td>
+                <td>${r.cauHinh}</td>
+                <td class="text-center">${r.soLuong}</td>
+                <td>${r.ghiChu}</td>
+            </tr>
+        `).join('');
+    }
+    
+    return results;
+}
+
+// Parse kết quả Module App
+function parseAppSizingResult(html) {
+    if (!html || html.trim() === '') return null;
+    
+    // Tìm CPU (Cint format): CPU: = 30 Cint
+    const cpuCintMatch = html.match(/CPU[:\s]*=?\s*(\d+)\s*Cint/i);
+    // Tìm vCPU format: <strong>32 vCPU</strong>
+    const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i);
+    
+    // Tìm RAM: RAM: = 30 GB hoặc <strong>64 GB RAM</strong>
+    const ramMatch = html.match(/RAM[:\s]*=?\s*(\d+)\s*GB/i) || html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i);
+    
+    // Tìm DISK: DISK: = 100 GB hoặc <strong>200 GB DISK</strong>
+    const diskMatch = html.match(/DISK[:\s]*=?\s*(\d+)\s*GB/i) || html.match(/<strong>(\d+)\s*GB\s*DISK<\/strong>/i);
+    
+    // Tìm /os và /u01 từ text format
+    const diskOsMatch = html.match(/\/os[:\s]*(\d+)\s*GB/i);
+    const diskU01Match = html.match(/\/u01[:\s]*(\d+)\s*GB/i);
+    
+    // Tìm số lượng: <td class="text-center"><strong>7</strong></td>
+    const soLuongMatch = html.match(/<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong><\/td>/i);
+    
+    // Tìm ghi chú từ textarea: Dự phòng N+1
+    const ghiChuMatch = html.match(/Dự phòng\s*(N\+\d+)/i) || html.match(/N\s*\+\s*1/i);
+    
+    // Tìm throughput cho FW/LB
+    const throughputMatch = html.match(/Throughput[^:]*:\s*([\d.]+)\s*Gbps/i);
+    
+    // Kiểm tra xem có dữ liệu không
+    if (!cpuCintMatch && !vcpuMatch && !ramMatch) return null;
+    
+    let cauHinh = '';
+    if (vcpuMatch) {
+        cauHinh += `- vCPU = ${vcpuMatch[1]}\n`;
+    } else if (cpuCintMatch) {
+        cauHinh += `- CPU = ${cpuCintMatch[1]} Cint\n`;
+    }
+    
+    if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
+    
+    if (diskOsMatch || diskU01Match) {
+        cauHinh += `- Disk:\n`;
+        if (diskOsMatch) cauHinh += `  + /os: ${diskOsMatch[1]}GB\n`;
+        if (diskU01Match) cauHinh += `  + /u01: ${diskU01Match[1]} GB`;
+    } else if (diskMatch) {
+        cauHinh += `- Disk = ${diskMatch[1]}GB`;
+    }
+    
+    const result = {
+        cauHinh: cauHinh.replace(/\n/g, '<br>'),
+        soLuong: soLuongMatch ? soLuongMatch[1] : '',
+        ghiChu: ghiChuMatch ? `Dự phòng ${ghiChuMatch[1] || 'N+1'}` : ''
+    };
+    
+    // FW/LB info
+    if (throughputMatch) {
+        result.fwlb = {
+            cauHinh: `Thông lượng < ${throughputMatch[1]} Gbps`
+        };
+    }
+    
+    return result;
+}
+
+// Parse kết quả Module MariaDB
+function parseMariaDBSizingResult(html) {
+    if (!html || html.trim() === '') return null;
+    
+    const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i);
+    const ramMatch = html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i);
+    const diskMatch = html.match(/<strong>(\d+)\s*GB\s*DISK<\/strong>/i);
+    const soLuongMatch = html.match(/Số lượng[^<]*<\/th>[^<]*<td[^>]*[^>]*>(\d+)/i) ||
+                         html.match(/<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong><\/td>/i);
+    
+    if (!vcpuMatch && !ramMatch) return null;
+    
+    let cauHinh = '';
+    if (vcpuMatch) cauHinh += `- vCPU = ${vcpuMatch[1]}\n`;
+    if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
+    if (diskMatch) cauHinh += `- Disk = ${diskMatch[1]}GB`;
+    
+    return {
+        cauHinh: cauHinh.replace(/\n/g, '<br>'),
+        soLuong: soLuongMatch ? soLuongMatch[1] : '',
+        ghiChu: 'Galera Cluster'
+    };
+}
+
+// Parse kết quả Module Redis
+function parseRedisSizingResult(html) {
+    if (!html || html.trim() === '') return null;
+    
+    const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i);
+    const ramMatch = html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i);
+    const diskMatch = html.match(/<strong>(\d+)\s*GB\s*DISK<\/strong>/i);
+    const soLuongMatch = html.match(/<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong><\/td>/i);
+    const modelMatch = html.match(/Redis\s*(Sentinel|Cluster)/i);
+    const masterSlaveMatch = html.match(/(\d+)\s*master\s*.*?(\d+)\s*slave/i);
+    
+    if (!vcpuMatch && !ramMatch) return null;
+    
+    let cauHinh = '';
+    if (vcpuMatch) cauHinh += `- vCPU = ${vcpuMatch[1]}\n`;
+    if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
+    if (diskMatch) cauHinh += `- Disk = ${diskMatch[1]}GB`;
+    
+    let ghiChu = modelMatch ? `Redis ${modelMatch[1]}` : '';
+    if (masterSlaveMatch) ghiChu += ` (${masterSlaveMatch[1]} master ${masterSlaveMatch[2]} slave)`;
+    
+    return {
+        cauHinh: cauHinh.replace(/\n/g, '<br>'),
+        soLuong: soLuongMatch ? soLuongMatch[1] : '',
+        ghiChu: ghiChu
+    };
+}
+
+// Parse kết quả Module Kafka
+function parseKafkaSizingResult(html) {
+    if (!html || html.trim() === '') return null;
+    
+    // Kafka Broker row: Số lượng Node | vCPU/Node | RAM/Node | Disk/Node
+    // Format: <td class="text-center"><strong>3</strong></td>
+    //         <td class="text-center"><strong>16</strong></td>
+    //         <td class="text-center"><strong>32 GB</strong></td>
+    //         <td class="text-center"><strong>500 GB</strong></td> hoặc <strong>1.5 TB</strong>
+    
+    // Tìm dòng Kafka Broker
+    const brokerRowMatch = html.match(/Kafka\s*Broker[\s\S]*?<tr[^>]*>[\s\S]*?<\/tr>/i);
+    
+    let vcpu = '', ram = '', disk = '', soLuong = '';
+    
+    if (brokerRowMatch) {
+        const brokerRow = brokerRowMatch[0];
+        // Parse các giá trị trong dòng broker
+        const tdMatches = brokerRow.match(/<td[^>]*class="text-center"[^>]*><strong>([^<]+)<\/strong><\/td>/gi);
+        if (tdMatches && tdMatches.length >= 4) {
+            // tdMatches[0] = Số lượng, tdMatches[1] = vCPU, tdMatches[2] = RAM, tdMatches[3] = Disk
+            const numMatch = tdMatches[0].match(/<strong>(\d+)<\/strong>/);
+            const vcpuMatch = tdMatches[1].match(/<strong>(\d+)<\/strong>/);
+            const ramMatch = tdMatches[2].match(/<strong>([\d.]+)\s*GB<\/strong>/i);
+            const diskMatch = tdMatches[3].match(/<strong>([\d.]+)\s*(GB|TB)<\/strong>/i);
+            
+            if (numMatch) soLuong = numMatch[1];
+            if (vcpuMatch) vcpu = vcpuMatch[1];
+            if (ramMatch) ram = ramMatch[1];
+            if (diskMatch) disk = diskMatch[1] + ' ' + diskMatch[2];
+        }
+    }
+    
+    // Fallback: tìm theo pattern cũ
+    if (!vcpu) {
+        const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i) || 
+                          html.match(/vCPU\/Node[^<]*<\/th>[\s\S]*?<td[^>]*><strong>(\d+)<\/strong>/i);
+        if (vcpuMatch) vcpu = vcpuMatch[1];
+    }
+    if (!ram) {
+        const ramMatch = html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i) ||
+                         html.match(/RAM\/Node[^<]*<\/th>[\s\S]*?<td[^>]*><strong>(\d+)\s*GB<\/strong>/i);
+        if (ramMatch) ram = ramMatch[1];
+    }
+    if (!disk) {
+        const diskMatch = html.match(/<strong>([\d.]+)\s*(GB|TB)\s*DISK<\/strong>/i) ||
+                          html.match(/Disk\/Node[^<]*<\/th>[\s\S]*?<td[^>]*><strong>([\d.]+)\s*(GB|TB)<\/strong>/i);
+        if (diskMatch) disk = diskMatch[1] + ' ' + (diskMatch[2] || 'GB');
+    }
+    if (!soLuong) {
+        const soLuongMatch = html.match(/<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong><\/td>/i);
+        if (soLuongMatch) soLuong = soLuongMatch[1];
+    }
+    
+    // Kiểm tra xem có dữ liệu không
+    if (!vcpu && !ram) return null;
+    
+    let cauHinh = '';
+    if (vcpu) cauHinh += `- vCPU = ${vcpu}\n`;
+    if (ram) cauHinh += `- RAM = ${ram}GB\n`;
+    if (disk) cauHinh += `- Disk = ${disk}`;
+    
+    // Parse Zookeeper/KRaft data 
+    let zookeeper = null;
+    // Find the <tr> row that contains Zookeeper/KRaft
+    const zkRowMatch = html.match(/<tr[^>]*>[\s\S]*?Zookeeper\/KRaft[\s\S]*?<\/tr>/i);
+    if (zkRowMatch) {
+        const zkRow = zkRowMatch[0];
+        const zkTdMatches = zkRow.match(/<td[^>]*class="text-center"[^>]*><strong>([^<]+)<\/strong><\/td>/gi);
+        if (zkTdMatches && zkTdMatches.length >= 4) {
+            const zkNumMatch = zkTdMatches[0].match(/<strong>(\d+)<\/strong>/);
+            const zkVcpuMatch = zkTdMatches[1].match(/<strong>(\d+)<\/strong>/);
+            const zkRamMatch = zkTdMatches[2].match(/<strong>([\d.]+)\s*GB<\/strong>/i);
+            const zkDiskMatch = zkTdMatches[3].match(/<strong>([\d.]+)\s*(GB|TB)<\/strong>/i);
+            
+            let zkCauHinh = '';
+            if (zkVcpuMatch) zkCauHinh += `- vCPU = ${zkVcpuMatch[1]}\n`;
+            if (zkRamMatch) zkCauHinh += `- RAM = ${zkRamMatch[1]}GB\n`;
+            if (zkDiskMatch) zkCauHinh += `- Disk = ${zkDiskMatch[1]} ${zkDiskMatch[2]}`;
+            
+            zookeeper = {
+                cauHinh: zkCauHinh.replace(/\n/g, '<br>'),
+                soLuong: zkNumMatch ? zkNumMatch[1] : '3',
+                ghiChu: 'Zookeeper/KRaft Controller'
+            };
+        }
+    }
+    
+    return {
+        cauHinh: cauHinh.replace(/\n/g, '<br>'),
+        soLuong: soLuong,
+        ghiChu: soLuong ? `${soLuong} Broker` : 'Kafka Cluster',
+        zookeeper: zookeeper
+    };
 }
 
 async function saveTongHop() {
@@ -2223,9 +2549,24 @@ async function exportToWord() {
     }
 
     try {
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tổng hợp và lưu dữ liệu...</span>';
+        
+        // 1. Aggregate và lưu summary data trước khi export
+        aggregateSizingResults();
+        const summaryData = collectTongHop();
+        
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
+        
+        // Lưu summary data vào database
+        await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify({ tongHopVaDeXuatContent: JSON.stringify(summaryData) })
+        });
+        
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tạo file DOCX...</span>';
         
-        // Gọi API export từ backend1
+        // 2. Gọi API export từ backend1
         const response = await fetch(`${API_BASE_URL}/export/project/${currentProjectId}`, {
             method: 'GET',
             headers: {
@@ -3466,6 +3807,11 @@ function showSection(sectionId, linkElement) {
     if (linkElement) {
         linkElement.classList.add('active');
     }
+    
+    // 4. Khi chuyển sang trang Tổng hợp, tự động aggregate dữ liệu
+    if (sectionId === 'page-summary') {
+        aggregateSizingResults();
+    }
 }
 
 // Tự động thêm 1 dòng trắng khi load trang lần đầu
@@ -3748,12 +4094,12 @@ function calculateSizingRecommendations() {
 
     html += `</tbody></table>`;
 
-    // ==================== BẢNG 3: Đề xuất thiết bị ====================
+    // ==================== BẢNG 3: Đề xuất cấu hình ====================
     const cintPerServer = Math.ceil(cintAfterKPI / ketqua);
     const ramPerServer = Math.ceil(ramAfterKPI / ketqua);
     const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
     
-    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất thiết bị</h4>`;
+    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
     html += `<table class="sizing-table" style="margin-top:8px;">
                 <thead>
                     <tr>
@@ -3845,8 +4191,28 @@ function collectMariaDBStorageData() {
     return {
         data: document.getElementById('mariadb-storage-data')?.value || '',
         log: document.getElementById('mariadb-storage-log')?.value || '',
-        backup: document.getElementById('mariadb-storage-backup')?.value || ''
+        backup: document.getElementById('mariadb-storage-backup')?.value || '',
+        diskLoad: document.getElementById('mariadb-storage-disk-load')?.value || '',
+        dataUsed: document.getElementById('mariadb-storage-data-used')?.value || '',
+        logUsed: document.getElementById('mariadb-storage-log-used')?.value || '',
+        backupUsed: document.getElementById('mariadb-storage-backup-used')?.value || ''
     };
+}
+
+// Auto-calculate storage used columns
+function autoCalcMariaDBStorageUsed() {
+    const dataVal = parseFloat(document.getElementById('mariadb-storage-data')?.value) || 0;
+    const logVal = parseFloat(document.getElementById('mariadb-storage-log')?.value) || 0;
+    const backupVal = parseFloat(document.getElementById('mariadb-storage-backup')?.value) || 0;
+    const diskLoad = parseFloat(document.getElementById('mariadb-storage-disk-load')?.value) || 0;
+    
+    const dataUsed = Math.round(dataVal * diskLoad / 100 * 100) / 100;
+    const logUsed = Math.round(logVal * diskLoad / 100 * 100) / 100;
+    const backupUsed = Math.round(backupVal * diskLoad / 100 * 100) / 100;
+    
+    document.getElementById('mariadb-storage-data-used').value = dataUsed || '';
+    document.getElementById('mariadb-storage-log-used').value = logUsed || '';
+    document.getElementById('mariadb-storage-backup-used').value = backupUsed || '';
 }
 
 // Lấy dữ liệu Master row
@@ -3872,7 +4238,10 @@ function getMariaDBStorage() {
     return {
         data: parseFloat(document.getElementById('mariadb-storage-data')?.value) || 0,
         log: parseFloat(document.getElementById('mariadb-storage-log')?.value) || 0,
-        backup: parseFloat(document.getElementById('mariadb-storage-backup')?.value) || 0
+        backup: parseFloat(document.getElementById('mariadb-storage-backup')?.value) || 0,
+        dataUsed: parseFloat(document.getElementById('mariadb-storage-data-used')?.value) || 0,
+        logUsed: parseFloat(document.getElementById('mariadb-storage-log-used')?.value) || 0,
+        backupUsed: parseFloat(document.getElementById('mariadb-storage-backup-used')?.value) || 0
     };
 }
 
@@ -3893,29 +4262,29 @@ function calculateMariaDBSizing() {
     }
     
     const storage = getMariaDBStorage();
-    if (!storage.data && !storage.log && !storage.backup) {
-        alert('Vui lòng nhập thông tin storage (/data, /log, /backup).');
+    if (!storage.dataUsed && !storage.logUsed && !storage.backupUsed) {
+        alert('Vui lòng nhập thông tin storage và Tải DISK (%) để tính /data used, /log used, /backup used.');
         return;
     }
     
     // Hệ số
     const factor = sizingCCU / inputCCU;
     
-    // Công thức tính theo ảnh:
+    // Công thức tính theo ảnh (sử dụng giá trị "used"):
     // CPU cần = CPU * Tải CPU * (Định cỡ / Đầu vào) * 1.1 / 0.75
     // RAM cần = RAM * Tải RAM * (Định cỡ / Đầu vào) * 1.1 / 0.9
-    // /data cần = /data * (Định cỡ / Đầu vào) * 1.1 / 0.8
-    // /log cần = /log * (Định cỡ / Đầu vào) * 1.1 / 0.8
-    // /backup cần = /backup * (Định cỡ / Đầu vào) * 1.1 / 0.8
+    // /data cần = /data used * (Định cỡ / Đầu vào) * 1.1 / 0.8
+    // /log cần = /log used * (Định cỡ / Đầu vào) * 1.1 / 0.8
+    // /backup cần = /backup used * (Định cỡ / Đầu vào) * 1.1 / 0.8
     
     const cpuNeeded = masterData.cpu * (masterData.cpuLoad / 100) * factor * 1.1 / 0.75;
     const ramNeeded = masterData.ram * (masterData.ramLoad / 100) * factor * 1.1 / 0.9;
-    const dataNeeded = storage.data * factor * 1.1 / 0.8;
-    const logNeeded = storage.log * factor * 1.1 / 0.8;
-    const backupNeeded = storage.backup * factor * 1.1 / 0.8;
+    const dataNeeded = storage.dataUsed * factor * 1.1 / 0.8;
+    const logNeeded = storage.logUsed * factor * 1.1 / 0.8;
+    const backupNeeded = storage.backupUsed * factor * 1.1 / 0.8;
     
-    // Tổng NAS = /data + /log + /backup
-    const nasTotal = dataNeeded + logNeeded + backupNeeded;
+    // NAS = chỉ /backup cần
+    const nasTotal = backupNeeded;
     
     let html = '';
     
@@ -3925,9 +4294,9 @@ function calculateMariaDBSizing() {
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
             <li><strong>CPU cần</strong> = CPU × Tải CPU × (Định cỡ / Đầu vào) × 1.1 / 0.75 = ${masterData.cpu} × ${(masterData.cpuLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.75 = <strong>${cpuNeeded.toFixed(2)} vCPU</strong></li>
             <li><strong>RAM cần</strong> = RAM × Tải RAM × (Định cỡ / Đầu vào) × 1.1 / 0.9 = ${masterData.ram} × ${(masterData.ramLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>/data cần</strong> = /data × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.data} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${dataNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>/log cần</strong> = /log × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.log} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${logNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>/backup cần</strong> = /backup × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.backup} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/data cần</strong> = /data used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.dataUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${dataNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/log cần</strong> = /log used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.logUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${logNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/backup cần</strong> = /backup used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.backupUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
         </ul>
     </div>`;
     
@@ -3975,7 +4344,7 @@ function calculateMariaDBSizing() {
                 <td><strong>NAS</strong></td>
                 <td class="text-center"><strong>${Math.ceil(nasTotal)} GB</strong></td>
                 <td class="text-center">-</td>
-                <td>Mount chung<br>(/data + /log + /backup)</td>
+                <td>Mount chung<br>(/backup cần)</td>
             </tr>
         </tbody>
     </table>`;
@@ -4001,9 +4370,19 @@ function loadMariaDBData(data) {
         const dataEl = document.getElementById('mariadb-storage-data');
         const logEl = document.getElementById('mariadb-storage-log');
         const backupEl = document.getElementById('mariadb-storage-backup');
+        const diskLoadEl = document.getElementById('mariadb-storage-disk-load');
+        const dataUsedEl = document.getElementById('mariadb-storage-data-used');
+        const logUsedEl = document.getElementById('mariadb-storage-log-used');
+        const backupUsedEl = document.getElementById('mariadb-storage-backup-used');
         if (dataEl) dataEl.value = data.storage.data || '';
         if (logEl) logEl.value = data.storage.log || '';
         if (backupEl) backupEl.value = data.storage.backup || '';
+        if (diskLoadEl) diskLoadEl.value = data.storage.diskLoad || '';
+        if (dataUsedEl) dataUsedEl.value = data.storage.dataUsed || '';
+        if (logUsedEl) logUsedEl.value = data.storage.logUsed || '';
+        if (backupUsedEl) backupUsedEl.value = data.storage.backupUsed || '';
+        // Trigger auto-calc if needed
+        autoCalcMariaDBStorageUsed();
     }
     // Backward compatibility for old data format
     else if (data.storageTable && Array.isArray(data.storageTable) && data.storageTable.length > 0) {
@@ -4420,14 +4799,39 @@ function findOptimalN(totalRAM) {
     return N;
 }
 
+// Update Redis Key count calculated value based on POC ratio
+function updateRedisKeyCalculated() {
+    const poc = parseFloat(document.getElementById('redis-key-poc')?.value) || 0;
+    const sizing = parseFloat(document.getElementById('redis-key-sizing')?.value) || 0;
+    const keyCountPOC = parseFloat(document.getElementById('redis-key-count-poc')?.value) || 0;
+    
+    const keyCountEl = document.getElementById('redis-key-count');
+    if (keyCountEl) {
+        if (poc > 0 && sizing > 0 && keyCountPOC > 0) {
+            const calculatedKeyCount = Math.round(keyCountPOC * (sizing / poc));
+            keyCountEl.value = calculatedKeyCount;
+        } else {
+            keyCountEl.value = '';
+        }
+    }
+}
+
 // Tính toán theo phương pháp Key dự kiến
 function calculateRedisKeyMethod() {
+    const poc = parseFloat(document.getElementById('redis-key-poc')?.value) || 0;
+    const sizing = parseFloat(document.getElementById('redis-key-sizing')?.value) || 0;
+    const keyCountPOC = parseFloat(document.getElementById('redis-key-count-poc')?.value) || 0;
     const keyCount = parseFloat(document.getElementById('redis-key-count')?.value) || 0;
     const recordSize = parseFloat(document.getElementById('redis-record-size')?.value) || 0;
     const importance = document.getElementById('redis-key-importance')?.value || 'normal';
     
-    if (!keyCount || !recordSize) {
-        alert('Vui lòng nhập đầy đủ thông tin: Tổng lượng Key và Kích thước bản ghi!');
+    if (!poc || !sizing || !keyCountPOC) {
+        alert('Vui lòng nhập đầy đủ thông tin: Tải hệ thống POC, Định cỡ và Tổng lượng Key POC!');
+        return;
+    }
+    
+    if (!recordSize) {
+        alert('Vui lòng nhập Kích thước trung bình 1 bản ghi!');
         return;
     }
     
@@ -4472,8 +4876,12 @@ function calculateRedisKeyMethod() {
     html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin tính toán</h4>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-            <li><strong>Tổng số Key:</strong> ${keyCount.toLocaleString()}</li>
-            <li><strong>Kích thước trung bình 1 bản ghi:</strong> ${recordSize} bytes</li>
+            <li><strong>Tải hệ thống POC:</strong> ${poc.toLocaleString()}</li>
+            <li><strong>Định cỡ:</strong> ${sizing.toLocaleString()}</li>
+            <li><strong>Tỷ lệ:</strong> ${sizing} / ${poc} = ${(sizing / poc).toFixed(2)}</li>
+            <li><strong>Tổng số Key POC:</strong> ${keyCountPOC.toLocaleString()}</li>
+            <li><strong>Tổng số Key sau định cỡ (A):</strong> ${keyCountPOC.toLocaleString()} × ${(sizing / poc).toFixed(2)} = <strong>${keyCount.toLocaleString()}</strong></li>
+            <li><strong>Kích thước trung bình 1 bản ghi (B):</strong> ${recordSize} bytes</li>
             <li><strong>Tổng dung lượng Key Redis (C):</strong> ${keyCount.toLocaleString()} × ${recordSize} = <strong>${C.toFixed(4)} GB</strong></li>
             <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT - Đảm bảo quốc gia' : 'Bình thường'}</li>
         </ul>
@@ -4734,6 +5142,9 @@ function collectRedisData() {
         selectedMethod: selectedMethod,
         // Phương pháp Key
         keyMethod: {
+            pocValue: document.getElementById('redis-key-poc')?.value || '',
+            sizingValue: document.getElementById('redis-key-sizing')?.value || '',
+            keyCountPoc: document.getElementById('redis-key-count-poc')?.value || '',
             keyCount: document.getElementById('redis-key-count')?.value || '',
             recordSize: document.getElementById('redis-record-size')?.value || '',
             importance: document.getElementById('redis-key-importance')?.value || 'normal',
@@ -4764,6 +5175,9 @@ function loadRedisData(data) {
     // Load phương pháp Key
     if (data.keyMethod) {
         const km = data.keyMethod;
+        if (km.pocValue) document.getElementById('redis-key-poc').value = km.pocValue;
+        if (km.sizingValue) document.getElementById('redis-key-sizing').value = km.sizingValue;
+        if (km.keyCountPoc) document.getElementById('redis-key-count-poc').value = km.keyCountPoc;
         if (km.keyCount) document.getElementById('redis-key-count').value = km.keyCount;
         if (km.recordSize) document.getElementById('redis-record-size').value = km.recordSize;
         if (km.importance) document.getElementById('redis-key-importance').value = km.importance;
@@ -5168,8 +5582,8 @@ function calculateKafkaThroughputMethod() {
             <tr style="background: #fff3cd;">
                 <td><strong>Zookeeper/KRaft</strong></td>
                 <td class="text-center"><strong>3</strong></td>
-                <td class="text-center"><strong>2</strong></td>
-                <td class="text-center"><strong>4 GB</strong></td>
+                <td class="text-center"><strong>4</strong></td>
+                <td class="text-center"><strong>8 GB</strong></td>
                 <td class="text-center"><strong>100 GB</strong></td>
             </tr>
         </tbody>
@@ -5280,8 +5694,8 @@ function calculateKafkaLinearMethod() {
             <tr style="background: #fff3cd;">
                 <td><strong>Zookeeper/KRaft</strong></td>
                 <td class="text-center"><strong>3</strong></td>
-                <td class="text-center"><strong>2</strong></td>
-                <td class="text-center"><strong>4 GB</strong></td>
+                <td class="text-center"><strong>4</strong></td>
+                <td class="text-center"><strong>8 GB</strong></td>
                 <td class="text-center"><strong>100 GB</strong></td>
             </tr>
         </tbody>
@@ -6851,9 +7265,10 @@ let lastEditorUsername = localStorage.getItem('lastEditorUsername') || null;
 
 /**
  * Khởi tạo hệ thống auto-save: lắng nghe sự kiện input/change trên toàn bộ form
+ * Auto-save ngay sau khi user ngừng typing 1 giây và lưu TẤT CẢ thông tin
  */
 function initAutoSave() {
-    // Debounce save sau 3 giây khi user ngừng typing
+    // Debounce save sau 1 giây khi user ngừng typing (giảm từ 3s xuống 1s)
     const debounceSave = () => {
         if (!currentProjectId) return; // Chưa có project thì không save
         if (currentProjectStatus === 'HOAN_THANH') return; // Đã hoàn thành thì không save
@@ -6862,7 +7277,7 @@ function initAutoSave() {
         showAutoSaveStatus('pending');
         autoSaveTimer = setTimeout(() => {
             performAutoSave();
-        }, 3000);
+        }, 1000); // Giảm từ 3000ms xuống 1000ms để lưu nhanh hơn
     };
 
     // Lắng nghe input/change trên project-detail-page
@@ -6882,7 +7297,8 @@ function initAutoSave() {
 }
 
 /**
- * Thực hiện auto-save: lưu tất cả dữ liệu hiện tại
+ * Thực hiện auto-save: lưu TẤT CẢ dữ liệu của TẤT CẢ sections (không chỉ section đang active)
+ * Điều này đảm bảo không bị mất dữ liệu khi chuyển tab
  */
 async function performAutoSave() {
     if (isAutoSaving || !currentProjectId) return;
@@ -6901,46 +7317,51 @@ async function performAutoSave() {
         
         const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
         
-        // Xác định section đang active để chỉ save section đó
-        const activeSection = document.querySelector('.page-section.active');
-        const activeSectionId = activeSection ? activeSection.id : null;
-        
+        // ========== LƯU TẤT CẢ SECTIONS (không chỉ section active) ==========
         let payload = {};
         
-        if (activeSectionId === 'page-request') {
-            const data = collectYeuCauBaiToan();
-            // Nếu không phải admin thì bỏ adminReview
-            if (role !== 'admin1' && role !== 'admin2') {
-                delete data.adminReview;
-            }
-            payload.yeuCauBaiToanContent = JSON.stringify(data);
-            // Cập nhật project name/devUnit
-            if (data.projectName) {
-                await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
-                    method: 'PUT', headers,
-                    body: JSON.stringify({ name: data.projectName, devUnit: data.devUnit, ownerName: data.contactPerson })
-                }).catch(() => {});
-            }
-        } else if (activeSectionId === 'page-input') {
-            const data = collectThongTinDauVao();
-            if (role !== 'admin1' && role !== 'admin2') {
-                data.inputRows = data.inputRows.map(r => { const c = Object.assign({}, r); delete c.adminEval; delete c.adminNote; return c; });
-            }
-            payload.thongTinDauVaoContent = JSON.stringify(data);
-        } else if (activeSectionId === 'page-model') {
-            const data = collectMoHinhHeThong();
-            payload.moHinhHeThongContent = JSON.stringify(data);
-        } else if (activeSectionId === 'page-sizing') {
-            // Save sizing data for both user and admin
-            if (typeof collectAllSizingData === 'function') {
-                const sizingData = collectAllSizingData();
-                payload.dinhCoHeThongContent = JSON.stringify(sizingData);
-            }
-        } else if (activeSectionId === 'page-summary') {
-            const data = collectTongHop();
-            payload.tongHopVaDeXuatContent = JSON.stringify(data);
+        // === 1. YÊU CẦU BÀI TOÁN ===
+        const requestData = collectYeuCauBaiToan();
+        if (role !== 'admin1' && role !== 'admin2') {
+            delete requestData.adminReview;
+        }
+        payload.yeuCauBaiToanContent = JSON.stringify(requestData);
+        
+        // Cập nhật project name/devUnit
+        if (requestData.projectName) {
+            await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+                method: 'PUT', headers,
+                body: JSON.stringify({ name: requestData.projectName, devUnit: requestData.devUnit, ownerName: requestData.contactPerson })
+            }).catch(() => {});
         }
         
+        // === 2. THÔNG TIN ĐẦU VÀO ===
+        const inputData = collectThongTinDauVao();
+        if (role !== 'admin1' && role !== 'admin2') {
+            inputData.inputRows = inputData.inputRows.map(r => { 
+                const c = Object.assign({}, r); 
+                delete c.adminEval; 
+                delete c.adminNote; 
+                return c; 
+            });
+        }
+        payload.thongTinDauVaoContent = JSON.stringify(inputData);
+        
+        // === 3. MÔ HÌNH HỆ THỐNG (bao gồm bảng thông tin kết nối) ===
+        const modelData = collectMoHinhHeThong();
+        payload.moHinhHeThongContent = JSON.stringify(modelData);
+        
+        // === 4. ĐỊNH CỠ HỆ THỐNG (bao gồm POC/Sizing values) ===
+        if (typeof collectAllSizingData === 'function') {
+            const sizingData = collectAllSizingData();
+            payload.dinhCoHeThongContent = JSON.stringify(sizingData);
+        }
+        
+        // === 5. TỔNG HỢP VÀ ĐỀ XUẤT (bao gồm ghi chú trong bảng) ===
+        const summaryData = collectTongHop();
+        payload.tongHopVaDeXuatContent = JSON.stringify(summaryData);
+        
+        // ========== LƯU DỮ LIỆU VÀO DATABASE ==========
         if (Object.keys(payload).length > 0) {
             // Đảm bảo projectData tồn tại
             if (!currentProjectDataId) {
@@ -6962,7 +7383,6 @@ async function performAutoSave() {
             
             // Auto-save: chỉ thay đổi trạng thái khi dự án ở trạng thái khởi tạo
             // Không thay đổi từ THAM_DINH/PHE_DUYET → SIZING qua auto-save
-            // (việc đó chỉ nên xảy ra khi admin trả về qua evaluateSection)
             if (role === 'user' || !role || role === '') {
                 if (!currentProjectStatus || currentProjectStatus === 'Draft') {
                     await updateProjectStatus('user_edit');
@@ -6970,36 +7390,53 @@ async function performAutoSave() {
             }
         }
         
-        // Auto-save admin review data nếu là admin
+        // ========== LƯU ADMIN REVIEW CHO TẤT CẢ SECTIONS (nếu là admin) ==========
         if (role === 'admin1' || role === 'admin2') {
-            let reviewObj = null;
-            let sectionKey = null;
+            // Save admin review cho từng section (không chỉ section active)
+            const adminReviewPromises = [];
             
-            if (activeSectionId === 'page-request') {
-                sectionKey = 'request';
-                const data = collectYeuCauBaiToan();
-                reviewObj = data.adminReview || {};
-            } else if (activeSectionId === 'page-input') {
-                sectionKey = 'input';
-                const rows = Array.from(document.querySelectorAll('#input-table-body tr'));
-                reviewObj = { rows: rows.map(row => ({ eval: row.querySelector('.admin-eval')?.value || '', note: row.querySelector('.admin-note')?.value || '' })) };
-            } else if (activeSectionId === 'page-model') {
-                sectionKey = 'model';
-                reviewObj = collectMoHinhAdminReview();
-            } else if (activeSectionId === 'page-sizing') {
-                sectionKey = 'sizing';
-                reviewObj = collectSizingAdminReviewData();
-            } else if (activeSectionId === 'page-summary') {
-                sectionKey = 'summary';
-                reviewObj = {};
-            }
-            
-            if (reviewObj && sectionKey) {
-                await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+            // Request section admin review
+            const requestAdminReview = requestData.adminReview || {};
+            adminReviewPromises.push(
+                fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
                     method: 'POST', headers,
-                    body: JSON.stringify({ section: sectionKey, reviewJson: JSON.stringify(reviewObj) })
-                }).catch(e => console.error('Auto-save admin review error:', e));
-            }
+                    body: JSON.stringify({ section: 'request', reviewJson: JSON.stringify(requestAdminReview) })
+                }).catch(e => console.error('Auto-save request admin review error:', e))
+            );
+            
+            // Input section admin review
+            const inputRows = Array.from(document.querySelectorAll('#input-table-body tr'));
+            const inputAdminReview = { rows: inputRows.map(row => ({ 
+                eval: row.querySelector('.admin-eval')?.value || '', 
+                note: row.querySelector('.admin-note')?.value || '' 
+            })) };
+            adminReviewPromises.push(
+                fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+                    method: 'POST', headers,
+                    body: JSON.stringify({ section: 'input', reviewJson: JSON.stringify(inputAdminReview) })
+                }).catch(e => console.error('Auto-save input admin review error:', e))
+            );
+            
+            // Model section admin review (bao gồm connection info review)
+            const modelAdminReview = collectMoHinhAdminReview();
+            adminReviewPromises.push(
+                fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+                    method: 'POST', headers,
+                    body: JSON.stringify({ section: 'model', reviewJson: JSON.stringify(modelAdminReview) })
+                }).catch(e => console.error('Auto-save model admin review error:', e))
+            );
+            
+            // Sizing section admin review (bao gồm POC/Sizing admin evaluation)
+            const sizingAdminReview = collectSizingAdminReviewData();
+            adminReviewPromises.push(
+                fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+                    method: 'POST', headers,
+                    body: JSON.stringify({ section: 'sizing', reviewJson: JSON.stringify(sizingAdminReview) })
+                }).catch(e => console.error('Auto-save sizing admin review error:', e))
+            );
+            
+            // Chờ tất cả admin reviews được lưu
+            await Promise.all(adminReviewPromises);
         }
         
         showAutoSaveStatus('saved');
@@ -7057,6 +7494,39 @@ function showAutoSaveStatus(status) {
     }
     
     const statusDiv = targetStatusId ? document.getElementById(targetStatusId) : null;
+    
+    // Cập nhật header save indicator
+    const headerIndicator = document.getElementById('header-save-status');
+    if (headerIndicator) {
+        headerIndicator.classList.remove('saving', 'saved', 'error');
+        headerIndicator.classList.add('visible');
+        
+        switch (status) {
+            case 'pending':
+                headerIndicator.innerHTML = '<i class="fa-solid fa-clock"></i>';
+                headerIndicator.title = 'Chờ lưu...';
+                break;
+            case 'saving':
+                headerIndicator.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                headerIndicator.classList.add('saving');
+                headerIndicator.title = 'Đang lưu...';
+                break;
+            case 'saved':
+                headerIndicator.innerHTML = '<i class="fa-solid fa-check-circle"></i>';
+                headerIndicator.classList.add('saved');
+                headerIndicator.title = 'Đã lưu';
+                setTimeout(() => {
+                    headerIndicator.classList.remove('visible');
+                }, 3000);
+                break;
+            case 'error':
+                headerIndicator.innerHTML = '<i class="fa-solid fa-exclamation-circle"></i>';
+                headerIndicator.classList.add('error');
+                headerIndicator.title = 'Lỗi lưu';
+                break;
+        }
+    }
+    
     if (!statusDiv) return;
     
     switch (status) {
@@ -7092,13 +7562,8 @@ function createConnectionTableRow(stt, data = {}) {
         <td>
             <select class="input-full">
                 <option value="">-- Chọn --</option>
-                <option value="TCP" ${data.protocol === 'TCP' ? 'selected' : ''}>TCP</option>
+                <option value="TCP" ${data.protocol === 'TCP' ? 'selected' : ''}>TCP</option>  
                 <option value="UDP" ${data.protocol === 'UDP' ? 'selected' : ''}>UDP</option>
-                <option value="HTTP" ${data.protocol === 'HTTP' ? 'selected' : ''}>HTTP</option>
-                <option value="HTTPS" ${data.protocol === 'HTTPS' ? 'selected' : ''}>HTTPS</option>
-                <option value="gRPC" ${data.protocol === 'gRPC' ? 'selected' : ''}>gRPC</option>
-                <option value="WebSocket" ${data.protocol === 'WebSocket' ? 'selected' : ''}>WebSocket</option>
-                <option value="Other" ${data.protocol === 'Other' ? 'selected' : ''}>Khác</option>
             </select>
         </td>
         <td><input type="text" class="input-full" value="${escapeHtml(data.description || '')}" placeholder="Mô tả kết nối..."></td>
@@ -7142,14 +7607,16 @@ function collectConnectionInfo() {
     const rows = [];
     document.querySelectorAll('#connection-info-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
+        // Chỉ thu thập dữ liệu user - KHÔNG thu thập admin fields
+        // Admin review được thu thập riêng trong collectMoHinhAdminReview()
         rows.push({
             source: cells[1]?.querySelector('input')?.value || '',
             destination: cells[2]?.querySelector('input')?.value || '',
             port: cells[3]?.querySelector('input')?.value || '',
             protocol: cells[4]?.querySelector('select')?.value || '',
-            description: cells[5]?.querySelector('input')?.value || '',
-            adminEval: cells[6]?.querySelector('select')?.value || '',
-            adminNote: cells[7]?.querySelector('textarea')?.value || ''
+            description: cells[5]?.querySelector('input')?.value || ''
+            // NOTE: adminEval và adminNote KHÔNG được lưu ở đây
+            // Chúng được lưu riêng trong moHinhAdminReview.connectionRowReviews
         });
     });
     return rows;
@@ -7162,7 +7629,15 @@ function loadConnectionInfo(data) {
     
     if (Array.isArray(data) && data.length > 0) {
         data.forEach((row, idx) => {
-            const tr = createConnectionTableRow(idx + 1, row);
+            // Chỉ load dữ liệu user - admin review được load riêng từ moHinhAdminReview
+            const tr = createConnectionTableRow(idx + 1, {
+                source: row.source || '',
+                destination: row.destination || '',
+                port: row.port || '',
+                protocol: row.protocol || '',
+                description: row.description || ''
+                // NOTE: adminEval/adminNote sẽ được load riêng từ connectionRowReviews
+            });
             tbody.appendChild(tr);
         });
     }
