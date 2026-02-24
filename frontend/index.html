@@ -685,13 +685,19 @@
                                 <div style="margin-top: 40px; border-top: 1px dashed #ccc; padding-top: 20px;">
                                     <div style="margin-top: 18px; padding: 14px; border: 1px solid #e6e6e6; background-color: #fff; border-radius: 6px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);">
                                         <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
-                                            <div style="min-width:160px;">
-                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải hệ thống POC</label>
-                                                <input id="poc-value" type="number" min="0" step="0.01" class="input-full sizing-user-input" placeholder="Ví dụ: 100">
+                                            <div style="min-width:280px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
+                                                <select id="app-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'poc-value', 'sizing-value')">
+                                                    <option value="">-- Chọn từ bảng đầu vào --</option>
+                                                </select>
                                             </div>
-                                            <div style="min-width:160px;">
+                                            <div style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải hệ thống POC</label>
+                                                <input id="poc-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+                                            <div style="min-width:120px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định cỡ</label>
-                                                <input id="sizing-value" type="number" min="0" step="0.01" class="input-full sizing-user-input" placeholder="Ví dụ: 133">
+                                                <input id="sizing-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                             </div>
 
                                             <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
@@ -700,46 +706,12 @@
                                             </div>
                                         </div>
                                         
-                                        <!-- Admin đánh giá cho Tải hệ thống POC và Định cỡ -->
-                                        <div style="margin-top: 12px; padding: 10px; background: #fff9e6; border: 1px solid #ffeeba; border-radius: 6px;">
-                                            <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
-                                                <div style="min-width:120px;">
-                                                    <label class="admin-label" style="font-size:12px;"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                                    <select id="eval-poc-sizing" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
-                                                        <option value="">--</option>
-                                                        <option value="OK">OK</option>
-                                                        <option value="NOK">NOK</option>
-                                                    </select>
-                                                </div>
-                                                <div style="flex:1; min-width:200px;">
-                                                    <label class="admin-label" style="font-size:12px;">Ghi chú (Admin):</label>
-                                                    <textarea id="note-poc-sizing" class="admin-note input-full" rows="1" placeholder="Nhận xét..." style="resize: vertical; min-height: 34px;"></textarea>
-                                                </div>
-                                            </div>
-                                        </div>
-
                                         <div id="sizing-result-container" style="margin-top:12px;"></div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Admin Evaluation Section inside collapsible -->
-                            <div class="model-admin-box" style="margin-top: 30px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
-                                <div class="admin-grid-layout">
-                                    <div>
-                                        <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                        <select id="eval-module-app" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
-                                            <option value="">-- Chọn --</option>
-                                            <option value="OK">OK</option>
-                                            <option value="NOK">NOK</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="admin-label">Ghi chú (Admin):</label>
-                                        <textarea id="note-module-app" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module App..."></textarea>
-                                    </div>
-                                </div>
-                            </div>
+
 
                         </div>
                     </div>
@@ -848,13 +820,19 @@
                                         <i class="fa-solid fa-calculator" style="color: #ee0033;"></i>THÔNG TIN ĐẦU VÀO
                                     </h3>
                                     <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin-top: 15px;">
-                                        <div style="min-width:160px;">
-                                            <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Đầu vào (CCU)</label>
-                                            <input id="mariadb-input-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 1000">
+                                        <div style="min-width:280px;">
+                                            <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
+                                            <select id="mariadb-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'mariadb-input-ccu', 'mariadb-sizing-ccu')">
+                                                <option value="">-- Chọn từ bảng đầu vào --</option>
+                                            </select>
                                         </div>
-                                        <div style="min-width:160px;">
+                                        <div style="min-width:120px;">
+                                            <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Đầu vào (CCU)</label>
+                                            <input id="mariadb-input-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                        </div>
+                                        <div style="min-width:120px;">
                                             <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định cỡ (CCU)</label>
-                                            <input id="mariadb-sizing-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 5000">
+                                            <input id="mariadb-sizing-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                         </div>
                                         <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
                                             <button type="button" class="btn-submit sizing-user-btn" onclick="calculateMariaDBSizing()">
@@ -869,24 +847,6 @@
 
                                 <!-- Kết quả tính toán -->
                                 <div id="mariadb-result-container" style="margin-top: 20px;"></div>
-                            </div>
-
-                            <!-- Admin Evaluation Section -->
-                            <div class="model-admin-box" style="margin-top: 30px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
-                                <div class="admin-grid-layout">
-                                    <div>
-                                        <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                        <select id="eval-module-mariadb" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
-                                            <option value="">-- Chọn --</option>
-                                            <option value="OK">OK</option>
-                                            <option value="NOK">NOK</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="admin-label">Ghi chú (Admin):</label>
-                                        <textarea id="note-module-mariadb" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module MariaDB..."></textarea>
-                                    </div>
-                                </div>
                             </div>
 
                         </div>
@@ -922,19 +882,25 @@
                                     
                                     <!-- POC và Định cỡ inputs -->
                                     <div style="display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
-                                        <div style="flex: 1; min-width: 200px;">
+                                        <div style="flex: 1; min-width: 280px;">
+                                            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
+                                                Chọn dòng đầu vào (POC & Định cỡ)
+                                            </label>
+                                            <select id="redis-key-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'redis-key-poc', 'redis-key-sizing'); updateRedisKeyCalculated()">
+                                                <option value="">-- Chọn từ bảng đầu vào --</option>
+                                            </select>
+                                        </div>
+                                        <div style="flex: 1; min-width: 120px;">
                                             <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
                                                 Tải hệ thống POC
-                                                <span class="tooltip-icon" title="Giá trị tải của hệ thống POC hiện tại">?</span>
                                             </label>
-                                            <input id="redis-key-poc" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 1000" onchange="updateRedisKeyCalculated()">
+                                            <input id="redis-key-poc" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                         </div>
-                                        <div style="flex: 1; min-width: 200px;">
+                                        <div style="flex: 1; min-width: 120px;">
                                             <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
                                                 Định cỡ
-                                                <span class="tooltip-icon" title="Giá trị định cỡ mong muốn">?</span>
                                             </label>
-                                            <input id="redis-key-sizing" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 5000" onchange="updateRedisKeyCalculated()">
+                                            <input id="redis-key-sizing" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                         </div>
                                     </div>
                                     
@@ -1059,12 +1025,18 @@
                                         </h3>
                                         <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
                                             <div style="min-width: 160px;">
-                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Đầu vào (CCU)</label>
-                                                <input id="redis-config-input-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 1000">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
+                                                <select id="redis-config-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'redis-config-input-ccu', 'redis-config-sizing-ccu')">
+                                                    <option value="">-- Chọn từ bảng đầu vào --</option>
+                                                </select>
                                             </div>
-                                            <div style="min-width: 160px;">
+                                            <div style="min-width: 120px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Đầu vào (CCU)</label>
+                                                <input id="redis-config-input-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+                                            <div style="min-width: 120px;">
                                                 <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Định cỡ (CCU)</label>
-                                                <input id="redis-config-sizing-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 5000">
+                                                <input id="redis-config-sizing-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                             </div>
                                             <div style="min-width: 200px;">
                                                 <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Mức độ quan trọng</label>
@@ -1223,13 +1195,33 @@
                                         </div>
                                     </div>
                                     
-                                    <div style="margin-top: 20px; text-align: center;">
-                                        <button type="button" class="btn-submit sizing-user-btn" onclick="calculateKafkaThroughputMethod()">
-                                            <i class="fa-solid fa-calculator"></i> Tính toán
-                                        </button>
-                                        <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('kafka-throughput-result-container').innerHTML='';" style="margin-left: 10px;">
-                                            Xóa kết quả
-                                        </button>
+                                    <!-- Thông tin đầu vào POC & Định cỡ -->
+                                    <div style="margin-top: 20px; padding: 14px; border: 1px solid #e6e6e6; background-color: #fff; border-radius: 6px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);">
+                                        <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
+                                            <div style="min-width:280px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
+                                                <select id="kafka-throughput-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'kafka-throughput-input-ccu', 'kafka-throughput-sizing-ccu')">
+                                                    <option value="">-- Chọn từ bảng đầu vào --</option>
+                                                </select>
+                                            </div>
+                                            <div style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải hệ thống POC</label>
+                                                <input id="kafka-throughput-input-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+                                            <div style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định cỡ</label>
+                                                <input id="kafka-throughput-sizing-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+
+                                            <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+                                                <button type="button" class="btn-submit sizing-user-btn" onclick="calculateKafkaThroughputMethod()">
+                                                    <i class="fa-solid fa-calculator"></i> Tính toán
+                                                </button>
+                                                <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('kafka-throughput-result-container').innerHTML='';">
+                                                    Xóa kết quả
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                     
                                     <div id="kafka-throughput-result-container" style="margin-top: 20px;"></div>
@@ -1289,12 +1281,18 @@
                                         </h3>
                                         <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
                                             <div style="min-width: 160px;">
-                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Đầu vào (CCU)</label>
-                                                <input id="kafka-linear-input-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 1000">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
+                                                <select id="kafka-linear-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'kafka-linear-input-ccu', 'kafka-linear-sizing-ccu')">
+                                                    <option value="">-- Chọn từ bảng đầu vào --</option>
+                                                </select>
                                             </div>
-                                            <div style="min-width: 160px;">
+                                            <div style="min-width: 120px;">
+                                                <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Đầu vào (CCU)</label>
+                                                <input id="kafka-linear-input-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+                                            <div style="min-width: 120px;">
                                                 <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Định cỡ (CCU)</label>
-                                                <input id="kafka-linear-sizing-ccu" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 5000">
+                                                <input id="kafka-linear-sizing-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                             </div>
                                         </div>
                                     </div>
@@ -1381,6 +1379,205 @@
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Module K8S Collapsible Section -->
+                    <div class="module-collapsible">
+                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-k8s-content')">
+                            <span><i class="fa-solid fa-dharmachakra"></i> Module K8S</span>
+                            <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-k8s-icon"></i>
+                        </div>
+                        <div class="module-collapsible-content" id="module-k8s-content">
+                            <div class="model-user-content">
+                                <h3 class="model-header">
+                                    <i class="fa-solid fa-server" style="color: #ee0033;"></i>THÔNG TIN HỆ THỐNG THAM CHIẾU
+                                </h3>
+
+                                <div class="table-responsive">
+                                    <table class="sizing-table baseline-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 50px;">STT</th>
+                                                <th style="width: 130px;">IP</th>
+                                                <th style="width: 220px;">CPU (Model & Specs)</th>
+                                                <th style="width: 100px;">RAM (GB)</th>
+                                                <th style="width: 100px;">Disk (GB)</th>
+                                                <th style="width: 100px;">Cint_rate</th>
+                                                <th style="width: 120px;">Ảnh sở cứ</th>
+                                                <th style="width: 120px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                    <i class="fa-solid fa-user-shield"></i> Đánh giá
+                                                </th>
+                                                <th style="width: 180px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
+                                                    Ghi chú (Admin)
+                                                </th>
+                                                <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="k8s-baseline-table-body"></tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td colspan="3" class="text-right" style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">Tổng cộng:</td>
+                                                <td class="text-center" id="k8s-total-ram" style="font-weight: bold;">0</td>
+                                                <td class="text-center" id="k8s-total-disk" style="font-weight: bold;">0</td>
+                                                <td class="text-center" id="k8s-total-cint" style="font-weight: bold;">0</td>
+                                                <td></td>
+                                                <td colspan="3" style="background-color: #f8f9fa;"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+
+                                <button type="button" class="btn-add sizing-user-btn" onclick="addK8SBaselineRow()">
+                                    <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
+                                </button>
+
+                                <div style="margin-top: 50px; border-top: 2px solid #ddd; padding-top: 20px;">
+                                    <h3 class="model-header">
+                                        <i class="fa-solid fa-calculator" style="color: #ee0033;"></i>THÔNG TIN TẢI ĐẦU VÀO
+                                    </h3>
+                                    <div class="table-responsive">
+                                        <table class="sizing-table input-config-table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 50px;">STT</th>
+                                                    <th style="width: 140px;">IP</th>
+                                                    <th style="width: 90px; font-size: 11px; padding: 4px;">Tải CPU<br>95th percentile (%)</th>
+                                                    <th style="width: 90px; font-size: 11px; padding: 4px;">Tải RAM<br>95th percentile (%)</th>
+                                                    <th style="width: 90px; font-size: 11px; padding: 4px;">Tải Disk<br>95th percentile (%)</th>
+                                                    <th style="width: 130px;">Cint_rate used (Cint)</th>
+                                                    <th style="width: 100px;">RAM used (GB)</th>
+                                                    <th style="width: 100px;">Disk used (GB)</th>
+                                                    <th style="width: 120px;">Ảnh sở cứ</th>
+                                                    <th class="admin-cell" style="width: 80px; background-color: #fef3c7;">Đánh giá</th>
+                                                    <th class="admin-cell" style="width: 130px; background-color: #fef3c7;">Ghi chú Admin</th>
+                                                    <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="k8s-input-config-table-body"></tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <td colspan="5" class="text-right" style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">Tổng cộng:</td>
+                                                    <td class="text-center" id="k8s-total-cint-used" style="font-weight: bold;">0</td>
+                                                    <td class="text-center" id="k8s-total-ram-used" style="font-weight: bold;">0</td>
+                                                    <td class="text-center" id="k8s-total-disk-used" style="font-weight: bold;">0</td>
+                                                    <td></td>
+                                                    <td class="admin-cell" colspan="2"></td>
+                                                    <td></td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div style="margin-top: 40px; border-top: 1px dashed #ccc; padding-top: 20px;">
+                                    <div style="margin-top: 18px; padding: 14px; border: 1px solid #e6e6e6; background-color: #fff; border-radius: 6px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);">
+                                        <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
+                                            <div style="min-width:280px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
+                                                <select id="k8s-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'k8s-poc-value', 'k8s-sizing-value')">
+                                                    <option value="">-- Chọn từ bảng đầu vào --</option>
+                                                </select>
+                                            </div>
+                                            <div style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải hệ thống POC</label>
+                                                <input id="k8s-poc-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+                                            <div style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định cỡ</label>
+                                                <input id="k8s-sizing-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+                                            <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+                                                <button type="button" class="btn-submit sizing-user-btn" onclick="calculateK8SSizing()">Tính toán</button>
+                                                <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('k8s-result-container').innerHTML='';">Xóa kết quả</button>
+                                            </div>
+                                        </div>
+                                        <div id="k8s-result-container" style="margin-top:12px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Module LB/FW Collapsible Section -->
+                    <div class="module-collapsible">
+                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-lbfw-content')">
+                            <span><i class="fa-solid fa-shield-halved"></i> Module LB/FW</span>
+                            <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-lbfw-icon"></i>
+                        </div>
+                        <div class="module-collapsible-content" id="module-lbfw-content">
+                            <div class="model-user-content">
+                                <h3 class="model-header">
+                                    <i class="fa-solid fa-image" style="color: #ee0033;"></i>ẢNH SỞ CỨ
+                                </h3>
+                                <div id="lbfw-evidence-grid" class="image-upload-grid" style="margin-top: 10px;"></div>
+                                <button type="button" class="btn-add-img sizing-user-btn" onclick="addLBFWEvidenceSlot()" style="margin-top: 8px; font-size: 11px;">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                </button>
+
+                                <div style="margin-top: 30px; border-top: 2px solid #ddd; padding-top: 20px;">
+                                    <h3 class="model-header">
+                                        <i class="fa-solid fa-gauge-high" style="color: #ee0033;"></i>THÔNG TIN BĂNG THÔNG
+                                    </h3>
+                                    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px;">
+                                        <div style="flex: 1; min-width: 250px;">
+                                            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Peak Upload (Mbps)</label>
+                                            <input id="lbfw-peak-upload" type="number" min="0" step="0.01" class="input-full sizing-user-input" placeholder="Nhập peak upload...">
+                                        </div>
+                                        <div style="flex: 1; min-width: 250px;">
+                                            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Peak Download (Mbps)</label>
+                                            <input id="lbfw-peak-download" type="number" min="0" step="0.01" class="input-full sizing-user-input" placeholder="Nhập peak download...">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="margin-top: 30px; border-top: 1px dashed #ccc; padding-top: 20px;">
+                                    <div style="padding: 14px; border: 1px solid #e6e6e6; background-color: #fff; border-radius: 6px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);">
+                                        <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
+                                            <div style="min-width:280px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
+                                                <select id="lbfw-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'lbfw-poc-value', 'lbfw-sizing-value')">
+                                                    <option value="">-- Chọn từ bảng đầu vào --</option>
+                                                </select>
+                                            </div>
+                                            <div style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải hệ thống POC</label>
+                                                <input id="lbfw-poc-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+                                            <div style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định cỡ</label>
+                                                <input id="lbfw-sizing-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                            </div>
+                                            <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+                                                <button type="button" class="btn-submit sizing-user-btn" onclick="calculateLBFWSizing()">
+                                                    <i class="fa-solid fa-calculator"></i> Tính toán
+                                                </button>
+                                                <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('lbfw-result-container').innerHTML='';">Xóa kết quả</button>
+                                            </div>
+                                        </div>
+                                        <div id="lbfw-result-container" style="margin-top:12px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Admin Evaluation Section -->
+                            <div class="model-admin-box" style="margin-top: 30px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                <div class="admin-grid-layout">
+                                    <div>
+                                        <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                        <select id="eval-module-lbfw" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                            <option value="">-- Chọn --</option>
+                                            <option value="OK">OK</option>
+                                            <option value="NOK">NOK</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="admin-label">Ghi chú (Admin):</label>
+                                        <textarea id="note-module-lbfw" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module LB/FW..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 

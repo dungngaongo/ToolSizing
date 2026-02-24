@@ -825,6 +825,9 @@ async function loadAllDataFromDB() {
                     try { content.adminReview = JSON.parse(projectData.thongTinAdminReview); } catch(e) { /* ignore */ }
                 }
                 loadThongTinDauVao(content);
+                // After loading input table, populate POC/Sizing dropdowns and attach listeners
+                populatePocSizingDropdowns();
+                attachInputTableChangeListeners();
             }
             // If moHinhHeThongContent exists, use it; otherwise still render admin review if present
             if (projectData.moHinhHeThongContent || projectData.moHinhAdminReview) {
@@ -1423,6 +1426,8 @@ function deleteRow(btn) {
         Array.from(tbody.rows).forEach((r, index) => {
             r.cells[0].innerText = index + 1;
         });
+        // Update POC/Sizing dropdowns after row deletion
+        populatePocSizingDropdowns();
     }
 }
 // 2. Hàm Thêm Dòng (Được gọi khi bấm nút)
@@ -1439,6 +1444,8 @@ function addInputRow() {
     tbody.appendChild(tr);
     // Re-apply role permissions so dynamically added row gets correct disabled state
     try { applyRolePermissions(); } catch (e) { /* ignore */ }
+    // Update POC/Sizing dropdowns in case new row data matters
+    populatePocSizingDropdowns();
 }
 
 // 3. Hàm Xóa Dòng Cuối
@@ -1506,6 +1513,125 @@ function collectThongTinDauVao() {
         inputRows: inputRows
     };
 }
+
+// ========== Populate POC/Sizing dropdowns from input table ==========
+// This function reads the input table rows and populates all POC and Sizing <select> dropdowns
+// across all modules with the values entered in the "Thông tin đầu vào" table.
+function populatePocSizingDropdowns() {
+    // Collect rows from input table — each row has POC and Sizing values
+    const inputRows = [];
+    
+    document.querySelectorAll('#input-table-body tr').forEach((row, index) => {
+        const cells = row.querySelectorAll('td');
+        const dauVao = cells[1]?.querySelector('textarea')?.value?.trim() || '';
+        
+        // POC: column 2 (cell-wrapper > input)
+        const pocInput = cells[2]?.querySelector('input[type="text"]');
+        const pocVal = pocInput?.value?.trim() || '';
+        
+        // Sizing: column 3 (cell-wrapper > input)
+        const sizingInput = cells[3]?.querySelector('input[type="text"]');
+        const sizingVal = sizingInput?.value?.trim() || '';
+        
+        if (pocVal || sizingVal) {
+            inputRows.push({
+                index: index,
+                dauVao: dauVao,
+                poc: pocVal,
+                sizing: sizingVal
+            });
+        }
+    });
+    
+    // All combined row-selector dropdown IDs and their associated POC/Sizing display input IDs
+    const rowSelectors = [
+        { selectId: 'app-input-row-select', pocId: 'poc-value', sizingId: 'sizing-value' },
+        { selectId: 'mariadb-input-row-select', pocId: 'mariadb-input-ccu', sizingId: 'mariadb-sizing-ccu' },
+        { selectId: 'redis-key-input-row-select', pocId: 'redis-key-poc', sizingId: 'redis-key-sizing' },
+        { selectId: 'redis-config-input-row-select', pocId: 'redis-config-input-ccu', sizingId: 'redis-config-sizing-ccu' },
+        { selectId: 'kafka-throughput-input-row-select', pocId: 'kafka-throughput-input-ccu', sizingId: 'kafka-throughput-sizing-ccu' },
+        { selectId: 'kafka-linear-input-row-select', pocId: 'kafka-linear-input-ccu', sizingId: 'kafka-linear-sizing-ccu' },
+        { selectId: 'k8s-input-row-select', pocId: 'k8s-poc-value', sizingId: 'k8s-sizing-value' },
+        { selectId: 'lbfw-input-row-select', pocId: 'lbfw-poc-value', sizingId: 'lbfw-sizing-value' }
+    ];
+    
+    rowSelectors.forEach(({ selectId, pocId, sizingId }) => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const currentVal = select.value;
+        
+        // Clear and rebuild options
+        select.innerHTML = '<option value="">-- Chọn từ bảng đầu vào --</option>';
+        inputRows.forEach(row => {
+            const option = document.createElement('option');
+            option.value = row.index;
+            option.dataset.poc = row.poc;
+            option.dataset.sizing = row.sizing;
+            const label = row.dauVao
+                ? `Dòng ${row.index + 1}: POC=${row.poc}, Định cỡ=${row.sizing} (${row.dauVao})`
+                : `Dòng ${row.index + 1}: POC=${row.poc}, Định cỡ=${row.sizing}`;
+            option.textContent = label;
+            select.appendChild(option);
+        });
+        
+        // Restore previous selection if still valid
+        if (currentVal !== '' && select.querySelector(`option[value="${currentVal}"]`)) {
+            select.value = currentVal;
+        } else {
+            // Clear the readonly display inputs
+            const pocInput = document.getElementById(pocId);
+            const sizingInput = document.getElementById(sizingId);
+            if (pocInput) pocInput.value = '';
+            if (sizingInput) sizingInput.value = '';
+        }
+        
+        // Refresh display values from the currently selected option
+        if (select.value !== '') {
+            const selectedOption = select.options[select.selectedIndex];
+            const pocInput = document.getElementById(pocId);
+            const sizingInput = document.getElementById(sizingId);
+            if (pocInput) pocInput.value = selectedOption.dataset.poc || '';
+            if (sizingInput) sizingInput.value = selectedOption.dataset.sizing || '';
+        }
+    });
+}
+
+// Called when user selects a row from combined POC & Sizing dropdown
+function onInputRowSelect(selectEl, pocInputId, sizingInputId) {
+    const pocInput = document.getElementById(pocInputId);
+    const sizingInput = document.getElementById(sizingInputId);
+    if (!pocInput || !sizingInput) return;
+    
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    if (!selectedOption || selectEl.value === '') {
+        pocInput.value = '';
+        sizingInput.value = '';
+        return;
+    }
+    
+    pocInput.value = selectedOption.dataset.poc || '';
+    sizingInput.value = selectedOption.dataset.sizing || '';
+}
+
+// Callback when input table changes (add/delete row, or value change)
+// Attach change listeners to input table to auto-update dropdowns
+function attachInputTableChangeListeners() {
+    const tbody = document.getElementById('input-table-body');
+    if (!tbody) return;
+    
+    // Use event delegation on the tbody
+    tbody.addEventListener('input', (e) => {
+        // Only react to changes in POC (col 2) or Sizing (col 3) input fields, or dauVao textarea
+        const target = e.target;
+        if (target.matches('input[type="text"]') || target.matches('textarea')) {
+            // Debounce to avoid excessive updates
+            clearTimeout(tbody._dropdownUpdateTimer);
+            tbody._dropdownUpdateTimer = setTimeout(populatePocSizingDropdowns, 300);
+        }
+    });
+}
+
+// (onPocSizingDropdownChange removed — replaced by onInputRowSelect)
 
 async function saveThongTinDauVao() {
     const statusDiv = document.getElementById('input-save-status');
@@ -1841,6 +1967,26 @@ function aggregateSizingResults() {
             soLuong: mariaData.soLuong,
             ghiChu: mariaData.ghiChu
         });
+        // Add MaxScale row
+        if (mariaData.maxScale) {
+            results.push({
+                stt: stt++,
+                module: 'MaxScale',
+                cauHinh: mariaData.maxScale.cauHinh,
+                soLuong: mariaData.maxScale.soLuong,
+                ghiChu: mariaData.maxScale.ghiChu
+            });
+        }
+        // Add NAS row
+        if (mariaData.nas) {
+            results.push({
+                stt: stt++,
+                module: 'NAS',
+                cauHinh: mariaData.nas.cauHinh,
+                soLuong: mariaData.nas.soLuong,
+                ghiChu: mariaData.nas.ghiChu
+            });
+        }
     }
     
     // 3. Module Redis - Parse từ redis key hoặc config result
@@ -1883,8 +2029,34 @@ function aggregateSizingResults() {
         }
     }
     
-    // 5. FW/LB từ module App nếu có
-    if (appData && appData.fwlb) {
+    // 5. Module K8S - Parse từ k8s-result-container
+    const k8sResult = document.getElementById('k8s-result-container')?.innerHTML || '';
+    const k8sData = parseK8SSizingResult(k8sResult);
+    if (k8sData && Array.isArray(k8sData)) {
+        k8sData.forEach(item => {
+            results.push({
+                stt: stt++,
+                module: item.module,
+                cauHinh: item.cauHinh,
+                soLuong: item.soLuong,
+                ghiChu: item.ghiChu
+            });
+        });
+    }
+    
+    // 6. Module LB/FW - Parse từ lbfw-result-container
+    const lbfwResult = document.getElementById('lbfw-result-container')?.innerHTML || '';
+    const lbfwData = parseLBFWSizingResult(lbfwResult);
+    if (lbfwData) {
+        results.push({
+            stt: stt++,
+            module: 'FW/LB',
+            cauHinh: lbfwData.cauHinh,
+            soLuong: lbfwData.soLuong,
+            ghiChu: lbfwData.ghiChu
+        });
+    } else if (appData && appData.fwlb) {
+        // Fallback: FW/LB từ module App nếu có
         results.push({
             stt: stt++,
             module: 'FW/LB',
@@ -1997,11 +2169,59 @@ function parseMariaDBSizingResult(html) {
     if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
     if (diskMatch) cauHinh += `- Disk = ${diskMatch[1]}GB`;
     
-    return {
+    // Parse /data and /log from the MariaDB row in kết quả đề xuất table
+    const mariaRowMatch = html.match(/MariaDB<\/strong>[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>/i);
+    if (mariaRowMatch) {
+        const listContent = mariaRowMatch[1];
+        const dataMatch = listContent.match(/\/data[:\s]*(\d+)\s*GB/i);
+        const logMatch = listContent.match(/\/log[:\s]*(\d+)\s*GB/i);
+        cauHinh = '';
+        if (vcpuMatch) cauHinh += `- vCPU = ${vcpuMatch[1]}\n`;
+        if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
+        if (dataMatch || logMatch) {
+            cauHinh += `- Disk:\n`;
+            if (dataMatch) cauHinh += `  + /data: ${dataMatch[1]}GB\n`;
+            if (logMatch) cauHinh += `  + /log: ${logMatch[1]}GB`;
+        } else if (diskMatch) {
+            cauHinh += `- Disk = ${diskMatch[1]}GB`;
+        }
+    }
+    
+    const result = {
         cauHinh: cauHinh.replace(/\n/g, '<br>'),
-        soLuong: soLuongMatch ? soLuongMatch[1] : '',
+        soLuong: soLuongMatch ? soLuongMatch[1] : '3',
         ghiChu: 'Galera Cluster'
     };
+    
+    // Parse MaxScale row
+    const maxScaleMatch = html.match(/MaxScale<\/strong>[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong>/i);
+    if (maxScaleMatch) {
+        const maxScaleList = maxScaleMatch[1];
+        const msVcpu = maxScaleList.match(/(\d+)\s*vCPU/i);
+        const msRam = maxScaleList.match(/(\d+)\s*GB\s*RAM/i);
+        const msDisk = maxScaleList.match(/\/u01[:\s]*(\d+)\s*GB/i);
+        let msCauHinh = '';
+        if (msVcpu) msCauHinh += `- vCPU = ${msVcpu[1]}\n`;
+        if (msRam) msCauHinh += `- RAM = ${msRam[1]}GB\n`;
+        if (msDisk) msCauHinh += `- /u01: ${msDisk[1]}GB`;
+        result.maxScale = {
+            cauHinh: msCauHinh.replace(/\n/g, '<br>'),
+            soLuong: maxScaleMatch[2],
+            ghiChu: 'Cấu hình tối thiểu + 1 VIP'
+        };
+    }
+    
+    // Parse NAS row
+    const nasMatch = html.match(/NAS<\/strong>[\s\S]*?<strong>(\d+)\s*GB<\/strong>/i);
+    if (nasMatch) {
+        result.nas = {
+            cauHinh: `${nasMatch[1]} GB`,
+            soLuong: '-',
+            ghiChu: 'Mount chung (/backup cần)'
+        };
+    }
+    
+    return result;
 }
 
 // Parse kết quả Module Redis
@@ -3213,6 +3433,7 @@ function collectAllSizingData() {
         moduleApp: {
             baselineTable: collectBaselineTableData(),
             inputConfigTable: collectInputConfigTableData(),
+            selectedInputRow: document.getElementById('app-input-row-select')?.value || '',
             pocValue: document.getElementById('poc-value')?.value || '',
             sizingValue: document.getElementById('sizing-value')?.value || '',
             sizingResult: (() => {
@@ -3231,7 +3452,9 @@ function collectAllSizingData() {
         },
         moduleMariaDB: collectMariaDBData(),
         moduleRedis: collectRedisData(),
-        moduleKafka: collectKafkaData()
+        moduleKafka: collectKafkaData(),
+        moduleK8S: collectK8SData(),
+        moduleLBFW: collectLBFWData()
     };
 }
 
@@ -3253,11 +3476,6 @@ function collectMariaDBRefAdminReviewData() {
 function collectSizingAdminReviewData() {
     return {
         moduleApp: {
-            // Admin review for the whole Module App section
-            overallReview: {
-                eval: document.getElementById('eval-module-app')?.value || '',
-                note: document.getElementById('note-module-app')?.value || ''
-            },
             // Admin review for each row in baseline table
             baselineRowReviews: collectBaselineAdminReviewData(),
             // Admin review for each row in input config table
@@ -3273,10 +3491,6 @@ function collectSizingAdminReviewData() {
             })()
         },
         moduleMariaDB: {
-            overallReview: {
-                eval: document.getElementById('eval-module-mariadb')?.value || '',
-                note: document.getElementById('note-module-mariadb')?.value || ''
-            },
             refRowReviews: collectMariaDBRefAdminReviewData(),
             storageReview: {
                 eval: document.getElementById('eval-mariadb-storage')?.value || '',
@@ -3315,10 +3529,33 @@ function collectSizingAdminReviewData() {
                 return reviews;
             })()
         },
-        // POC/Sizing admin evaluation
-        pocSizing: {
-            eval: document.getElementById('eval-poc-sizing')?.value || '',
-            note: document.getElementById('note-poc-sizing')?.value || ''
+        moduleK8S: {
+            baselineRowReviews: (() => {
+                const reviews = [];
+                document.querySelectorAll('#k8s-baseline-table-body tr').forEach(row => {
+                    reviews.push({
+                        eval: row.querySelector('.k8s-baseline-eval')?.value || '',
+                        note: row.querySelector('.k8s-baseline-note')?.value || ''
+                    });
+                });
+                return reviews;
+            })(),
+            inputConfigRowReviews: (() => {
+                const reviews = [];
+                document.querySelectorAll('#k8s-input-config-table-body tr').forEach(row => {
+                    reviews.push({
+                        eval: row.querySelector('.k8s-input-config-eval')?.value || '',
+                        note: row.querySelector('.k8s-input-config-note')?.value || ''
+                    });
+                });
+                return reviews;
+            })()
+        },
+        moduleLBFW: {
+            overallReview: {
+                eval: document.getElementById('eval-module-lbfw')?.value || '',
+                note: document.getElementById('note-module-lbfw')?.value || ''
+            }
         }
     };
 }
@@ -3375,14 +3612,18 @@ async function evaluateSizingSection() {
         return;
     }
 
-    // Check at least one module has evaluation
-    const evalModuleApp = document.getElementById('eval-module-app')?.value;
-    const evalModuleMariaDB = document.getElementById('eval-module-mariadb')?.value;
+    // Check at least one module has evaluation (row-level reviews)
+    const hasBaselineReview = document.querySelector('#baseline-table-body .admin-eval-select[value="OK"], #baseline-table-body .admin-eval-select[value="NOK"]');
+    const hasInputConfigReview = document.querySelector('#input-config-table-body .input-config-eval[value="OK"], #input-config-table-body .input-config-eval[value="NOK"]');
+    const hasMariaDBReview = document.querySelector('#mariadb-ref-table-body .mariadb-ref-eval[value="OK"], #mariadb-ref-table-body .mariadb-ref-eval[value="NOK"]');
     const evalModuleRedis = document.getElementById('eval-module-redis')?.value;
     const evalModuleKafka = document.getElementById('eval-module-kafka')?.value;
+    const hasK8SBaselineReview = document.querySelector('#k8s-baseline-table-body .k8s-baseline-eval[value="OK"], #k8s-baseline-table-body .k8s-baseline-eval[value="NOK"]');
+    const hasK8SInputConfigReview = document.querySelector('#k8s-input-config-table-body .k8s-input-config-eval[value="OK"], #k8s-input-config-table-body .k8s-input-config-eval[value="NOK"]');
+    const evalModuleLBFW = document.getElementById('eval-module-lbfw')?.value;
     
-    if (!evalModuleApp && !evalModuleMariaDB && !evalModuleRedis && !evalModuleKafka) {
-        alert('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một module!');
+    if (!hasBaselineReview && !hasInputConfigReview && !hasMariaDBReview && !evalModuleRedis && !evalModuleKafka && !hasK8SBaselineReview && !hasK8SInputConfigReview && !evalModuleLBFW) {
+        alert('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một mục!');
         return;
     }
 
@@ -3514,6 +3755,11 @@ function loadSizingData(data) {
             }
             
             // Load POC and Sizing values
+            if (moduleApp.selectedInputRow !== undefined && moduleApp.selectedInputRow !== '' && document.getElementById('app-input-row-select')) {
+                document.getElementById('app-input-row-select').value = moduleApp.selectedInputRow;
+                // Trigger display update
+                onInputRowSelect(document.getElementById('app-input-row-select'), 'poc-value', 'sizing-value');
+            }
             if (moduleApp.pocValue && document.getElementById('poc-value')) {
                 document.getElementById('poc-value').value = moduleApp.pocValue;
             }
@@ -3592,6 +3838,16 @@ function loadSizingData(data) {
             }
         }
         
+        // Load Module K8S data
+        if (sizingData.moduleK8S) {
+            loadK8SData(sizingData.moduleK8S);
+        }
+        
+        // Load Module LB/FW data
+        if (sizingData.moduleLBFW) {
+            loadLBFWData(sizingData.moduleLBFW);
+        }
+        
         // Re-apply role permissions after loading data (disable admin fields for user, etc.)
         applyRolePermissions();
         
@@ -3608,18 +3864,6 @@ function loadSizingAdminReview(adminReview) {
     try {
         // Load module app admin review
         if (adminReview.moduleApp) {
-            // Load overall review
-            if (adminReview.moduleApp.overallReview) {
-                const moduleAppReview = adminReview.moduleApp.overallReview;
-                if (document.getElementById('eval-module-app')) {
-                    document.getElementById('eval-module-app').value = moduleAppReview.eval || '';
-                    styleAdminSelect(document.getElementById('eval-module-app'));
-                }
-                if (document.getElementById('note-module-app')) {
-                    document.getElementById('note-module-app').value = moduleAppReview.note || '';
-                }
-            }
-            
             // Load baseline row reviews
             if (adminReview.moduleApp.baselineRowReviews) {
                 const rows = document.querySelectorAll('#baseline-table-body tr');
@@ -3659,17 +3903,6 @@ function loadSizingAdminReview(adminReview) {
         
         // Load module MariaDB admin review
         if (adminReview.moduleMariaDB) {
-            if (adminReview.moduleMariaDB.overallReview) {
-                const mariadbReview = adminReview.moduleMariaDB.overallReview;
-                if (document.getElementById('eval-module-mariadb')) {
-                    document.getElementById('eval-module-mariadb').value = mariadbReview.eval || '';
-                    styleAdminSelect(document.getElementById('eval-module-mariadb'));
-                }
-                if (document.getElementById('note-module-mariadb')) {
-                    document.getElementById('note-module-mariadb').value = mariadbReview.note || '';
-                }
-            }
-            
             // Load ref table row reviews
             if (adminReview.moduleMariaDB.refRowReviews) {
                 const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
@@ -3765,14 +3998,56 @@ function loadSizingAdminReview(adminReview) {
             }
         }
         
-        // Load POC/Sizing admin evaluation
-        if (adminReview.pocSizing) {
-            const pocEval = document.getElementById('eval-poc-sizing');
-            const pocNote = document.getElementById('note-poc-sizing');
-            if (pocEval) { pocEval.value = adminReview.pocSizing.eval || ''; styleAdminSelect(pocEval); }
-            if (pocNote) pocNote.value = adminReview.pocSizing.note || '';
+        // Load module K8S admin review
+        if (adminReview.moduleK8S) {
+            if (adminReview.moduleK8S.baselineRowReviews) {
+                const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+                adminReview.moduleK8S.baselineRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.k8s-baseline-eval');
+                        const adminNote = rows[index].querySelector('.k8s-baseline-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
+                });
+            }
+            if (adminReview.moduleK8S.inputConfigRowReviews) {
+                const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+                adminReview.moduleK8S.inputConfigRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.k8s-input-config-eval');
+                        const adminNote = rows[index].querySelector('.k8s-input-config-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
+                });
+            }
         }
-
+        
+        // Load module LB/FW admin review
+        if (adminReview.moduleLBFW) {
+            if (adminReview.moduleLBFW.overallReview) {
+                const lbfwReview = adminReview.moduleLBFW.overallReview;
+                if (document.getElementById('eval-module-lbfw')) {
+                    document.getElementById('eval-module-lbfw').value = lbfwReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-lbfw'));
+                }
+                if (document.getElementById('note-module-lbfw')) {
+                    document.getElementById('note-module-lbfw').value = lbfwReview.note || '';
+                }
+            }
+        }
+        
         // Re-apply role permissions after loading admin review
         applyRolePermissions();
         
@@ -3824,6 +4099,8 @@ document.addEventListener("DOMContentLoaded", function() {
     // Tính tổng khi trang load
     updateBaselineTotal();
     updateInputConfigTotal();
+    // Attach listeners to update POC/Sizing dropdowns when input table changes
+    attachInputTableChangeListeners();
 });
 // ==================== XỬ LÝ BẢNG TÍNH TOÁN (INPUT CONFIG) ====================
 
@@ -4008,7 +4285,7 @@ function calculateSizingRecommendations() {
     let html = '';
     
     // ==================== BẢNG 1: Thông số Máy chủ Tiến trình ====================
-    html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;"Bảng tính toán Máy chủ Tiến trình</h4>`;
+    html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán Máy chủ Tiến trình</h4>`;
     html += `<table class="sizing-table" style="margin-top:8px;">
                 <thead>
                     <tr>
@@ -4023,37 +4300,37 @@ function calculateSizingRecommendations() {
                         <td class="text-center">1</td>
                         <td>Cintrate cần cho hệ thống</td>
                         <td class="text-center">${cintForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" placeholder="Ghi chú..." style="resize:vertical;min-height:30px;"></textarea></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalCint.toFixed(2)} × (${sizing} / ${poc}) = ${totalCint.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">2</td>
                         <td>RAM (GB) cần cho hệ thống</td>
                         <td class="text-center">${ramForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" placeholder="Ghi chú..." style="resize:vertical;min-height:30px;"></textarea></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalRam.toFixed(2)} × (${sizing} / ${poc}) = ${totalRam.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">3</td>
                         <td>Disk (GB) cần cho hệ thống</td>
                         <td class="text-center">${diskForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" placeholder="Ghi chú..." style="resize:vertical;min-height:30px;"></textarea></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalDisk.toFixed(2)} × (${sizing} / ${poc}) = ${totalDisk.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">4</td>
                         <td>Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
                         <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">KPI 75%. Sai số 1.1</textarea></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${cintForTPS.toFixed(2)} / 0.75 × 1.1. KPI 75%, Sai số 1.1</textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">5</td>
                         <td>RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
                         <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">KPI 90%. Sai số 1.1</textarea></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${ramForTPS.toFixed(2)} / 0.9 × 1.1. KPI 90%, Sai số 1.1</textarea></td>
                     </tr>
                     <tr>
                         <td class="text-center">6</td>
                         <td>Disk cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
                         <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">KPI 80%. Sai số 1.1</textarea></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${diskForTPS.toFixed(2)} / 0.8 × 1.1. KPI 80%, Sai số 1.1</textarea></td>
                     </tr>
                 </tbody>
             </table>`;
@@ -4136,6 +4413,905 @@ function calculateSizingRecommendations() {
 
     const container = document.getElementById('sizing-result-container');
     if (container) container.innerHTML = html;
+}
+
+// ==================== MODULE K8S FUNCTIONS ====================
+
+function addK8SBaselineRow() {
+    const tbody = document.getElementById('k8s-baseline-table-body');
+    const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
+    if (!tbody) return;
+
+    const rowCount = tbody.rows.length + 1;
+    const tr = document.createElement('tr');
+
+    tr.innerHTML = `
+        <td class="text-center stt-cell">${rowCount}</td>
+        <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" oninput="syncK8SIPToInputConfig(this)"></td>
+        <td><input type="text" class="input-full k8s-cpu-input" placeholder="Intel Xeon..."></td>
+        <td><input type="number" class="input-full text-center k8s-ram-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-cint-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" class="k8s-baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
+        <td class="admin-cell">
+            <select class="admin-eval-select k8s-baseline-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note k8s-baseline-note" placeholder="Nhận xét...">
+        </td>
+        <td class="text-center">
+            <button class="btn-delete-row-item" onclick="deleteK8SBaselineRow(this)">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(tr);
+    if (inputConfigTbody) {
+        addK8SInputConfigRow();
+    }
+    applyRolePermissions();
+}
+
+function addK8SInputConfigRow() {
+    const tbody = document.getElementById('k8s-input-config-table-body');
+    if (!tbody) return;
+
+    const rowCount = tbody.rows.length + 1;
+    const tr = document.createElement('tr');
+
+    tr.innerHTML = `
+        <td class="text-center stt-cell">${rowCount}</td>
+        <td><input type="text" class="input-full text-center k8s-ip-config-input" placeholder="10.x.x.x"></td>
+        <td><input type="number" class="input-full text-center k8s-cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-ram-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-cint-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
+        <td><input type="number" class="input-full text-center k8s-ram-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" class="k8s-input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
+        <td class="admin-cell">
+            <select class="admin-eval-select k8s-input-config-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note k8s-input-config-note" placeholder="Nhận xét...">
+        </td>
+        <td class="text-center">
+            <button class="btn-delete-row-item" onclick="deleteK8SInputConfigRow(this)">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(tr);
+    applyRolePermissions();
+}
+
+function calculateK8SInputConfigRow(input) {
+    const row = input.closest('tr');
+    const cpuLoadInput = row.querySelector('.k8s-cpu-load-input');
+    const ramLoadInput = row.querySelector('.k8s-ram-load-input');
+    const cintUsedInput = row.querySelector('.k8s-cint-used-input');
+    const ramUsedInput = row.querySelector('.k8s-ram-used-input');
+    const diskUsedInput = row.querySelector('.k8s-disk-used-input');
+
+    const baselineRows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    const rowIndex = Array.from(row.parentNode.children).indexOf(row);
+
+    if (rowIndex < baselineRows.length) {
+        const baselineRow = baselineRows[rowIndex];
+        const baselineCint = parseFloat(baselineRow.querySelector('.k8s-cint-input').value) || 0;
+        const baselineRam = parseFloat(baselineRow.querySelector('.k8s-ram-input').value) || 0;
+        const baselineDisk = parseFloat(baselineRow.querySelector('.k8s-disk-input').value) || 0;
+
+        const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
+        const ramLoad = parseFloat(ramLoadInput.value) || 0;
+        const diskLoad = parseFloat(row.querySelector('.k8s-disk-load-input')?.value) || 0;
+
+        cintUsedInput.value = (baselineCint * cpuLoad / 100).toFixed(2);
+        ramUsedInput.value = (baselineRam * ramLoad / 100).toFixed(2);
+        diskUsedInput.value = (baselineDisk * diskLoad / 100).toFixed(2);
+    }
+
+    updateK8SInputConfigTotal();
+}
+
+function deleteK8SBaselineRow(btn) {
+    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
+        const baselineRow = btn.closest('tr');
+        const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+        baselineRow.remove();
+
+        const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
+        if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+            inputConfigTbody.rows[baselineRowIndex].remove();
+        }
+        updateK8SRowNumbers();
+        updateK8SInputConfigRowNumbers();
+        updateK8SBaselineTotal();
+        updateK8SInputConfigTotal();
+    }
+}
+
+function deleteK8SInputConfigRow(btn) {
+    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
+        btn.closest('tr').remove();
+        updateK8SInputConfigRowNumbers();
+        updateK8SInputConfigTotal();
+    }
+}
+
+function updateK8SRowNumbers() {
+    const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    rows.forEach((row, index) => {
+        const sttCell = row.querySelector('.stt-cell');
+        if (sttCell) sttCell.innerText = index + 1;
+    });
+}
+
+function updateK8SInputConfigRowNumbers() {
+    const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+    rows.forEach((row, index) => {
+        const sttCell = row.querySelector('.stt-cell');
+        if (sttCell) sttCell.innerText = index + 1;
+    });
+}
+
+function updateK8SBaselineTotal() {
+    const totalRamEl = document.getElementById('k8s-total-ram');
+    const totalCintEl = document.getElementById('k8s-total-cint');
+    const totalDiskEl = document.getElementById('k8s-total-disk');
+    if (!totalRamEl || !totalCintEl) return;
+
+    let totalRam = 0, totalCint = 0, totalDisk = 0;
+
+    document.querySelectorAll('#k8s-baseline-table-body .k8s-ram-input').forEach(input => {
+        totalRam += parseFloat(input.value) || 0;
+    });
+    document.querySelectorAll('#k8s-baseline-table-body .k8s-cint-input').forEach(input => {
+        totalCint += parseFloat(input.value) || 0;
+    });
+    document.querySelectorAll('#k8s-baseline-table-body .k8s-disk-input').forEach(input => {
+        totalDisk += parseFloat(input.value) || 0;
+    });
+
+    totalRamEl.innerText = totalRam;
+    totalCintEl.innerText = totalCint;
+    if (totalDiskEl) totalDiskEl.innerText = totalDisk;
+}
+
+function updateK8SInputConfigTotal() {
+    const totalCintUsedEl = document.getElementById('k8s-total-cint-used');
+    const totalRamUsedEl = document.getElementById('k8s-total-ram-used');
+    const totalDiskUsedEl = document.getElementById('k8s-total-disk-used');
+    if (!totalCintUsedEl || !totalRamUsedEl || !totalDiskUsedEl) return;
+
+    let totalCintUsed = 0, totalRamUsed = 0, totalDiskUsed = 0;
+
+    document.querySelectorAll('#k8s-input-config-table-body .k8s-cint-used-input').forEach(input => {
+        totalCintUsed += parseFloat(input.value) || 0;
+    });
+    document.querySelectorAll('#k8s-input-config-table-body .k8s-ram-used-input').forEach(input => {
+        totalRamUsed += parseFloat(input.value) || 0;
+    });
+    document.querySelectorAll('#k8s-input-config-table-body .k8s-disk-used-input').forEach(input => {
+        totalDiskUsed += parseFloat(input.value) || 0;
+    });
+
+    totalCintUsedEl.innerText = totalCintUsed.toFixed(2);
+    totalRamUsedEl.innerText = totalRamUsed.toFixed(2);
+    totalDiskUsedEl.innerText = totalDiskUsed.toFixed(2);
+}
+
+function syncK8SIPToInputConfig(ipInput) {
+    const baselineRow = ipInput.closest('tr');
+    const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+    const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
+
+    if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+        const ipConfigInput = inputConfigTbody.rows[baselineRowIndex].querySelector('.k8s-ip-config-input');
+        if (ipConfigInput) ipConfigInput.value = ipInput.value;
+    }
+}
+
+function recalculateK8SInputConfigForRow(baselineInput) {
+    const baselineRow = baselineInput.closest('tr');
+    const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+    const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
+
+    if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+        const cpuLoadInput = inputConfigTbody.rows[baselineRowIndex].querySelector('.k8s-cpu-load-input');
+        if (cpuLoadInput) calculateK8SInputConfigRow(cpuLoadInput);
+    }
+}
+
+function calculateK8SSizing() {
+    const poc = parseFloat(document.getElementById('k8s-poc-value')?.value) || 0;
+    const sizing = parseFloat(document.getElementById('k8s-sizing-value')?.value) || 0;
+    if (!poc || !sizing) {
+        alert('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".');
+        return;
+    }
+
+    const totalCint = parseFloat(document.getElementById('k8s-total-cint-used')?.innerText) || 0;
+    const totalRam = parseFloat(document.getElementById('k8s-total-ram-used')?.innerText) || 0;
+    const totalDisk = parseFloat(document.getElementById('k8s-total-disk-used')?.innerText) || 0;
+
+    const factor = sizing / poc;
+
+    const cintForTPS = totalCint * factor;
+    const ramForTPS = totalRam * factor;
+    const diskForTPS = totalDisk * factor;
+
+    const cintAfterKPI = cintForTPS / 0.75 * 1.1;
+    const ramAfterKPI = ramForTPS / 0.9 * 1.1;
+    const diskAfterKPI = diskForTPS / 0.8 * 1.1;
+
+    const ketqua = Math.ceil(ramAfterKPI / 32);
+
+    let html = '';
+
+    // Bảng 1: Thông số
+    html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán K8S Worker</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">STT</th>
+                        <th style="width:350px;">Thông số</th>
+                        <th style="width:150px;">K8S Worker</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-center">1</td>
+                        <td>Cintrate cần cho hệ thống</td>
+                        <td class="text-center">${cintForTPS.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalCint.toFixed(2)} × (${sizing} / ${poc}) = ${totalCint.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">2</td>
+                        <td>RAM (GB) cần cho hệ thống</td>
+                        <td class="text-center">${ramForTPS.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalRam.toFixed(2)} × (${sizing} / ${poc}) = ${totalRam.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">3</td>
+                        <td>Disk (GB) cần cho hệ thống</td>
+                        <td class="text-center">${diskForTPS.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalDisk.toFixed(2)} × (${sizing} / ${poc}) = ${totalDisk.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">4</td>
+                        <td>Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${cintForTPS.toFixed(2)} / 0.75 × 1.1. KPI 75%, Sai số 1.1</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">5</td>
+                        <td>RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${ramForTPS.toFixed(2)} / 0.9 × 1.1. KPI 90%, Sai số 1.1</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">6</td>
+                        <td>Disk cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${diskForTPS.toFixed(2)} / 0.8 × 1.1. KPI 80%, Sai số 1.1</textarea></td>
+                    </tr>
+                </tbody>
+            </table>`;
+
+    // Đề xuất
+    html += `<div style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
+                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa <strong>≈ 32 GB RAM</strong>, lựa chọn số N theo RAM: 
+                N = ${ramAfterKPI.toFixed(2)} / 32 ≈ <strong>${ketqua}</strong>
+            </div>`;
+
+    // Bảng 2: Phân bổ theo N
+    const nValues = [
+        { label: 'Ketqua - 1', value: Math.max(1, ketqua - 1) },
+        { label: 'Ketqua', value: ketqua },
+        { label: 'Ketqua + 1', value: ketqua + 1 }
+    ];
+
+    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Bảng phân bổ theo số lượng N</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:120px;">Giá trị N</th>
+                        <th>Cint CPU yêu cầu</th>
+                        <th>RAM yêu cầu</th>
+                        <th>Disk yêu cầu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background:#f0f4f8;">
+                        <td class="text-center">1</td>
+                        <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
+                        <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
+                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
+                    </tr>`;
+
+    nValues.forEach(item => {
+        const cintPerN = cintAfterKPI / item.value;
+        const ramPerN = ramAfterKPI / item.value;
+        const diskPerN = diskAfterKPI / item.value;
+        const isMain = item.label === 'Ketqua';
+
+        html += `<tr${isMain ? ' style="background:#e6ffed; font-weight:600;"' : ''}>
+                    <td class="text-center">${item.value}</td>
+                    <td class="text-center">${cintPerN.toFixed(2)}</td>
+                    <td class="text-center">${ramPerN.toFixed(2)}</td>
+                    <td class="text-center">${diskPerN.toFixed(2)}</td>
+                </tr>`;
+    });
+
+    html += `</tbody></table>`;
+
+    // Bảng 3: Đề xuất cấu hình K8S (3 dòng: K8S Master, K8S Worker, K8S ETCD)
+    const cintPerServer = Math.ceil(cintAfterKPI / ketqua);
+    const ramPerServer = Math.ceil(ramAfterKPI / ketqua);
+    const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
+
+    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:150px;">Thành phần</th>
+                        <th style="width:250px;">Cấu hình</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>K8S Master</strong></td>
+                        <td>
+                            <ul style="margin:0; padding-left:20px;">
+                                <li>CPU: 4 vCPU</li>
+                                <li>RAM: 8 GB</li>
+                                <li>DISK: 100 GB</li>
+                            </ul>
+                        </td>
+                        <td class="text-center"><strong>3</strong></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Storage phải nằm ở 3 cụm storage khác nhau</textarea></td>
+                    </tr>
+                    <tr style="background:#e6ffed;">
+                        <td><strong>K8S Worker</strong></td>
+                        <td>
+                            <ul style="margin:0; padding-left:20px;">
+                                <li>CPU: = ${cintPerServer} Cint</li>
+                                <li>RAM: = ${ramPerServer} GB</li>
+                                <li>DISK: = ${diskPerServer} GB</li>
+                            </ul>
+                        </td>
+                        <td class="text-center"><strong>${ketqua + 1}</strong></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Dự phòng N+1</textarea></td>
+                    </tr>
+                    <tr>
+                        <td><strong>K8S ETCD</strong></td>
+                        <td>
+                            <ul style="margin:0; padding-left:20px;">
+                                <li>CPU: 4 vCPU</li>
+                                <li>RAM: 8 GB</li>
+                                <li>DISK: 100 GB</li>
+                            </ul>
+                        </td>
+                        <td class="text-center"><strong>3</strong></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Storage phải nằm ở 3 cụm storage khác nhau</textarea></td>
+                    </tr>
+                </tbody>
+            </table>`;
+
+    const container = document.getElementById('k8s-result-container');
+    if (container) container.innerHTML = html;
+}
+
+function collectK8SBaselineTableData() {
+    const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    const data = [];
+    rows.forEach((row, index) => {
+        const evidenceImg = row.querySelector('.inline-evidence-img');
+        data.push({
+            stt: index + 1,
+            ip: row.querySelector('.k8s-ip-input')?.value || '',
+            cpu: row.querySelector('.k8s-cpu-input')?.value || '',
+            ram: row.querySelector('.k8s-ram-input')?.value || '',
+            disk: row.querySelector('.k8s-disk-input')?.value || '',
+            cintRate: row.querySelector('.k8s-cint-input')?.value || '',
+            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : ''
+        });
+    });
+    return data;
+}
+
+function collectK8SInputConfigTableData() {
+    const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+    const data = [];
+    rows.forEach((row, index) => {
+        const evidenceImg = row.querySelector('.inline-evidence-img');
+        data.push({
+            stt: index + 1,
+            ip: row.querySelector('.k8s-ip-config-input')?.value || '',
+            cpuLoad: row.querySelector('.k8s-cpu-load-input')?.value || '',
+            ramLoad: row.querySelector('.k8s-ram-load-input')?.value || '',
+            diskLoad: row.querySelector('.k8s-disk-load-input')?.value || '',
+            cintUsed: row.querySelector('.k8s-cint-used-input')?.value || '',
+            ramUsed: row.querySelector('.k8s-ram-used-input')?.value || '',
+            diskUsed: row.querySelector('.k8s-disk-used-input')?.value || '',
+            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : '',
+            adminEval: row.querySelector('.k8s-input-config-eval')?.value || '',
+            adminNote: row.querySelector('.k8s-input-config-note')?.value || ''
+        });
+    });
+    return data;
+}
+
+function collectK8SData() {
+    return {
+        baselineTable: collectK8SBaselineTableData(),
+        inputConfigTable: collectK8SInputConfigTableData(),
+        selectedInputRow: document.getElementById('k8s-input-row-select')?.value || '',
+        pocValue: document.getElementById('k8s-poc-value')?.value || '',
+        sizingValue: document.getElementById('k8s-sizing-value')?.value || '',
+        sizingResult: (() => {
+            const container = document.getElementById('k8s-result-container');
+            if (container) {
+                container.querySelectorAll('textarea').forEach(ta => { ta.textContent = ta.value; });
+                return container.innerHTML;
+            }
+            return '';
+        })()
+    };
+}
+
+function loadK8SData(data) {
+    if (!data) return;
+
+    // Load baseline table
+    if (data.baselineTable && Array.isArray(data.baselineTable) && data.baselineTable.length > 0) {
+        const tbody = document.getElementById('k8s-baseline-table-body');
+        if (tbody) {
+            tbody.innerHTML = '';
+            const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
+            if (inputConfigTbody) inputConfigTbody.innerHTML = '';
+
+            data.baselineTable.forEach(row => {
+                addK8SBaselineRow();
+                const lastRow = tbody.lastElementChild;
+                if (lastRow) {
+                    const ipInput = lastRow.querySelector('.k8s-ip-input');
+                    const cpuInput = lastRow.querySelector('.k8s-cpu-input');
+                    const ramInput = lastRow.querySelector('.k8s-ram-input');
+                    const diskInput = lastRow.querySelector('.k8s-disk-input');
+                    const cintInput = lastRow.querySelector('.k8s-cint-input');
+
+                    if (ipInput) ipInput.value = row.ip || '';
+                    if (cpuInput) cpuInput.value = row.cpu || '';
+                    if (ramInput) ramInput.value = row.ram || '';
+                    if (diskInput) diskInput.value = row.disk || '';
+                    if (cintInput) cintInput.value = row.cintRate || '';
+
+                    if (row.evidenceImage) {
+                        const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                        if (evidenceCell) loadInlineEvidence(evidenceCell, row.evidenceImage);
+                    }
+                }
+            });
+            updateK8SBaselineTotal();
+        }
+    }
+
+    // Load input config table
+    if (data.inputConfigTable && Array.isArray(data.inputConfigTable) && data.inputConfigTable.length > 0) {
+        const tbody = document.getElementById('k8s-input-config-table-body');
+        if (tbody) {
+            tbody.innerHTML = '';
+            data.inputConfigTable.forEach(row => {
+                addK8SInputConfigRow();
+                const lastRow = tbody.lastElementChild;
+                if (lastRow) {
+                    const ipInput = lastRow.querySelector('.k8s-ip-config-input');
+                    const cpuLoadInput = lastRow.querySelector('.k8s-cpu-load-input');
+                    const ramLoadInput = lastRow.querySelector('.k8s-ram-load-input');
+                    const diskLoadInput = lastRow.querySelector('.k8s-disk-load-input');
+                    const cintUsedInput = lastRow.querySelector('.k8s-cint-used-input');
+                    const ramUsedInput = lastRow.querySelector('.k8s-ram-used-input');
+                    const diskUsedInput = lastRow.querySelector('.k8s-disk-used-input');
+
+                    if (ipInput) ipInput.value = row.ip || '';
+                    if (cpuLoadInput) cpuLoadInput.value = row.cpuLoad || '';
+                    if (ramLoadInput) ramLoadInput.value = row.ramLoad || '';
+                    if (diskLoadInput) diskLoadInput.value = row.diskLoad || '';
+                    if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
+                    if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
+                    if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
+
+                    if (row.evidenceImage) {
+                        const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                        if (evidenceCell) loadInlineEvidence(evidenceCell, row.evidenceImage);
+                    }
+
+                    const evalSelect = lastRow.querySelector('.k8s-input-config-eval');
+                    const noteInput = lastRow.querySelector('.k8s-input-config-note');
+                    if (evalSelect && row.adminEval) { evalSelect.value = row.adminEval; styleAdminSelect(evalSelect); }
+                    if (noteInput && row.adminNote) noteInput.value = row.adminNote;
+                }
+            });
+            updateK8SInputConfigTotal();
+        }
+    }
+
+    // Load POC and Sizing values
+    if (data.selectedInputRow !== undefined && data.selectedInputRow !== '' && document.getElementById('k8s-input-row-select')) {
+        document.getElementById('k8s-input-row-select').value = data.selectedInputRow;
+        onInputRowSelect(document.getElementById('k8s-input-row-select'), 'k8s-poc-value', 'k8s-sizing-value');
+    }
+    if (data.pocValue && document.getElementById('k8s-poc-value')) {
+        document.getElementById('k8s-poc-value').value = data.pocValue;
+    }
+    if (data.sizingValue && document.getElementById('k8s-sizing-value')) {
+        document.getElementById('k8s-sizing-value').value = data.sizingValue;
+    }
+
+    // Load sizing result
+    if (data.sizingResult && document.getElementById('k8s-result-container')) {
+        document.getElementById('k8s-result-container').innerHTML = data.sizingResult;
+    }
+
+    // Auto expand if has data
+    if (data.pocValue || data.sizingValue || data.sizingResult ||
+        (data.baselineTable && data.baselineTable.length > 0)) {
+        const content = document.getElementById('module-k8s-content');
+        const header = content?.previousElementSibling;
+        if (content && !content.classList.contains('expanded')) {
+            content.classList.add('expanded');
+            if (header) header.classList.add('active');
+        }
+    }
+}
+
+// ==================== MODULE LB/FW FUNCTIONS ====================
+
+function addLBFWEvidenceSlot() {
+    const grid = document.getElementById('lbfw-evidence-grid');
+    if (!grid) return;
+
+    const slot = document.createElement('div');
+    slot.className = 'upload-box';
+    slot.innerHTML = `
+        <input type="file" accept="image/*" onchange="handleLBFWEvidenceUpload(this)" style="display:none">
+        <div class="preview-area"></div>
+        <div class="upload-placeholder" onclick="this.parentElement.querySelector('input[type=file]').click()">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Click để upload</span>
+        </div>
+    `;
+    grid.appendChild(slot);
+}
+
+function handleLBFWEvidenceUpload(input) {
+    const slot = input.closest('.upload-box');
+    const previewArea = slot.querySelector('.preview-area');
+    const placeholder = slot.querySelector('.upload-placeholder');
+
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewArea.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                    <img src="${e.target.result}" alt="Evidence" style="display:none;">
+                    <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button type="button" class="btn-remove-evidence" onclick="deleteLBFWEvidenceSlot(this)" title="Xóa ảnh">
+                        ✖
+                    </button>
+                </div>
+            `;
+            placeholder.style.display = 'none';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function deleteLBFWEvidenceSlot(btn) {
+    if (confirm('Bạn có chắc muốn xóa ảnh này?')) {
+        const slot = btn.closest('.upload-box');
+        slot.remove();
+    }
+}
+
+function collectLBFWEvidenceData() {
+    const grid = document.getElementById('lbfw-evidence-grid');
+    if (!grid) return [];
+
+    const images = [];
+    grid.querySelectorAll('.upload-box').forEach((box, index) => {
+        const img = box.querySelector('.preview-area img');
+        if (img && img.src && !img.src.includes('placeholder') && !img.src.endsWith('#')) {
+            images.push({ index: index, dataUrl: img.src });
+        }
+    });
+    return images;
+}
+
+function calculateLBFWSizing() {
+    const poc = parseFloat(document.getElementById('lbfw-poc-value')?.value) || 0;
+    const sizing = parseFloat(document.getElementById('lbfw-sizing-value')?.value) || 0;
+    if (!poc || !sizing) {
+        alert('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".');
+        return;
+    }
+
+    const peakUpload = parseFloat(document.getElementById('lbfw-peak-upload')?.value) || 0;
+    const peakDownload = parseFloat(document.getElementById('lbfw-peak-download')?.value) || 0;
+
+    if (!peakUpload && !peakDownload) {
+        alert('Vui lòng nhập Peak Upload hoặc Peak Download.');
+        return;
+    }
+
+    const factor = sizing / poc;
+    const scaledUpload = peakUpload * factor;
+    const scaledDownload = peakDownload * factor;
+    const totalBandwidth = scaledUpload + scaledDownload;
+    const totalBandwidthGbps = (totalBandwidth / 1000).toFixed(4);
+
+    let html = '';
+
+    html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán băng thông</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">STT</th>
+                        <th style="width:350px;">Thông số</th>
+                        <th style="width:150px;">Giá trị (Mbps)</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-center">1</td>
+                        <td>Peak Upload sau định cỡ</td>
+                        <td class="text-center">${scaledUpload.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${peakUpload} × (${sizing} / ${poc}) = ${peakUpload} × ${factor.toFixed(4)}</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">2</td>
+                        <td>Peak Download sau định cỡ</td>
+                        <td class="text-center">${scaledDownload.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${peakDownload} × (${sizing} / ${poc}) = ${peakDownload} × ${factor.toFixed(4)}</textarea></td>
+                    </tr>
+                    <tr style="background:#e6ffed; font-weight:600;">
+                        <td class="text-center">3</td>
+                        <td>Tổng băng thông (Upload + Download)</td>
+                        <td class="text-center">${totalBandwidth.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${scaledUpload.toFixed(2)} + ${scaledDownload.toFixed(2)} = ${totalBandwidth.toFixed(2)} Mbps ≈ ${totalBandwidthGbps} Gbps</textarea></td>
+                    </tr>
+                </tbody>
+            </table>`;
+
+    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:150px;">Thành phần</th>
+                        <th style="width:250px;">Thông lượng</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background:#e6ffed;">
+                        <td><strong>FW/LB</strong></td>
+                        <td class="text-center"><strong>Thông lượng < ${totalBandwidthGbps} Gbps</strong></td>
+                        <td class="text-center"></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;"></textarea></td>
+                    </tr>
+                </tbody>
+            </table>`;
+
+    const container = document.getElementById('lbfw-result-container');
+    if (container) container.innerHTML = html;
+}
+
+function collectLBFWData() {
+    return {
+        evidenceImages: collectLBFWEvidenceData(),
+        peakUpload: document.getElementById('lbfw-peak-upload')?.value || '',
+        peakDownload: document.getElementById('lbfw-peak-download')?.value || '',
+        selectedInputRow: document.getElementById('lbfw-input-row-select')?.value || '',
+        pocValue: document.getElementById('lbfw-poc-value')?.value || '',
+        sizingValue: document.getElementById('lbfw-sizing-value')?.value || '',
+        sizingResult: (() => {
+            const container = document.getElementById('lbfw-result-container');
+            if (container) {
+                container.querySelectorAll('textarea').forEach(ta => { ta.textContent = ta.value; });
+                return container.innerHTML;
+            }
+            return '';
+        })()
+    };
+}
+
+function loadLBFWData(data) {
+    if (!data) return;
+
+    // Load evidence images
+    if (data.evidenceImages && Array.isArray(data.evidenceImages) && data.evidenceImages.length > 0) {
+        const grid = document.getElementById('lbfw-evidence-grid');
+        if (grid) {
+            grid.innerHTML = '';
+            data.evidenceImages.forEach(imgData => {
+                addLBFWEvidenceSlot();
+                const lastSlot = grid.lastElementChild;
+                if (lastSlot && imgData.dataUrl) {
+                    const previewArea = lastSlot.querySelector('.preview-area');
+                    const placeholder = lastSlot.querySelector('.upload-placeholder');
+                    previewArea.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                            <img src="${imgData.dataUrl}" alt="Evidence" style="display:none;">
+                            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            <button type="button" class="btn-remove-evidence" onclick="deleteLBFWEvidenceSlot(this)" title="Xóa ảnh">
+                                ✖
+                            </button>
+                        </div>
+                    `;
+                    if (placeholder) placeholder.style.display = 'none';
+                }
+            });
+        }
+    }
+
+    // Load peak values
+    if (data.peakUpload && document.getElementById('lbfw-peak-upload')) {
+        document.getElementById('lbfw-peak-upload').value = data.peakUpload;
+    }
+    if (data.peakDownload && document.getElementById('lbfw-peak-download')) {
+        document.getElementById('lbfw-peak-download').value = data.peakDownload;
+    }
+
+    // Load POC and Sizing
+    if (data.selectedInputRow !== undefined && data.selectedInputRow !== '' && document.getElementById('lbfw-input-row-select')) {
+        document.getElementById('lbfw-input-row-select').value = data.selectedInputRow;
+        onInputRowSelect(document.getElementById('lbfw-input-row-select'), 'lbfw-poc-value', 'lbfw-sizing-value');
+    }
+    if (data.pocValue && document.getElementById('lbfw-poc-value')) {
+        document.getElementById('lbfw-poc-value').value = data.pocValue;
+    }
+    if (data.sizingValue && document.getElementById('lbfw-sizing-value')) {
+        document.getElementById('lbfw-sizing-value').value = data.sizingValue;
+    }
+
+    // Load sizing result
+    if (data.sizingResult && document.getElementById('lbfw-result-container')) {
+        document.getElementById('lbfw-result-container').innerHTML = data.sizingResult;
+    }
+
+    // Auto expand if has data
+    if (data.peakUpload || data.peakDownload || data.sizingResult ||
+        (data.evidenceImages && data.evidenceImages.length > 0)) {
+        const content = document.getElementById('module-lbfw-content');
+        const header = content?.previousElementSibling;
+        if (content && !content.classList.contains('expanded')) {
+            content.classList.add('expanded');
+            if (header) header.classList.add('active');
+        }
+    }
+}
+
+// Parse kết quả Module K8S
+function parseK8SSizingResult(html) {
+    if (!html || html.trim() === '') return null;
+
+    const results = [];
+
+    // K8S Master - fixed config
+    const masterMatch = html.match(/K8S Master[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
+    if (masterMatch) {
+        const listContent = masterMatch[1];
+        const vcpu = listContent.match(/(\d+)\s*vCPU/i);
+        const ram = listContent.match(/(\d+)\s*GB/i);
+        const disk = listContent.match(/DISK[:\s]*(\d+)\s*GB/i);
+        let cauHinh = '';
+        if (vcpu) cauHinh += `- vCPU = ${vcpu[1]}\n`;
+        if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
+        if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
+        results.push({
+            module: 'K8S Master',
+            cauHinh: cauHinh.replace(/\n/g, '<br>'),
+            soLuong: masterMatch[2],
+            ghiChu: 'Storage phải nằm ở 3 cụm storage khác nhau'
+        });
+    }
+
+    // K8S Worker - calculated
+    const workerMatch = html.match(/K8S Worker[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
+    if (workerMatch) {
+        const listContent = workerMatch[1];
+        const cpuCint = listContent.match(/CPU[:\s]*=?\s*(\d+)\s*Cint/i);
+        const ram = listContent.match(/RAM[:\s]*=?\s*(\d+)\s*GB/i);
+        const disk = listContent.match(/DISK[:\s]*=?\s*(\d+)\s*GB/i);
+        let cauHinh = '';
+        if (cpuCint) cauHinh += `- CPU = ${cpuCint[1]} Cint\n`;
+        if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
+        if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
+        results.push({
+            module: 'K8S Worker',
+            cauHinh: cauHinh.replace(/\n/g, '<br>'),
+            soLuong: workerMatch[2],
+            ghiChu: 'Dự phòng N+1'
+        });
+    }
+
+    // K8S ETCD - fixed config
+    const etcdMatch = html.match(/K8S ETCD[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
+    if (etcdMatch) {
+        const listContent = etcdMatch[1];
+        const vcpu = listContent.match(/(\d+)\s*vCPU/i);
+        const ram = listContent.match(/(\d+)\s*GB/i);
+        const disk = listContent.match(/DISK[:\s]*(\d+)\s*GB/i);
+        let cauHinh = '';
+        if (vcpu) cauHinh += `- vCPU = ${vcpu[1]}\n`;
+        if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
+        if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
+        results.push({
+            module: 'K8S ETCD',
+            cauHinh: cauHinh.replace(/\n/g, '<br>'),
+            soLuong: etcdMatch[2],
+            ghiChu: 'Storage phải nằm ở 3 cụm storage khác nhau'
+        });
+    }
+
+    return results.length > 0 ? results : null;
+}
+
+// Parse kết quả Module LB/FW
+function parseLBFWSizingResult(html) {
+    if (!html || html.trim() === '') return null;
+
+    const throughputGbpsMatch = html.match(/Thông lượng\s*<\s*([\d.]+)\s*Gbps/i);
+    const throughputMbpsMatch = html.match(/Tổng băng thông[\s\S]*?<td[^>]*class="text-center"[^>]*>([\d.]+)<\/td>/i);
+
+    if (!throughputGbpsMatch && !throughputMbpsMatch) return null;
+
+    const throughputDisplay = throughputGbpsMatch
+        ? `Thông lượng < ${throughputGbpsMatch[1]} Gbps`
+        : `Thông lượng ≈ ${(parseFloat(throughputMbpsMatch[1]) / 1000).toFixed(4)} Gbps`;
+
+    return {
+        cauHinh: throughputDisplay,
+        soLuong: '',
+        ghiChu: ''
+    };
 }
 
 // ==================== MODULE MARIADB FUNCTIONS ====================
@@ -4405,6 +5581,13 @@ function loadMariaDBData(data) {
     if (noteEl && data.note) noteEl.value = data.note;
     
     // Load input values
+    if (data.selectedInputRow !== undefined && data.selectedInputRow !== '') {
+        const select = document.getElementById('mariadb-input-row-select');
+        if (select) {
+            select.value = data.selectedInputRow;
+            onInputRowSelect(select, 'mariadb-input-ccu', 'mariadb-sizing-ccu');
+        }
+    }
     const inputCCU = document.getElementById('mariadb-input-ccu');
     const sizingCCU = document.getElementById('mariadb-sizing-ccu');
     if (inputCCU && data.inputCCU) inputCCU.value = data.inputCCU;
@@ -4459,6 +5642,7 @@ function collectMariaDBData() {
         refTable: collectMariaDBRefTableData(),
         storage: collectMariaDBStorageData(),
         note: document.getElementById('mariadb-note')?.value || '',
+        selectedInputRow: document.getElementById('mariadb-input-row-select')?.value || '',
         inputCCU: document.getElementById('mariadb-input-ccu')?.value || '',
         sizingCCU: document.getElementById('mariadb-sizing-ccu')?.value || '',
         resultHTML: document.getElementById('mariadb-result-container')?.innerHTML || ''
@@ -5111,6 +6295,7 @@ function collectRedisData() {
         selectedMethod: selectedMethod,
         // Phương pháp Key
         keyMethod: {
+            selectedInputRow: document.getElementById('redis-key-input-row-select')?.value || '',
             pocValue: document.getElementById('redis-key-poc')?.value || '',
             sizingValue: document.getElementById('redis-key-sizing')?.value || '',
             keyCountPoc: document.getElementById('redis-key-count-poc')?.value || '',
@@ -5124,6 +6309,7 @@ function collectRedisData() {
         configMethod: {
             currentModel: document.getElementById('redis-current-model')?.value || 'cluster',
             configTable: collectRedisConfigTableData(),
+            selectedInputRow: document.getElementById('redis-config-input-row-select')?.value || '',
             inputCCU: document.getElementById('redis-config-input-ccu')?.value || '',
             sizingCCU: document.getElementById('redis-config-sizing-ccu')?.value || '',
             importance: document.getElementById('redis-config-importance')?.value || 'normal',
@@ -5144,6 +6330,13 @@ function loadRedisData(data) {
     // Load phương pháp Key
     if (data.keyMethod) {
         const km = data.keyMethod;
+        if (km.selectedInputRow !== undefined && km.selectedInputRow !== '') {
+            const select = document.getElementById('redis-key-input-row-select');
+            if (select) {
+                select.value = km.selectedInputRow;
+                onInputRowSelect(select, 'redis-key-poc', 'redis-key-sizing');
+            }
+        }
         if (km.pocValue) document.getElementById('redis-key-poc').value = km.pocValue;
         if (km.sizingValue) document.getElementById('redis-key-sizing').value = km.sizingValue;
         if (km.keyCountPoc) document.getElementById('redis-key-count-poc').value = km.keyCountPoc;
@@ -5180,6 +6373,13 @@ function loadRedisData(data) {
     if (data.configMethod) {
         const cm = data.configMethod;
         if (cm.currentModel) document.getElementById('redis-current-model').value = cm.currentModel;
+        if (cm.selectedInputRow !== undefined && cm.selectedInputRow !== '') {
+            const select = document.getElementById('redis-config-input-row-select');
+            if (select) {
+                select.value = cm.selectedInputRow;
+                onInputRowSelect(select, 'redis-config-input-ccu', 'redis-config-sizing-ccu');
+            }
+        }
         if (cm.inputCCU) document.getElementById('redis-config-input-ccu').value = cm.inputCCU;
         if (cm.sizingCCU) document.getElementById('redis-config-sizing-ccu').value = cm.sizingCCU;
         if (cm.importance) document.getElementById('redis-config-importance').value = cm.importance;
@@ -5440,15 +6640,25 @@ function findOptimalKafkaN(S, R) {
 
 // Tính toán theo phương pháp Throughput
 function calculateKafkaThroughputMethod() {
-    const A = parseFloat(document.getElementById('kafka-throughput-a')?.value) || 0;
+    const A_poc = parseFloat(document.getElementById('kafka-throughput-a')?.value) || 0;
     const T = parseFloat(document.getElementById('kafka-retention-time')?.value) || 168;
     const R = parseFloat(document.getElementById('kafka-replication-factor')?.value) || 3;
     const C = parseFloat(document.getElementById('kafka-compression')?.value) || 0.5;
+    const pocVal = parseFloat(document.getElementById('kafka-throughput-input-ccu')?.value) || 0;
+    const sizingVal = parseFloat(document.getElementById('kafka-throughput-sizing-ccu')?.value) || 0;
     
-    if (!A) {
+    if (!A_poc) {
         alert('Vui lòng nhập Lưu lượng vào (Write) - A!');
         return;
     }
+    if (!pocVal || !sizingVal) {
+        alert('Vui lòng chọn dòng đầu vào (POC & Định cỡ)!');
+        return;
+    }
+    
+    // Tính A thực tế theo tỉ lệ Định cỡ / POC
+    const ratio = sizingVal / pocVal;
+    const A = A_poc * ratio;
     
     // Tổng Disk Cluster: D = A * 3600 * T * R * C * 1.1 / 0.8 (MB)
     const D_MB = A * 3600 * T * R * C * 1.1 / 0.8;
@@ -5470,11 +6680,14 @@ function calculateKafkaThroughputMethod() {
     html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin đầu vào</h4>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-            <li><strong>Lưu lượng vào (A):</strong> ${A} MB/s</li>
+            <li><strong>Lưu lượng vào POC (A₀):</strong> ${A_poc} MB/s</li>
+            <li><strong>POC:</strong> ${pocVal} &nbsp;|&nbsp; <strong>Định cỡ:</strong> ${sizingVal}</li>
+            <li><strong>Hệ số (Định cỡ/POC):</strong> ${sizingVal} / ${pocVal} = ${ratio.toFixed(4)}</li>
+            <li><strong>Lưu lượng định cỡ (A):</strong> A₀ × (Định cỡ/POC) = ${A_poc} × ${ratio.toFixed(4)} = <strong>${A.toFixed(4)} MB/s</strong></li>
             <li><strong>Thời gian lưu trữ (T):</strong> ${T} giờ (${T/24} ngày)</li>
             <li><strong>Hệ số nhân bản (R):</strong> ${R}</li>
             <li><strong>Hệ số nén (C):</strong> ${C}</li>
-            <li><strong>S (dữ liệu 30 phút):</strong> A × 1800 / 1024 = ${A} × 1800 = ${S.toFixed(2)} GB</li>
+            <li><strong>S (dữ liệu 30 phút):</strong> A × 1800 / 1024 = ${A.toFixed(4)} × 1800 / 1024 = ${S.toFixed(2)} GB</li>
         </ul>
     </div>`;
     
@@ -5482,7 +6695,7 @@ function calculateKafkaThroughputMethod() {
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;"><i class="fa-solid fa-hard-drive"></i> Tổng Disk Cluster</h4>
         <p style="margin: 0; font-size: 14px;">
             <strong>D = A × 3600 × T × R × C × 1.1 / 0.8</strong><br>
-            D = ${A} × 3600 × ${T} × ${R} × ${C} × 1.1 / 0.8<br>
+            D = ${A.toFixed(4)} × 3600 × ${T} × ${R} × ${C} × 1.1 / 0.8<br>
             D = <strong>${D_MB.toFixed(2)} MB</strong> = <strong>${D_GB.toFixed(2)} GB</strong> = <strong>${D_TB.toFixed(4)} TB</strong>
         </p>
     </div>`;
@@ -5692,6 +6905,9 @@ function collectKafkaData() {
         selectedMethod: selectedMethod,
         // Phương pháp Throughput
         throughputMethod: {
+            selectedInputRow: document.getElementById('kafka-throughput-input-row-select')?.value || '',
+            inputCCU: document.getElementById('kafka-throughput-input-ccu')?.value || '',
+            sizingCCU: document.getElementById('kafka-throughput-sizing-ccu')?.value || '',
             throughputA: document.getElementById('kafka-throughput-a')?.value || '',
             retentionTime: document.getElementById('kafka-retention-time')?.value || '168',
             replicationFactor: document.getElementById('kafka-replication-factor')?.value || '3',
@@ -5708,6 +6924,7 @@ function collectKafkaData() {
         // Phương pháp Linear
         linearMethod: {
             linearTable: collectKafkaLinearTableData(),
+            selectedInputRow: document.getElementById('kafka-linear-input-row-select')?.value || '',
             inputCCU: document.getElementById('kafka-linear-input-ccu')?.value || '',
             sizingCCU: document.getElementById('kafka-linear-sizing-ccu')?.value || '',
             resultHTML: document.getElementById('kafka-linear-result-container')?.innerHTML || ''
@@ -5727,6 +6944,15 @@ function loadKafkaData(data) {
     // Load phương pháp Throughput
     if (data.throughputMethod) {
         const tm = data.throughputMethod;
+        if (tm.selectedInputRow !== undefined && tm.selectedInputRow !== '') {
+            const select = document.getElementById('kafka-throughput-input-row-select');
+            if (select) {
+                select.value = tm.selectedInputRow;
+                onInputRowSelect(select, 'kafka-throughput-input-ccu', 'kafka-throughput-sizing-ccu');
+            }
+        }
+        if (tm.inputCCU) document.getElementById('kafka-throughput-input-ccu').value = tm.inputCCU;
+        if (tm.sizingCCU) document.getElementById('kafka-throughput-sizing-ccu').value = tm.sizingCCU;
         if (tm.throughputA) document.getElementById('kafka-throughput-a').value = tm.throughputA;
         if (tm.retentionTime) document.getElementById('kafka-retention-time').value = tm.retentionTime;
         if (tm.replicationFactor) document.getElementById('kafka-replication-factor').value = tm.replicationFactor;
@@ -5752,6 +6978,13 @@ function loadKafkaData(data) {
     // Load phương pháp Linear
     if (data.linearMethod) {
         const lm = data.linearMethod;
+        if (lm.selectedInputRow !== undefined && lm.selectedInputRow !== '') {
+            const select = document.getElementById('kafka-linear-input-row-select');
+            if (select) {
+                select.value = lm.selectedInputRow;
+                onInputRowSelect(select, 'kafka-linear-input-ccu', 'kafka-linear-sizing-ccu');
+            }
+        }
         if (lm.inputCCU) document.getElementById('kafka-linear-input-ccu').value = lm.inputCCU;
         if (lm.sizingCCU) document.getElementById('kafka-linear-sizing-ccu').value = lm.sizingCCU;
         
@@ -6734,7 +7967,6 @@ function renderSizingDiff(snapshot, prevSnapshot) {
     // ===================== MODULE APP =====================
     const moduleApp = data.moduleApp || {};
     const prevModuleApp = prevData.moduleApp || {};
-    const moduleAppAdmin = (adminReview.moduleApp || {}).overallReview || {};
     
     let appHtml = '';
     
@@ -6831,10 +8063,6 @@ function renderSizingDiff(snapshot, prevSnapshot) {
         appHtml += `<div class="diff-item"><strong>Ảnh sở cứ Module App</strong> (${evidenceImgs.length} ảnh)<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">${thumbs}</div></div>`;
     }
     
-    // Admin overall review
-    if (moduleAppAdmin.eval || moduleAppAdmin.note) {
-        appHtml += `<div class="diff-item"><strong>Admin đánh giá Module App:</strong> ${renderEvalDiff(moduleAppAdmin.eval, null)} <span style="color:#6366f1; font-style:italic;">${moduleAppAdmin.note || ''}</span></div>`;
-    }
     
     if (appHtml) {
         html += `<div style="margin-bottom:20px; padding:12px; background:#f8fafc; border-radius:8px; border-left:4px solid #3b82f6;">
@@ -6844,7 +8072,6 @@ function renderSizingDiff(snapshot, prevSnapshot) {
     // ===================== MODULE MARIADB =====================
     const moduleMariaDB = data.moduleMariaDB || {};
     const prevModuleMariaDB = prevData.moduleMariaDB || {};
-    const mariadbAdmin = (adminReview.moduleMariaDB || {}).overallReview || {};
     let mariadbHtml = '';
     
     // Ref table
@@ -6881,9 +8108,6 @@ function renderSizingDiff(snapshot, prevSnapshot) {
         mariadbHtml += `<div class="diff-item"><strong>Đánh giá Storage:</strong> ${renderEvalDiff(mariadbStorageReview.eval, null)} <span style="color:#6366f1; font-style:italic;">${mariadbStorageReview.note || ''}</span></div>`;
     }
     
-    if (mariadbAdmin.eval || mariadbAdmin.note) {
-        mariadbHtml += `<div class="diff-item"><strong>Admin đánh giá tổng thể:</strong> ${renderEvalDiff(mariadbAdmin.eval, null)} <span style="color:#6366f1; font-style:italic;">${mariadbAdmin.note || ''}</span></div>`;
-    }
     
     if (mariadbHtml) {
         html += `<div style="margin-bottom:20px; padding:12px; background:#fefce8; border-radius:8px; border-left:4px solid #eab308;">
