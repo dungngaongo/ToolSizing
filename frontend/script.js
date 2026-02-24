@@ -754,20 +754,12 @@ function resetAllForms() {
         select.classList.remove('status-ok', 'status-nok');
     });
 
-    // Reset bảng input
+    // Reset bảng input - sử dụng createInputTableRow để đảm bảo đúng cấu trúc có upload ảnh
     const inputBody = document.getElementById('input-table-body');
     if (inputBody) {
-        inputBody.innerHTML = `
-            <tr>
-                <td>1</td>
-                <td><textarea rows="3" placeholder="Ví dụ: Tổng số người dùng CCU" class="input-textarea"></textarea></td>
-                <td><textarea rows="3" class="input-textarea"></textarea></td>
-                <td><textarea rows="3" class="input-textarea"></textarea></td>
-                <td><input type="text"></td>
-                <td><textarea rows="3" class="input-textarea"></textarea></td>
-                <td><button class="btn-delete" onclick="removeRow(this)">✖</button></td>
-            </tr>
-        `;
+        inputBody.innerHTML = '';
+        const tr = createInputTableRow(1);
+        inputBody.appendChild(tr);
     }
     
     // Reset tabs
@@ -907,9 +899,11 @@ function loadYeuCauBaiToan(data) {
         // Cột User Input (Cột 2)
         const userInput = row.cells[1].querySelector('input');
         const userSelect = row.cells[1].querySelector('select');
+        const userTextarea = row.cells[1].querySelector('textarea');
         
         if (userInput) userInput.value = value || '';
         if (userSelect) userSelect.value = value || '';
+        if (userTextarea) userTextarea.value = value || '';
 
         // Cột Admin (Cột 3 & 4)
         if (adminData) {
@@ -1066,13 +1060,7 @@ function loadMoHinhHeThong(data, admin) {
             loadImagesToContainer('connection', data.connectionImages);
         }
 
-        // Load connection admin review
-        if (adminObj && adminObj.connection) {
-            const connEval = document.getElementById('eval-connection');
-            const connNote = document.getElementById('note-connection');
-            if (connEval) { connEval.value = adminObj.connection.eval || ''; styleAdminSelect(connEval); }
-            if (connNote) connNote.value = adminObj.connection.note || '';
-        }
+        // Load connection row admin reviews
         if (adminObj && adminObj.connectionRowReviews && Array.isArray(adminObj.connectionRowReviews)) {
             const connBody = document.getElementById('connection-info-table-body');
             if (connBody) {
@@ -1105,7 +1093,8 @@ function collectYeuCauBaiToan() {
         if (!row) return '';
         const input = row.cells[1].querySelector('input');
         const select = row.cells[1].querySelector('select');
-        return input ? input.value : (select ? select.value : '');
+        const textarea = row.cells[1].querySelector('textarea');
+        return input ? input.value : (select ? select.value : (textarea ? textarea.value : ''));
     };
 
     // Helper lấy Admin Data
@@ -1614,19 +1603,19 @@ function createArchTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td>${stt}</td>
-        <td><input type="text" placeholder="Tên nghiệp vụ" value="${data.nghiepVu || ''}"></td>
+        <td><input type="text" placeholder="Tên module" value="${data.moduleName || ''}"></td>
         <td>
             <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
                 <option value="">-- Chọn --</option>
-                <option value="Web App" ${data.module === 'Web App' ? 'selected' : ''}>Web App</option>
-                <option value="Redis" ${data.module === 'Redis' ? 'selected' : ''}>Redis</option>
-                <option value="Oracle RAC" ${data.module === 'Oracle RAC' ? 'selected' : ''}>Oracle RAC</option>
-                <option value="MariaDB" ${data.module === 'MariaDB' ? 'selected' : ''}>MariaDB</option>
-                <option value="PostgreSQL" ${data.module === 'PostgreSQL' ? 'selected' : ''}>PostgreSQL</option>
-                <option value="MongoDB" ${data.module === 'MongoDB' ? 'selected' : ''}>MongoDB</option>
-                <option value="MinIO" ${data.module === 'MinIO' ? 'selected' : ''}>MinIO</option>
-                <option value="Kafka" ${data.module === 'Kafka' ? 'selected' : ''}>Kafka</option>
-                <option value="Other" ${data.module === 'Other' ? 'selected' : ''}>Khác</option>
+                <option value="Web App" ${data.loaiModule === 'Web App' ? 'selected' : ''}>Web App</option>
+                <option value="Redis" ${data.loaiModule === 'Redis' ? 'selected' : ''}>Redis</option>
+                <option value="Oracle RAC" ${data.loaiModule === 'Oracle RAC' ? 'selected' : ''}>Oracle RAC</option>
+                <option value="MariaDB" ${data.loaiModule === 'MariaDB' ? 'selected' : ''}>MariaDB</option>
+                <option value="PostgreSQL" ${data.loaiModule === 'PostgreSQL' ? 'selected' : ''}>PostgreSQL</option>
+                <option value="MongoDB" ${data.loaiModule === 'MongoDB' ? 'selected' : ''}>MongoDB</option>
+                <option value="MinIO" ${data.loaiModule === 'MinIO' ? 'selected' : ''}>MinIO</option>
+                <option value="Kafka" ${data.loaiModule === 'Kafka' ? 'selected' : ''}>Kafka</option>
+                <option value="Other" ${data.loaiModule === 'Other' ? 'selected' : ''}>Khác</option>
             </select>
         </td>
         <td><input type="text" placeholder="Ví dụ: Zone Internet" value="${data.zoneMang || ''}"></td>
@@ -1662,8 +1651,8 @@ function collectMoHinhHeThong() {
         const cells = row.querySelectorAll('td');
         
         archRows.push({
-            nghiepVu: cells[1]?.querySelector('input')?.value || '',
-            module: cells[2]?.querySelector('select')?.value || '',
+            moduleName: cells[1]?.querySelector('input')?.value || '',
+            loaiModule: cells[2]?.querySelector('select')?.value || '',
             zoneMang: cells[3]?.querySelector('input')?.value || '',
             heDieuHanh: cells[4]?.querySelector('select')?.value || '',
             soLuongVIP: cells[5]?.querySelector('textarea')?.value || ''
@@ -1717,7 +1706,6 @@ function collectMoHinhAdminReview() {
         physical: getAdmin('physical'),
         logical: getAdmin('logical'),
         flow: getAdmin('flow'),
-        connection: getAdmin('connection'),
         archRowReviews: archRowReviews,
         connectionRowReviews: connectionRowReviews
     };
@@ -2762,6 +2750,16 @@ function addBaselineRow() {
         <td>
             <input type="number" class="input-full text-center cint-input" value="0" min="0" oninput="updateBaselineTotal(); recalculateInputConfigForRow(this)">
         </td>
+
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" class="baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         
         <td class="admin-cell">
             <select class="admin-eval-select" onchange="styleAdminSelect(this)">
@@ -2792,8 +2790,58 @@ function addBaselineRow() {
     applyRolePermissions();
 }
 
-// Handle baseline row image upload - DEPRECATED, now using separate grid
-// function handleBaselineImageUpload - removed, use addBaselineEvidenceSlot instead
+// Generic inline evidence upload handler for per-row image columns
+function handleInlineEvidenceUpload(input) {
+    const cell = input.closest('.inline-evidence-cell');
+    const previewSpan = cell.querySelector('.inline-evidence-preview');
+    const uploadBtn = cell.querySelector('.btn-inline-evidence');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewSpan.innerHTML = `
+                <img src="${e.target.result}" alt="Evidence" style="display:none;" class="inline-evidence-img">
+                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
+                    ✖
+                </button>
+            `;
+            uploadBtn.style.display = 'none';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function removeInlineEvidence(btn) {
+    const cell = btn.closest('.inline-evidence-cell');
+    const previewSpan = cell.querySelector('.inline-evidence-preview');
+    const uploadBtn = cell.querySelector('.btn-inline-evidence');
+    const fileInput = cell.querySelector('input[type=file]');
+    previewSpan.innerHTML = '';
+    uploadBtn.style.display = '';
+    if (fileInput) fileInput.value = '';
+}
+
+// Load inline evidence image into a cell
+function loadInlineEvidence(cell, dataUrl) {
+    if (!cell || !dataUrl) return;
+    const previewSpan = cell.querySelector('.inline-evidence-preview');
+    const uploadBtn = cell.querySelector('.btn-inline-evidence');
+    if (previewSpan) {
+        previewSpan.innerHTML = `
+            <img src="${dataUrl}" alt="Evidence" style="display:none;" class="inline-evidence-img">
+            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                <i class="fa-solid fa-eye"></i>
+            </button>
+            <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
+                ✖
+            </button>
+        `;
+        if (uploadBtn) uploadBtn.style.display = 'none';
+    }
+}
 
 // Baseline Evidence Grid functions
 function addBaselineEvidenceSlot() {
@@ -3067,13 +3115,15 @@ function collectBaselineTableData() {
     
     rows.forEach((row, index) => {
         // Collect user data
+        const evidenceImg = row.querySelector('.inline-evidence-img');
         data.push({
             stt: index + 1,
             ip: row.querySelector('.ip-input')?.value || '',
             cpu: row.querySelector('.cpu-input')?.value || '',
             ram: row.querySelector('.ram-input')?.value || '',
             disk: row.querySelector('.disk-input')?.value || '',
-            cintRate: row.querySelector('.cint-input')?.value || ''
+            cintRate: row.querySelector('.cint-input')?.value || '',
+            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : ''
         });
     });
     
@@ -3105,6 +3155,7 @@ function collectInputConfigTableData() {
     const data = [];
     
     rows.forEach((row, index) => {
+        const evidenceImg = row.querySelector('.inline-evidence-img');
         data.push({
             stt: index + 1,
             ip: row.querySelector('.ip-config-input')?.value || '',
@@ -3114,6 +3165,7 @@ function collectInputConfigTableData() {
             cintUsed: row.querySelector('.cint-used-input')?.value || '',
             ramUsed: row.querySelector('.ram-used-input')?.value || '',
             diskUsed: row.querySelector('.disk-used-input')?.value || '',
+            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : '',
             adminEval: row.querySelector('.input-config-eval')?.value || '',
             adminNote: row.querySelector('.input-config-note')?.value || ''
         });
@@ -3160,9 +3212,7 @@ function collectAllSizingData() {
     return {
         moduleApp: {
             baselineTable: collectBaselineTableData(),
-            baselineEvidence: collectBaselineEvidenceData(),
             inputConfigTable: collectInputConfigTableData(),
-            evidenceImages: collectEvidenceSizingData(),
             pocValue: document.getElementById('poc-value')?.value || '',
             sizingValue: document.getElementById('sizing-value')?.value || '',
             sizingResult: (() => {
@@ -3412,39 +3462,15 @@ function loadSizingData(data) {
                             if (ramInput) ramInput.value = row.ram || '';
                             if (diskInput) diskInput.value = row.disk || '';
                             if (cintInput) cintInput.value = row.cintRate || '';
+                            
+                            // Load inline evidence image
+                            if (row.evidenceImage) {
+                                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                                if (evidenceCell) loadInlineEvidence(evidenceCell, row.evidenceImage);
+                            }
                         }
                     });
                     updateBaselineTotal();
-                }
-            }
-            
-            // Load baseline evidence images
-            if (moduleApp.baselineEvidence && Array.isArray(moduleApp.baselineEvidence) && moduleApp.baselineEvidence.length > 0) {
-                const grid = document.getElementById('baseline-evidence-grid');
-                if (grid) {
-                    grid.innerHTML = ''; // Clear existing
-                    moduleApp.baselineEvidence.forEach(img => {
-                        addBaselineEvidenceSlot();
-                        const lastSlot = grid.lastElementChild;
-                        if (lastSlot && img.dataUrl) {
-                            const previewArea = lastSlot.querySelector('.preview-area');
-                            const placeholder = lastSlot.querySelector('.upload-placeholder');
-                            if (previewArea) {
-                                previewArea.innerHTML = `
-                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
-                                        <img src="${img.dataUrl}" alt="Evidence" style="display:none;">
-                                        <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
-                                            <i class="fa-solid fa-eye"></i>
-                                        </button>
-                                        <button type="button" class="btn-remove-evidence" onclick="deleteBaselineEvidenceSlot(this)" title="Xóa ảnh">
-                                            ✖
-                                        </button>
-                                    </div>
-                                `;
-                            }
-                            if (placeholder) placeholder.style.display = 'none';
-                        }
-                    });
                 }
             }
             
@@ -3471,6 +3497,11 @@ function loadSizingData(data) {
                             if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
                             if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
                             if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
+                            // Load inline evidence image
+                            if (row.evidenceImage) {
+                                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                                if (evidenceCell) loadInlineEvidence(evidenceCell, row.evidenceImage);
+                            }
                             // Admin eval/note
                             const evalSelect = lastRow.querySelector('.input-config-eval');
                             const noteInput = lastRow.querySelector('.input-config-note');
@@ -3479,36 +3510,6 @@ function loadSizingData(data) {
                         }
                     });
                     updateInputConfigTotal();
-                }
-            }
-            
-            // Load evidence images
-            if (moduleApp.evidenceImages && Array.isArray(moduleApp.evidenceImages) && moduleApp.evidenceImages.length > 0) {
-                const grid = document.getElementById('evidence-sizing-grid');
-                if (grid) {
-                    grid.innerHTML = ''; // Clear existing
-                    moduleApp.evidenceImages.forEach(img => {
-                        addEvidenceSizingSlot();
-                        const lastSlot = grid.lastElementChild;
-                        if (lastSlot && img.dataUrl) {
-                            const previewArea = lastSlot.querySelector('.preview-area');
-                            const placeholder = lastSlot.querySelector('.upload-placeholder');
-                            if (previewArea) {
-                                previewArea.innerHTML = `
-                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
-                                        <img src="${img.dataUrl}" alt="Evidence" style="display:none;">
-                                        <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
-                                            <i class="fa-solid fa-eye"></i>
-                                        </button>
-                                        <button type="button" class="btn-remove-evidence" onclick="deleteEvidenceSizingSlot(this)" title="Xóa ảnh">
-                                            ✖
-                                        </button>
-                                    </div>
-                                `;
-                            }
-                            if (placeholder) placeholder.style.display = 'none';
-                        }
-                    });
                 }
             }
             
@@ -3862,6 +3863,16 @@ function addInputConfigRow() {
             <input type="number" class="input-full text-center disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;">
         </td>
 
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" class="input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
+
         <td class="admin-cell">
             <select class="admin-eval-select input-config-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -4144,6 +4155,15 @@ function addMariaDBRefRow(data = {}) {
         <td class="text-center">
             <input type="radio" name="mariadb-master" class="mariadb-master-radio" ${data.isMaster ? 'checked' : ''}>
         </td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" class="mariadb-ref-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td class="admin-cell">
             <select class="admin-eval-select mariadb-ref-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -4162,6 +4182,12 @@ function addMariaDBRefRow(data = {}) {
     `;
     tbody.appendChild(tr);
     
+    // Load inline evidence image if provided
+    if (data.evidenceImage) {
+        const evidenceCell = tr.querySelector('.inline-evidence-cell');
+        if (evidenceCell) loadInlineEvidence(evidenceCell, data.evidenceImage);
+    }
+    
     // Apply role permissions for new row
     applyRolePermissions();
 }
@@ -4174,46 +4200,33 @@ function collectMariaDBRefTableData() {
     const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
     const data = [];
     rows.forEach(row => {
+        const evidenceImg = row.querySelector('.inline-evidence-img');
         data.push({
             ip: row.querySelector('.mariadb-ip')?.value || '',
             cpu: row.querySelector('.mariadb-cpu')?.value || '',
             ram: row.querySelector('.mariadb-ram')?.value || '',
             cpuLoad: row.querySelector('.mariadb-cpu-load')?.value || '',
             ramLoad: row.querySelector('.mariadb-ram-load')?.value || '',
-            isMaster: row.querySelector('.mariadb-master-radio')?.checked || false
+            isMaster: row.querySelector('.mariadb-master-radio')?.checked || false,
+            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : ''
         });
     });
     return data;
 }
 
-// Thu thập dữ liệu storage MariaDB (now fixed inputs)
+// Thu thập dữ liệu storage MariaDB (direct input - dataUsed, logUsed, backupUsed)
 function collectMariaDBStorageData() {
+    const storageCell = document.querySelector('.mariadb-storage-table .inline-evidence-cell');
+    const evidenceImg = storageCell?.querySelector('.inline-evidence-img');
     return {
-        data: document.getElementById('mariadb-storage-data')?.value || '',
-        log: document.getElementById('mariadb-storage-log')?.value || '',
-        backup: document.getElementById('mariadb-storage-backup')?.value || '',
-        diskLoad: document.getElementById('mariadb-storage-disk-load')?.value || '',
         dataUsed: document.getElementById('mariadb-storage-data-used')?.value || '',
         logUsed: document.getElementById('mariadb-storage-log-used')?.value || '',
-        backupUsed: document.getElementById('mariadb-storage-backup-used')?.value || ''
+        backupUsed: document.getElementById('mariadb-storage-backup-used')?.value || '',
+        evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : ''
     };
 }
 
-// Auto-calculate storage used columns
-function autoCalcMariaDBStorageUsed() {
-    const dataVal = parseFloat(document.getElementById('mariadb-storage-data')?.value) || 0;
-    const logVal = parseFloat(document.getElementById('mariadb-storage-log')?.value) || 0;
-    const backupVal = parseFloat(document.getElementById('mariadb-storage-backup')?.value) || 0;
-    const diskLoad = parseFloat(document.getElementById('mariadb-storage-disk-load')?.value) || 0;
-    
-    const dataUsed = Math.round(dataVal * diskLoad / 100 * 100) / 100;
-    const logUsed = Math.round(logVal * diskLoad / 100 * 100) / 100;
-    const backupUsed = Math.round(backupVal * diskLoad / 100 * 100) / 100;
-    
-    document.getElementById('mariadb-storage-data-used').value = dataUsed || '';
-    document.getElementById('mariadb-storage-log-used').value = logUsed || '';
-    document.getElementById('mariadb-storage-backup-used').value = backupUsed || '';
-}
+// autoCalcMariaDBStorageUsed is no longer needed since user inputs directly
 
 // Lấy dữ liệu Master row
 function getMariaDBMasterData() {
@@ -4233,12 +4246,9 @@ function getMariaDBMasterData() {
     return null;
 }
 
-// Lấy storage (now fixed inputs, not per IP)
+// Lấy storage (direct input values)
 function getMariaDBStorage() {
     return {
-        data: parseFloat(document.getElementById('mariadb-storage-data')?.value) || 0,
-        log: parseFloat(document.getElementById('mariadb-storage-log')?.value) || 0,
-        backup: parseFloat(document.getElementById('mariadb-storage-backup')?.value) || 0,
         dataUsed: parseFloat(document.getElementById('mariadb-storage-data-used')?.value) || 0,
         logUsed: parseFloat(document.getElementById('mariadb-storage-log-used')?.value) || 0,
         backupUsed: parseFloat(document.getElementById('mariadb-storage-backup-used')?.value) || 0
@@ -4263,7 +4273,7 @@ function calculateMariaDBSizing() {
     
     const storage = getMariaDBStorage();
     if (!storage.dataUsed && !storage.logUsed && !storage.backupUsed) {
-        alert('Vui lòng nhập thông tin storage và Tải DISK (%) để tính /data used, /log used, /backup used.');
+        alert('Vui lòng nhập thông tin /data used, /log used, /backup used trong bảng Storage.');
         return;
     }
     
@@ -4365,34 +4375,29 @@ function loadMariaDBData(data) {
         data.refTable.forEach(row => addMariaDBRefRow(row));
     }
     
-    // Load storage (now fixed inputs)
+    // Load storage (direct input values)
     if (data.storage) {
-        const dataEl = document.getElementById('mariadb-storage-data');
-        const logEl = document.getElementById('mariadb-storage-log');
-        const backupEl = document.getElementById('mariadb-storage-backup');
-        const diskLoadEl = document.getElementById('mariadb-storage-disk-load');
         const dataUsedEl = document.getElementById('mariadb-storage-data-used');
         const logUsedEl = document.getElementById('mariadb-storage-log-used');
         const backupUsedEl = document.getElementById('mariadb-storage-backup-used');
-        if (dataEl) dataEl.value = data.storage.data || '';
-        if (logEl) logEl.value = data.storage.log || '';
-        if (backupEl) backupEl.value = data.storage.backup || '';
-        if (diskLoadEl) diskLoadEl.value = data.storage.diskLoad || '';
         if (dataUsedEl) dataUsedEl.value = data.storage.dataUsed || '';
         if (logUsedEl) logUsedEl.value = data.storage.logUsed || '';
         if (backupUsedEl) backupUsedEl.value = data.storage.backupUsed || '';
-        // Trigger auto-calc if needed
-        autoCalcMariaDBStorageUsed();
+        // Load inline evidence for storage
+        if (data.storage.evidenceImage) {
+            const storageCell = document.querySelector('.mariadb-storage-table .inline-evidence-cell');
+            if (storageCell) loadInlineEvidence(storageCell, data.storage.evidenceImage);
+        }
     }
     // Backward compatibility for old data format
     else if (data.storageTable && Array.isArray(data.storageTable) && data.storageTable.length > 0) {
         const firstRow = data.storageTable[0];
-        const dataEl = document.getElementById('mariadb-storage-data');
-        const logEl = document.getElementById('mariadb-storage-log');
-        const backupEl = document.getElementById('mariadb-storage-backup');
-        if (dataEl) dataEl.value = firstRow.data || '';
-        if (logEl) logEl.value = firstRow.log || '';
-        if (backupEl) backupEl.value = firstRow.backup || '';
+        const dataUsedEl = document.getElementById('mariadb-storage-data-used');
+        const logUsedEl = document.getElementById('mariadb-storage-log-used');
+        const backupUsedEl = document.getElementById('mariadb-storage-backup-used');
+        if (dataUsedEl) dataUsedEl.value = firstRow.dataUsed || firstRow.data || '';
+        if (logUsedEl) logUsedEl.value = firstRow.logUsed || firstRow.log || '';
+        if (backupUsedEl) backupUsedEl.value = firstRow.backupUsed || firstRow.backup || '';
     }
     
     // Load note
@@ -4410,40 +4415,6 @@ function loadMariaDBData(data) {
         const container = document.getElementById('mariadb-result-container');
         if (container) container.innerHTML = data.resultHTML;
     }
-    
-    // Load evidence images
-    if (data.evidence && Array.isArray(data.evidence)) {
-        const grid = document.getElementById('mariadb-evidence-grid');
-        if (grid) {
-            grid.innerHTML = '';
-            data.evidence.forEach(img => {
-                const slot = document.createElement('div');
-                slot.className = 'upload-box';
-                slot.innerHTML = `
-                    <input type="file" accept="image/*" onchange="handleMariaDBEvidenceUpload(this)" style="display:none;">
-                    <div class="preview-area">
-                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
-                            <img src="${img.dataUrl}" alt="Evidence" style="display:none;">
-                            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
-                                <i class="fa-solid fa-eye"></i>
-                            </button>
-                            <button type="button" class="btn-remove-evidence" onclick="deleteMariaDBEvidenceSlot(this)" title="Xóa ảnh">
-                                ✖
-                            </button>
-                        </div>
-                    </div>
-                    <div class="upload-placeholder" style="display: none;">
-                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <span>Click để upload</span>
-                    </div>
-                `;
-                grid.appendChild(slot);
-            });
-        }
-    }
-    
-    // Load reference evidence images
-    loadMariaDBRefEvidence(data);
     
     // Apply role permissions
     applyRolePermissions();
@@ -4487,8 +4458,6 @@ function collectMariaDBData() {
     return {
         refTable: collectMariaDBRefTableData(),
         storage: collectMariaDBStorageData(),
-        evidence: collectMariaDBEvidenceData(),
-        refEvidence: collectMariaDBRefEvidenceData(),
         note: document.getElementById('mariadb-note')?.value || '',
         inputCCU: document.getElementById('mariadb-input-ccu')?.value || '',
         sizingCCU: document.getElementById('mariadb-sizing-ccu')?.value || '',
@@ -6643,7 +6612,7 @@ function renderModelDiff(snapshot, prevSnapshot) {
     const prevArchAdminReviews = prevMoHinhAdmin.archRowReviews || [];
     
     if (archRows.length > 0) {
-        const fieldLabels = { nghiepVu: 'Nghiệp vụ', module: 'Module', zoneMang: 'Zone mạng', heDieuHanh: 'Hệ điều hành', soLuongVIP: 'Số lượng/VIP' };
+        const fieldLabels = { moduleName: 'Module', loaiModule: 'Loại module', zoneMang: 'Zone mạng', heDieuHanh: 'Hệ điều hành', soLuongVIP: 'Số lượng/VIP' };
         let archRowsHtml = '';
         archRows.forEach((row, i) => {
             const prevRow = prevArchRows[i] || {};
@@ -6655,8 +6624,8 @@ function renderModelDiff(snapshot, prevSnapshot) {
             archRowsHtml += `
                 <tr class="${rowClass}">
                     <td style="padding:8px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
-                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.nghiepVu, prevRow.nghiepVu) : (row.nghiepVu || '-')}</td>
-                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.module, prevRow.module) : (row.module || '-')}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.moduleName, prevRow.moduleName) : (row.moduleName || '-')}</td>
+                    <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.loaiModule, prevRow.loaiModule) : (row.loaiModule || '-')}</td>
                     <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.zoneMang, prevRow.zoneMang) : (row.zoneMang || '-')}</td>
                     <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.heDieuHanh, prevRow.heDieuHanh) : (row.heDieuHanh || '-')}</td>
                     <td style="padding:8px; border:1px solid #e2e8f0;">${prevSnapshot && !isNew ? renderTextDiff(row.soLuongVIP, prevRow.soLuongVIP) : (row.soLuongVIP || '-')}</td>
@@ -6673,8 +6642,8 @@ function renderModelDiff(snapshot, prevSnapshot) {
                     <thead>
                         <tr style="background:#f1f5f9;">
                             <th style="padding:8px; border:1px solid #e2e8f0; width:40px;">STT</th>
-                            <th style="padding:8px; border:1px solid #e2e8f0;">Nghiệp vụ</th>
                             <th style="padding:8px; border:1px solid #e2e8f0;">Module</th>
+                            <th style="padding:8px; border:1px solid #e2e8f0;">Loại module</th>
                             <th style="padding:8px; border:1px solid #e2e8f0;">Zone mạng</th>
                             <th style="padding:8px; border:1px solid #e2e8f0;">Hệ ĐH</th>
                             <th style="padding:8px; border:1px solid #e2e8f0;">SL/VIP</th>

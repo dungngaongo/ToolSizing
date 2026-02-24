@@ -161,37 +161,51 @@ body {
 
 .main-content {
     display: flex;
+    flex-direction: column;
     width: 100%;
-    margin: 25px 0;
-    padding-left: 25px;
-    gap: 25px;
+    margin: 0;
+    padding: 0;
+    gap: 0;
 }
 
-.sidebar { width: 260px; flex-shrink: 0; position: sticky; top: 70px; align-self: flex-start; max-height: calc(100vh - 80px); overflow-y: auto; }
-.content { flex: 1; padding-right: 25px; min-height: 600px; }
+/* Horizontal tabs navigation */
+.horizontal-tabs {
+    width: 100%;
+    background: #fff;
+    border-bottom: 2px solid #e0e0e0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    position: sticky;
+    top: 56px;
+    z-index: 99;
+}
+
+.content { flex: 1; padding: 25px; min-height: 600px; }
 
 .side-menu {
     list-style: none;
     padding: 0;
+    margin: 0;
+    display: flex;
+    justify-content: center;
     background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     overflow: hidden;
 }
 
-.side-menu li { border-bottom: 1px solid #f0f0f0; }
-.side-menu li:last-child { border-bottom: none; }
+.side-menu li { border-bottom: none; border-right: 1px solid #f0f0f0; }
+.side-menu li:last-child { border-right: none; }
 
 .side-menu a {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     text-decoration: none;
     color: #444;
-    padding: 14px 20px;
+    padding: 14px 24px;
     transition: all 0.2s ease;
     font-weight: 500;
-    border-left: 4px solid transparent;
+    border-bottom: 3px solid transparent;
+    border-left: none;
+    white-space: nowrap;
 }
 
 .side-menu a i {
@@ -212,7 +226,8 @@ body {
     background-color: #fff0f2;
     color: #ee0033;
     font-weight: 700;
-    border-left-color: #ee0033;
+    border-bottom-color: #ee0033;
+    border-left-color: transparent;
 }
 .side-menu a.active i { color: #ee0033; }
 
@@ -926,6 +941,39 @@ body.role-user .admin-note,
     background: #ffecec;
     transform: scale(1.08);
 }
+
+/* Inline evidence cell (per-row image upload in tables) */
+.inline-evidence-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 80px;
+}
+.btn-inline-evidence {
+    background: #e6f3ff;
+    border: 1px solid #b3d9ff;
+    color: #0b5ed7;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s ease-in-out;
+    padding: 0;
+}
+.btn-inline-evidence:hover {
+    background: #cce5ff;
+    transform: scale(1.1);
+}
+.inline-evidence-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* ========================================= */
 /* STYLE CHO MỤC 3: MÔ HÌNH HỆ THỐNG (FIX)   */
 /* ========================================= */

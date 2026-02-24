@@ -255,8 +255,8 @@ public class ExportService {
             styleTable(table);
 
             setCell(table, 0, 0, "STT", true, "D9E2F3");
-            setCell(table, 0, 1, "Nghi\u1ec7p v\u1ee5", true, "D9E2F3");
-            setCell(table, 0, 2, "Module", true, "D9E2F3");
+            setCell(table, 0, 1, "Module", true, "D9E2F3");
+            setCell(table, 0, 2, "Lo\u1ea1i module", true, "D9E2F3");
             setCell(table, 0, 3, "Zone m\u1ea1ng", true, "D9E2F3");
             setCell(table, 0, 4, "H\u1ec7 \u0111i\u1ec1u h\u00e0nh", true, "D9E2F3");
             setCell(table, 0, 5, "S\u1ed1 l\u01b0\u1ee3ng VIP", true, "D9E2F3");
@@ -264,8 +264,8 @@ public class ExportService {
             for (int i = 0; i < archRows.size(); i++) {
                 JsonNode r = archRows.get(i);
                 setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
-                setCell(table, i + 1, 1, txt(r, "nghiepVu"), false, null);
-                setCell(table, i + 1, 2, txt(r, "module"), false, null);
+                setCell(table, i + 1, 1, txt(r, "moduleName"), false, null);
+                setCell(table, i + 1, 2, txt(r, "loaiModule"), false, null);
                 setCell(table, i + 1, 3, txt(r, "zoneMang"), false, null);
                 setCell(table, i + 1, 4, txt(r, "heDieuHanh"), false, null);
                 setCell(table, i + 1, 5, txt(r, "soLuongVIP"), false, null);
