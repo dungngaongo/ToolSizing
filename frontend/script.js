@@ -156,8 +156,8 @@ function applyRolePermissions() {
         
         // Disable user buttons on sizing page
         document.querySelectorAll('#page-sizing button.sizing-user-btn, #page-sizing button.btn-add, #page-sizing button.btn-add-img').forEach(btn => {
-            // Allow method toggle buttons (btn-method) to remain clickable for admin to view data
-            if (btn.classList.contains('btn-method')) {
+            // Allow method toggle buttons and save buttons to remain clickable for admin
+            if (btn.classList.contains('btn-method') || btn.classList.contains('btn-save-section')) {
                 btn.disabled = false;
                 btn.style.opacity = '1';
                 btn.style.cursor = 'pointer';
@@ -188,24 +188,22 @@ function applyRolePermissions() {
         // Disable file inputs (uploads) in those sections
         document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"], #page-sizing input[type="file"]').forEach(fi => fi.disabled = true);
 
-        // Disable action buttons that manipulate user content but keep evaluate buttons enabled
-        // DISABLE nút Lưu cho admin1 (btn-submit), chỉ cho bấm nút Đánh giá (btn-evaluate)
+        // Disable action buttons that manipulate user content but keep evaluate & save buttons enabled
         document.querySelectorAll('#page-request button, #page-input button, #page-model button').forEach(btn => {
-            // Admin1 chỉ được bấm nút Đánh giá, btn-view-evidence, btn-logout
-            const allow = btn.classList.contains('btn-evaluate') || btn.classList.contains('btn-logout') || btn.classList.contains('btn-view-evidence');
+            // Admin được bấm nút Đánh giá, Lưu dữ liệu, btn-view-evidence, btn-logout
+            const allow = btn.classList.contains('btn-evaluate') || 
+                         btn.classList.contains('btn-logout') || 
+                         btn.classList.contains('btn-view-evidence') ||
+                         btn.classList.contains('btn-save-section');
             if (!allow) btn.disabled = true;
         });
         
-        // Disable nút Lưu chính (saveBtn, saveInputDataBtn, saveModelBtn, saveSummaryBtn, saveSizingBtn)
-        const saveButtons = ['saveBtn', 'saveInputDataBtn', 'saveModelBtn', 'saveSummaryBtn', 'saveSizingBtn'];
-        saveButtons.forEach(id => {
-            const btn = document.getElementById(id);
-            if (btn) {
-                btn.disabled = true;
-                btn.title = 'Admin không được phép lưu dữ liệu, chỉ được đánh giá';
-                btn.style.opacity = '0.5';
-                btn.style.cursor = 'not-allowed';
-            }
+        // Enable nút Lưu dữ liệu cho admin (btn-save-section)
+        document.querySelectorAll('.btn-save-section').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+            btn.title = '';
         });
     } else {
         // Regular user: admin fields readonly, user inputs editable
@@ -647,6 +645,7 @@ async function openProject(projectId) {
     
     currentProjectDataId = null;
     localStorage.removeItem('currentProjectDataId');
+    revisionCheckedForSession = false; // Reset revision check cho project mới
     
     await loadAllDataFromDB();
     
@@ -654,6 +653,7 @@ async function openProject(projectId) {
     const user = getCurrentUser();
     const currentUsername = user.username || user.displayName || 'unknown';
     await checkAndCreateRevisionForPreviousEditor(currentUsername);
+    revisionCheckedForSession = true; // Đã check xong
     
     // Cập nhật nút Phê duyệt sau khi load dữ liệu
     updateApproveButtonVisibility();
@@ -747,7 +747,13 @@ async function startNewProject() {
 
 function resetAllForms() {
     // Reset inputs, textareas, selects
-    document.querySelectorAll('input').forEach(input => input.value = '');
+    document.querySelectorAll('input').forEach(input => {
+        if (input.type === 'checkbox') {
+            input.checked = false;
+        } else {
+            input.value = '';
+        }
+    });
     document.querySelectorAll('textarea').forEach(ta => ta.value = '');
     document.querySelectorAll('select').forEach(select => {
         select.selectedIndex = 0;
@@ -761,7 +767,107 @@ function resetAllForms() {
         const tr = createInputTableRow(1);
         inputBody.appendChild(tr);
     }
-    
+
+    // ========== CLEAR MÔ HÌNH HỆ THỐNG ==========
+    // Clear image containers (physical, logical, flow)
+    ['container-physical', 'container-logical', 'container-flow'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+
+    // Clear architecture table
+    const archBody = document.getElementById('arch-table-body');
+    if (archBody) archBody.innerHTML = '';
+
+    // Clear connection info table
+    const connBody = document.getElementById('connection-info-table-body');
+    if (connBody) connBody.innerHTML = '';
+
+    // ========== CLEAR ĐỊNH CỠ HỆ THỐNG ==========
+    // Clear all sizing table bodies
+    [
+        'baseline-table-body',
+        'input-config-table-body',
+        'mariadb-ref-table-body',
+        'redis-config-table-body',
+        'kafka-linear-table-body',
+        'k8s-baseline-table-body',
+        'k8s-input-config-table-body'
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+
+    // Clear all result containers
+    [
+        'sizing-result-container',
+        'mariadb-result-container',
+        'redis-key-result-container',
+        'redis-config-result-container',
+        'kafka-throughput-result-container',
+        'kafka-linear-result-container',
+        'k8s-result-container',
+        'lbfw-result-container'
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+
+    // Clear all evidence grids
+    [
+        'redis-key-evidence-grid',
+        'kafka-throughput-evidence-grid',
+        'kafka-compression-evidence-grid',
+        'kafka-helper-msg-evidence-grid',
+        'kafka-helper-size-evidence-grid',
+        'lbfw-evidence-grid'
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+
+    // Reset totals displays
+    [
+        'total-ram', 'total-disk', 'total-cint',
+        'total-cint-used', 'total-ram-used', 'total-disk-used',
+        'redis-total-master-ram', 'redis-total-capacity',
+        'kafka-linear-total-cpu', 'kafka-linear-total-ram', 'kafka-linear-total-disk',
+        'k8s-total-ram', 'k8s-total-disk', 'k8s-total-cint',
+        'k8s-total-cint-used', 'k8s-total-ram-used', 'k8s-total-disk-used'
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = '0';
+    });
+
+    // Reset summary table
+    const summaryBody = document.getElementById('summary-table-body');
+    if (summaryBody) {
+        summaryBody.innerHTML = `<tr>
+            <td colspan="5" class="text-center" style="color: #999; padding: 30px;">
+                <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực hiện tính toán ở các module trước.
+            </td>
+        </tr>`;
+    }
+
+    // Clear all inline evidence previews (e.g. mariadb storage, etc.)
+    document.querySelectorAll('.inline-evidence-preview').forEach(el => {
+        el.innerHTML = '';
+    });
+    document.querySelectorAll('.btn-inline-evidence').forEach(btn => {
+        btn.style.display = '';
+    });
+
+    // Collapse all module sections (remove expanded state)
+    document.querySelectorAll('.module-collapsible-content').forEach(el => {
+        el.classList.remove('expanded');
+    });
+    document.querySelectorAll('.module-collapsible-header').forEach(el => {
+        el.classList.remove('active');
+    });
+    // Keep module-app expanded by default
+    const appContent = document.getElementById('module-app-content');
+    if (appContent) appContent.classList.add('expanded');
+
     // Reset tabs
     const menuLinks = document.querySelectorAll(".side-menu a");
     const pages = document.querySelectorAll(".page-section");
@@ -1733,18 +1839,15 @@ function createArchTableRow(stt, data = {}) {
         <td>
             <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
                 <option value="">-- Chọn --</option>
-                <option value="Web App" ${data.loaiModule === 'Web App' ? 'selected' : ''}>Web App</option>
+                <option value="App" ${data.loaiModule === 'App' ? 'selected' : ''}>App</option>
                 <option value="Redis" ${data.loaiModule === 'Redis' ? 'selected' : ''}>Redis</option>
-                <option value="Oracle RAC" ${data.loaiModule === 'Oracle RAC' ? 'selected' : ''}>Oracle RAC</option>
                 <option value="MariaDB" ${data.loaiModule === 'MariaDB' ? 'selected' : ''}>MariaDB</option>
-                <option value="PostgreSQL" ${data.loaiModule === 'PostgreSQL' ? 'selected' : ''}>PostgreSQL</option>
-                <option value="MongoDB" ${data.loaiModule === 'MongoDB' ? 'selected' : ''}>MongoDB</option>
-                <option value="MinIO" ${data.loaiModule === 'MinIO' ? 'selected' : ''}>MinIO</option>
                 <option value="Kafka" ${data.loaiModule === 'Kafka' ? 'selected' : ''}>Kafka</option>
-                <option value="Other" ${data.loaiModule === 'Other' ? 'selected' : ''}>Khác</option>
+                <option value="K8S" ${data.loaiModule === 'K8S' ? 'selected' : ''}>K8S</option>
+                <option value="LB/FW" ${data.loaiModule === 'LB/FW' ? 'selected' : ''}>LB/FW</option>
             </select>
         </td>
-        <td><input type="text" placeholder="Ví dụ: Zone Internet" value="${data.zoneMang || ''}"></td>
+        <td><input type="text" placeholder="Ví dụ: Zone Internet" value="${data.zoneMang || ''}"></td> 
         <td>
             <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
                 <option value="">-- Chọn --</option>
@@ -2881,9 +2984,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (exportBtn) exportBtn.onclick = exportToWord;
     const addConnectionBtn = document.getElementById('addConnectionRowBtn');
     if (addConnectionBtn) addConnectionBtn.onclick = addConnectionRow;
-    
-    // Khởi tạo auto-save
-    initAutoSave();
 });
 // Hàm xóa dòng cuối cùng của bảng
 function removeLastRow(tbodyId) {
@@ -4799,7 +4899,7 @@ function calculateK8SSizing() {
                             </ul>
                         </td>
                         <td class="text-center"><strong>3</strong></td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Storage phải nằm ở 3 cụm storage khác nhau</textarea></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Storage Master phải nằm ở 3 cụm storage khác nhau</textarea></td>
                     </tr>
                     <tr style="background:#e6ffed;">
                         <td><strong>K8S Worker</strong></td>
@@ -4823,7 +4923,7 @@ function calculateK8SSizing() {
                             </ul>
                         </td>
                         <td class="text-center"><strong>3</strong></td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Storage phải nằm ở 3 cụm storage khác nhau</textarea></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Storage ETCD phải nằm ở 3 cụm storage khác nhau</textarea></td>
                     </tr>
                 </tbody>
             </table>`;
@@ -5249,7 +5349,7 @@ function parseK8SSizingResult(html) {
             module: 'K8S Master',
             cauHinh: cauHinh.replace(/\n/g, '<br>'),
             soLuong: masterMatch[2],
-            ghiChu: 'Storage phải nằm ở 3 cụm storage khác nhau'
+            ghiChu: 'Storage Master phải nằm ở 3 cụm storage khác nhau'
         });
     }
 
@@ -5287,7 +5387,7 @@ function parseK8SSizingResult(html) {
             module: 'K8S ETCD',
             cauHinh: cauHinh.replace(/\n/g, '<br>'),
             soLuong: etcdMatch[2],
-            ghiChu: 'Storage phải nằm ở 3 cụm storage khác nhau'
+            ghiChu: 'Storage ETCD phải nằm ở 3 cụm storage khác nhau'
         });
     }
 
@@ -5861,6 +5961,15 @@ function addRedisConfigRow(data = {}) {
         <td class="text-center">
             <input type="checkbox" class="redis-master-checkbox" ${data.isMaster ? 'checked' : ''} onchange="updateRedisTotalMasterRAM()">
         </td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" class="redis-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td class="admin-cell">
             <select class="admin-eval-select redis-config-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -5906,11 +6015,13 @@ function collectRedisConfigTableData() {
     const rows = document.querySelectorAll('#redis-config-table-body tr');
     const data = [];
     rows.forEach(row => {
+        const evidenceImg = row.querySelector('.inline-evidence-preview img');
         data.push({
             ip: row.querySelector('.redis-config-ip')?.value || '',
             ram: row.querySelector('.redis-config-ram')?.value || '',
             ramLoad: row.querySelector('.redis-config-ram-load')?.value || '',
             isMaster: row.querySelector('.redis-master-checkbox')?.checked || false,
+            evidenceDataUrl: evidenceImg ? evidenceImg.src : '',
             adminEval: row.querySelector('.redis-config-eval')?.value || '',
             adminNote: row.querySelector('.redis-config-note')?.value || ''
         });
@@ -5992,7 +6103,8 @@ function calculateRedisKeyMethod() {
     const C = (keyCount * recordSize) / (1024 * 1024 * 1024); // Convert to GB
     
     // Update display
-    document.getElementById('redis-total-capacity').innerText = C.toFixed(4);
+    const totalCapEl = document.getElementById('redis-total-capacity');
+    if (totalCapEl) totalCapEl.innerText = C.toFixed(4);
     
     let html = '';
     let model = '';
@@ -6387,7 +6499,28 @@ function loadRedisData(data) {
         // Load bảng config
         if (cm.configTable && Array.isArray(cm.configTable)) {
             document.getElementById('redis-config-table-body').innerHTML = '';
-            cm.configTable.forEach(row => addRedisConfigRow(row));
+            cm.configTable.forEach(row => {
+                addRedisConfigRow(row);
+                // Restore evidence image if available
+                if (row.evidenceDataUrl) {
+                    const rows = document.querySelectorAll('#redis-config-table-body tr');
+                    const lastRow = rows[rows.length - 1];
+                    const previewSpan = lastRow.querySelector('.inline-evidence-preview');
+                    const uploadBtn = lastRow.querySelector('.btn-inline-evidence');
+                    if (previewSpan) {
+                        previewSpan.innerHTML = `
+                            <img src="${row.evidenceDataUrl}" alt="Evidence" style="display:none;" class="inline-evidence-img">
+                            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
+                                ✖
+                            </button>
+                        `;
+                        if (uploadBtn) uploadBtn.style.display = 'none';
+                    }
+                }
+            });
             updateRedisTotalMasterRAM();
         }
         
@@ -6538,6 +6671,15 @@ function addKafkaLinearRow(data = {}) {
         <td><input type="number" class="input-full sizing-user-input kafka-linear-cpu-load" value="${data.cpuLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
         <td><input type="number" class="input-full sizing-user-input kafka-linear-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
         <td><input type="number" class="input-full sizing-user-input kafka-linear-disk-load" value="${data.diskLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" class="kafka-linear-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td class="admin-cell">
             <select class="admin-eval-select kafka-linear-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -6588,6 +6730,7 @@ function collectKafkaLinearTableData() {
     const rows = document.querySelectorAll('#kafka-linear-table-body tr');
     const data = [];
     rows.forEach(row => {
+        const evidenceImg = row.querySelector('.inline-evidence-preview img');
         data.push({
             ip: row.querySelector('.kafka-linear-ip')?.value || '',
             vcpu: row.querySelector('.kafka-linear-vcpu')?.value || '',
@@ -6596,6 +6739,7 @@ function collectKafkaLinearTableData() {
             cpuLoad: row.querySelector('.kafka-linear-cpu-load')?.value || '',
             ramLoad: row.querySelector('.kafka-linear-ram-load')?.value || '',
             diskLoad: row.querySelector('.kafka-linear-disk-load')?.value || '',
+            evidenceDataUrl: evidenceImg ? evidenceImg.src : '',
             adminEval: row.querySelector('.kafka-linear-eval')?.value || '',
             adminNote: row.querySelector('.kafka-linear-note')?.value || ''
         });
@@ -6954,7 +7098,7 @@ function loadKafkaData(data) {
         if (tm.inputCCU) document.getElementById('kafka-throughput-input-ccu').value = tm.inputCCU;
         if (tm.sizingCCU) document.getElementById('kafka-throughput-sizing-ccu').value = tm.sizingCCU;
         if (tm.throughputA) document.getElementById('kafka-throughput-a').value = tm.throughputA;
-        if (tm.retentionTime) document.getElementById('kafka-retention-time').value = tm.retentionTime;
+        if (tm.retentionTime) { const retEl = document.getElementById('kafka-retention-time'); if (retEl) retEl.value = tm.retentionTime; }
         if (tm.replicationFactor) document.getElementById('kafka-replication-factor').value = tm.replicationFactor;
         if (tm.compression) document.getElementById('kafka-compression').value = tm.compression;
         
@@ -6991,7 +7135,28 @@ function loadKafkaData(data) {
         // Load bảng linear
         if (lm.linearTable && Array.isArray(lm.linearTable)) {
             document.getElementById('kafka-linear-table-body').innerHTML = '';
-            lm.linearTable.forEach(row => addKafkaLinearRow(row));
+            lm.linearTable.forEach(row => {
+                addKafkaLinearRow(row);
+                // Restore evidence image if available
+                if (row.evidenceDataUrl) {
+                    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+                    const lastRow = rows[rows.length - 1];
+                    const previewSpan = lastRow.querySelector('.inline-evidence-preview');
+                    const uploadBtn = lastRow.querySelector('.btn-inline-evidence');
+                    if (previewSpan) {
+                        previewSpan.innerHTML = `
+                            <img src="${row.evidenceDataUrl}" alt="Evidence" style="display:none;" class="inline-evidence-img">
+                            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
+                                ✖
+                            </button>
+                        `;
+                        if (uploadBtn) uploadBtn.style.display = 'none';
+                    }
+                }
+            });
             updateKafkaLinearTotal();
         }
         
@@ -7032,17 +7197,18 @@ let previousPreviewSnapshot = null; // Phiên bản trước để so sánh
 let allRevisionsList = []; // Lưu danh sách tất cả revisions
 
 /**
- * Tạo một revision (snapshot) mới
+ * Tạo một revision (incremental) mới
  * @param {string} changeDescription - Mô tả thay đổi
+ * @param {boolean} forceBaseline - true để tạo BASELINE (full snapshot)
  */
-async function createRevision(changeDescription = '') {
+async function createRevision(changeDescription = '', forceBaseline = false) {
     if (!currentProjectId) {
         console.warn('Không có projectId để tạo revision');
         return null;
     }
     
     const user = getCurrentUser();
-    const changeLog = changeDescription || `Lưu dữ liệu lúc ${new Date().toLocaleString('vi-VN')}`;
+    const changeLog = changeDescription || `Tự động lưu lúc ${new Date().toLocaleString('vi-VN')}`;
     
     try {
         const response = await fetch(`${API_BASE_URL}/project-revisions`, {
@@ -7051,14 +7217,19 @@ async function createRevision(changeDescription = '') {
             body: JSON.stringify({
                 projectId: currentProjectId,
                 userId: user.username || user.displayName || 'User',
-                changeLog: changeLog
+                changeLog: changeLog,
+                forceBaseline: forceBaseline
             })
         });
         
         if (response.ok) {
             const revision = await response.json();
-            console.log('✅ Đã tạo revision mới:', revision.id);
+            console.log(`✅ Đã tạo revision ${revision.revisionType}: ${revision.id}`);
             return revision;
+        } else if (response.status === 204) {
+            // Không có thay đổi nào
+            console.log('ℹ️ Không có thay đổi, bỏ qua tạo revision');
+            return null;
         } else {
             console.error('Lỗi tạo revision:', await response.text());
             return null;
@@ -7129,6 +7300,12 @@ async function loadVersionHistoryList() {
                 const isFirst = index === 0;
                 const versionNumber = revisions.length - index;
                 const createdDate = formatVersionDate(rev.createdAt);
+                const isBaseline = rev.revisionType === 'BASELINE' || !rev.revisionType;
+                const typeBadge = !rev.revisionType
+                    ? '<span class="revision-type-badge baseline" title="Legacy full snapshot"><i class="fa-solid fa-database"></i> Legacy</span>'
+                    : isBaseline 
+                        ? '<span class="revision-type-badge baseline" title="Full snapshot"><i class="fa-solid fa-database"></i> Baseline</span>'
+                        : '<span class="revision-type-badge incremental" title="Chỉ lưu phần thay đổi"><i class="fa-solid fa-code-branch"></i> Incremental</span>';
                 
                 return `
                     <div class="version-item ${isFirst ? 'current' : ''}" data-revision-id="${rev.id}">
@@ -7137,6 +7314,7 @@ async function loadVersionHistoryList() {
                             <div class="version-info">
                                 <div class="version-user">
                                     <i class="fa-solid fa-user"></i> ${rev.userId || 'User'}
+                                    ${typeBadge}
                                 </div>
                                 <div class="version-time">
                                     <i class="fa-solid fa-clock"></i> ${createdDate}
@@ -7209,8 +7387,8 @@ async function previewVersion(revisionId) {
     previousPreviewSnapshot = null; // Reset
     
     try {
-        // Load revision data
-        const response = await fetch(`${API_BASE_URL}/project-revisions/${revisionId}`, {
+        // Load revision data (reconstructed full snapshot)
+        const response = await fetch(`${API_BASE_URL}/project-revisions/${revisionId}/reconstruct`, {
             method: 'GET',
             headers: getAuthHeaders()
         });
@@ -7222,12 +7400,12 @@ async function previewVersion(revisionId) {
         const revision = await response.json();
         currentPreviewSnapshot = JSON.parse(revision.snapshotContent || '{}');
         
-        // Tìm và load phiên bản trước đó để so sánh
+        // Tìm và load phiên bản trước đó để so sánh (cũng dùng reconstruct)
         const currentIndex = allRevisionsList.findIndex(r => r.id === revisionId);
         if (currentIndex >= 0 && currentIndex < allRevisionsList.length - 1) {
             const prevRevisionId = allRevisionsList[currentIndex + 1].id;
             try {
-                const prevResponse = await fetch(`${API_BASE_URL}/project-revisions/${prevRevisionId}`, {
+                const prevResponse = await fetch(`${API_BASE_URL}/project-revisions/${prevRevisionId}/reconstruct`, {
                     method: 'GET',
                     headers: getAuthHeaders()
                 });
@@ -8412,8 +8590,8 @@ async function restoreVersion(revisionId) {
     }
     
     try {
-        // 1. Tạo snapshot dữ liệu hiện tại trước khi khôi phục
-        await createRevision('Backup trước khi khôi phục phiên bản');
+        // 1. Tạo BASELINE snapshot dữ liệu hiện tại trước khi khôi phục
+        await createRevision('Backup trước khi khôi phục phiên bản', true);
         
         // 2. Gọi API restore
         const response = await fetch(`${API_BASE_URL}/project-revisions/${revisionId}/restore`, {
@@ -8450,83 +8628,26 @@ async function saveWithRevision(saveFunction, sectionName) {
     await createRevision(`${user.displayName || user.username || 'User'} cập nhật ${sectionName}`);
 }
 
-// ==================== AUTO-SAVE SYSTEM ====================
+// ==================== MANUAL SAVE SYSTEM ====================
 
-let autoSaveTimer = null;
-let isAutoSaving = false;
-let lastEditorUsername = localStorage.getItem('lastEditorUsername') || null;
+let isSaving = false;
 
 /**
- * Khởi tạo hệ thống auto-save: lắng nghe sự kiện input/change trên toàn bộ form
- * Auto-save ngay sau khi user ngừng typing 1 giây và lưu TẤT CẢ thông tin
+ * Build payload chứa toàn bộ dữ liệu từ tất cả sections
  */
-function initAutoSave() {
-    // Debounce save sau 1 giây khi user ngừng typing (giảm từ 3s xuống 1s)
-    const debounceSave = () => {
-        if (!currentProjectId) return; // Chưa có project thì không save
-        if (currentProjectStatus === 'HOAN_THANH') return; // Đã hoàn thành thì không save
-
-        clearTimeout(autoSaveTimer);
-        showAutoSaveStatus('pending');
-        autoSaveTimer = setTimeout(() => {
-            performAutoSave();
-        }, 1000); // Giảm từ 3000ms xuống 1000ms để lưu nhanh hơn
-    };
-
-    // Lắng nghe input/change trên project-detail-page
-    const detailPage = document.getElementById('project-detail-page');
-    if (detailPage) {
-        detailPage.addEventListener('input', (e) => {
-            if (e.target.matches('input, textarea, select')) {
-                debounceSave();
-            }
-        });
-        detailPage.addEventListener('change', (e) => {
-            if (e.target.matches('select')) {
-                debounceSave();
-            }
-        });
-    }
-}
-
-/**
- * Thực hiện auto-save: lưu TẤT CẢ dữ liệu của TẤT CẢ sections (không chỉ section đang active)
- * Điều này đảm bảo không bị mất dữ liệu khi chuyển tab
- */
-async function performAutoSave() {
-    if (isAutoSaving || !currentProjectId) return;
-    if (currentProjectStatus === 'HOAN_THANH') return;
-    
-    isAutoSaving = true;
-    showAutoSaveStatus('saving');
-    
+function buildSavePayload() {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
     
+    let payload = {};
+    
     try {
-        // Kiểm tra xem có phải account mới edit không -> tạo revision cho account trước
-        const currentUsername = user.username || user.displayName || 'unknown';
-        await checkAndCreateRevisionForPreviousEditor(currentUsername);
-        
-        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
-        
-        // ========== LƯU TẤT CẢ SECTIONS (không chỉ section active) ==========
-        let payload = {};
-        
         // === 1. YÊU CẦU BÀI TOÁN ===
         const requestData = collectYeuCauBaiToan();
         if (role !== 'admin1' && role !== 'admin2') {
             delete requestData.adminReview;
         }
         payload.yeuCauBaiToanContent = JSON.stringify(requestData);
-        
-        // Cập nhật project name/devUnit
-        if (requestData.projectName) {
-            await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
-                method: 'PUT', headers,
-                body: JSON.stringify({ name: requestData.projectName, devUnit: requestData.devUnit, ownerName: requestData.contactPerson })
-            }).catch(() => {});
-        }
         
         // === 2. THÔNG TIN ĐẦU VÀO ===
         const inputData = collectThongTinDauVao();
@@ -8540,141 +8661,167 @@ async function performAutoSave() {
         }
         payload.thongTinDauVaoContent = JSON.stringify(inputData);
         
-        // === 3. MÔ HÌNH HỆ THỐNG (bao gồm bảng thông tin kết nối) ===
+        // === 3. MÔ HÌNH HỆ THỐNG ===
         const modelData = collectMoHinhHeThong();
         payload.moHinhHeThongContent = JSON.stringify(modelData);
         
-        // === 4. ĐỊNH CỠ HỆ THỐNG (bao gồm POC/Sizing values) ===
+        // === 4. ĐỊNH CỠ HỆ THỐNG ===
         if (typeof collectAllSizingData === 'function') {
             const sizingData = collectAllSizingData();
             payload.dinhCoHeThongContent = JSON.stringify(sizingData);
         }
         
-        // === 5. TỔNG HỢP VÀ ĐỀ XUẤT (bao gồm ghi chú trong bảng) ===
+        // === 5. TỔNG HỢP VÀ ĐỀ XUẤT ===
         const summaryData = collectTongHop();
         payload.tongHopVaDeXuatContent = JSON.stringify(summaryData);
+    } catch (e) {
+        console.error('Error building save payload:', e);
+        return null;
+    }
+    
+    return payload;
+}
+
+/**
+ * Thực hiện lưu thủ công: lưu TẤT CẢ dữ liệu + tạo revision
+ * Được gọi khi user bấm nút Lưu ở bất kỳ section nào
+ */
+async function performManualSave() {
+    if (isSaving || !currentProjectId) return;
+    if (currentProjectStatus === 'HOAN_THANH') {
+        alert('Dự án đã hoàn thành, không thể chỉnh sửa.');
+        return;
+    }
+    
+    isSaving = true;
+    showSaveStatus('saving');
+    
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+    
+    try {
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
         
-        // ========== LƯU DỮ LIỆU VÀO DATABASE ==========
+        // ========== BUILD PAYLOAD ==========
+        const payload = buildSavePayload();
+        if (!payload) {
+            showSaveStatus('error');
+            return;
+        }
+        
+        // Lấy requestData cho project name update
+        let requestData = {};
+        try { requestData = collectYeuCauBaiToan(); } catch(e) {}
+        
+        // ========== CHẠY SONG SONG TẤT CẢ NETWORK REQUESTS ==========
+        const networkPromises = [];
+        
+        // 1) Cập nhật project name/devUnit
+        if (requestData.projectName) {
+            networkPromises.push(
+                fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+                    method: 'PUT', headers,
+                    body: JSON.stringify({ 
+                        name: requestData.projectName, 
+                        devUnit: requestData.devUnit, 
+                        ownerName: requestData.contactPerson 
+                    })
+                }).catch(() => {})
+            );
+        }
+        
+        // 2) Lưu dữ liệu chính
         if (Object.keys(payload).length > 0) {
-            // Đảm bảo projectData tồn tại
             if (!currentProjectDataId) {
                 payload.projectId = currentProjectId;
-                const resp = await fetch(`${API_BASE_URL}/project-data`, {
-                    method: 'POST', headers,
-                    body: JSON.stringify(payload)
-                });
-                if (resp.ok) {
-                    const result = await resp.json();
-                    saveProjectDataIdToStorage(result.id);
-                }
+                networkPromises.push(
+                    fetch(`${API_BASE_URL}/project-data`, {
+                        method: 'POST', headers,
+                        body: JSON.stringify(payload)
+                    }).then(resp => {
+                        if (resp.ok) return resp.json().then(result => saveProjectDataIdToStorage(result.id));
+                        else throw new Error('POST project-data failed: ' + resp.status);
+                    })
+                );
             } else {
-                await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
-                    method: 'PUT', headers,
-                    body: JSON.stringify(payload)
-                });
-            }
-            
-            // Auto-save: chỉ thay đổi trạng thái khi dự án ở trạng thái khởi tạo
-            // Không thay đổi từ THAM_DINH/PHE_DUYET → SIZING qua auto-save
-            if (role === 'user' || !role || role === '') {
-                if (!currentProjectStatus || currentProjectStatus === 'Draft') {
-                    await updateProjectStatus('user_edit');
-                }
+                networkPromises.push(
+                    fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+                        method: 'PUT', headers,
+                        body: JSON.stringify(payload)
+                    }).then(resp => {
+                        if (!resp.ok) throw new Error('PUT project-data failed: ' + resp.status);
+                        return resp;
+                    })
+                );
             }
         }
         
-        // ========== LƯU ADMIN REVIEW CHO TẤT CẢ SECTIONS (nếu là admin) ==========
+        // 3) Admin review (nếu là admin)
         if (role === 'admin1' || role === 'admin2') {
-            // Save admin review cho từng section (không chỉ section active)
-            const adminReviewPromises = [];
-            
-            // Request section admin review
             const requestAdminReview = requestData.adminReview || {};
-            adminReviewPromises.push(
-                fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
-                    method: 'POST', headers,
-                    body: JSON.stringify({ section: 'request', reviewJson: JSON.stringify(requestAdminReview) })
-                }).catch(e => console.error('Auto-save request admin review error:', e))
-            );
             
-            // Input section admin review
             const inputRows = Array.from(document.querySelectorAll('#input-table-body tr'));
             const inputAdminReview = { rows: inputRows.map(row => ({ 
                 eval: row.querySelector('.admin-eval')?.value || '', 
                 note: row.querySelector('.admin-note')?.value || '' 
             })) };
-            adminReviewPromises.push(
-                fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
-                    method: 'POST', headers,
-                    body: JSON.stringify({ section: 'input', reviewJson: JSON.stringify(inputAdminReview) })
-                }).catch(e => console.error('Auto-save input admin review error:', e))
-            );
             
-            // Model section admin review (bao gồm connection info review)
-            const modelAdminReview = collectMoHinhAdminReview();
-            adminReviewPromises.push(
-                fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
-                    method: 'POST', headers,
-                    body: JSON.stringify({ section: 'model', reviewJson: JSON.stringify(modelAdminReview) })
-                }).catch(e => console.error('Auto-save model admin review error:', e))
-            );
+            let modelAdminReview = {};
+            try { modelAdminReview = collectMoHinhAdminReview(); } catch(e) {}
             
-            // Sizing section admin review (bao gồm POC/Sizing admin evaluation)
-            const sizingAdminReview = collectSizingAdminReviewData();
-            adminReviewPromises.push(
-                fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
-                    method: 'POST', headers,
-                    body: JSON.stringify({ section: 'sizing', reviewJson: JSON.stringify(sizingAdminReview) })
-                }).catch(e => console.error('Auto-save sizing admin review error:', e))
-            );
+            let sizingAdminReview = {};
+            try { sizingAdminReview = collectSizingAdminReviewData(); } catch(e) {}
             
-            // Chờ tất cả admin reviews được lưu
-            await Promise.all(adminReviewPromises);
+            const reviewSections = [
+                { section: 'request', data: requestAdminReview },
+                { section: 'input', data: inputAdminReview },
+                { section: 'model', data: modelAdminReview },
+                { section: 'sizing', data: sizingAdminReview }
+            ];
+            
+            reviewSections.forEach(({ section, data }) => {
+                networkPromises.push(
+                    fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+                        method: 'POST', headers,
+                        body: JSON.stringify({ section, reviewJson: JSON.stringify(data) })
+                    }).catch(e => console.warn(`Admin review save failed [${section}]:`, e.message))
+                );
+            });
         }
         
-        showAutoSaveStatus('saved');
-    } catch (error) {
-        console.error('Auto-save error:', error);
-        showAutoSaveStatus('error');
-    } finally {
-        isAutoSaving = false;
-    }
-}
-
-/**
- * Kiểm tra và tạo revision cho editor trước đó khi account mới bắt đầu edit
- */
-async function checkAndCreateRevisionForPreviousEditor(currentUsername) {
-    const prevEditor = localStorage.getItem('lastEditorUsername');
-    
-    if (prevEditor && prevEditor !== currentUsername && currentProjectId) {
-        // Account mới bắt đầu edit -> tạo revision cho account trước
-        try {
-            await fetch(`${API_BASE_URL}/project-revisions`, {
-                method: 'POST',
-                headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
-                body: JSON.stringify({
-                    projectId: currentProjectId,
-                    userId: prevEditor,
-                    changeLog: `${prevEditor} - Lưu phiên làm việc`
-                })
-            });
-            console.log(`✅ Đã tạo revision cho editor trước: ${prevEditor}`);
-        } catch (e) {
-            console.error('Lỗi tạo revision cho editor trước:', e);
+        // ========== CHỜ TẤT CẢ HOÀN TẤT ==========
+        const results = await Promise.allSettled(networkPromises);
+        
+        const failedResults = results.filter(r => r.status === 'rejected');
+        if (failedResults.length > 0) {
+            console.warn(`Save: ${failedResults.length}/${results.length} requests failed`, failedResults);
         }
+        
+        // ========== TẠO REVISION SAU KHI LƯU THÀNH CÔNG ==========
+        const userName = user.displayName || user.username || 'User';
+        await createRevision(`${userName} lưu dữ liệu`);
+        
+        showSaveStatus('saved');
+        
+        // Cập nhật trạng thái dự án
+        if (role === 'user' || !role || role === '') {
+            if (!currentProjectStatus || currentProjectStatus === 'Draft') {
+                updateProjectStatus('user_edit').catch(() => {});
+            }
+        }
+    } catch (error) {
+        console.error('Save error:', error);
+        showSaveStatus('error');
+    } finally {
+        isSaving = false;
     }
-    
-    // Cập nhật editor hiện tại
-    localStorage.setItem('lastEditorUsername', currentUsername);
 }
 
 /**
- * Hiển thị trạng thái auto-save
+ * Hiển thị trạng thái lưu trên header và section hiện tại
  */
-function showAutoSaveStatus(status) {
-    // Tìm tất cả các status div và cập nhật
-    const statusDivs = ['save-status', 'input-save-status', 'model-save-status', 'summary-save-status'];
+function showSaveStatus(status) {
+    // Tìm status div của section đang active
     const activeSection = document.querySelector('.page-section.active');
     
     let targetStatusId = null;
@@ -8695,10 +8842,6 @@ function showAutoSaveStatus(status) {
         headerIndicator.classList.add('visible');
         
         switch (status) {
-            case 'pending':
-                headerIndicator.innerHTML = '<i class="fa-solid fa-clock"></i>';
-                headerIndicator.title = 'Chờ lưu...';
-                break;
             case 'saving':
                 headerIndicator.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
                 headerIndicator.classList.add('saving');
@@ -8723,24 +8866,52 @@ function showAutoSaveStatus(status) {
     if (!statusDiv) return;
     
     switch (status) {
-        case 'pending':
-            statusDiv.innerHTML = '<span style="color: #999; font-size: 12px;"><i class="fa-solid fa-clock"></i> Chờ lưu...</span>';
-            break;
         case 'saving':
-            statusDiv.innerHTML = '<span style="color: #b8860b; font-size: 12px;"><i class="fa-solid fa-spinner fa-spin"></i> Đang tự động lưu...</span>';
+            statusDiv.innerHTML = '<span style="color: #b8860b; font-size: 12px;"><i class="fa-solid fa-spinner fa-spin"></i> Đang lưu...</span>';
             break;
         case 'saved':
-            statusDiv.innerHTML = '<span style="color: green; font-size: 12px;"><i class="fa-solid fa-check"></i> Đã tự động lưu</span>';
+            statusDiv.innerHTML = '<span style="color: green; font-size: 12px;"><i class="fa-solid fa-check"></i> Đã lưu thành công</span>';
             setTimeout(() => {
-                if (statusDiv.innerHTML.includes('Đã tự động lưu')) {
+                if (statusDiv.innerHTML.includes('Đã lưu thành công')) {
                     statusDiv.innerHTML = '';
                 }
             }, 5000);
             break;
         case 'error':
-            statusDiv.innerHTML = '<span style="color: red; font-size: 12px;"><i class="fa-solid fa-exclamation-triangle"></i> Lỗi tự động lưu</span>';
+            statusDiv.innerHTML = '<span style="color: red; font-size: 12px;"><i class="fa-solid fa-exclamation-triangle"></i> Lỗi khi lưu dữ liệu</span>';
             break;
     }
+}
+
+/**
+ * Kiểm tra và tạo revision cho editor trước đó khi account mới bắt đầu edit
+ */
+let revisionCheckedForSession = false;
+
+async function checkAndCreateRevisionForPreviousEditor(currentUsername) {
+    const prevEditor = localStorage.getItem('lastEditorUsername');
+    
+    if (prevEditor && prevEditor !== currentUsername && currentProjectId) {
+        // Account mới bắt đầu edit -> tạo BASELINE revision cho account trước
+        try {
+            await fetch(`${API_BASE_URL}/project-revisions`, {
+                method: 'POST',
+                headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+                body: JSON.stringify({
+                    projectId: currentProjectId,
+                    userId: prevEditor,
+                    changeLog: `${prevEditor} - Lưu phiên làm việc`,
+                    forceBaseline: true
+                })
+            });
+            console.log(`✅ Đã tạo revision cho editor trước: ${prevEditor}`);
+        } catch (e) {
+            console.error('Lỗi tạo revision cho editor trước:', e);
+        }
+    }
+    
+    // Cập nhật editor hiện tại
+    localStorage.setItem('lastEditorUsername', currentUsername);
 }
 
 // ==================== CONNECTION INFO TABLE ====================

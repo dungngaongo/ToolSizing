@@ -422,6 +422,39 @@ body {
     box-shadow: 0 2px 4px rgba(238, 0, 51, 0.1);
 }
 
+/* Save button for each section */
+.btn-save-section {
+    background: linear-gradient(135deg, #ee0033 0%, #c4002a 100%);
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    cursor: pointer;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 3px 10px rgba(238, 0, 51, 0.25);
+    letter-spacing: 0.3px;
+}
+.btn-save-section:hover {
+    background: linear-gradient(135deg, #ff1a4d 0%, #ee0033 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(238, 0, 51, 0.35);
+}
+.btn-save-section:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(238, 0, 51, 0.2);
+}
+.btn-save-section:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
 .btn-delete {
     background: none;
     border: none;
@@ -1797,6 +1830,27 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
     display: flex;
     align-items: center;
     gap: 5px;
+    flex-wrap: wrap;
+}
+
+/* Revision type badges (Baseline / Incremental) */
+.revision-type-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 4px;
+}
+.revision-type-badge.baseline {
+    background: #dbeafe;
+    color: #1e40af;
+}
+.revision-type-badge.incremental {
+    background: #fef3c7;
+    color: #92400e;
 }
 
 .version-time {

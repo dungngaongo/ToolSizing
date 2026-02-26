@@ -20,12 +20,18 @@ public class ProjectRevision {
     @Column(name = "user_id")
     private String userId; // Người thực hiện chỉnh sửa
 
+    @Column(name = "revision_type", length = 20)
+    private String revisionType; // BASELINE hoặc INCREMENTAL
+
     @Column(name = "snapshot_content", columnDefinition = "LONGTEXT")
     @Lob
-    private String snapshotContent; // JSON (Lưu lại toàn bộ nội dung của project_data tại thời điểm đó)
+    private String snapshotContent; // JSON - BASELINE: full snapshot, INCREMENTAL: chỉ phần thay đổi
 
     @Column(name = "change_log", length = 500)
     private String changeLog; // Mô tả ngắn gọn (ví dụ: "Cập nhật ngân sách")
+
+    @Column(name = "baseline_id")
+    private String baselineId; // ID của revision BASELINE gần nhất (cho INCREMENTAL)
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
