@@ -1188,6 +1188,9 @@ function loadMoHinhHeThong(data, admin) {
 
         // Ensure role permissions applied after building model section
         try { applyRolePermissions(); } catch (e) {}
+        
+        // Update module visibility in sizing section based on selected modules
+        updateModuleVisibility();
     } catch (e) {
         console.error('loadMoHinhHeThong error', e);
     }
@@ -1837,7 +1840,7 @@ function createArchTableRow(stt, data = {}) {
         <td>${stt}</td>
         <td><input type="text" placeholder="Tên module" value="${data.moduleName || ''}"></td>
         <td>
-            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;" onchange="updateModuleVisibility()">
                 <option value="">-- Chọn --</option>
                 <option value="App" ${data.loaiModule === 'App' ? 'selected' : ''}>App</option>
                 <option value="Redis" ${data.loaiModule === 'Redis' ? 'selected' : ''}>Redis</option>
@@ -1983,6 +1986,68 @@ function addArchRow() {
     const tr = createArchTableRow(nextSTT);
     tbody.appendChild(tr);
     try { applyRolePermissions(); } catch (e) {}
+    updateModuleVisibility();
+}
+
+// ==================== MODULE VISIBILITY MANAGEMENT ====================
+
+/**
+ * Lấy danh sách các module được chọn từ bảng Chi tiết thành phần
+ * @returns {Array} Mảng các loại module được chọn (App, Redis, MariaDB, Kafka, K8S, LB/FW)
+ */
+function getSelectedModules() {
+    const selectedModules = new Set();
+    
+    document.querySelectorAll('#arch-table-body tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const loaiModuleSelect = cells[2]?.querySelector('select');
+        const loaiModule = loaiModuleSelect?.value?.trim();
+        
+        if (loaiModule) {
+            selectedModules.add(loaiModule);
+        }
+    });
+    
+    return Array.from(selectedModules);
+}
+
+/**
+ * Cập nhật visibility của các module sections dựa trên các module được chọn
+ * Chỉ hiển thị module được chọn, ẩn các module khác
+ */
+function updateModuleVisibility() {
+    const selectedModules = getSelectedModules();
+    
+    // Định nghĩa mapping giữa loại module và ID của collapsible section
+    const moduleMapping = {
+        'App': 'module-app-content',
+        'Redis': 'module-redis-content', 
+        'MariaDB': 'module-mariadb-content',
+        'Kafka': 'module-kafka-content',
+        'K8S': 'module-k8s-content',
+        'LB/FW': 'module-lbfw-content'
+    };
+    
+    // Duyệt qua tất cả các module sections
+    Object.entries(moduleMapping).forEach(([moduleName, contentId]) => {
+        const moduleContent = document.getElementById(contentId);
+        const moduleWrapper = moduleContent?.closest('.module-collapsible');
+        
+        if (moduleWrapper) {
+            if (selectedModules.includes(moduleName)) {
+                // Hiển thị module được chọn
+                moduleWrapper.style.display = 'block';
+            } else {
+                // Ẩn module không được chọn, và collapse nó
+                moduleWrapper.style.display = 'none';
+                moduleContent.classList.remove('expanded');
+                const header = moduleContent.previousElementSibling;
+                if (header) {
+                    header.classList.remove('active');
+                }
+            }
+        }
+    });
 }
 
 // ==================== TỔNG HỢP VÀ ĐỀ XUẤT ====================
@@ -2507,7 +2572,10 @@ function removeRow(btn) {
 }
 
 function removeSummaryRow(btn) { removeRow(btn); }
-function removeArchRow(btn) { removeRow(btn); }
+function removeArchRow(btn) { 
+    removeRow(btn); 
+    updateModuleVisibility();
+}
 
 function updateSTT(tbody) {
     Array.from(tbody.rows).forEach((r, index) => {
