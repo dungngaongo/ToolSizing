@@ -6216,7 +6216,7 @@ function calculateRedisKeyMethod() {
             <li><strong>Tổng số Key sau định cỡ (A):</strong> ${keyCountPOC.toLocaleString()} × ${(sizing / poc).toFixed(2)} = <strong>${keyCount.toLocaleString()}</strong></li>
             <li><strong>Kích thước trung bình 1 bản ghi (B):</strong> ${recordSize} bytes</li>
             <li><strong>Tổng dung lượng Key Redis (C):</strong> ${keyCount.toLocaleString()} × ${recordSize} = <strong>${C.toFixed(4)} GB</strong></li>
-            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT - Đảm bảo quốc gia' : 'Bình thường'}</li>
+            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT' : 'Bình thường'}</li>
         </ul>
     </div>`;
     
@@ -6374,7 +6374,7 @@ function calculateRedisConfigMethod() {
             <li><strong>Tổng RAM Master hiện tại (đã nhân tải):</strong> ${totalMasterRAM.toFixed(2)} GB</li>
             <li><strong>Hệ số (Định cỡ/Đầu vào):</strong> ${sizingCCU} / ${inputCCU} = ${factor.toFixed(2)}</li>
             <li><strong>RAM cần cho hệ thống mới:</strong> ${totalMasterRAM.toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT - Đảm bảo quốc gia' : 'Bình thường'}</li>
+            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT' : 'Bình thường'}</li>
         </ul>
     </div>`;
     
@@ -8996,6 +8996,7 @@ function createConnectionTableRow(stt, data = {}) {
                 <option value="">-- Chọn --</option>
                 <option value="TCP" ${data.protocol === 'TCP' ? 'selected' : ''}>TCP</option>  
                 <option value="UDP" ${data.protocol === 'UDP' ? 'selected' : ''}>UDP</option>
+                <option value="TCP/UDP" ${data.protocol === 'TCP/UDP' ? 'selected' : ''}>TCP/UDP</option>
             </select>
         </td>
         <td><input type="text" class="input-full" value="${escapeHtml(data.description || '')}" placeholder="Mô tả kết nối..."></td>
