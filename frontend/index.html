@@ -779,8 +779,9 @@
                                                 <tr>
                                                     <th style="width: 110px;">/data used (GB)</th>
                                                     <th style="width: 110px;">/log used (GB)</th>
-                                                    <th style="width: 120px;">/backup used (GB)</th>
-                                                    <th style="width: 120px;">Ảnh sở cứ</th>
+                                                    <th style="width: 110px;">Số bản lưu backup</th>
+                                                    <th style="width: 110px;">Tỉ lệ nén (%)</th>
+                                                    <th style="width: 160px;">Ảnh sở cứ</th>
                                                     <th style="width: 80px; background-color: #fff9e6; border-bottom: 2px solid #ffeeba; color: #b58900;">
                                                         <i class="fa-solid fa-user-shield"></i> Đánh giá
                                                     </th>
@@ -793,14 +794,14 @@
                                                 <tr>
                                                     <td><input type="number" id="mariadb-storage-data-used" class="input-full sizing-user-input" placeholder="/data used" min="0"></td>
                                                     <td><input type="number" id="mariadb-storage-log-used" class="input-full sizing-user-input" placeholder="/log used" min="0"></td>
-                                                    <td><input type="number" id="mariadb-storage-backup-used" class="input-full sizing-user-input" placeholder="/backup used" min="0"></td>
+                                                    <td><input type="number" id="mariadb-storage-backup-copies" class="input-full sizing-user-input" placeholder="Số bản" min="0" value="1"></td>
+                                                    <td><input type="number" id="mariadb-storage-compress-ratio" class="input-full sizing-user-input" placeholder="%" min="0" max="100" value="100"></td>
                                                     <td>
-                                                        <div class="inline-evidence-cell">
-                                                            <input type="file" accept="image/*" class="mariadb-storage-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                                                            <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
-                                                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                                                        <div class="mariadb-storage-evidence-container">
+                                                            <div id="mariadb-storage-evidence-grid" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;"></div>
+                                                            <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="addMariaDBStorageEvidenceSlot()" title="Thêm ảnh sở cứ" style="font-size: 11px; padding: 2px 8px;">
+                                                                <i class="fa-solid fa-plus"></i>
                                                             </button>
-                                                            <span class="inline-evidence-preview"></span>
                                                         </div>
                                                     </td>
                                                     <td class="admin-cell">
@@ -817,12 +818,6 @@
                                             </tbody>
                                         </table>
                                     </div>
-                                </div>
-
-                                <!-- Ghi chú -->
-                                <div style="margin-top: 20px;">
-                                    <label style="font-weight: 600; font-size: 13px;">Ghi chú:</label>
-                                    <textarea id="mariadb-note" class="input-full sizing-user-input" rows="2" placeholder="Lưu mấy bản, tỉ lệ nén..."></textarea>
                                 </div>
 
                                 <!-- Thông tin đầu vào -->

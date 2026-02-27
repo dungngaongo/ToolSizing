@@ -856,6 +856,9 @@ function resetAllForms() {
     document.querySelectorAll('.btn-inline-evidence').forEach(btn => {
         btn.style.display = '';
     });
+    // Clear mariadb storage evidence grid (multi-image)
+    const storageEvidenceGrid = document.getElementById('mariadb-storage-evidence-grid');
+    if (storageEvidenceGrid) storageEvidenceGrid.innerHTML = '';
 
     // Collapse all module sections (remove expanded state)
     document.querySelectorAll('.module-collapsible-content').forEach(el => {
@@ -5558,15 +5561,25 @@ function collectMariaDBRefTableData() {
     return data;
 }
 
-// Thu thập dữ liệu storage MariaDB (direct input - dataUsed, logUsed, backupUsed)
+// Thu thập dữ liệu storage MariaDB (direct input - dataUsed, logUsed, soBanBackup, tiLeNen)
 function collectMariaDBStorageData() {
-    const storageCell = document.querySelector('.mariadb-storage-table .inline-evidence-cell');
-    const evidenceImg = storageCell?.querySelector('.inline-evidence-img');
+    // Collect multiple evidence images
+    const evidenceImages = [];
+    const grid = document.getElementById('mariadb-storage-evidence-grid');
+    if (grid) {
+        grid.querySelectorAll('.mariadb-storage-evidence-slot').forEach(slot => {
+            const img = slot.querySelector('img');
+            if (img && img.src) {
+                evidenceImages.push(img.src);
+            }
+        });
+    }
     return {
         dataUsed: document.getElementById('mariadb-storage-data-used')?.value || '',
         logUsed: document.getElementById('mariadb-storage-log-used')?.value || '',
-        backupUsed: document.getElementById('mariadb-storage-backup-used')?.value || '',
-        evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : ''
+        soBanBackup: document.getElementById('mariadb-storage-backup-copies')?.value || '1',
+        tiLeNen: document.getElementById('mariadb-storage-compress-ratio')?.value || '100',
+        evidenceImages: evidenceImages
     };
 }
 
@@ -5595,7 +5608,8 @@ function getMariaDBStorage() {
     return {
         dataUsed: parseFloat(document.getElementById('mariadb-storage-data-used')?.value) || 0,
         logUsed: parseFloat(document.getElementById('mariadb-storage-log-used')?.value) || 0,
-        backupUsed: parseFloat(document.getElementById('mariadb-storage-backup-used')?.value) || 0
+        soBanBackup: parseFloat(document.getElementById('mariadb-storage-backup-copies')?.value) || 1,
+        tiLeNen: parseFloat(document.getElementById('mariadb-storage-compress-ratio')?.value) || 100
     };
 }
 
@@ -5616,26 +5630,26 @@ function calculateMariaDBSizing() {
     }
     
     const storage = getMariaDBStorage();
-    if (!storage.dataUsed && !storage.logUsed && !storage.backupUsed) {
-        alert('Vui lòng nhập thông tin /data used, /log used, /backup used trong bảng Storage.');
+    if (!storage.dataUsed && !storage.logUsed) {
+        alert('Vui lòng nhập thông tin /data used, /log used trong bảng Storage.');
         return;
     }
     
     // Hệ số
     const factor = sizingCCU / inputCCU;
     
-    // Công thức tính theo ảnh (sử dụng giá trị "used"):
+    // Công thức tính:
     // CPU cần = CPU * Tải CPU * (Định cỡ / Đầu vào) * 1.1 / 0.75
     // RAM cần = RAM * Tải RAM * (Định cỡ / Đầu vào) * 1.1 / 0.9
     // /data cần = /data used * (Định cỡ / Đầu vào) * 1.1 / 0.8
     // /log cần = /log used * (Định cỡ / Đầu vào) * 1.1 / 0.8
-    // /backup cần = /backup used * (Định cỡ / Đầu vào) * 1.1 / 0.8
+    // /backup cần = /data cần * số bản lưu backup * tỉ lệ nén (%)
     
     const cpuNeeded = masterData.cpu * (masterData.cpuLoad / 100) * factor * 1.1 / 0.75;
     const ramNeeded = masterData.ram * (masterData.ramLoad / 100) * factor * 1.1 / 0.9;
     const dataNeeded = storage.dataUsed * factor * 1.1 / 0.8;
     const logNeeded = storage.logUsed * factor * 1.1 / 0.8;
-    const backupNeeded = storage.backupUsed * factor * 1.1 / 0.8;
+    const backupNeeded = dataNeeded * storage.soBanBackup * (storage.tiLeNen / 100);
     
     // NAS = chỉ /backup cần
     const nasTotal = backupNeeded;
@@ -5650,7 +5664,7 @@ function calculateMariaDBSizing() {
             <li><strong>RAM cần</strong> = RAM × Tải RAM × (Định cỡ / Đầu vào) × 1.1 / 0.9 = ${masterData.ram} × ${(masterData.ramLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
             <li><strong>/data cần</strong> = /data used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.dataUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${dataNeeded.toFixed(2)} GB</strong></li>
             <li><strong>/log cần</strong> = /log used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.logUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${logNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>/backup cần</strong> = /backup used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.backupUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>/backup cần</strong> = /data cần × Số bản lưu backup × Tỉ lệ nén (%) = ${dataNeeded.toFixed(2)} × ${storage.soBanBackup} × ${storage.tiLeNen}% = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
         </ul>
     </div>`;
     
@@ -5723,14 +5737,19 @@ function loadMariaDBData(data) {
     if (data.storage) {
         const dataUsedEl = document.getElementById('mariadb-storage-data-used');
         const logUsedEl = document.getElementById('mariadb-storage-log-used');
-        const backupUsedEl = document.getElementById('mariadb-storage-backup-used');
+        const backupCopiesEl = document.getElementById('mariadb-storage-backup-copies');
+        const compressRatioEl = document.getElementById('mariadb-storage-compress-ratio');
         if (dataUsedEl) dataUsedEl.value = data.storage.dataUsed || '';
         if (logUsedEl) logUsedEl.value = data.storage.logUsed || '';
-        if (backupUsedEl) backupUsedEl.value = data.storage.backupUsed || '';
-        // Load inline evidence for storage
-        if (data.storage.evidenceImage) {
-            const storageCell = document.querySelector('.mariadb-storage-table .inline-evidence-cell');
-            if (storageCell) loadInlineEvidence(storageCell, data.storage.evidenceImage);
+        if (backupCopiesEl) backupCopiesEl.value = data.storage.soBanBackup || '1';
+        if (compressRatioEl) compressRatioEl.value = data.storage.tiLeNen || '100';
+        // Load multiple evidence images for storage
+        if (data.storage.evidenceImages && Array.isArray(data.storage.evidenceImages) && data.storage.evidenceImages.length > 0) {
+            loadMariaDBStorageEvidence(data.storage.evidenceImages);
+        }
+        // Backward compatibility: single evidenceImage
+        else if (data.storage.evidenceImage) {
+            loadMariaDBStorageEvidence([data.storage.evidenceImage]);
         }
     }
     // Backward compatibility for old data format
@@ -5738,10 +5757,8 @@ function loadMariaDBData(data) {
         const firstRow = data.storageTable[0];
         const dataUsedEl = document.getElementById('mariadb-storage-data-used');
         const logUsedEl = document.getElementById('mariadb-storage-log-used');
-        const backupUsedEl = document.getElementById('mariadb-storage-backup-used');
         if (dataUsedEl) dataUsedEl.value = firstRow.dataUsed || firstRow.data || '';
         if (logUsedEl) logUsedEl.value = firstRow.logUsed || firstRow.log || '';
-        if (backupUsedEl) backupUsedEl.value = firstRow.backupUsed || firstRow.backup || '';
     }
     
     // Load note
@@ -5868,6 +5885,87 @@ function deleteMariaDBEvidenceSlot(btn) {
         const slot = btn.closest('.upload-box');
         slot.remove();
     }
+}
+
+// ========== MariaDB Storage Multi-Image Evidence Functions ==========
+
+// Thêm slot ảnh sở cứ cho bảng Storage MariaDB (hỗ trợ nhiều ảnh)
+function addMariaDBStorageEvidenceSlot() {
+    const grid = document.getElementById('mariadb-storage-evidence-grid');
+    if (!grid) return;
+    
+    const slot = document.createElement('div');
+    slot.className = 'mariadb-storage-evidence-slot';
+    slot.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: #f0f9ff; border-radius: 4px; border: 1px solid #d0e0f0;';
+    slot.innerHTML = `
+        <input type="file" accept="image/*" onchange="handleMariaDBStorageEvidenceUpload(this)" style="display:none">
+        <span class="storage-evidence-preview" style="font-size: 11px; color: #666;">Chưa có ảnh</span>
+        <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh" style="font-size: 10px; padding: 1px 5px;">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+        </button>
+    `;
+    grid.appendChild(slot);
+    // Trigger file picker immediately
+    slot.querySelector('input[type=file]').click();
+}
+
+// Xử lý upload ảnh cho Storage MariaDB
+function handleMariaDBStorageEvidenceUpload(input) {
+    const slot = input.closest('.mariadb-storage-evidence-slot');
+    const previewSpan = slot.querySelector('.storage-evidence-preview');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewSpan.innerHTML = `
+                <img src="${e.target.result}" alt="Evidence" style="display:none;">
+                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh" style="font-size: 10px; padding: 1px 4px;">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeMariaDBStorageEvidenceSlot(this)" title="Xóa ảnh" style="font-size: 10px; padding: 1px 4px;">
+                    ✖
+                </button>
+            `;
+            // Hide the upload button
+            const uploadBtn = slot.querySelector('.btn-inline-evidence');
+            if (uploadBtn) uploadBtn.style.display = 'none';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// Xóa slot ảnh sở cứ Storage MariaDB
+function removeMariaDBStorageEvidenceSlot(btn) {
+    if (confirm('Bạn có chắc muốn xóa ảnh này?')) {
+        const slot = btn.closest('.mariadb-storage-evidence-slot');
+        if (slot) slot.remove();
+    }
+}
+
+// Load ảnh sở cứ Storage MariaDB (nhiều ảnh)
+function loadMariaDBStorageEvidence(images) {
+    const grid = document.getElementById('mariadb-storage-evidence-grid');
+    if (!grid || !images || !Array.isArray(images)) return;
+    
+    grid.innerHTML = '';
+    images.forEach(imgSrc => {
+        const slot = document.createElement('div');
+        slot.className = 'mariadb-storage-evidence-slot';
+        slot.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: #f0f9ff; border-radius: 4px; border: 1px solid #d0e0f0;';
+        slot.innerHTML = `
+            <input type="file" accept="image/*" onchange="handleMariaDBStorageEvidenceUpload(this)" style="display:none">
+            <span class="storage-evidence-preview">
+                <img src="${imgSrc}" alt="Evidence" style="display:none;">
+                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh" style="font-size: 10px; padding: 1px 4px;">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeMariaDBStorageEvidenceSlot(this)" title="Xóa ảnh" style="font-size: 10px; padding: 1px 4px;">
+                    ✖
+                </button>
+            </span>
+        `;
+        grid.appendChild(slot);
+    });
 }
 
 // Thu thập dữ liệu ảnh sở cứ MariaDB

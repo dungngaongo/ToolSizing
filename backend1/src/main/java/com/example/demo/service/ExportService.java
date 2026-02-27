@@ -64,13 +64,15 @@ public class ExportService {
         }
 
         // ===== III. MO HINH HE THONG =====
+        JsonNode moHinhNode = null;
         if (pd.getMoHinhHeThongContent() != null) {
-            writeMoHinhHeThong(doc, objectMapper.readTree(pd.getMoHinhHeThongContent()));
+            moHinhNode = objectMapper.readTree(pd.getMoHinhHeThongContent());
+            writeMoHinhHeThong(doc, moHinhNode);
         }
 
         // ===== IV. DINH CO HE THONG =====
         if (pd.getDinhCoHeThongContent() != null) {
-            writeDinhCoHeThong(doc, objectMapper.readTree(pd.getDinhCoHeThongContent()));
+            writeDinhCoHeThong(doc, objectMapper.readTree(pd.getDinhCoHeThongContent()), moHinhNode);
         }
 
         // ===== V. TONG HOP VA DE XUAT =====
@@ -275,14 +277,44 @@ public class ExportService {
     }
 
     // ======================== IV. DINH CO HE THONG ========================
-    private void writeDinhCoHeThong(XWPFDocument doc, JsonNode root) {
+    private void writeDinhCoHeThong(XWPFDocument doc, JsonNode root, JsonNode moHinhNode) {
         addSectionHeading(doc, "IV. ĐỊNH C\u1ee0 H\u1ec6 TH\u1ed0NG");
-        writeModuleApp(doc, root.path("moduleApp"));
-        writeModuleMariaDB(doc, root.path("moduleMariaDB"));
-        writeModuleRedis(doc, root.path("moduleRedis"));
-        writeModuleKafka(doc, root.path("moduleKafka"));
-        writeModuleK8S(doc, root.path("moduleK8S"));
-        writeModuleLBFW(doc, root.path("moduleLBFW"));
+        
+        // Get selected modules from moHinhHeThong archRows
+        java.util.Set<String> selectedModules = new java.util.HashSet<>();
+        if (moHinhNode != null) {
+            JsonNode archRows = moHinhNode.path("archRows");
+            if (archRows.isArray()) {
+                for (JsonNode row : archRows) {
+                    String loaiModule = txt(row, "loaiModule").trim();
+                    if (!loaiModule.isEmpty()) {
+                        selectedModules.add(loaiModule);
+                    }
+                }
+            }
+        }
+        
+        // If no modules found in moHinhHeThong, export all (backward compatibility)
+        boolean exportAll = selectedModules.isEmpty();
+        
+        if (exportAll || selectedModules.contains("App")) {
+            writeModuleApp(doc, root.path("moduleApp"));
+        }
+        if (exportAll || selectedModules.contains("MariaDB")) {
+            writeModuleMariaDB(doc, root.path("moduleMariaDB"));
+        }
+        if (exportAll || selectedModules.contains("Redis")) {
+            writeModuleRedis(doc, root.path("moduleRedis"));
+        }
+        if (exportAll || selectedModules.contains("Kafka")) {
+            writeModuleKafka(doc, root.path("moduleKafka"));
+        }
+        if (exportAll || selectedModules.contains("K8S")) {
+            writeModuleK8S(doc, root.path("moduleK8S"));
+        }
+        if (exportAll || selectedModules.contains("LB/FW")) {
+            writeModuleLBFW(doc, root.path("moduleLBFW"));
+        }
     }
 
     // ---------- Module App ----------
@@ -571,29 +603,35 @@ public class ExportService {
         if (!storage.isMissingNode()) {
             addSubHeading2(doc, "Storage MariaDB");
             
-            // Create 7-column table for storage: /data, /log, /backup, Tải DISK(%), /data used, /log used, /backup used
-            XWPFTable storageTable = doc.createTable(2, 7);
+            // Create 4-column table for storage: /data used, /log used, Số bản lưu backup, Tỉ lệ nén (%)
+            XWPFTable storageTable = doc.createTable(2, 4);
             storageTable.setWidth("100%");
             
             // Header row
-            setCell(storageTable, 0, 0, "/data (GB)", true, null);
-            setCell(storageTable, 0, 1, "/log (GB)", true, null);
-            setCell(storageTable, 0, 2, "/backup (GB)", true, null);
-            setCell(storageTable, 0, 3, "T\u1ea3i DISK (%)", true, null);
-            setCell(storageTable, 0, 4, "/data used (GB)", true, null);
-            setCell(storageTable, 0, 5, "/log used (GB)", true, null);
-            setCell(storageTable, 0, 6, "/backup used (GB)", true, null);
+            setCell(storageTable, 0, 0, "/data used (GB)", true, null);
+            setCell(storageTable, 0, 1, "/log used (GB)", true, null);
+            setCell(storageTable, 0, 2, "S\u1ed1 b\u1ea3n l\u01b0u backup", true, null);
+            setCell(storageTable, 0, 3, "T\u1ec9 l\u1ec7 n\u00e9n (%)", true, null);
             
             // Data row
-            setCell(storageTable, 1, 0, txt(storage, "data"), false, null);
-            setCell(storageTable, 1, 1, txt(storage, "log"), false, null);
-            setCell(storageTable, 1, 2, txt(storage, "backup"), false, null);
-            setCell(storageTable, 1, 3, txt(storage, "diskLoad"), false, null);
-            setCell(storageTable, 1, 4, txt(storage, "dataUsed"), false, null);
-            setCell(storageTable, 1, 5, txt(storage, "logUsed"), false, null);
-            setCell(storageTable, 1, 6, txt(storage, "backupUsed"), false, null);
+            setCell(storageTable, 1, 0, txt(storage, "dataUsed"), false, null);
+            setCell(storageTable, 1, 1, txt(storage, "logUsed"), false, null);
+            setCell(storageTable, 1, 2, txt(storage, "soBanBackup"), false, null);
+            setCell(storageTable, 1, 3, txt(storage, "tiLeNen"), false, null);
             
             doc.createParagraph();
+            
+            // Evidence images for storage (multiple images)
+            JsonNode storageEvidenceImages = storage.path("evidenceImages");
+            if (storageEvidenceImages.isArray() && storageEvidenceImages.size() > 0) {
+                addSubHeading2(doc, "S\u1edf c\u1ee9 Storage:");
+                for (JsonNode imgNode : storageEvidenceImages) {
+                    String imgData = imgNode.asText("");
+                    if (!imgData.isEmpty()) {
+                        addBase64Image(doc, imgData);
+                    }
+                }
+            }
         }
 
         // Evidence
