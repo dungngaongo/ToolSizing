@@ -3729,7 +3729,8 @@ async function saveSizingData() {
     }
 
     const user = getCurrentUser();
-    if (user.role?.toLowerCase() === 'admin1' || user.role?.toLowerCase() === 'admin2') {
+    const role = (user.role || '').toLowerCase();
+    if (role === 'admin1' || role === 'admin2') {
         alert('Admin không được phép lưu dữ liệu người dùng. Chỉ được phép đánh giá!');
         return;
     }
@@ -3747,6 +3748,11 @@ async function saveSizingData() {
         if (handleUnauthorized(response)) return;
 
         if (response.ok) {
+            // Cập nhật trạng thái dự án dựa trên role
+            if (role === 'user' || !role) {
+                await updateProjectStatus('user_edit');
+            }
+            
             // Tạo revision sau khi lưu thành công
             await createRevision(`${user.displayName || user.username || 'User'} cập nhật Định cỡ hệ thống`);
             alert('✓ Đã lưu dữ liệu Định cỡ hệ thống thành công!');
@@ -3768,7 +3774,8 @@ async function evaluateSizingSection() {
     }
 
     const user = getCurrentUser();
-    if (user.role?.toLowerCase() !== 'admin1' && user.role?.toLowerCase() !== 'admin2') {
+    const role = (user.role || '').toLowerCase();
+    if (role !== 'admin1' && role !== 'admin2') {
         alert('Chỉ Admin mới được phép đánh giá!');
         return;
     }
@@ -8959,11 +8966,16 @@ async function performManualSave() {
         
         showSaveStatus('saved');
         
-        // Cập nhật trạng thái dự án
-        if (role === 'user' || !role || role === '') {
-            if (!currentProjectStatus || currentProjectStatus === 'Draft') {
-                updateProjectStatus('user_edit').catch(() => {});
-            }
+        // Cập nhật trạng thái dự án dựa trên role
+        if (role === 'admin1') {
+            // Admin1 đánh giá: SIZING -> THAM_DINH
+            await updateProjectStatus('admin1_review');
+        } else if (role === 'admin2') {
+            // Admin2 đánh giá: THAM_DINH -> PHE_DUYET
+            await updateProjectStatus('admin2_review');
+        } else {
+            // User chỉnh sửa: có thể quay về SIZING nếu đang ở THAM_DINH/PHE_DUYET
+            await updateProjectStatus('user_edit');
         }
     } catch (error) {
         console.error('Save error:', error);
