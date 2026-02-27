@@ -2157,10 +2157,17 @@ function aggregateSizingResults() {
         }
     }
     
-    // 3. Module Redis - Parse từ redis key hoặc config result
-    const redisKeyResult = document.getElementById('redis-key-result-container')?.innerHTML || '';
-    const redisConfigResult = document.getElementById('redis-config-result-container')?.innerHTML || '';
-    const redisResult = redisKeyResult || redisConfigResult;
+    // 3. Module Redis - Parse từ redis key hoặc config result (dựa vào phương pháp được chọn)
+    const redisKeyBtn = document.getElementById('redis-method-key');
+    const isKeyMethodSelected = redisKeyBtn?.classList.contains('active') === true;
+    
+    let redisResult = '';
+    if (isKeyMethodSelected) {
+        redisResult = document.getElementById('redis-key-result-container')?.innerHTML || '';
+    } else {
+        redisResult = document.getElementById('redis-config-result-container')?.innerHTML || '';
+    }
+    
     const redisData = parseRedisSizingResult(redisResult);
     if (redisData) {
         results.push({
@@ -2172,10 +2179,17 @@ function aggregateSizingResults() {
         });
     }
     
-    // 4. Module Kafka - Parse từ kafka throughput hoặc linear result
-    const kafkaThroughputResult = document.getElementById('kafka-throughput-result-container')?.innerHTML || '';
-    const kafkaLinearResult = document.getElementById('kafka-linear-result-container')?.innerHTML || '';
-    const kafkaResult = kafkaThroughputResult || kafkaLinearResult;
+    // 4. Module Kafka - Parse từ kafka throughput hoặc linear result (dựa vào phương pháp được chọn)
+    const kafkaMethodThroughputBtn = document.getElementById('kafka-method-throughput');
+    const isThroughputMethodSelected = kafkaMethodThroughputBtn?.classList.contains('active') === true;
+    
+    let kafkaResult = '';
+    if (isThroughputMethodSelected) {
+        kafkaResult = document.getElementById('kafka-throughput-result-container')?.innerHTML || '';
+    } else {
+        kafkaResult = document.getElementById('kafka-linear-result-container')?.innerHTML || '';
+    }
+    
     const kafkaData = parseKafkaSizingResult(kafkaResult);
     if (kafkaData) {
         results.push({
@@ -2425,24 +2439,20 @@ function parseKafkaSizingResult(html) {
     if (!html || html.trim() === '') return null;
     
     // Kafka Broker row: Số lượng Node | vCPU/Node | RAM/Node | Disk/Node
-    // Format: <td class="text-center"><strong>3</strong></td>
-    //         <td class="text-center"><strong>16</strong></td>
-    //         <td class="text-center"><strong>32 GB</strong></td>
-    //         <td class="text-center"><strong>500 GB</strong></td> hoặc <strong>1.5 TB</strong>
-    
-    // Tìm dòng Kafka Broker
-    const brokerRowMatch = html.match(/Kafka\s*Broker[\s\S]*?<tr[^>]*>[\s\S]*?<\/tr>/i);
+    // Format: <td><strong>Kafka Broker</strong></td> <td>...</td> ...
     
     let vcpu = '', ram = '', disk = '', soLuong = '';
     
+    // Tìm dòng Kafka Broker: <tr>...<td><strong>Kafka Broker</strong></td>...<td>...</td>...<td>...</td>...<td>...</td></tr>
+    const brokerRowMatch = html.match(/<tr[^>]*>[\s\S]*?<td[^>]*><strong>Kafka\s*Broker<\/strong><\/td>([\s\S]*?)<\/tr>/i);
+    
     if (brokerRowMatch) {
-        const brokerRow = brokerRowMatch[0];
-        // Parse các giá trị trong dòng broker
-        const tdMatches = brokerRow.match(/<td[^>]*class="text-center"[^>]*><strong>([^<]+)<\/strong><\/td>/gi);
+        const brokerRowContent = brokerRowMatch[1];
+        // Trích xuất 4 thẻ <td> tiếp theo (Số lượng, vCPU, RAM, Disk)
+        const tdMatches = brokerRowContent.match(/<td[^>]*class="text-center"[^>]*><strong>([^<]+)<\/strong><\/td>/gi);
         if (tdMatches && tdMatches.length >= 4) {
-            // tdMatches[0] = Số lượng, tdMatches[1] = vCPU, tdMatches[2] = RAM, tdMatches[3] = Disk
-            const numMatch = tdMatches[0].match(/<strong>(\d+)<\/strong>/);
-            const vcpuMatch = tdMatches[1].match(/<strong>(\d+)<\/strong>/);
+            const numMatch = tdMatches[0].match(/<strong>([\d]+)<\/strong>/);
+            const vcpuMatch = tdMatches[1].match(/<strong>([\d]+)<\/strong>/);
             const ramMatch = tdMatches[2].match(/<strong>([\d.]+)\s*GB<\/strong>/i);
             const diskMatch = tdMatches[3].match(/<strong>([\d.]+)\s*(GB|TB)<\/strong>/i);
             
@@ -2453,28 +2463,7 @@ function parseKafkaSizingResult(html) {
         }
     }
     
-    // Fallback: tìm theo pattern cũ
-    if (!vcpu) {
-        const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i) || 
-                          html.match(/vCPU\/Node[^<]*<\/th>[\s\S]*?<td[^>]*><strong>(\d+)<\/strong>/i);
-        if (vcpuMatch) vcpu = vcpuMatch[1];
-    }
-    if (!ram) {
-        const ramMatch = html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i) ||
-                         html.match(/RAM\/Node[^<]*<\/th>[\s\S]*?<td[^>]*><strong>(\d+)\s*GB<\/strong>/i);
-        if (ramMatch) ram = ramMatch[1];
-    }
-    if (!disk) {
-        const diskMatch = html.match(/<strong>([\d.]+)\s*(GB|TB)\s*DISK<\/strong>/i) ||
-                          html.match(/Disk\/Node[^<]*<\/th>[\s\S]*?<td[^>]*><strong>([\d.]+)\s*(GB|TB)<\/strong>/i);
-        if (diskMatch) disk = diskMatch[1] + ' ' + (diskMatch[2] || 'GB');
-    }
-    if (!soLuong) {
-        const soLuongMatch = html.match(/<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong><\/td>/i);
-        if (soLuongMatch) soLuong = soLuongMatch[1];
-    }
-    
-    // Kiểm tra xem có dữ liệu không
+    // Kiểm tra xem có dữ liệu Kafka Broker không
     if (!vcpu && !ram) return null;
     
     let cauHinh = '';
@@ -2484,14 +2473,15 @@ function parseKafkaSizingResult(html) {
     
     // Parse Zookeeper/KRaft data 
     let zookeeper = null;
-    // Find the <tr> row that contains Zookeeper/KRaft
-    const zkRowMatch = html.match(/<tr[^>]*>[\s\S]*?Zookeeper\/KRaft[\s\S]*?<\/tr>/i);
+    // Tìm dòng Zookeeper/KRaft: <tr>...<td><strong>Zookeeper/KRaft</strong></td>...<td>...</td>...<td>...</td>...<td>...</td></tr>
+    const zkRowMatch = html.match(/<tr[^>]*>[\s\S]*?<td[^>]*><strong>Zookeeper\/KRaft<\/strong><\/td>([\s\S]*?)<\/tr>/i);
     if (zkRowMatch) {
-        const zkRow = zkRowMatch[0];
-        const zkTdMatches = zkRow.match(/<td[^>]*class="text-center"[^>]*><strong>([^<]+)<\/strong><\/td>/gi);
+        const zkRowContent = zkRowMatch[1];
+        // Trích xuất 4 thẻ <td> tiếp theo (Số lượng, vCPU, RAM, Disk)
+        const zkTdMatches = zkRowContent.match(/<td[^>]*class="text-center"[^>]*><strong>([^<]+)<\/strong><\/td>/gi);
         if (zkTdMatches && zkTdMatches.length >= 4) {
-            const zkNumMatch = zkTdMatches[0].match(/<strong>(\d+)<\/strong>/);
-            const zkVcpuMatch = zkTdMatches[1].match(/<strong>(\d+)<\/strong>/);
+            const zkNumMatch = zkTdMatches[0].match(/<strong>([\d]+)<\/strong>/);
+            const zkVcpuMatch = zkTdMatches[1].match(/<strong>([\d]+)<\/strong>/);
             const zkRamMatch = zkTdMatches[2].match(/<strong>([\d.]+)\s*GB<\/strong>/i);
             const zkDiskMatch = zkTdMatches[3].match(/<strong>([\d.]+)\s*(GB|TB)<\/strong>/i);
             
