@@ -12,6 +12,66 @@ let currentProjectStatusRound = 1;
 // Biến lưu danh sách dự án
 let allProjects = [];
 
+// ==================== LOGGER WRAPPER ====================
+// Bật DEBUG_MODE = true để hiển thị log debug trên console
+const Logger = {
+    DEBUG_MODE: false,
+    debug: function(...args) { if (this.DEBUG_MODE) console.log('[DEBUG]', ...args); },
+    info: function(...args) { console.log('[INFO]', ...args); },
+    warn: function(...args) { console.warn('[WARN]', ...args); },
+    error: function(...args) { console.error('[ERROR]', ...args); }
+};
+
+// ==================== TOAST NOTIFICATION SYSTEM ====================
+function _createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+    return container;
+}
+
+/**
+ * Hiển thị thông báo toast thay cho showToast()
+ * @param {string} message - Nội dung thông báo
+ * @param {'success'|'error'|'warning'|'info'} type - Loại thông báo
+ * @param {number} duration - Thời gian hiển thị (ms), mặc định 3500
+ */
+function showToast(message, type = 'info', duration = 3500) {
+    const container = document.getElementById('toast-container') || _createToastContainer();
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icons = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    };
+    toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span><button class="toast-close" onclick="this.parentElement.remove()">✕</button>`;
+    container.appendChild(toast);
+    // Trigger animation
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.addEventListener('transitionend', () => toast.remove());
+    }, duration);
+}
+
+// ==================== FETCH API WRAPPER (Auth chuẩn hóa) ====================
+/**
+ * Wrapper cho fetch() tự động thêm auth headers và xử lý 401
+ * @param {string} url - URL API
+ * @param {object} options - fetch options (method, body, headers, ...)
+ * @returns {Promise<Response>}
+ */
+async function fetchAPI(url, options = {}) {
+    options.headers = Object.assign({}, getAuthHeaders(), options.headers || {});
+    const response = await fetch(url, options);
+    if (handleUnauthorized(response)) {
+        throw new Error('Unauthorized');
+    }
+    return response;
+}
+
 // ==================== UTILS (TIỆN ÍCH) ====================
 
 // Hàm đổi màu Select Box Admin (OK -> Xanh, NOK -> Đỏ)
@@ -98,7 +158,7 @@ function getAuthHeaders() {
 // Xử lý lỗi 401 - chuyển hướng đến trang đăng nhập
 function handleUnauthorized(response) {
     if (response.status === 401) {
-        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        showToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'warning');
         localStorage.removeItem('isLoggedIn');
         localStorage.removeItem('authToken');
         window.location.href = 'login.html';
@@ -336,13 +396,13 @@ function applyReadOnlyMode() {
 function saveProjectIdToStorage(id) {
     currentProjectId = id;
     localStorage.setItem('currentProjectId', id);
-    console.log('Saved Project ID to localStorage:', id);
+    Logger.debug('Saved Project ID to localStorage:', id);
 }
 
 function saveProjectDataIdToStorage(id) {
     currentProjectDataId = id;
     localStorage.setItem('currentProjectDataId', id);
-    console.log('Saved ProjectData ID to localStorage:', id);
+    Logger.debug('Saved ProjectData ID to localStorage:', id);
 }
 
 function clearProjectIds() {
@@ -350,7 +410,7 @@ function clearProjectIds() {
     currentProjectDataId = null;
     localStorage.removeItem('currentProjectId');
     localStorage.removeItem('currentProjectDataId');
-    console.log('Cleared Project IDs');
+    Logger.debug('Cleared Project IDs');
 }
 
 // ==================== PROJECT LIST ====================
@@ -366,8 +426,8 @@ async function loadProjectList() {
     if (emptyEl) emptyEl.style.display = 'none';
     
     try {
-        console.log('DEBUG: loadProjectList called');
-        const response = await fetch(`${API_BASE_URL}/projects`);
+        Logger.debug('DEBUG: loadProjectList called');
+        const response = await fetchAPI(`${API_BASE_URL}/projects`);
         if (response.ok) {
             allProjects = await response.json();
             
@@ -383,7 +443,7 @@ async function loadProjectList() {
             throw new Error('Không thể tải danh sách dự án');
         }
     } catch (error) {
-        console.error('Error loading projects:', error);
+        Logger.error('Error loading projects:', error);
         if (loadingEl) loadingEl.style.display = 'none';
         if (emptyEl) {
             emptyEl.style.display = 'block';
@@ -565,9 +625,9 @@ async function updateProjectStatus(actionType) {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+        const response = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`, {
             method: 'PUT',
-            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 status: newStatus,
                 statusRound: newRound
@@ -578,10 +638,10 @@ async function updateProjectStatus(actionType) {
             currentProjectStatus = newStatus;
             currentProjectStatusRound = newRound;
             updateProjectStatusDisplay();
-            console.log(`✅ Đã cập nhật trạng thái: ${newStatus} lần ${newRound}`);
+            Logger.debug(`✅ Đã cập nhật trạng thái: ${newStatus} lần ${newRound}`);
         }
     } catch (error) {
-        console.error('Lỗi cập nhật trạng thái:', error);
+        Logger.error('Lỗi cập nhật trạng thái:', error);
     }
 }
 
@@ -614,11 +674,11 @@ async function approveProject() {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
     if (role !== 'admin2') {
-        alert('Chỉ admin2 mới có quyền phê duyệt dự án.');
+        showToast('Chỉ admin2 mới có quyền phê duyệt dự án.', 'warning');
         return;
     }
     if (currentProjectStatus !== 'PHE_DUYET') {
-        alert('Dự án chưa sẵn sàng để phê duyệt.');
+        showToast('Dự án chưa sẵn sàng để phê duyệt.', 'warning');
         return;
     }
     if (!confirm('Bạn có chắc muốn phê duyệt dự án này? Dự án sẽ chuyển sang trạng thái Hoàn thành.')) {
@@ -626,7 +686,7 @@ async function approveProject() {
     }
     
     await updateProjectStatus('admin2_approve');
-    alert('✅ Dự án đã được phê duyệt thành công!');
+    showToast('✅ Dự án đã được phê duyệt thành công!', 'success');
 }
 
 async function openProject(projectId) {
@@ -683,19 +743,19 @@ async function deleteProject(projectId, projectName) {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, {
+        const response = await fetchAPI(`${API_BASE_URL}/projects/${projectId}`, {
             method: 'DELETE'
         });
         
         if (response.ok) {
-            alert('Xóa dự án thành công!');
+            showToast('Xóa dự án thành công!', 'success');
             loadProjectList();
         } else {
             throw new Error('Không thể xóa dự án');
         }
     } catch (error) {
-        console.error('Error deleting project:', error);
-        alert('Lỗi: ' + error.message);
+        Logger.error('Error deleting project:', error);
+        showToast('Lỗi: ' + error.message, 'error');
     }
 }
 
@@ -704,9 +764,9 @@ async function startNewProject() {
     const projectName = 'Dự án mới - ' + new Date().toLocaleString('vi-VN');
     
     try {
-        const response = await fetch(`${API_BASE_URL}/projects`, {
+        const response = await fetchAPI(`${API_BASE_URL}/projects`, {
             method: 'POST',
-            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name: projectName,
                 ownerName: user.displayName || user.username || 'Chưa xác định',
@@ -735,13 +795,13 @@ async function startNewProject() {
             resetAllForms();
             await loadAllDataFromDB();
             
-            console.log('Created new project:', project.id);
+            Logger.debug('Created new project:', project.id);
         } else {
             throw new Error('Không thể tạo dự án mới');
         }
     } catch (error) {
-        console.error('Error creating project:', error);
-        alert('Lỗi: ' + error.message);
+        Logger.error('Error creating project:', error);
+        showToast('Lỗi: ' + error.message, 'error');
     }
 }
 
@@ -895,10 +955,7 @@ async function loadAllDataFromDB() {
 
     try {
         // Load project info để lấy trạng thái
-        const projectResponse = await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
-            method: 'GET',
-            headers: getAuthHeaders()
-        });
+        const projectResponse = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`);
         if (projectResponse.ok) {
             const project = await projectResponse.json();
             currentProjectStatus = project.status || 'SIZING';
@@ -912,11 +969,7 @@ async function loadAllDataFromDB() {
             sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
         }
         
-        const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
-            method: 'GET',
-            headers: Object.assign({}, getAuthHeaders())
-        });
-        if (handleUnauthorized(response)) return;
+        const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`);
         if (response.ok) {
             const projectData = await response.json();
             saveProjectDataIdToStorage(projectData.id);
@@ -950,8 +1003,8 @@ async function loadAllDataFromDB() {
                         mohinhAdmin = { _raw: projectData.moHinhAdminReview };
                     }
                 }
-                console.log('DEBUG: projectData.moHinhAdminReview (raw):', projectData.moHinhAdminReview);
-                console.log('DEBUG: parsed mohinhAdmin:', mohinhAdmin);
+                Logger.debug('DEBUG: projectData.moHinhAdminReview (raw):', projectData.moHinhAdminReview);
+                Logger.debug('DEBUG: parsed mohinhAdmin:', mohinhAdmin);
                 loadMoHinhHeThong(content, mohinhAdmin);
             }
             if (projectData.tongHopVaDeXuatContent) {
@@ -969,16 +1022,16 @@ async function loadAllDataFromDB() {
                     const adminReview = JSON.parse(projectData.dinhCoAdminReview);
                     loadSizingAdminReview(adminReview);
                 } catch (e) {
-                    console.error('Error parsing sizing admin review:', e);
+                    Logger.error('Error parsing sizing admin review:', e);
                 }
             }
             
-            console.log('Đã tải dữ liệu từ database thành công!');
+            Logger.debug('Đã tải dữ liệu từ database thành công!');
         } else if (response.status === 404) {
-            console.log('Chưa có ProjectData cho project này');
+            Logger.debug('Chưa có ProjectData cho project này');
         }
     } catch (error) {
-        console.error('Lỗi khi tải dữ liệu:', error);
+        Logger.error('Lỗi khi tải dữ liệu:', error);
     }
 
     // Khôi phục tab đang xem
@@ -1118,7 +1171,7 @@ function loadMoHinhHeThong(data, admin) {
             logical: data.adminLogical || null,
             flow: data.adminFlow || null
         };
-        console.log('DEBUG: resolved adminObj in loadMoHinhHeThong:', adminObj);
+        Logger.debug('DEBUG: resolved adminObj in loadMoHinhHeThong:', adminObj);
 
         const setAdmin = (type, adminData) => {
             const select = document.getElementById(`eval-${type}`);
@@ -1195,7 +1248,7 @@ function loadMoHinhHeThong(data, admin) {
         // Update module visibility in sizing section based on selected modules
         updateModuleVisibility();
     } catch (e) {
-        console.error('loadMoHinhHeThong error', e);
+        Logger.error('loadMoHinhHeThong error', e);
     }
 }
 
@@ -1259,7 +1312,7 @@ async function saveYeuCauBaiToan() {
     const data = collectYeuCauBaiToan();
 
     if (!data.projectName) {
-        alert("Vui lòng nhập Tên dự án!");
+        showToast("Vui lòng nhập Tên dự án!", 'warning');
         return;
     }
     
@@ -1268,7 +1321,7 @@ async function saveYeuCauBaiToan() {
         
         // 1. Tạo hoặc Cập nhật Project
         if (!currentProjectId) {
-            const projectResponse = await fetch(`${API_BASE_URL}/projects`, {
+            const projectResponse = await fetchAPI(`${API_BASE_URL}/projects`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1283,9 +1336,9 @@ async function saveYeuCauBaiToan() {
             const project = await projectResponse.json();
             saveProjectIdToStorage(project.id);
         } else {
-                await fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
+                await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`, {
                 method: 'PUT',
-                headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: data.projectName,
                     devUnit: data.devUnit,
@@ -1317,15 +1370,15 @@ async function saveYeuCauBaiToan() {
         // Lưu nội dung Yêu cầu bài toán vào cột yeuCauBaiToanContent
         
         let response;
-        const baseHeaders = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
+        const baseHeaders = { 'Content-Type': 'application/json' };
         if(currentProjectDataId) {
-             response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+             response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
                 method: 'PUT',
                 headers: baseHeaders,
                 body: JSON.stringify({ yeuCauBaiToanContent: JSON.stringify(systemInfoPayload) })
             });
         } else {
-            response = await fetch(`${API_BASE_URL}/project-data`, {
+            response = await fetchAPI(`${API_BASE_URL}/project-data`, {
                 method: 'POST',
                 headers: baseHeaders,
                 body: JSON.stringify({
@@ -1353,15 +1406,15 @@ async function saveYeuCauBaiToan() {
             // Tạo revision sau khi lưu thành công
             await createRevision(`${user.displayName || user.username || 'User'} cập nhật Yêu cầu bài toán`);
             
-            alert('Đã lưu thông tin thành công!');
+            showToast('Đã lưu thông tin thành công!', 'success');
         } else {
             throw new Error(await response.text());
         }
         
     } catch (error) {
-        console.error('Error:', error);
+        Logger.error('Error:', error);
         if (statusDiv) statusDiv.innerHTML = `<span style="color: red;">✗ Lỗi: ${error.message}</span>`;
-        alert('Có lỗi xảy ra: ' + error.message);
+        showToast('Có lỗi xảy ra: ' + error.message, 'error');
     }
 }
 
@@ -1375,7 +1428,7 @@ function loadThongTinDauVao(data) {
     // Load bảng thông tin đầu vào
     const tbody = document.getElementById('input-table-body');
     if (!tbody) {
-        console.warn("loadThongTinDauVao: missing element with id='input-table-body', skipping input table load.");
+        Logger.warn("loadThongTinDauVao: missing element with id='input-table-body', skipping input table load.");
     } else {
         tbody.innerHTML = '';
     }
@@ -1546,7 +1599,7 @@ function deleteRow(btn) {
 function addInputRow() {
     const tbody = document.getElementById('input-table-body');
     if (!tbody) {
-        console.error("Không tìm thấy tbody có id='input-table-body'");
+        Logger.error("Không tìm thấy tbody có id='input-table-body'");
         return;
     }
     
@@ -1566,7 +1619,7 @@ function removeLastRow(tbodyId) {
     if (tbody && tbody.rows.length > 1) { // Giữ lại ít nhất 1 dòng
         tbody.deleteRow(tbody.rows.length - 1);
     } else {
-        alert("Phải giữ lại ít nhất một dòng!");
+        showToast("Phải giữ lại ít nhất một dòng!", 'warning');
     }
 }
 
@@ -1749,7 +1802,7 @@ async function saveThongTinDauVao() {
     const statusDiv = document.getElementById('input-save-status');
     
     if (!currentProjectId) {
-        alert('Vui lòng lưu "Yêu cầu bài toán" trước!');
+        showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning');
         return;
     }
     
@@ -1771,9 +1824,9 @@ async function saveThongTinDauVao() {
 
         const content = JSON.stringify(data);
 
-        await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+        await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
-            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 thongTinDauVaoContent: content
             })
@@ -1794,12 +1847,12 @@ async function saveThongTinDauVao() {
         // Tạo revision sau khi lưu thành công
         await createRevision(`${user.displayName || user.username || 'User'} cập nhật Thông tin đầu vào`);
         
-        alert('Đã lưu Thông tin đầu vào thành công!');
+        showToast('Đã lưu Thông tin đầu vào thành công!', 'success');
         
     } catch (error) {
-        console.error('Error:', error);
+        Logger.error('Error:', error);
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi!</span>';
-        alert('Lỗi: ' + error.message);
+        showToast('Lỗi: ' + error.message, 'error');
     }
 }
 
@@ -1948,15 +2001,15 @@ function collectMoHinhAdminReview() {
 
 async function saveMoHinhHeThong() {
     const statusDiv = document.getElementById('model-save-status');
-    if (!currentProjectId) { alert('Vui lòng lưu "Yêu cầu bài toán" trước!'); return; }
+    if (!currentProjectId) { showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning'); return; }
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
         
         const data = collectMoHinhHeThong();
         
-            await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+            await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
-            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ moHinhHeThongContent: JSON.stringify(data) })
         });
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
@@ -1975,11 +2028,11 @@ async function saveMoHinhHeThong() {
         // Tạo revision sau khi lưu thành công
         await createRevision(`${user.displayName || user.username || 'User'} cập nhật Mô hình hệ thống`);
         
-        alert('Đã lưu Mô hình hệ thống thành công!');
+        showToast('Đã lưu Mô hình hệ thống thành công!', 'success');
         
     } catch (error) {
-        console.error('Error:', error);
-        alert('Lỗi: ' + error.message);
+        Logger.error('Error:', error);
+        showToast('Lỗi: ' + error.message, 'error');
     }
 }
 
@@ -2511,15 +2564,15 @@ function parseKafkaSizingResult(html) {
 
 async function saveTongHop() {
     const statusDiv = document.getElementById('summary-save-status');
-    if (!currentProjectId) { alert('Vui lòng lưu "Yêu cầu bài toán" trước!'); return; }
+    if (!currentProjectId) { showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning'); return; }
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
         
         const data = collectTongHop();
         
-        await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+        await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
-            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tongHopVaDeXuatContent: JSON.stringify(data) })
         });
         
@@ -2539,11 +2592,11 @@ async function saveTongHop() {
         // Tạo revision sau khi lưu thành công
         await createRevision(`${user.displayName || user.username || 'User'} cập nhật Tổng hợp và đề xuất`);
         
-        alert('Đã lưu Tổng hợp và đề xuất thành công!');
+        showToast('Đã lưu Tổng hợp và đề xuất thành công!', 'success');
         
     } catch (error) {
-        console.error('Error:', error);
-        alert('Lỗi: ' + error.message);
+        Logger.error('Error:', error);
+        showToast('Lỗi: ' + error.message, 'error');
     }
 }
 
@@ -2827,13 +2880,13 @@ async function evaluateSection(sectionKey) {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
     if (role !== 'admin1' && role !== 'admin2') {
-        alert('Chỉ admin mới được gửi đánh giá');
+        showToast('Chỉ admin mới được gửi đánh giá', 'warning');
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Chỉ admin mới có quyền đánh giá</span>';
         return;
     }
 
     if (!currentProjectId) {
-        alert('Chưa chọn dự án');
+        showToast('Chưa chọn dự án', 'warning');
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Chưa chọn dự án</span>';
         return;
     }
@@ -2855,16 +2908,16 @@ async function evaluateSection(sectionKey) {
             reviewObj = { message: 'unsupported section' };
         }
     } catch (e) {
-        console.error('Error collecting review data', e);
+        Logger.error('Error collecting review data', e);
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi thu thập dữ liệu đánh giá</span>';
         return;
     }
 
     // Send to backend evaluate endpoint
     try {
-        const resp = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+        const resp = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
             method: 'POST',
-            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ section: sectionKey, reviewJson: JSON.stringify(reviewObj) })
         });
 
@@ -2884,7 +2937,7 @@ async function evaluateSection(sectionKey) {
                 await updateProjectStatus('admin2_review');
             }
             
-            alert('Đã gửi đánh giá cho "' + label + '"');
+            showToast('Đã gửi đánh giá cho "' + label + '"', 'success');
             // reload data to reflect saved admin review
             await loadAllDataFromDB();
         } else {
@@ -2892,9 +2945,9 @@ async function evaluateSection(sectionKey) {
             throw new Error(txt || 'Server error');
         }
     } catch (err) {
-        console.error('Evaluate error', err);
+        Logger.error('Evaluate error', err);
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi gửi đánh giá</span>';
-        alert('Lỗi khi gửi đánh giá: ' + err.message);
+        showToast('Lỗi khi gửi đánh giá: ' + err.message, 'error');
     }
 }
 
@@ -2916,7 +2969,7 @@ async function exportToWord() {
     const statusDiv = document.getElementById('summary-save-status');
     
     if (!currentProjectId) {
-        alert('Chưa có dữ liệu để xuất! Vui lòng lưu dữ liệu trước.');
+        showToast('Chưa có dữ liệu để xuất! Vui lòng lưu dữ liệu trước.', 'warning');
         return;
     }
 
@@ -2927,23 +2980,20 @@ async function exportToWord() {
         aggregateSizingResults();
         const summaryData = collectTongHop();
         
-        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
-        
         // Lưu summary data vào database
-        await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+        await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
-            headers: headers,
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tongHopVaDeXuatContent: JSON.stringify(summaryData) })
         });
         
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tạo file DOCX...</span>';
         
         // 2. Gọi API export từ backend1
-        const response = await fetch(`${API_BASE_URL}/export/project/${currentProjectId}`, {
+        const response = await fetchAPI(`${API_BASE_URL}/export/project/${currentProjectId}`, {
             method: 'GET',
             headers: {
-                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'Authorization': 'Bearer ' + localStorage.getItem('authToken')
+                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             }
         });
         
@@ -2976,14 +3026,14 @@ async function exportToWord() {
             throw new Error('Không thể xuất file');
         }
     } catch (e) {
-        console.error('Export error:', e);
+        Logger.error('Export error:', e);
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi xuất file!</span>';
-        alert('Không thể xuất báo cáo: ' + e.message);
+        showToast('Không thể xuất báo cáo: ' + e.message, 'error');
     }
 }
 
 document.addEventListener("DOMContentLoaded", async function () {
-    console.log('Current Project ID:', currentProjectId);
+    Logger.debug('Current Project ID:', currentProjectId);
     
     // Kiểm tra xem người dùng đã đăng nhập chưa
     const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -3053,7 +3103,7 @@ function removeLastRow(tbodyId) {
     if (tbody && tbody.rows.length > 1) {
         tbody.deleteRow(tbody.rows.length - 1);
     } else {
-        alert("Không thể xóa dòng duy nhất!");
+        showToast("Không thể xóa dòng duy nhất!", 'warning');
     }
 }
 // --- CÁC HÀM XỬ LÝ MODAL ---
@@ -3416,7 +3466,7 @@ function saveBaselineData() {
     
     // Check 1: Phải có ít nhất 1 dòng
     if(rows.length === 0) {
-        alert("Vui lòng thêm ít nhất một Server tham chiếu!");
+        showToast("Vui lòng thêm ít nhất một Server tham chiếu!", 'warning');
         return;
     }
 
@@ -3461,13 +3511,13 @@ function saveBaselineData() {
     });
 
     if(!isValid) {
-        alert("KHÔNG THỂ LƯU!\nVui lòng điền các ô bị báo đỏ:\n1. Chọn tên Module.\n2. Admin phải Đánh giá từng dòng.");
+        showToast("KHÔNG THỂ LƯU!\nVui lòng điền các ô bị báo đỏ:\n1. Chọn tên Module.\n2. Admin phải Đánh giá từng dòng.", 'warning');
         if(firstError) firstError.focus();
         return;
     }
 
-    console.log("Dữ liệu chuẩn bị lưu:", dataToSave);
-    alert("✓ Đã lưu cấu hình tham chiếu thành công!");
+    Logger.debug("Dữ liệu chuẩn bị lưu:", dataToSave);
+    showToast("✓ Đã lưu cấu hình tham chiếu thành công!", 'success');
     
     // TODO: Viết code gọi API lưu vào DB ở đây
 }
@@ -3724,28 +3774,25 @@ function collectSizingAdminReviewData() {
 // Save all sizing data to database
 async function saveSizingData() {
     if (!currentProjectId) {
-        alert('Vui lòng tạo hoặc chọn dự án trước!');
+        showToast('Vui lòng tạo hoặc chọn dự án trước!', 'warning');
         return;
     }
 
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
     if (role === 'admin1' || role === 'admin2') {
-        alert('Admin không được phép lưu dữ liệu người dùng. Chỉ được phép đánh giá!');
+        showToast('Admin không được phép lưu dữ liệu người dùng. Chỉ được phép đánh giá!', 'warning');
         return;
     }
 
     try {
         const sizingData = collectAllSizingData();
         
-        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
-        const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+        const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
-            headers,
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ dinhCoHeThongContent: JSON.stringify(sizingData) })
         });
-
-        if (handleUnauthorized(response)) return;
 
         if (response.ok) {
             // Cập nhật trạng thái dự án dựa trên role
@@ -3755,28 +3802,28 @@ async function saveSizingData() {
             
             // Tạo revision sau khi lưu thành công
             await createRevision(`${user.displayName || user.username || 'User'} cập nhật Định cỡ hệ thống`);
-            alert('✓ Đã lưu dữ liệu Định cỡ hệ thống thành công!');
+            showToast('✓ Đã lưu dữ liệu Định cỡ hệ thống thành công!', 'success');
         } else {
             const errorText = await response.text();
             throw new Error(errorText || 'Lỗi server');
         }
     } catch (error) {
-        console.error('Error saving sizing data:', error);
-        alert('Lỗi khi lưu dữ liệu: ' + error.message);
+        Logger.error('Error saving sizing data:', error);
+        showToast('Lỗi khi lưu dữ liệu: ' + error.message, 'error');
     }
 }
 
 // Evaluate sizing section (Admin only)
 async function evaluateSizingSection() {
     if (!currentProjectId) {
-        alert('Vui lòng chọn dự án trước!');
+        showToast('Vui lòng chọn dự án trước!', 'warning');
         return;
     }
 
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
     if (role !== 'admin1' && role !== 'admin2') {
-        alert('Chỉ Admin mới được phép đánh giá!');
+        showToast('Chỉ Admin mới được phép đánh giá!', 'warning');
         return;
     }
 
@@ -3791,7 +3838,7 @@ async function evaluateSizingSection() {
     const evalModuleLBFW = document.getElementById('eval-module-lbfw')?.value;
     
     if (!hasBaselineReview && !hasInputConfigReview && !hasMariaDBReview && !evalModuleRedis && !evalModuleKafka && !hasK8SBaselineReview && !hasK8SInputConfigReview && !evalModuleLBFW) {
-        alert('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một mục!');
+        showToast('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một mục!', 'warning');
         return;
     }
 
@@ -3799,17 +3846,14 @@ async function evaluateSizingSection() {
         // Collect all admin review data using the new function
         const adminData = collectSizingAdminReviewData();
 
-        const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
-        const response = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+        const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
             method: 'POST',
-            headers,
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 section: 'sizing',
                 reviewJson: JSON.stringify(adminData)
             })
         });
-
-        if (handleUnauthorized(response)) return;
 
         if (response.ok) {
             // Tạo revision khi admin đánh giá thành công
@@ -3822,7 +3866,7 @@ async function evaluateSizingSection() {
                 await updateProjectStatus('admin2_review');
             }
             
-            alert('✓ Đã lưu đánh giá Định cỡ hệ thống thành công!');
+            showToast('✓ Đã lưu đánh giá Định cỡ hệ thống thành công!', 'success');
             // reload data to reflect saved admin review
             await loadAllDataFromDB();
         } else {
@@ -3830,8 +3874,8 @@ async function evaluateSizingSection() {
             throw new Error(errorText || 'Lỗi server');
         }
     } catch (error) {
-        console.error('Error evaluating sizing:', error);
-        alert('Lỗi khi lưu đánh giá: ' + error.message);
+        Logger.error('Error evaluating sizing:', error);
+        showToast('Lỗi khi lưu đánh giá: ' + error.message, 'error');
     }
 }
 
@@ -4019,9 +4063,9 @@ function loadSizingData(data) {
         // Re-apply role permissions after loading data (disable admin fields for user, etc.)
         applyRolePermissions();
         
-        console.log('Loaded sizing data successfully');
+        Logger.debug('Loaded sizing data successfully');
     } catch (e) {
-        console.error('Error loading sizing data:', e);
+        Logger.error('Error loading sizing data:', e);
     }
 }
 
@@ -4219,9 +4263,9 @@ function loadSizingAdminReview(adminReview) {
         // Re-apply role permissions after loading admin review
         applyRolePermissions();
         
-        console.log('Loaded sizing admin review successfully');
+        Logger.debug('Loaded sizing admin review successfully');
     } catch (e) {
-        console.error('Error loading sizing admin review:', e);
+        Logger.error('Error loading sizing admin review:', e);
     }
 }
 
@@ -4240,7 +4284,7 @@ function showSection(sectionId, linkElement) {
         target.classList.add('active'); // Thêm class active
         target.style.display = 'block'; // Hiện bằng style
     } else {
-        console.error('Không tìm thấy ID: ' + sectionId);
+        Logger.error('Không tìm thấy ID: ' + sectionId);
     }
 
     // 3. Cập nhật trạng thái "active" (màu đỏ) cho Menu bên trái
@@ -4426,7 +4470,7 @@ function calculateSizingRecommendations() {
     const poc = parseFloat(document.getElementById('poc-value')?.value) || 0;
     const sizing = parseFloat(document.getElementById('sizing-value')?.value) || 0;
     if (!poc || !sizing) {
-        alert('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".');
+        showToast('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".', 'warning');
         return;
     }
 
@@ -4821,7 +4865,7 @@ function calculateK8SSizing() {
     const poc = parseFloat(document.getElementById('k8s-poc-value')?.value) || 0;
     const sizing = parseFloat(document.getElementById('k8s-sizing-value')?.value) || 0;
     if (!poc || !sizing) {
-        alert('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".');
+        showToast('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".', 'warning');
         return;
     }
 
@@ -5233,7 +5277,7 @@ function calculateLBFWSizing() {
     const poc = parseFloat(document.getElementById('lbfw-poc-value')?.value) || 0;
     const sizing = parseFloat(document.getElementById('lbfw-sizing-value')?.value) || 0;
     if (!poc || !sizing) {
-        alert('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".');
+        showToast('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".', 'warning');
         return;
     }
 
@@ -5241,7 +5285,7 @@ function calculateLBFWSizing() {
     const peakDownload = parseFloat(document.getElementById('lbfw-peak-download')?.value) || 0;
 
     if (!peakUpload && !peakDownload) {
-        alert('Vui lòng nhập Peak Upload hoặc Peak Download.');
+        showToast('Vui lòng nhập Peak Upload hoặc Peak Download.', 'warning');
         return;
     }
 
@@ -5616,19 +5660,19 @@ function calculateMariaDBSizing() {
     const sizingCCU = parseFloat(document.getElementById('mariadb-sizing-ccu')?.value) || 0;
     
     if (!inputCCU || !sizingCCU) {
-        alert('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".');
+        showToast('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".', 'warning');
         return;
     }
     
     const masterData = getMariaDBMasterData();
     if (!masterData) {
-        alert('Vui lòng chọn một IP làm Master trong bảng thông tin hệ thống tham chiếu.');
+        showToast('Vui lòng chọn một IP làm Master trong bảng thông tin hệ thống tham chiếu.', 'warning');
         return;
     }
     
     const storage = getMariaDBStorage();
     if (!storage.dataUsed && !storage.logUsed) {
-        alert('Vui lòng nhập thông tin /data used, /log used trong bảng Storage.');
+        showToast('Vui lòng nhập thông tin /data used, /log used trong bảng Storage.', 'warning');
         return;
     }
     
@@ -6253,12 +6297,12 @@ function calculateRedisKeyMethod() {
     const importance = document.getElementById('redis-key-importance')?.value || 'normal';
     
     if (!poc || !sizing || !keyCountPOC) {
-        alert('Vui lòng nhập đầy đủ thông tin: Tải hệ thống POC, Định cỡ và Tổng lượng Key POC!');
+        showToast('Vui lòng nhập đầy đủ thông tin: Tải hệ thống POC, Định cỡ và Tổng lượng Key POC!', 'warning');
         return;
     }
     
     if (!recordSize) {
-        alert('Vui lòng nhập Kích thước trung bình 1 bản ghi!');
+        showToast('Vui lòng nhập Kích thước trung bình 1 bản ghi!', 'warning');
         return;
     }
     
@@ -6410,7 +6454,7 @@ function calculateRedisConfigMethod() {
     const currentModel = document.getElementById('redis-current-model')?.value || 'cluster';
     
     if (!inputCCU || !sizingCCU) {
-        alert('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".');
+        showToast('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".', 'warning');
         return;
     }
     
@@ -6418,7 +6462,7 @@ function calculateRedisConfigMethod() {
     const totalMasterRAM = parseFloat(document.getElementById('redis-total-master-ram')?.innerText) || 0;
     
     if (totalMasterRAM <= 0) {
-        alert('Vui lòng nhập thông tin và tick chọn ít nhất một Master trong bảng cấu hình!');
+        showToast('Vui lòng nhập thông tin và tick chọn ít nhất một Master trong bảng cấu hình!', 'warning');
         return;
     }
     
@@ -6799,7 +6843,7 @@ function calculateKafkaHelperThroughput() {
     const msgSize = parseFloat(document.getElementById('kafka-helper-msg-size')?.value) || 0;
     
     if (!msgCount || !msgSize) {
-        alert('Vui lòng nhập đầy đủ thông tin!');
+        showToast('Vui lòng nhập đầy đủ thông tin!', 'warning');
         return;
     }
     
@@ -6812,7 +6856,7 @@ function calculateKafkaHelperThroughput() {
 function applyKafkaHelperResult() {
     const result = parseFloat(document.getElementById('kafka-helper-result')?.innerText) || 0;
     if (result <= 0) {
-        alert('Vui lòng tính toán trước khi áp dụng!');
+        showToast('Vui lòng tính toán trước khi áp dụng!', 'warning');
         return;
     }
     
@@ -6955,11 +6999,11 @@ function calculateKafkaThroughputMethod() {
     const sizingVal = parseFloat(document.getElementById('kafka-throughput-sizing-ccu')?.value) || 0;
     
     if (!A_poc) {
-        alert('Vui lòng nhập Lưu lượng vào (Write) - A!');
+        showToast('Vui lòng nhập Lưu lượng vào (Write) - A!', 'warning');
         return;
     }
     if (!pocVal || !sizingVal) {
-        alert('Vui lòng chọn dòng đầu vào (POC & Định cỡ)!');
+        showToast('Vui lòng chọn dòng đầu vào (POC & Định cỡ)!', 'warning');
         return;
     }
     
@@ -7096,7 +7140,7 @@ function calculateKafkaLinearMethod() {
     const sizingCCU = parseFloat(document.getElementById('kafka-linear-sizing-ccu')?.value) || 0;
     
     if (!inputCCU || !sizingCCU) {
-        alert('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".');
+        showToast('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".', 'warning');
         return;
     }
     
@@ -7106,7 +7150,7 @@ function calculateKafkaLinearMethod() {
     const totalDisk = parseFloat(document.getElementById('kafka-linear-total-disk')?.innerText) || 0;
     
     if (totalCPU <= 0 && totalRAM <= 0 && totalDisk <= 0) {
-        alert('Vui lòng nhập thông tin các Broker hiện tại!');
+        showToast('Vui lòng nhập thông tin các Broker hiện tại!', 'warning');
         return;
     }
     
@@ -7366,7 +7410,7 @@ let allRevisionsList = []; // Lưu danh sách tất cả revisions
  */
 async function createRevision(changeDescription = '', forceBaseline = false) {
     if (!currentProjectId) {
-        console.warn('Không có projectId để tạo revision');
+        Logger.warn('Không có projectId để tạo revision');
         return null;
     }
     
@@ -7374,9 +7418,9 @@ async function createRevision(changeDescription = '', forceBaseline = false) {
     const changeLog = changeDescription || `Tự động lưu lúc ${new Date().toLocaleString('vi-VN')}`;
     
     try {
-        const response = await fetch(`${API_BASE_URL}/project-revisions`, {
+        const response = await fetchAPI(`${API_BASE_URL}/project-revisions`, {
             method: 'POST',
-            headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 projectId: currentProjectId,
                 userId: user.username || user.displayName || 'User',
@@ -7387,18 +7431,18 @@ async function createRevision(changeDescription = '', forceBaseline = false) {
         
         if (response.ok) {
             const revision = await response.json();
-            console.log(`✅ Đã tạo revision ${revision.revisionType}: ${revision.id}`);
+            Logger.debug(`✅ Đã tạo revision ${revision.revisionType}: ${revision.id}`);
             return revision;
         } else if (response.status === 204) {
             // Không có thay đổi nào
-            console.log('ℹ️ Không có thay đổi, bỏ qua tạo revision');
+            Logger.debug('ℹ️ Không có thay đổi, bỏ qua tạo revision');
             return null;
         } else {
-            console.error('Lỗi tạo revision:', await response.text());
+            Logger.error('Lỗi tạo revision:', await response.text());
             return null;
         }
     } catch (error) {
-        console.error('Lỗi khi tạo revision:', error);
+        Logger.error('Lỗi khi tạo revision:', error);
         return null;
     }
 }
@@ -7442,10 +7486,7 @@ async function loadVersionHistoryList() {
     if (emptyDiv) emptyDiv.style.display = 'none';
     
     try {
-        const response = await fetch(`${API_BASE_URL}/project-revisions/project/${currentProjectId}`, {
-            method: 'GET',
-            headers: getAuthHeaders()
-        });
+        const response = await fetchAPI(`${API_BASE_URL}/project-revisions/project/${currentProjectId}`);
         
         if (loadingDiv) loadingDiv.style.display = 'none';
         
@@ -7505,7 +7546,7 @@ async function loadVersionHistoryList() {
             listContainer.innerHTML = '<p style="color: red; text-align: center;">Lỗi khi tải lịch sử phiên bản</p>';
         }
     } catch (error) {
-        console.error('Lỗi load version history:', error);
+        Logger.error('Lỗi load version history:', error);
         if (loadingDiv) loadingDiv.style.display = 'none';
         listContainer.innerHTML = '<p style="color: red; text-align: center;">Lỗi kết nối server</p>';
     }
@@ -7551,10 +7592,7 @@ async function previewVersion(revisionId) {
     
     try {
         // Load revision data (reconstructed full snapshot)
-        const response = await fetch(`${API_BASE_URL}/project-revisions/${revisionId}/reconstruct`, {
-            method: 'GET',
-            headers: getAuthHeaders()
-        });
+        const response = await fetchAPI(`${API_BASE_URL}/project-revisions/${revisionId}/reconstruct`);
         
         if (!response.ok) {
             throw new Error('Không thể tải phiên bản');
@@ -7568,16 +7606,13 @@ async function previewVersion(revisionId) {
         if (currentIndex >= 0 && currentIndex < allRevisionsList.length - 1) {
             const prevRevisionId = allRevisionsList[currentIndex + 1].id;
             try {
-                const prevResponse = await fetch(`${API_BASE_URL}/project-revisions/${prevRevisionId}/reconstruct`, {
-                    method: 'GET',
-                    headers: getAuthHeaders()
-                });
+                const prevResponse = await fetchAPI(`${API_BASE_URL}/project-revisions/${prevRevisionId}/reconstruct`);
                 if (prevResponse.ok) {
                     const prevRevision = await prevResponse.json();
                     previousPreviewSnapshot = JSON.parse(prevRevision.snapshotContent || '{}');
                 }
             } catch(e) {
-                console.warn('Không thể load phiên bản trước:', e);
+                Logger.warn('Không thể load phiên bản trước:', e);
             }
         }
         
@@ -7613,8 +7648,8 @@ async function previewVersion(revisionId) {
         switchPreviewTab('request');
         
     } catch (error) {
-        console.error('Lỗi xem trước phiên bản:', error);
-        alert('Không thể tải phiên bản: ' + error.message);
+        Logger.error('Lỗi xem trước phiên bản:', error);
+        showToast('Không thể tải phiên bản: ' + error.message, 'error');
     }
 }
 
@@ -7883,7 +7918,7 @@ function renderInputDiff(snapshot, prevSnapshot) {
         try {
             data = typeof content === 'string' ? JSON.parse(content) : content;
         } catch(e) {
-            console.error('Lỗi parse thongTinDauVaoContent:', e);
+            Logger.error('Lỗi parse thongTinDauVaoContent:', e);
         }
     }
     
@@ -7900,14 +7935,14 @@ function renderInputDiff(snapshot, prevSnapshot) {
     // Parse admin review - có thể ở format { rows: [...] } hoặc { row0: {...}, row1: {...} }
     let adminReview = {};
     let adminReviewRows = []; // Array format
-    console.log('DEBUG renderInputDiff - snapshot.thongTinAdminReview:', snapshot.thongTinAdminReview);
-    console.log('DEBUG renderInputDiff - prevSnapshot?.thongTinAdminReview:', prevSnapshot?.thongTinAdminReview);
+    Logger.debug('DEBUG renderInputDiff - snapshot.thongTinAdminReview:', snapshot.thongTinAdminReview);
+    Logger.debug('DEBUG renderInputDiff - prevSnapshot?.thongTinAdminReview:', prevSnapshot?.thongTinAdminReview);
     if (snapshot.thongTinAdminReview) {
         try {
             const parsed = typeof snapshot.thongTinAdminReview === 'string' 
                 ? JSON.parse(snapshot.thongTinAdminReview) 
                 : snapshot.thongTinAdminReview;
-            console.log('DEBUG parsed adminReview:', parsed);
+            Logger.debug('DEBUG parsed adminReview:', parsed);
             if (parsed.rows && Array.isArray(parsed.rows)) {
                 // Format { rows: [{ eval, note }, ...] }
                 adminReviewRows = parsed.rows;
@@ -7937,10 +7972,10 @@ function renderInputDiff(snapshot, prevSnapshot) {
     const hasAdminReviewChange = JSON.stringify(adminReviewRows) !== JSON.stringify(prevAdminReviewRows) ||
                                   JSON.stringify(adminReview) !== JSON.stringify(prevAdminReview);
     
-    console.log('DEBUG hasAdminReviewChange:', hasAdminReviewChange);
-    console.log('DEBUG adminReviewRows:', adminReviewRows);
-    console.log('DEBUG prevAdminReviewRows:', prevAdminReviewRows);
-    console.log('DEBUG data.inputRows length:', data.inputRows?.length);
+    Logger.debug('DEBUG hasAdminReviewChange:', hasAdminReviewChange);
+    Logger.debug('DEBUG adminReviewRows:', adminReviewRows);
+    Logger.debug('DEBUG prevAdminReviewRows:', prevAdminReviewRows);
+    Logger.debug('DEBUG data.inputRows length:', data.inputRows?.length);
     
     if ((!data.inputRows || data.inputRows.length === 0) && !hasAdminReviewChange) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu đầu vào</p>';
@@ -7967,7 +8002,7 @@ function renderInputDiff(snapshot, prevSnapshot) {
         const adminData = adminReviewRows[index] || adminReview['row' + index] || {};
         const prevAdminData = prevAdminReviewRows[index] || prevAdminReview['row' + index] || {};
         
-        console.log(`DEBUG row ${index}: adminData=`, adminData, 'prevAdminData=', prevAdminData);
+        Logger.debug(`DEBUG row ${index}: adminData=`, adminData, 'prevAdminData=', prevAdminData);
         
         // So sánh các trường
         const fields = ['dauVao', 'module', 'ghiChu'];
@@ -8757,13 +8792,12 @@ async function restoreVersion(revisionId) {
         await createRevision('Backup trước khi khôi phục phiên bản', true);
         
         // 2. Gọi API restore
-        const response = await fetch(`${API_BASE_URL}/project-revisions/${revisionId}/restore`, {
-            method: 'POST',
-            headers: getAuthHeaders()
+        const response = await fetchAPI(`${API_BASE_URL}/project-revisions/${revisionId}/restore`, {
+            method: 'POST'
         });
         
         if (response.ok) {
-            alert('✅ Đã khôi phục phiên bản thành công!\n\nTrang sẽ được tải lại để hiển thị dữ liệu.');
+            showToast('✅ Đã khôi phục phiên bản thành công!\n\nTrang sẽ được tải lại để hiển thị dữ liệu.', 'success');
             closeVersionPreview();
             closeVersionHistory();
             
@@ -8774,8 +8808,8 @@ async function restoreVersion(revisionId) {
             throw new Error(await response.text() || 'Không thể khôi phục phiên bản');
         }
     } catch (error) {
-        console.error('Lỗi khôi phục phiên bản:', error);
-        alert('❌ Lỗi khi khôi phục phiên bản: ' + error.message);
+        Logger.error('Lỗi khôi phục phiên bản:', error);
+        showToast('❌ Lỗi khi khôi phục phiên bản: ' + error.message, 'error');
     }
 }
 
@@ -8838,7 +8872,7 @@ function buildSavePayload() {
         const summaryData = collectTongHop();
         payload.tongHopVaDeXuatContent = JSON.stringify(summaryData);
     } catch (e) {
-        console.error('Error building save payload:', e);
+        Logger.error('Error building save payload:', e);
         return null;
     }
     
@@ -8852,7 +8886,7 @@ function buildSavePayload() {
 async function performManualSave() {
     if (isSaving || !currentProjectId) return;
     if (currentProjectStatus === 'HOAN_THANH') {
-        alert('Dự án đã hoàn thành, không thể chỉnh sửa.');
+        showToast('Dự án đã hoàn thành, không thể chỉnh sửa.', 'warning');
         return;
     }
     
@@ -8947,7 +8981,7 @@ async function performManualSave() {
                     fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
                         method: 'POST', headers,
                         body: JSON.stringify({ section, reviewJson: JSON.stringify(data) })
-                    }).catch(e => console.warn(`Admin review save failed [${section}]:`, e.message))
+                    }).catch(e => Logger.warn(`Admin review save failed [${section}]:`, e.message))
                 );
             });
         }
@@ -8957,7 +8991,7 @@ async function performManualSave() {
         
         const failedResults = results.filter(r => r.status === 'rejected');
         if (failedResults.length > 0) {
-            console.warn(`Save: ${failedResults.length}/${results.length} requests failed`, failedResults);
+            Logger.warn(`Save: ${failedResults.length}/${results.length} requests failed`, failedResults);
         }
         
         // ========== TẠO REVISION SAU KHI LƯU THÀNH CÔNG ==========
@@ -8978,7 +9012,7 @@ async function performManualSave() {
             await updateProjectStatus('user_edit');
         }
     } catch (error) {
-        console.error('Save error:', error);
+        Logger.error('Save error:', error);
         showSaveStatus('error');
     } finally {
         isSaving = false;
@@ -9062,9 +9096,9 @@ async function checkAndCreateRevisionForPreviousEditor(currentUsername) {
     if (prevEditor && prevEditor !== currentUsername && currentProjectId) {
         // Account mới bắt đầu edit -> tạo BASELINE revision cho account trước
         try {
-            await fetch(`${API_BASE_URL}/project-revisions`, {
+            await fetchAPI(`${API_BASE_URL}/project-revisions`, {
                 method: 'POST',
-                headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     projectId: currentProjectId,
                     userId: prevEditor,
@@ -9072,9 +9106,9 @@ async function checkAndCreateRevisionForPreviousEditor(currentUsername) {
                     forceBaseline: true
                 })
             });
-            console.log(`✅ Đã tạo revision cho editor trước: ${prevEditor}`);
+            Logger.debug(`✅ Đã tạo revision cho editor trước: ${prevEditor}`);
         } catch (e) {
-            console.error('Lỗi tạo revision cho editor trước:', e);
+            Logger.error('Lỗi tạo revision cho editor trước:', e);
         }
     }
     
