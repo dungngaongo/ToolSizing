@@ -2,6 +2,8 @@ package com.example.demo.controller;
 
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,12 +16,14 @@ import java.nio.file.Paths;
 @RestController
 @RequestMapping("/api/files")
 public class FileController {
+    private static final Logger log = LoggerFactory.getLogger(FileController.class);
 
     @GetMapping("/{folder}/{subfolder}/{filename}")
     public ResponseEntity<Resource> serveFile(
             @PathVariable String folder,
             @PathVariable String subfolder,
             @PathVariable String filename) {
+        log.debug("GET /api/files/{}/{}/{} - Serving file", folder, subfolder, filename);
         try {
             Path filePath = Paths.get(folder, subfolder, filename).toAbsolutePath();
             Resource resource = new UrlResource(filePath.toUri());
@@ -40,6 +44,7 @@ public class FileController {
 
     @GetMapping("/uploads/**")
     public ResponseEntity<Resource> serveUploadedFile(@RequestParam String path) {
+        log.debug("GET /api/files/uploads - Serving uploaded file: {}", path);
         try {
             Path filePath = Paths.get(path).toAbsolutePath();
             Resource resource = new UrlResource(filePath.toUri());

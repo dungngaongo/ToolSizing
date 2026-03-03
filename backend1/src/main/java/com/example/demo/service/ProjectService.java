@@ -8,11 +8,17 @@ import com.example.demo.repository.ProjectRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.demo.exception.ResourceNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class ProjectService {
+    private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
+
     private final ProjectRepository projectRepository;
     private final ProjectDataRepository projectDataRepository;
 
@@ -23,6 +29,7 @@ public class ProjectService {
 
     @Transactional
     public Project create(CreateProjectRequest request) {
+        log.info("Creating project '{}' for userId: {}", request.getName(), request.getUserId());
         Project project = new Project();
         project.setUserId(request.getUserId());
         project.setName(request.getName());
@@ -37,6 +44,7 @@ public class ProjectService {
         projectData.setProjectId(savedProject.getId());
         projectDataRepository.save(projectData);
 
+        log.info("Project created successfully with id: {}", savedProject.getId());
         return savedProject;
     }
 
@@ -61,8 +69,9 @@ public class ProjectService {
     }
 
     public Project update(String id, CreateProjectRequest request) {
+        log.info("Updating project id: {}", id);
         Project project = projectRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Project not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
         if (request.getName() != null) {
             project.setName(request.getName());
         }
@@ -86,9 +95,11 @@ public class ProjectService {
 
     @Transactional
     public void delete(String id) {
+        log.info("Deleting project id: {}", id);
         // Xóa ProjectData liên quan
         projectDataRepository.findFirstByProjectId(id).ifPresent(projectDataRepository::delete);
         projectRepository.deleteById(id);
+        log.info("Project deleted successfully: {}", id);
     }
 }
 

@@ -12,6 +12,88 @@ let currentProjectStatusRound = 1;
 // Biến lưu danh sách dự án
 let allProjects = [];
 
+// ==================== HISTORY API / URL ROUTING ====================
+// Map sectionId <-> URL slug
+const TAB_SLUG_MAP = {
+    'page-request': 'request',
+    'page-input': 'input',
+    'page-model': 'model',
+    'page-sizing': 'sizing',
+    'page-summary': 'summary'
+};
+const SLUG_TAB_MAP = Object.fromEntries(
+    Object.entries(TAB_SLUG_MAP).map(([k, v]) => [v, k])
+);
+
+/**
+ * Tạo hash URL từ trạng thái hiện tại
+ * @param {'projects'|'project'} view
+ * @param {string|null} projectId
+ * @param {string|null} tab - sectionId (vd 'page-request')
+ */
+function buildAppHash(view, projectId, tab) {
+    if (view === 'project' && projectId) {
+        const slug = TAB_SLUG_MAP[tab] || tab || 'request';
+        return `#/project/${projectId}/${slug}`;
+    }
+    return '#/projects';
+}
+
+/**
+ * Parse hash URL thành trạng thái app
+ */
+function parseAppHash(hash) {
+    const parts = (hash || '').replace(/^#\/?/, '').split('/');
+    if (parts[0] === 'project' && parts[1]) {
+        return {
+            view: 'project',
+            projectId: parts[1],
+            tab: SLUG_TAB_MAP[parts[2]] || 'page-request'
+        };
+    }
+    return { view: 'projects', projectId: null, tab: null };
+}
+
+/**
+ * Push một trạng thái mới vào history (tạo entry mới cho back/forward)
+ */
+function pushAppState(view, projectId, tab) {
+    const hash = buildAppHash(view, projectId, tab);
+    const state = { view, projectId: projectId || null, tab: tab || null };
+    history.pushState(state, '', hash);
+}
+
+/**
+ * Replace trạng thái hiện tại (không tạo entry mới)
+ */
+function replaceAppState(view, projectId, tab) {
+    const hash = buildAppHash(view, projectId, tab);
+    const state = { view, projectId: projectId || null, tab: tab || null };
+    history.replaceState(state, '', hash);
+}
+
+// Flag ngăn popstate handler gọi lại pushState
+let _historyNavigation = false;
+
+/**
+ * Xử lý nút Back/Forward của trình duyệt
+ * Khi người dùng bấm Back/Forward, trình duyệt fire event 'popstate'
+ * Ta đọc state đã lưu để khôi phục giao diện tương ứng
+ */
+window.addEventListener('popstate', async function(event) {
+    const state = event.state || parseAppHash(location.hash);
+    _historyNavigation = true;
+    try {
+        if (state && state.view === 'project' && state.projectId) {
+            await openProject(state.projectId, { tab: state.tab, skipPushState: true });
+        } else {
+            showProjectList({ skipPushState: true });
+        }
+    } finally {
+        _historyNavigation = false;
+    }
+});
+
 // ==================== LOGGER WRAPPER ====================
 // Bật DEBUG_MODE = true để hiển thị log debug trên console
 const Logger = {
@@ -56,20 +138,171 @@ function showToast(message, type = 'info', duration = 3500) {
     }, duration);
 }
 
+// ==================== GLOBAL LOADING OVERLAY ====================
+/**
+ * Hiển thị/ẩn loading overlay toàn trang
+ * @param {boolean} show - true để hiển thị, false để ẩn
+ * @param {string} message - Nội dung hiển thị (mặc định "Đang xử lý...")
+ */
+function showLoading(show = true, message = 'Đang xử lý...') {
+    let overlay = document.getElementById('global-loading-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'global-loading-overlay';
+        overlay.className = 'loading-overlay';
+        overlay.innerHTML = `<div class="loading-spinner"></div><div class="loading-text">${message}</div>`;
+        document.body.appendChild(overlay);
+    }
+    if (show) {
+        overlay.querySelector('.loading-text').textContent = message;
+        requestAnimationFrame(() => overlay.classList.add('active'));
+    } else {
+        overlay.classList.remove('active');
+    }
+}
+
+// ==================== CUSTOM CONFIRM DIALOG ====================
+/**
+ * Hiển thị hộp thoại xác nhận đẹp thay cho confirm() mặc định
+ * @param {string} title - Tiêu đề
+ * @param {string} message - Nội dung
+ * @param {object} options - { confirmText, cancelText, danger }
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(title, message, options = {}) {
+    return new Promise(resolve => {
+        const { confirmText = 'Xác nhận', cancelText = 'Hủy', danger = false } = options;
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        const iconClass = danger ? 'fa-exclamation-triangle' : 'fa-question-circle';
+        const iconColor = danger ? '#dc3545' : '#ee0033';
+        overlay.innerHTML = `
+            <div class="confirm-dialog">
+                <h3><i class="fa-solid ${iconClass}" style="color: ${iconColor}"></i> ${title}</h3>
+                <p>${message}</p>
+                <div class="confirm-actions">
+                    <button class="btn-confirm-cancel">${cancelText}</button>
+                    <button class="btn-confirm-ok ${danger ? 'danger' : ''}">${confirmText}</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        overlay.querySelector('.btn-confirm-cancel').onclick = () => { overlay.remove(); resolve(false); };
+        overlay.querySelector('.btn-confirm-ok').onclick = () => { overlay.remove(); resolve(true); };
+        overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+    });
+}
+
+// ==================== INPUT VALIDATION ====================
+/**
+ * Validate một input field và hiển thị lỗi nếu có
+ * @param {HTMLElement} input - Element cần validate
+ * @param {string} errorMessage - Thông báo lỗi
+ * @param {Function} validatorFn - Hàm kiểm tra, trả về true nếu hợp lệ
+ * @returns {boolean} true nếu hợp lệ
+ */
+function validateField(input, errorMessage, validatorFn) {
+    // Xóa lỗi cũ
+    clearFieldError(input);
+    
+    if (!validatorFn(input.value)) {
+        input.classList.add('field-error');
+        const errDiv = document.createElement('div');
+        errDiv.className = 'field-error-message';
+        errDiv.innerHTML = `<i class="fa-solid fa-exclamation-circle"></i> ${errorMessage}`;
+        input.parentElement.appendChild(errDiv);
+        input.focus();
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Xóa trạng thái lỗi của một field
+ */
+function clearFieldError(input) {
+    input.classList.remove('field-error');
+    const existing = input.parentElement?.querySelector('.field-error-message');
+    if (existing) existing.remove();
+}
+
+/**
+ * Xóa tất cả lỗi validation trên form
+ */
+function clearAllFieldErrors(container) {
+    (container || document).querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+    (container || document).querySelectorAll('.field-error-message').forEach(el => el.remove());
+}
+
+/**
+ * Parse error response từ backend (ErrorResponse DTO)
+ * @param {Response} response - fetch Response object
+ * @returns {Promise<string>} - Error message đã format
+ */
+async function parseApiError(response) {
+    try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            const body = await response.json();
+            // Backend ErrorResponse format: { status, error, message, path, timestamp, validationErrors }
+            if (body.validationErrors && Object.keys(body.validationErrors).length > 0) {
+                const validationMsgs = Object.entries(body.validationErrors)
+                    .map(([field, msg]) => `${field}: ${msg}`)
+                    .join(', ');
+                return `${body.message || 'Lỗi validation'}: ${validationMsgs}`;
+            }
+            return body.message || body.error || `Lỗi ${response.status}`;
+        }
+        const text = await response.text();
+        return text || `Lỗi ${response.status}`;
+    } catch {
+        return `Lỗi ${response.status}: ${response.statusText}`;
+    }
+}
+
 // ==================== FETCH API WRAPPER (Auth chuẩn hóa) ====================
 /**
  * Wrapper cho fetch() tự động thêm auth headers và xử lý 401
+ * Tự động parse error response từ backend ErrorResponse DTO
  * @param {string} url - URL API
  * @param {object} options - fetch options (method, body, headers, ...)
+ * @param {object} config - { showError: true, showLoading: false, loadingMessage: '' }
  * @returns {Promise<Response>}
  */
-async function fetchAPI(url, options = {}) {
+async function fetchAPI(url, options = {}, config = {}) {
+    const { showError = false, showLoadingOverlay = false, loadingMessage = 'Đang xử lý...' } = config;
+    
+    if (showLoadingOverlay) showLoading(true, loadingMessage);
+    
     options.headers = Object.assign({}, getAuthHeaders(), options.headers || {});
-    const response = await fetch(url, options);
-    if (handleUnauthorized(response)) {
-        throw new Error('Unauthorized');
+    
+    try {
+        const response = await fetch(url, options);
+        
+        if (showLoadingOverlay) showLoading(false);
+        
+        if (handleUnauthorized(response)) {
+            throw new Error('Unauthorized');
+        }
+        
+        // Tự động hiển thị toast lỗi cho non-ok response nếu showError = true
+        if (!response.ok && showError) {
+            const errorMsg = await parseApiError(response.clone());
+            showToast(errorMsg, 'error', 5000);
+        }
+        
+        return response;
+    } catch (error) {
+        if (showLoadingOverlay) showLoading(false);
+        
+        // Network error (mất kết nối, timeout, ...)
+        if (error.message !== 'Unauthorized') {
+            if (showError) {
+                showToast('Lỗi kết nối: Không thể liên lạc với máy chủ. Vui lòng kiểm tra kết nối mạng.', 'error', 5000);
+            }
+        }
+        throw error;
     }
-    return response;
 }
 
 // ==================== UTILS (TIỆN ÍCH) ====================
@@ -126,8 +359,13 @@ function checkAuthStatus() {
     }
 }
 
-function logout() {
-    if (confirm('Bạn có chắc muốn đăng xuất?')) {
+async function logout() {
+    const confirmed = await showConfirm(
+        'Đăng xuất',
+        'Bạn có chắc muốn đăng xuất khỏi hệ thống?',
+        { confirmText: 'Đăng xuất', cancelText: 'Hủy' }
+    );
+    if (confirmed) {
         localStorage.removeItem('isLoggedIn');
         localStorage.removeItem('username');
         localStorage.removeItem('displayName');
@@ -158,11 +396,20 @@ function getAuthHeaders() {
 // Xử lý lỗi 401 - chuyển hướng đến trang đăng nhập
 function handleUnauthorized(response) {
     if (response.status === 401) {
-        showToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'warning');
+        showToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'warning', 4000);
+        // Xóa toàn bộ auth data
         localStorage.removeItem('isLoggedIn');
         localStorage.removeItem('authToken');
-        window.location.href = 'login.html';
+        localStorage.removeItem('username');
+        localStorage.removeItem('displayName');
+        localStorage.removeItem('userRole');
+        // Delay redirect để user thấy toast
+        setTimeout(() => { window.location.href = 'login.html'; }, 1500);
         return true;
+    }
+    if (response.status === 403) {
+        showToast('Bạn không có quyền thực hiện thao tác này.', 'error', 4000);
+        return false; // Không redirect, chỉ thông báo
     }
     return false;
 }
@@ -425,29 +672,47 @@ async function loadProjectList() {
     if (tableWrapper) tableWrapper.style.display = 'none';
     if (emptyEl) emptyEl.style.display = 'none';
     
+    // Hiển thị skeleton rows trong khi chờ load
+    if (tbody) {
+        tbody.innerHTML = '';
+        for (let i = 0; i < 5; i++) {
+            const tr = document.createElement('tr');
+            tr.className = 'skeleton-row';
+            tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
+            tbody.appendChild(tr);
+        }
+        if (tableWrapper) tableWrapper.style.display = 'block';
+    }
+    
     try {
         Logger.debug('DEBUG: loadProjectList called');
-        const response = await fetchAPI(`${API_BASE_URL}/projects`);
+        const response = await fetchAPI(`${API_BASE_URL}/projects`, {}, { showError: true });
         if (response.ok) {
             allProjects = await response.json();
             
             if (loadingEl) loadingEl.style.display = 'none';
             
             if (allProjects.length === 0) {
-                if (emptyEl) emptyEl.style.display = 'block';
+                if (tableWrapper) tableWrapper.style.display = 'none';
+                if (emptyEl) {
+                    emptyEl.innerHTML = '<i class="fa-solid fa-inbox"></i><p>Chưa có dự án nào. Hãy tạo dự án mới!</p>';
+                    emptyEl.style.display = 'block';
+                }
             } else {
                 if (tableWrapper) tableWrapper.style.display = 'block';
                 renderProjectList(allProjects);
             }
         } else {
-            throw new Error('Không thể tải danh sách dự án');
+            const errorMsg = await parseApiError(response);
+            throw new Error(errorMsg);
         }
     } catch (error) {
         Logger.error('Error loading projects:', error);
         if (loadingEl) loadingEl.style.display = 'none';
+        if (tableWrapper) tableWrapper.style.display = 'none';
         if (emptyEl) {
             emptyEl.style.display = 'block';
-            emptyEl.innerHTML = `<i class="fa-solid fa-exclamation-triangle"></i><p>Lỗi: ${error.message}</p>`;
+            emptyEl.innerHTML = `<i class="fa-solid fa-exclamation-triangle" style="color: #dc3545;"></i><p style="color: #dc3545;">Lỗi tải dữ liệu: ${error.message}</p><button onclick="loadProjectList()" style="margin-top: 12px; padding: 8px 20px; background: #ee0033; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;"><i class="fa-solid fa-rotate"></i> Thử lại</button>`;
         }
     }
 }
@@ -624,8 +889,8 @@ async function updateProjectStatus(actionType) {
             break;
             
         case 'admin2_approve':
-            // Admin2 phê duyệt: Phê duyệt -> Hoàn thành
-            if (currentProjectStatus === 'PHE_DUYET') {
+            // Admin2 phê duyệt: Thẩm định/Phê duyệt -> Hoàn thành
+            if (currentProjectStatus === 'THAM_DINH' || currentProjectStatus === 'PHE_DUYET') {
                 newStatus = 'HOAN_THANH';
             }
             break;
@@ -671,8 +936,8 @@ function updateApproveButtonVisibility() {
     const inProject = document.getElementById('project-detail-page')?.style.display !== 'none';
     approveHeaderBtn.style.display = inProject ? 'inline-flex' : 'none';
     
-    // Chỉ admin2 mới bấm được, và chỉ khi dự án ở trạng thái PHE_DUYET
-    const canApprove = (role === 'admin2' && currentProjectStatus === 'PHE_DUYET');
+    // Chỉ admin2 mới bấm được, enable khi dự án ở trạng thái THAM_DINH hoặc PHE_DUYET
+    const canApprove = (role === 'admin2' && (currentProjectStatus === 'THAM_DINH' || currentProjectStatus === 'PHE_DUYET'));
     approveHeaderBtn.disabled = !canApprove;
     approveHeaderBtn.style.opacity = canApprove ? '1' : '0.5';
     approveHeaderBtn.style.cursor = canApprove ? 'pointer' : 'not-allowed';
@@ -689,27 +954,35 @@ async function approveProject() {
         showToast('Chỉ admin2 mới có quyền phê duyệt dự án.', 'warning');
         return;
     }
-    if (currentProjectStatus !== 'PHE_DUYET') {
+    if (currentProjectStatus !== 'THAM_DINH' && currentProjectStatus !== 'PHE_DUYET') {
         showToast('Dự án chưa sẵn sàng để phê duyệt.', 'warning');
         return;
     }
-    if (!confirm('Bạn có chắc muốn phê duyệt dự án này? Dự án sẽ chuyển sang trạng thái Hoàn thành.')) {
-        return;
-    }
+    const confirmed = await showConfirm(
+        'Phê duyệt dự án',
+        'Bạn có chắc muốn phê duyệt dự án này?<br>Dự án sẽ chuyển sang trạng thái <strong>Hoàn thành</strong>.',
+        { confirmText: 'Phê duyệt', cancelText: 'Hủy' }
+    );
+    if (!confirmed) return;
     
+    showLoading(true, 'Đang phê duyệt dự án...');
     await updateProjectStatus('admin2_approve');
-    showToast('✅ Dự án đã được phê duyệt thành công!', 'success');
+    showLoading(false);
+    showToast('Dự án đã được phê duyệt thành công!', 'success');
 }
 
-async function openProject(projectId) {
+async function openProject(projectId, options = {}) {
     saveProjectIdToStorage(projectId);
+    
+    showLoading(true, 'Đang tải dữ liệu dự án...');
     
     document.getElementById('project-list-page').style.display = 'none';
     document.getElementById('project-detail-page').style.display = 'flex';
     document.getElementById('btn-back-to-list').style.display = 'inline-block';
 
-    // Hiển thị page-request mặc định
-    showSection('page-request', document.querySelector('.side-menu a'));
+    // Hiển thị tab được chỉ định hoặc page-request mặc định
+    const targetTab = options.tab || 'page-request';
+    showSection(targetTab, document.querySelector(`.side-menu a[onclick*="${targetTab}"]`), { skipPushState: true });
     
     // Hiện nút Lịch sử phiên bản
     const btnVersionHistory = document.getElementById('btn-version-history');
@@ -722,19 +995,31 @@ async function openProject(projectId) {
     // Reset toàn bộ form trước khi load dữ liệu mới để tránh hiển thị dữ liệu cũ từ dự án trước
     resetAllForms();
     
-    await loadAllDataFromDB();
-    
-    // Kiểm tra session editor: nếu account mới mở project -> tạo revision cho account cũ
-    const user = getCurrentUser();
-    const currentUsername = user.username || user.displayName || 'unknown';
-    await checkAndCreateRevisionForPreviousEditor(currentUsername);
-    revisionCheckedForSession = true; // Đã check xong
-    
-    // Cập nhật nút Phê duyệt sau khi load dữ liệu
-    updateApproveButtonVisibility();
+    try {
+        await loadAllDataFromDB();
+        
+        // Kiểm tra session editor: nếu account mới mở project -> tạo revision cho account cũ
+        const user = getCurrentUser();
+        const currentUsername = user.username || user.displayName || 'unknown';
+        await checkAndCreateRevisionForPreviousEditor(currentUsername);
+        revisionCheckedForSession = true; // Đã check xong
+        
+        // Cập nhật nút Phê duyệt sau khi load dữ liệu
+        updateApproveButtonVisibility();
+    } catch (error) {
+        Logger.error('Error loading project:', error);
+        showToast('Lỗi khi tải dự án: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+
+    // Cập nhật URL/history
+    if (!options.skipPushState) {
+        pushAppState('project', projectId, targetTab);
+    }
 }
 
-function showProjectList() {
+function showProjectList(options = {}) {
     document.getElementById('project-list-page').style.display = 'block';
     document.getElementById('project-detail-page').style.display = 'none';
     document.getElementById('btn-back-to-list').style.display = 'none';
@@ -750,25 +1035,39 @@ function showProjectList() {
     closeVersionHistory();
     
     loadProjectList();
+
+    // Cập nhật URL/history
+    if (!options.skipPushState) {
+        pushAppState('projects', null, null);
+    }
 }
 
 async function deleteProject(projectId, projectName) {
-    if (!confirm(`Bạn có chắc muốn xóa dự án "${projectName}"? Thao tác này không thể hoàn tác.`)) {
-        return;
-    }
+    const confirmed = await showConfirm(
+        'Xóa dự án',
+        `Bạn có chắc muốn xóa dự án "<strong>${projectName}</strong>"?<br>Thao tác này không thể hoàn tác.`,
+        { confirmText: 'Xóa dự án', danger: true }
+    );
+    if (!confirmed) return;
+    
+    showLoading(true, 'Đang xóa dự án...');
     
     try {
         const response = await fetchAPI(`${API_BASE_URL}/projects/${projectId}`, {
             method: 'DELETE'
-        });
+        }, { showError: true });
+        
+        showLoading(false);
         
         if (response.ok) {
             showToast('Xóa dự án thành công!', 'success');
             loadProjectList();
         } else {
-            throw new Error('Không thể xóa dự án');
+            const errorMsg = await parseApiError(response);
+            showToast('Lỗi xóa dự án: ' + errorMsg, 'error');
         }
     } catch (error) {
+        showLoading(false);
         Logger.error('Error deleting project:', error);
         showToast('Lỗi: ' + error.message, 'error');
     }
@@ -777,6 +1076,8 @@ async function deleteProject(projectId, projectName) {
 async function startNewProject() {
     const user = getCurrentUser();
     const projectName = 'Dự án mới - ' + new Date().toLocaleString('vi-VN');
+    
+    showLoading(true, 'Đang tạo dự án mới...');
     
     try {
         const response = await fetchAPI(`${API_BASE_URL}/projects`, {
@@ -788,7 +1089,9 @@ async function startNewProject() {
                 status: 'SIZING',
                 statusRound: 1
             })
-        });
+        }, { showError: true });
+        
+        showLoading(false);
         
         if (response.ok) {
             const project = await response.json();
@@ -810,11 +1113,17 @@ async function startNewProject() {
             resetAllForms();
             await loadAllDataFromDB();
             
+            // Cập nhật URL/history cho dự án mới
+            pushAppState('project', project.id, 'page-request');
+            
+            showToast('Tạo dự án mới thành công!', 'success');
             Logger.debug('Created new project:', project.id);
         } else {
-            throw new Error('Không thể tạo dự án mới');
+            const errorMsg = await parseApiError(response);
+            showToast('Lỗi tạo dự án: ' + errorMsg, 'error');
         }
     } catch (error) {
+        showLoading(false);
         Logger.error('Error creating project:', error);
         showToast('Lỗi: ' + error.message, 'error');
     }
@@ -1047,6 +1356,7 @@ async function loadAllDataFromDB() {
         }
     } catch (error) {
         Logger.error('Lỗi khi tải dữ liệu:', error);
+        showToast('Lỗi khi tải dữ liệu dự án: ' + error.message, 'error', 5000);
     }
 
     // Khôi phục tab đang xem
@@ -2904,7 +3214,12 @@ async function evaluateSection(sectionKey) {
         summary: 'Tổng hợp và đề xuất'
     };
     const label = names[sectionKey] || sectionKey;
-    if (!confirm(`Gửi đánh giá cho "${label}"?`)) return;
+    const confirmed = await showConfirm(
+        'Gửi đánh giá',
+        `Bạn có chắc muốn gửi đánh giá cho phần "<strong>${label}</strong>"?`,
+        { confirmText: 'Gửi đánh giá' }
+    );
+    if (!confirmed) return;
 
     const statusIdMap = {
         request: 'save-status',
@@ -3085,41 +3400,29 @@ document.addEventListener("DOMContentLoaded", async function () {
     checkAuthStatus();
     applyRolePermissions();
 
-    // Luôn hiển thị danh sách dự án khi load/reload trang
-    // Clear currentProjectId để luôn về trang danh sách trước
-    clearProjectIds();
-    document.getElementById('project-list-page').style.display = 'block';
-    document.getElementById('project-detail-page').style.display = 'none';
-    document.getElementById('btn-back-to-list').style.display = 'none';
-    
-    // Ẩn nút Lịch sử phiên bản khi ở trang danh sách
-    const btnVersionHistory = document.getElementById('btn-version-history');
-    if (btnVersionHistory) btnVersionHistory.style.display = 'none';
-    
-    await loadProjectList();
+    // ===== URL-based routing: khôi phục trạng thái từ URL hash =====
+    const initState = parseAppHash(location.hash);
+    if (initState.view === 'project' && initState.projectId) {
+        // URL chỉ đến một project cụ thể -> mở project đó
+        replaceAppState('project', initState.projectId, initState.tab);
+        await openProject(initState.projectId, { tab: initState.tab, skipPushState: true });
+    } else {
+        // Mặc định: hiển thị danh sách dự án
+        clearProjectIds();
+        document.getElementById('project-list-page').style.display = 'block';
+        document.getElementById('project-detail-page').style.display = 'none';
+        document.getElementById('btn-back-to-list').style.display = 'none';
+        
+        // Ẩn nút Lịch sử phiên bản khi ở trang danh sách
+        const btnVersionHistory = document.getElementById('btn-version-history');
+        if (btnVersionHistory) btnVersionHistory.style.display = 'none';
+        
+        await loadProjectList();
+        replaceAppState('projects', null, null);
+    }
 
-    const menuLinks = document.querySelectorAll(".side-menu a");
-    const pages = document.querySelectorAll(".page-section");
-    menuLinks.forEach(link => {
-        link.addEventListener("click", function(e) {
-            e.preventDefault();
-            menuLinks.forEach(l => l.classList.remove("active"));
-            this.classList.add("active");
-            pages.forEach(page => page.classList.remove("active"));
-            const targetId = "page-" + this.getAttribute("data-target");
-            const targetPage = document.getElementById(targetId);
-            if (targetPage) {
-                targetPage.classList.add("active");
-                if (this.getAttribute("data-target") === 'sizing') {
-                    const sizingIframe = document.getElementById('sizing-iframe');
-                    if (sizingIframe && currentProjectId) {
-                        const baseUrl = sizingIframe.src.split('?')[0];
-                        sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
-                    }
-                }
-            }
-        });
-    });
+    // Menu click đã được xử lý qua onclick="showSection(...)" trong HTML.
+    // showSection() sẽ tự động pushState khi chuyển tab.
 
     const addRowBtn = document.getElementById('addRowBtn');
     if (addRowBtn) addRowBtn.onclick = addInputRow;
@@ -4308,7 +4611,7 @@ function loadSizingAdminReview(adminReview) {
 }
 
 // Hàm chuyển Tab (Ẩn hiện các mục nội dung)
-function showSection(sectionId, linkElement) {
+function showSection(sectionId, linkElement, options = {}) {
     // 1. Ẩn tất cả các trang nội dung (có class .page-section)
     const sections = document.querySelectorAll('.page-section');
     sections.forEach(sec => {
@@ -4337,6 +4640,11 @@ function showSection(sectionId, linkElement) {
     // 4. Khi chuyển sang trang Tổng hợp, tự động aggregate dữ liệu
     if (sectionId === 'page-summary') {
         aggregateSizingResults();
+    }
+
+    // 5. Cập nhật URL/history khi chuyển tab (chỉ khi đang ở project detail)
+    if (!options.skipPushState && currentProjectId) {
+        pushAppState('project', currentProjectId, sectionId);
     }
 }
 
@@ -8821,9 +9129,14 @@ function restoreCurrentPreviewVersion() {
  * Khôi phục phiên bản
  */
 async function restoreVersion(revisionId) {
-    if (!confirm('⚠️ Bạn có chắc muốn khôi phục phiên bản này?\n\nDữ liệu hiện tại sẽ được thay thế bằng nội dung của phiên bản đã chọn.\n\nLưu ý: Một bản snapshot của dữ liệu hiện tại sẽ được tạo trước khi khôi phục.')) {
-        return;
-    }
+    const confirmed = await showConfirm(
+        'Khôi phục phiên bản',
+        'Dữ liệu hiện tại sẽ được thay thế bằng nội dung của phiên bản đã chọn.<br><br><em>Một bản snapshot của dữ liệu hiện tại sẽ được tạo trước khi khôi phục.</em>',
+        { confirmText: 'Khôi phục', cancelText: 'Hủy', danger: true }
+    );
+    if (!confirmed) return;
+    
+    showLoading(true, 'Đang khôi phục phiên bản...');
     
     try {
         // 1. Tạo BASELINE snapshot dữ liệu hiện tại trước khi khôi phục
@@ -8847,7 +9160,9 @@ async function restoreVersion(revisionId) {
         }
     } catch (error) {
         Logger.error('Lỗi khôi phục phiên bản:', error);
-        showToast('❌ Lỗi khi khôi phục phiên bản: ' + error.message, 'error');
+        showToast('Lỗi khi khôi phục phiên bản: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
@@ -8932,6 +9247,7 @@ async function performManualSave() {
     
     isSaving = true;
     showSaveStatus('saving');
+    showLoading(true, 'Đang lưu dữ liệu...');
     
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
@@ -9039,6 +9355,7 @@ async function performManualSave() {
         await createRevision(`${userName} lưu dữ liệu`);
         
         showSaveStatus('saved');
+        showToast('Lưu dữ liệu thành công!', 'success');
         
         // Cập nhật trạng thái dự án dựa trên role
         if (role === 'admin1') {
@@ -9054,8 +9371,10 @@ async function performManualSave() {
     } catch (error) {
         Logger.error('Save error:', error);
         showSaveStatus('error');
+        showToast('Lỗi khi lưu dữ liệu: ' + error.message, 'error');
     } finally {
         isSaving = false;
+        showLoading(false);
     }
 }
 

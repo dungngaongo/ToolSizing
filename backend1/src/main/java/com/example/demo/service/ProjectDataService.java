@@ -2,8 +2,12 @@ package com.example.demo.service;
 
 import com.example.demo.dto.CreateProjectDataRequest;
 import com.example.demo.dto.UpdateProjectDataRequest;
+import com.example.demo.exception.BadRequestException;
+import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.model.ProjectData;
 import com.example.demo.repository.ProjectDataRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,6 +19,8 @@ import java.util.Optional;
 
 @Service
 public class ProjectDataService {
+    private static final Logger log = LoggerFactory.getLogger(ProjectDataService.class);
+
     private final ProjectDataRepository projectDataRepository;
 
     public ProjectDataService(ProjectDataRepository projectDataRepository) {
@@ -24,6 +30,7 @@ public class ProjectDataService {
     private final ObjectMapper mapper = new ObjectMapper();
 
     public ProjectData create(CreateProjectDataRequest request) {
+        log.info("Creating/updating ProjectData for projectId: {}", request.getProjectId());
         // Kiểm tra xem đã có ProjectData cho project này chưa
         Optional<ProjectData> existing = projectDataRepository.findFirstByProjectId(request.getProjectId());
         
@@ -73,9 +80,10 @@ public class ProjectDataService {
     }
 
     public ProjectData update(String projectId, UpdateProjectDataRequest request) {
+        log.info("Updating ProjectData for projectId: {}", projectId);
         // Sử dụng findFirstByProjectId để tránh lỗi khi có nhiều bản ghi
         ProjectData projectData = projectDataRepository.findFirstByProjectId(projectId)
-                .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + projectId));
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectData", "projectId", projectId));
 
         if (request.getYeuCauBaiToanContent() != null) {
             projectData.setYeuCauBaiToanContent(request.getYeuCauBaiToanContent());
@@ -98,8 +106,9 @@ public class ProjectDataService {
 
     @Transactional
     public ProjectData saveEvaluation(String projectId, String section, String reviewJson) {
+        log.info("Saving evaluation for projectId: {}, section: {}", projectId, section);
         ProjectData projectData = projectDataRepository.findFirstByProjectId(projectId)
-                .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + projectId));
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectData", "projectId", projectId));
 
         switch (section) {
             case "request":
@@ -116,20 +125,23 @@ public class ProjectDataService {
                 projectData.setDinhCoAdminReview(reviewJson);
                 break;
             default:
-                throw new RuntimeException("Unknown section: " + section);
+                throw new BadRequestException("Unknown section: " + section);
         }
 
         return projectDataRepository.save(projectData);
     }
 
     public void delete(String id) {
+        log.info("Deleting ProjectData id: {}", id);
         projectDataRepository.deleteById(id);
     }
     
     @Transactional
     public void cleanupDuplicates(String projectId) {
+        log.info("Cleaning up duplicate ProjectData for projectId: {}", projectId);
         List<ProjectData> allData = projectDataRepository.findByProjectId(projectId);
         if (allData.size() > 1) {
+            log.warn("Found {} duplicate ProjectData records for projectId: {}, removing extras", allData.size(), projectId);
             // Giữ lại bản ghi đầu tiên, xóa các bản ghi còn lại
             for (int i = 1; i < allData.size(); i++) {
                 projectDataRepository.deleteById(allData.get(i).getId());

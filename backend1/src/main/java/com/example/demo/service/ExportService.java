@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.model.Project;
 import com.example.demo.model.ProjectData;
 import com.example.demo.repository.ProjectDataRepository;
@@ -41,10 +42,10 @@ public class ExportService {
 
     public byte[] exportToDocx(String projectId) throws IOException {
         Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found: " + projectId));
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
 
         ProjectData pd = projectDataRepository.findFirstByProjectId(projectId)
-                .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + projectId));
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectData", "projectId", projectId));
 
         log.info("=== Export for projectId: {} ===", projectId);
 

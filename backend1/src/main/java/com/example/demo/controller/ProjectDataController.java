@@ -1,9 +1,12 @@
 package com.example.demo.controller;
 
+import com.example.demo.exception.ForbiddenException;
 import com.example.demo.dto.CreateProjectDataRequest;
 import com.example.demo.dto.UpdateProjectDataRequest;
 import com.example.demo.model.ProjectData;
 import com.example.demo.service.ProjectDataService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
@@ -18,6 +21,8 @@ import java.util.List;
 @RequestMapping("/api/project-data")
 @CrossOrigin(origins = "*")
 public class ProjectDataController {
+    private static final Logger log = LoggerFactory.getLogger(ProjectDataController.class);
+
     private final ProjectDataService projectDataService;
 
     public ProjectDataController(ProjectDataService projectDataService) {
@@ -26,12 +31,14 @@ public class ProjectDataController {
 
     @PostMapping
     public ResponseEntity<ProjectData> create(@RequestBody CreateProjectDataRequest request) {
+        log.info("POST /api/project-data - Creating for projectId: {}", request.getProjectId());
         ProjectData created = projectDataService.create(request);
         return ResponseEntity.ok(created);
     }
 
     @GetMapping
     public ResponseEntity<List<ProjectData>> getAll() {
+        log.debug("GET /api/project-data - Fetching all");
         return ResponseEntity.ok(projectDataService.getAll());
     }
 
@@ -51,38 +58,38 @@ public class ProjectDataController {
 
     @PutMapping("/project/{projectId}")
     public ResponseEntity<ProjectData> update(@PathVariable String projectId, @RequestBody UpdateProjectDataRequest request) {
+        log.info("PUT /api/project-data/project/{} - Updating", projectId);
         ProjectData updated = projectDataService.update(projectId, request);
         return ResponseEntity.ok(updated);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
+        log.info("DELETE /api/project-data/{} - Deleting", id);
         projectDataService.delete(id);
         return ResponseEntity.noContent().build();
     }
     
     @PostMapping("/project/{projectId}/cleanup")
     public ResponseEntity<String> cleanupDuplicates(@PathVariable String projectId) {
+        log.info("POST /api/project-data/project/{}/cleanup - Cleaning up duplicates", projectId);
         projectDataService.cleanupDuplicates(projectId);
         return ResponseEntity.ok("Cleanup completed for projectId: " + projectId);
     }
 
     @PostMapping("/project/{projectId}/evaluate")
     public ResponseEntity<?> evaluateSection(@PathVariable String projectId, @RequestBody EvaluateProjectDataRequest request) {
+        log.info("POST /api/project-data/project/{}/evaluate - section: {}", projectId, request.getSection());
         // Verify authenticated user has admin role (ROLE_ADMIN1 or ROLE_ADMIN2)
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean isAdmin = auth != null && auth.getAuthorities().stream()
             .anyMatch(a -> a.getAuthority().equalsIgnoreCase("ROLE_ADMIN1") || a.getAuthority().equalsIgnoreCase("ROLE_ADMIN2"));
         if (!isAdmin) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Forbidden: requires admin role");
+            throw new ForbiddenException("Forbidden: requires admin role");
         }
 
-        try {
-            ProjectData updated = projectDataService.saveEvaluation(projectId, request.getSection(), request.getReviewJson());
-            return ResponseEntity.ok(updated);
-        } catch (RuntimeException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
-        }
+        ProjectData updated = projectDataService.saveEvaluation(projectId, request.getSection(), request.getReviewJson());
+        return ResponseEntity.ok(updated);
     }
 }
 

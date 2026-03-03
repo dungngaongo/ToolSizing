@@ -16,3 +16,14 @@ spring:
 
 server:
   port: 8081
+
+logging:
+  level:
+    root: INFO
+    com.example.demo: DEBUG
+    com.example.demo.controller: INFO
+    com.example.demo.service: DEBUG
+    com.example.demo.security: INFO
+    com.example.demo.exception: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

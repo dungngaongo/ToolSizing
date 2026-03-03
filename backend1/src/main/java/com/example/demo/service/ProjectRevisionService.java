@@ -1,5 +1,7 @@
 package com.example.demo.service;
 
+import com.example.demo.exception.BadRequestException;
+import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.dto.CreateProjectRevisionRequest;
 import com.example.demo.model.ProjectData;
 import com.example.demo.model.ProjectRevision;
@@ -9,12 +11,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 
 @Service
 public class ProjectRevisionService {
+    private static final Logger log = LoggerFactory.getLogger(ProjectRevisionService.class);
+
     private final ProjectRevisionRepository projectRevisionRepository;
     private final ProjectDataRepository projectDataRepository;
     private final ObjectMapper objectMapper;
@@ -43,16 +49,18 @@ public class ProjectRevisionService {
      * - Ngược lại -> tạo INCREMENTAL (chỉ lưu phần thay đổi)
      */
     public ProjectRevision createRevision(CreateProjectRevisionRequest request) {
+        log.info("Creating revision for projectId: {}, userId: {}, forceBaseline: {}",
+                request.getProjectId(), request.getUserId(), request.isForceBaseline());
         // Lấy ProjectData hiện tại
         ProjectData projectData = projectDataRepository.findFirstByProjectId(request.getProjectId())
-                .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + request.getProjectId()));
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectData", "projectId", request.getProjectId()));
 
         // Tạo JSON snapshot đầy đủ từ ProjectData hiện tại
         String currentFullSnapshot;
         try {
             currentFullSnapshot = objectMapper.writeValueAsString(projectData);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to create snapshot", e);
+            throw new BadRequestException("Failed to create snapshot: " + e.getMessage());
         }
 
         // Tìm baseline gần nhất
@@ -78,11 +86,13 @@ public class ProjectRevisionService {
 
         if (shouldCreateBaseline) {
             // === TẠO BASELINE: lưu full snapshot ===
+            log.info("Creating BASELINE revision for projectId: {}", request.getProjectId());
             revision.setRevisionType("BASELINE");
             revision.setSnapshotContent(currentFullSnapshot);
             revision.setBaselineId(null);
         } else {
             // === TẠO INCREMENTAL: chỉ lưu phần thay đổi ===
+            log.info("Creating INCREMENTAL revision for projectId: {}", request.getProjectId());
             String baselineId = latestBaselineOpt.get().getId();
             revision.setRevisionType("INCREMENTAL");
             revision.setBaselineId(baselineId);
@@ -95,6 +105,7 @@ public class ProjectRevisionService {
 
             if (diffContent == null || diffContent.equals("{}")) {
                 // Không có thay đổi, không tạo revision
+                log.info("No changes detected for projectId: {}, skipping revision creation", request.getProjectId());
                 return null;
             }
 
@@ -131,7 +142,7 @@ public class ProjectRevisionService {
             if (!hasChanges) return null;
             return objectMapper.writeValueAsString(diffNode);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to compute diff", e);
+            throw new BadRequestException("Failed to compute diff: " + e.getMessage());
         }
     }
 
@@ -143,7 +154,7 @@ public class ProjectRevisionService {
                 .findAllFromBaseline(projectId, baselineId);
 
         if (allRevisions.isEmpty()) {
-            throw new RuntimeException("No revisions found from baseline: " + baselineId);
+            throw new ResourceNotFoundException("Revision baseline", "baselineId", baselineId);
         }
 
         try {
@@ -166,7 +177,7 @@ public class ProjectRevisionService {
 
             return objectMapper.writeValueAsString(fullSnapshot);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to reconstruct snapshot", e);
+            throw new BadRequestException("Failed to reconstruct snapshot: " + e.getMessage());
         }
     }
 
@@ -176,8 +187,9 @@ public class ProjectRevisionService {
      * - Nếu là INCREMENTAL: tìm baseline rồi áp dụng các incrementals đến revision đó
      */
     public String reconstructAtRevision(String revisionId) {
+        log.debug("Reconstructing snapshot at revisionId: {}", revisionId);
         ProjectRevision revision = projectRevisionRepository.findById(revisionId)
-                .orElseThrow(() -> new RuntimeException("Revision not found: " + revisionId));
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectRevision", "id", revisionId));
 
         // BASELINE hoặc legacy revision (revisionType = null) -> trả về trực tiếp snapshotContent
         if ("BASELINE".equals(revision.getRevisionType()) || revision.getRevisionType() == null) {
@@ -187,7 +199,7 @@ public class ProjectRevisionService {
         // Là INCREMENTAL -> cần reconstruct
         String baselineId = revision.getBaselineId();
         if (baselineId == null) {
-            throw new RuntimeException("Incremental revision without baselineId: " + revisionId);
+            throw new BadRequestException("Incremental revision without baselineId: " + revisionId);
         }
 
         List<ProjectRevision> allRevisions = projectRevisionRepository
@@ -215,7 +227,7 @@ public class ProjectRevisionService {
 
             return objectMapper.writeValueAsString(fullSnapshot);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to reconstruct at revision", e);
+            throw new BadRequestException("Failed to reconstruct at revision: " + e.getMessage());
         }
     }
 
@@ -240,11 +252,12 @@ public class ProjectRevisionService {
      * Reconstruct full state từ baseline + incrementals, rồi áp dụng lên ProjectData
      */
     public ProjectData restoreFromRevision(String revisionId) {
+        log.info("Restoring ProjectData from revisionId: {}", revisionId);
         ProjectRevision revision = projectRevisionRepository.findById(revisionId)
-                .orElseThrow(() -> new RuntimeException("Revision not found: " + revisionId));
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectRevision", "id", revisionId));
 
         ProjectData projectData = projectDataRepository.findFirstByProjectId(revision.getProjectId())
-                .orElseThrow(() -> new RuntimeException("ProjectData not found for projectId: " + revision.getProjectId()));
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectData", "projectId", revision.getProjectId()));
 
         try {
             // Reconstruct full snapshot tại revision đó
@@ -258,11 +271,12 @@ public class ProjectRevisionService {
             projectData.setTongHopVaDeXuatContent(snapshot.getTongHopVaDeXuatContent());
             return projectDataRepository.save(projectData);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to restore from snapshot", e);
+            throw new BadRequestException("Failed to restore from snapshot: " + e.getMessage());
         }
     }
 
     public void delete(String id) {
+        log.info("Deleting revision id: {}", id);
         projectRevisionRepository.deleteById(id);
     }
 }

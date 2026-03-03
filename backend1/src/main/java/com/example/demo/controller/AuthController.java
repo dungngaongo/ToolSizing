@@ -2,8 +2,11 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.LoginResponse;
+import com.example.demo.exception.UnauthorizedException;
 import com.example.demo.model.User;
 import com.example.demo.service.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +18,8 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     private final UserService userService;
 
     public AuthController(UserService userService) {
@@ -23,13 +28,16 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        log.info("Login attempt for username: {}", request.getUsername());
         Optional<User> u = userService.authenticate(request.getUsername(), request.getPassword());
         if (u.isEmpty()) {
-            return ResponseEntity.status(401).body(java.util.Map.of("message", "Invalid username or password"));
+            log.warn("Login failed for username: {}", request.getUsername());
+            throw new UnauthorizedException("Tên đăng nhập hoặc mật khẩu không đúng");
         }
         User user = u.get();
         String role = user.getRole() == null ? "user" : user.getRole();
         String token = com.example.demo.security.JwtUtil.generateToken(user.getUsername(), role);
+        log.info("Login successful for username: {}, role: {}", user.getUsername(), role);
         return ResponseEntity.ok(new LoginResponse(user.getUsername(), user.getUsername(), role, token));
     }
 }
