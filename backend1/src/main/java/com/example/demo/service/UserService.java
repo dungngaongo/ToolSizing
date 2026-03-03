@@ -1,12 +1,17 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.CreateUserRequest;
+import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.DuplicateResourceException;
+import com.example.demo.exception.ForbiddenException;
 import com.example.demo.exception.ResourceNotFoundException;
+import com.example.demo.model.Role;
 import com.example.demo.model.User;
 import com.example.demo.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -35,12 +40,22 @@ public class UserService {
             throw new DuplicateResourceException("User", "email", request.getEmail());
         }
 
+        // Validate role
+        String requestedRole = request.getRole() == null ? "user" : request.getRole().toLowerCase();
+        if (!Role.isValid(requestedRole)) {
+            throw new BadRequestException("Role không hợp lệ: " + request.getRole() + ". Chỉ chấp nhận: user, admin1, admin2");
+        }
+
+        // Chỉ admin2 mới được gán role khác 'user'
+        if (!"user".equals(requestedRole)) {
+            validateCallerIsAdmin2("gán role '" + requestedRole + "'");
+        }
+
         User user = new User();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
-        // In real application, you should hash the password
         user.setPasswordHash(hashPassword(request.getPassword()));
-        user.setRole(request.getRole() == null ? "user" : request.getRole());
+        user.setRole(requestedRole);
         return userRepository.save(user);
     }
 
@@ -82,7 +97,19 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
-        if (request.getRole() != null) user.setRole(request.getRole());
+
+        // Validate & authorize role change
+        if (request.getRole() != null) {
+            String newRole = request.getRole().toLowerCase();
+            if (!Role.isValid(newRole)) {
+                throw new BadRequestException("Role không hợp lệ: " + request.getRole());
+            }
+            if (!newRole.equals(user.getRole())) {
+                validateCallerIsAdmin2("thay đổi role thành '" + newRole + "'");
+            }
+            user.setRole(newRole);
+        }
+
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPasswordHash(hashPassword(request.getPassword()));
         }
@@ -94,9 +121,20 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
-    // Simple password hash (in production, use BCrypt or similar)
+    /**
+     * Kiểm tra người gọi hiện tại có phải admin2 hay không.
+     * Ném ForbiddenException nếu không phải.
+     */
+    private void validateCallerIsAdmin2(String action) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getAuthorities().stream()
+                .noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN2"))) {
+            log.warn("Non-admin2 user attempted to {}", action);
+            throw new ForbiddenException("Chỉ admin2 mới có quyền " + action);
+        }
+    }
+
     private String hashPassword(String password) {
-        // Use BCrypt for hashing
         return passwordEncoder.encode(password == null ? "" : password);
     }
 }

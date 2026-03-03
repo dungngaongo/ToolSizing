@@ -6,6 +6,7 @@ import com.example.demo.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +24,7 @@ public class UserController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN2')")
     public ResponseEntity<User> create(@RequestBody CreateUserRequest request) {
         log.info("POST /api/users - Creating user: {}", request.getUsername());
         User created = userService.create(request);
@@ -51,6 +53,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN2')")
     public ResponseEntity<User> update(@PathVariable String id, @RequestBody CreateUserRequest request) {
         log.info("PUT /api/users/{} - Updating user", id);
         User updated = userService.update(id, request);
@@ -58,6 +61,7 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN2')")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         log.info("DELETE /api/users/{} - Deleting user", id);
         userService.delete(id);

@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -14,6 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
     private final UserRepository userRepository;
 
@@ -45,7 +47,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                 // allow preflight requests and public endpoints
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**", "/", "/index.html", "/frontend/**", "/static/**", "/api/projects/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/", "/index.html", "/frontend/**", "/static/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/projects/**").permitAll()
+                        // User management: only admin2 can create/update/delete
+                        .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN2")
+                        .requestMatchers(HttpMethod.PUT, "/api/users/**").hasRole("ADMIN2")
+                        .requestMatchers(HttpMethod.DELETE, "/api/users/**").hasRole("ADMIN2")
+                        .requestMatchers(HttpMethod.GET, "/api/users/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
