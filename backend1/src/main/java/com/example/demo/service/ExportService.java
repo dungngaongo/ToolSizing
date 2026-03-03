@@ -77,7 +77,7 @@ public class ExportService {
 
         // ===== V. TONG HOP VA DE XUAT =====
         if (pd.getTongHopVaDeXuatContent() != null) {
-            writeTongHop(doc, objectMapper.readTree(pd.getTongHopVaDeXuatContent()));
+            writeTongHop(doc, objectMapper.readTree(pd.getTongHopVaDeXuatContent()), moHinhNode);
         }
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -1342,29 +1342,79 @@ public class ExportService {
     }
 
     // ======================== V. TONG HOP VA DE XUAT ========================
-    private void writeTongHop(XWPFDocument doc, JsonNode root) {
+    private void writeTongHop(XWPFDocument doc, JsonNode root, JsonNode moHinhNode) {
         addSectionHeading(doc, "V. T\u1ed4NG H\u1ee2P V\u00c0 \u0110\u1ec0 XU\u1ea4T");
+
+        // Get selected modules from moHinhHeThong to filter summary rows
+        java.util.Set<String> selectedModules = new java.util.HashSet<>();
+        if (moHinhNode != null) {
+            JsonNode archRows = moHinhNode.path("archRows");
+            if (archRows.isArray()) {
+                for (JsonNode row : archRows) {
+                    String loaiModule = txt(row, "loaiModule").trim();
+                    if (!loaiModule.isEmpty()) {
+                        selectedModules.add(loaiModule);
+                    }
+                }
+            }
+        }
+        boolean filterByModules = !selectedModules.isEmpty();
+
+        // Map module names from summary to architecture module types
+        // Summary uses: App, MariaDB, MaxScale, NAS, Redis, Kafka, Zookeeper/KRaft, K8S, FW/LB
+        // Architecture uses: App, MariaDB, Redis, Kafka, K8S, LB/FW
+        java.util.Map<String, String> moduleToArch = new java.util.HashMap<>();
+        moduleToArch.put("App", "App");
+        moduleToArch.put("MariaDB", "MariaDB");
+        moduleToArch.put("MaxScale", "MariaDB");
+        moduleToArch.put("NAS", "MariaDB");
+        moduleToArch.put("Redis", "Redis");
+        moduleToArch.put("Kafka", "Kafka");
+        moduleToArch.put("Zookeeper/KRaft", "Kafka");
+        moduleToArch.put("FW/LB", "LB/FW");
 
         JsonNode summaryRows = root.path("summaryRows");
         if (summaryRows.isArray() && summaryRows.size() > 0) {
-            XWPFTable table = doc.createTable(summaryRows.size() + 1, 5);
-            styleTable(table);
-
-            setCell(table, 0, 0, "STT", true, "D9E2F3");
-            setCell(table, 0, 1, "Module", true, "D9E2F3");
-            setCell(table, 0, 2, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
-            setCell(table, 0, 3, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-            setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
-
+            // Filter rows based on selected modules
+            java.util.List<JsonNode> filteredRows = new java.util.ArrayList<>();
             for (int i = 0; i < summaryRows.size(); i++) {
                 JsonNode r = summaryRows.get(i);
-                setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
-                setCell(table, i + 1, 1, txt(r, "module"), false, null);
-                // Xử lý cấu hình: thay thế <br> bằng newline
-                String cauHinh = txt(r, "cauHinh").replaceAll("<br>", "\n").replaceAll("<[^>]+>", "");
-                setCellWithLineBreaks(table, i + 1, 2, cauHinh);
-                setCell(table, i + 1, 3, txt(r, "soLuong"), false, null);
-                setCell(table, i + 1, 4, txt(r, "ghiChu"), false, null);
+                String moduleName = txt(r, "module").trim();
+                if (!filterByModules) {
+                    filteredRows.add(r);
+                } else {
+                    String archModule = moduleToArch.getOrDefault(moduleName, moduleName);
+                    if (selectedModules.contains(archModule) || selectedModules.contains(moduleName)) {
+                        filteredRows.add(r);
+                    }
+                    // Also check for K8S sub-modules (Master, Worker, etc.)
+                    if (moduleName.startsWith("K8S") || moduleName.contains("Master") || moduleName.contains("Worker") || moduleName.contains("etcd")) {
+                        if (selectedModules.contains("K8S")) {
+                            if (!filteredRows.contains(r)) filteredRows.add(r);
+                        }
+                    }
+                }
+            }
+
+            if (!filteredRows.isEmpty()) {
+                XWPFTable table = doc.createTable(filteredRows.size() + 1, 5);
+                styleTable(table);
+
+                setCell(table, 0, 0, "STT", true, "D9E2F3");
+                setCell(table, 0, 1, "Module", true, "D9E2F3");
+                setCell(table, 0, 2, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                setCell(table, 0, 3, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
+
+                for (int i = 0; i < filteredRows.size(); i++) {
+                    JsonNode r = filteredRows.get(i);
+                    setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
+                    setCell(table, i + 1, 1, txt(r, "module"), false, null);
+                    String cauHinh = txt(r, "cauHinh").replaceAll("<br>", "\n").replaceAll("<[^>]+>", "");
+                    setCellWithLineBreaks(table, i + 1, 2, cauHinh);
+                    setCell(table, i + 1, 3, txt(r, "soLuong"), false, null);
+                    setCell(table, i + 1, 4, txt(r, "ghiChu"), false, null);
+                }
             }
         }
         doc.createParagraph();

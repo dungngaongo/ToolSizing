@@ -35,9 +35,6 @@
                     <i class="fa-solid fa-arrow-left"></i> Quay về danh sách
                 </button>
                 
-                <!-- Hiển thị trạng thái dự án hiện tại -->
-                <span id="current-project-status" class="project-status-badge" style="display: none;"></span>
-                
                 <!-- Nút Phê duyệt trên header (luôn hiển thị, chỉ admin2 mới bấm được) -->
                 <button type="button" class="btn-approve" id="btn-approve-header" onclick="approveProject()" style="display: none; padding: 8px 18px; font-size: 13px;">
                     <i class="fa-solid fa-check-circle"></i> PHÊ DUYỆT
@@ -70,16 +67,27 @@
     <div id="project-list-page" class="project-list-container">
         <div class="project-list-header">
             <h2><i class="fa-solid fa-folder-open"></i> Danh sách Dự án</h2>
-            <div class="project-list-actions">
-                <input type="text" id="search-project" placeholder="Tìm kiếm dự án..." oninput="filterProjects()">
-                <select id="filter-status" onchange="filterProjects()">
-                    <option value="">Tất cả trạng thái</option>
-                    <option value="SIZING">Sizing</option>
-                    <option value="THAM_DINH">Thẩm định</option>
-                    <option value="PHE_DUYET">Phê duyệt</option>
-                    <option value="HOAN_THANH">Hoàn thành</option>
-                </select>
-                <button onclick="loadProjectList()" class="btn-refresh">
+        </div>
+        <div class="project-list-toolbar">
+            <div class="toolbar-search">
+                <i class="fa-solid fa-magnifying-glass toolbar-search-icon"></i>
+                <input type="text" id="search-project" placeholder="Tìm kiếm theo tên dự án, đơn vị, người tạo..." oninput="filterProjects()">
+                <button class="toolbar-search-clear" id="btn-clear-search" onclick="clearProjectSearch()" title="Xóa tìm kiếm" style="display:none;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="toolbar-filters">
+                <div class="toolbar-filter-group">
+                    <label class="toolbar-filter-label"><i class="fa-solid fa-filter"></i> Trạng thái</label>
+                    <select id="filter-status" onchange="filterProjects()">
+                        <option value="">Tất cả</option>
+                        <option value="SIZING">Sizing</option>
+                        <option value="THAM_DINH">Thẩm định</option>
+                        <option value="PHE_DUYET">Phê duyệt</option>
+                        <option value="HOAN_THANH">Hoàn thành</option>
+                    </select>
+                </div>
+                <button onclick="loadProjectList()" class="btn-refresh" title="Tải lại danh sách">
                     <i class="fa-solid fa-rotate"></i> Làm mới
                 </button>
             </div>

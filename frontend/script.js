@@ -529,6 +529,10 @@ function filterProjects() {
     const searchText = document.getElementById('search-project')?.value.toLowerCase() || '';
     const statusFilter = document.getElementById('filter-status')?.value || '';
     
+    // Show/hide clear button
+    const clearBtn = document.getElementById('btn-clear-search');
+    if (clearBtn) clearBtn.style.display = searchText ? 'flex' : 'none';
+    
     let filtered = allProjects;
     
     if (searchText) {
@@ -544,6 +548,14 @@ function filterProjects() {
     }
     
     renderProjectList(filtered);
+}
+
+function clearProjectSearch() {
+    const searchInput = document.getElementById('search-project');
+    if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+    const clearBtn = document.getElementById('btn-clear-search');
+    if (clearBtn) clearBtn.style.display = 'none';
+    filterProjects();
 }
 
 // ==================== PROJECT STATUS MANAGEMENT ====================
@@ -706,6 +718,9 @@ async function openProject(projectId) {
     currentProjectDataId = null;
     localStorage.removeItem('currentProjectDataId');
     revisionCheckedForSession = false; // Reset revision check cho project mới
+    
+    // Reset toàn bộ form trước khi load dữ liệu mới để tránh hiển thị dữ liệu cũ từ dự án trước
+    resetAllForms();
     
     await loadAllDataFromDB();
     
@@ -2164,144 +2179,167 @@ function aggregateSizingResults() {
     const tbody = document.getElementById('summary-table-body');
     if (!tbody) return;
     
+    // Chỉ tổng hợp các module đã được chọn trong Mô hình hệ thống (archRows)
+    const selectedModules = getSelectedModules();
+    
     const results = [];
     let stt = 1;
     
-    // 1. Module App - Parse từ sizing-result-container
-    const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
-    const appData = parseAppSizingResult(appResult);
-    if (appData) {
-        results.push({
-            stt: stt++,
-            module: 'App',
-            cauHinh: appData.cauHinh,
-            soLuong: appData.soLuong,
-            ghiChu: appData.ghiChu
-        });
-    }
-    
-    // 2. Module MariaDB - Parse từ mariadb-result-container
-    const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
-    const mariaData = parseMariaDBSizingResult(mariaResult);
-    if (mariaData) {
-        results.push({
-            stt: stt++,
-            module: 'MariaDB',
-            cauHinh: mariaData.cauHinh,
-            soLuong: mariaData.soLuong,
-            ghiChu: mariaData.ghiChu
-        });
-        // Add MaxScale row
-        if (mariaData.maxScale) {
+    // 1. Module App - Chỉ khi module App được chọn trong mô hình
+    if (selectedModules.includes('App')) {
+        const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
+        const appData = parseAppSizingResult(appResult);
+        if (appData) {
             results.push({
                 stt: stt++,
-                module: 'MaxScale',
-                cauHinh: mariaData.maxScale.cauHinh,
-                soLuong: mariaData.maxScale.soLuong,
-                ghiChu: mariaData.maxScale.ghiChu
+                module: 'App',
+                cauHinh: appData.cauHinh,
+                soLuong: appData.soLuong,
+                ghiChu: appData.ghiChu
             });
-        }
-        // Add NAS row
-        if (mariaData.nas) {
-            results.push({
-                stt: stt++,
-                module: 'NAS',
-                cauHinh: mariaData.nas.cauHinh,
-                soLuong: mariaData.nas.soLuong,
-                ghiChu: mariaData.nas.ghiChu
-            });
+            
+            // FW/LB từ App (nếu LB/FW cũng được chọn)
+            if (selectedModules.includes('LB/FW') && appData.fwlb) {
+                // Sẽ xử lý ở phần LB/FW bên dưới
+            }
         }
     }
     
-    // 3. Module Redis - Parse từ redis key hoặc config result (dựa vào phương pháp được chọn)
-    const redisKeyBtn = document.getElementById('redis-method-key');
-    const isKeyMethodSelected = redisKeyBtn?.classList.contains('active') === true;
-    
-    let redisResult = '';
-    if (isKeyMethodSelected) {
-        redisResult = document.getElementById('redis-key-result-container')?.innerHTML || '';
-    } else {
-        redisResult = document.getElementById('redis-config-result-container')?.innerHTML || '';
-    }
-    
-    const redisData = parseRedisSizingResult(redisResult);
-    if (redisData) {
-        results.push({
-            stt: stt++,
-            module: 'Redis',
-            cauHinh: redisData.cauHinh,
-            soLuong: redisData.soLuong,
-            ghiChu: redisData.ghiChu
-        });
-    }
-    
-    // 4. Module Kafka - Parse từ kafka throughput hoặc linear result (dựa vào phương pháp được chọn)
-    const kafkaMethodThroughputBtn = document.getElementById('kafka-method-throughput');
-    const isThroughputMethodSelected = kafkaMethodThroughputBtn?.classList.contains('active') === true;
-    
-    let kafkaResult = '';
-    if (isThroughputMethodSelected) {
-        kafkaResult = document.getElementById('kafka-throughput-result-container')?.innerHTML || '';
-    } else {
-        kafkaResult = document.getElementById('kafka-linear-result-container')?.innerHTML || '';
-    }
-    
-    const kafkaData = parseKafkaSizingResult(kafkaResult);
-    if (kafkaData) {
-        results.push({
-            stt: stt++,
-            module: 'Kafka',
-            cauHinh: kafkaData.cauHinh,
-            soLuong: kafkaData.soLuong,
-            ghiChu: kafkaData.ghiChu
-        });
-        // Add Zookeeper/KRaft row
-        if (kafkaData.zookeeper) {
+    // 2. Module MariaDB - Chỉ khi module MariaDB được chọn
+    if (selectedModules.includes('MariaDB')) {
+        const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
+        const mariaData = parseMariaDBSizingResult(mariaResult);
+        if (mariaData) {
             results.push({
                 stt: stt++,
-                module: 'Zookeeper/KRaft',
-                cauHinh: kafkaData.zookeeper.cauHinh,
-                soLuong: kafkaData.zookeeper.soLuong,
-                ghiChu: kafkaData.zookeeper.ghiChu
+                module: 'MariaDB',
+                cauHinh: mariaData.cauHinh,
+                soLuong: mariaData.soLuong,
+                ghiChu: mariaData.ghiChu
+            });
+            if (mariaData.maxScale) {
+                results.push({
+                    stt: stt++,
+                    module: 'MaxScale',
+                    cauHinh: mariaData.maxScale.cauHinh,
+                    soLuong: mariaData.maxScale.soLuong,
+                    ghiChu: mariaData.maxScale.ghiChu
+                });
+            }
+            if (mariaData.nas) {
+                results.push({
+                    stt: stt++,
+                    module: 'NAS',
+                    cauHinh: mariaData.nas.cauHinh,
+                    soLuong: mariaData.nas.soLuong,
+                    ghiChu: mariaData.nas.ghiChu
+                });
+            }
+        }
+    }
+    
+    // 3. Module Redis - Chỉ khi module Redis được chọn
+    if (selectedModules.includes('Redis')) {
+        const redisKeyBtn = document.getElementById('redis-method-key');
+        const isKeyMethodSelected = redisKeyBtn?.classList.contains('active') === true;
+        
+        let redisResult = '';
+        if (isKeyMethodSelected) {
+            redisResult = document.getElementById('redis-key-result-container')?.innerHTML || '';
+        } else {
+            redisResult = document.getElementById('redis-config-result-container')?.innerHTML || '';
+        }
+        
+        const redisData = parseRedisSizingResult(redisResult);
+        if (redisData) {
+            results.push({
+                stt: stt++,
+                module: 'Redis',
+                cauHinh: redisData.cauHinh,
+                soLuong: redisData.soLuong,
+                ghiChu: redisData.ghiChu
             });
         }
     }
     
-    // 5. Module K8S - Parse từ k8s-result-container
-    const k8sResult = document.getElementById('k8s-result-container')?.innerHTML || '';
-    const k8sData = parseK8SSizingResult(k8sResult);
-    if (k8sData && Array.isArray(k8sData)) {
-        k8sData.forEach(item => {
+    // 4. Module Kafka - Chỉ khi module Kafka được chọn
+    if (selectedModules.includes('Kafka')) {
+        const kafkaMethodThroughputBtn = document.getElementById('kafka-method-throughput');
+        const isThroughputMethodSelected = kafkaMethodThroughputBtn?.classList.contains('active') === true;
+        
+        let kafkaResult = '';
+        if (isThroughputMethodSelected) {
+            kafkaResult = document.getElementById('kafka-throughput-result-container')?.innerHTML || '';
+        } else {
+            kafkaResult = document.getElementById('kafka-linear-result-container')?.innerHTML || '';
+        }
+        
+        const kafkaData = parseKafkaSizingResult(kafkaResult);
+        if (kafkaData) {
             results.push({
                 stt: stt++,
-                module: item.module,
-                cauHinh: item.cauHinh,
-                soLuong: item.soLuong,
-                ghiChu: item.ghiChu
+                module: 'Kafka',
+                cauHinh: kafkaData.cauHinh,
+                soLuong: kafkaData.soLuong,
+                ghiChu: kafkaData.ghiChu
             });
-        });
+            if (kafkaData.zookeeper) {
+                results.push({
+                    stt: stt++,
+                    module: 'Zookeeper/KRaft',
+                    cauHinh: kafkaData.zookeeper.cauHinh,
+                    soLuong: kafkaData.zookeeper.soLuong,
+                    ghiChu: kafkaData.zookeeper.ghiChu
+                });
+            }
+        }
     }
     
-    // 6. Module LB/FW - Parse từ lbfw-result-container
-    const lbfwResult = document.getElementById('lbfw-result-container')?.innerHTML || '';
-    const lbfwData = parseLBFWSizingResult(lbfwResult);
-    if (lbfwData) {
-        results.push({
-            stt: stt++,
-            module: 'FW/LB',
-            cauHinh: lbfwData.cauHinh,
-            soLuong: lbfwData.soLuong,
-            ghiChu: lbfwData.ghiChu
-        });
-    } else if (appData && appData.fwlb) {
-        // Fallback: FW/LB từ module App nếu có
-        results.push({
-            stt: stt++,
-            module: 'FW/LB',
-            cauHinh: appData.fwlb.cauHinh,
-            soLuong: '',
-            ghiChu: ''
-        });
+    // 5. Module K8S - Chỉ khi module K8S được chọn
+    if (selectedModules.includes('K8S')) {
+        const k8sResult = document.getElementById('k8s-result-container')?.innerHTML || '';
+        const k8sData = parseK8SSizingResult(k8sResult);
+        if (k8sData && Array.isArray(k8sData)) {
+            k8sData.forEach(item => {
+                results.push({
+                    stt: stt++,
+                    module: item.module,
+                    cauHinh: item.cauHinh,
+                    soLuong: item.soLuong,
+                    ghiChu: item.ghiChu
+                });
+            });
+        }
+    }
+    
+    // 6. Module LB/FW - Chỉ khi module LB/FW được chọn
+    if (selectedModules.includes('LB/FW')) {
+        const lbfwResult = document.getElementById('lbfw-result-container')?.innerHTML || '';
+        const lbfwData = parseLBFWSizingResult(lbfwResult);
+        if (lbfwData) {
+            results.push({
+                stt: stt++,
+                module: 'FW/LB',
+                cauHinh: lbfwData.cauHinh,
+                soLuong: lbfwData.soLuong,
+                ghiChu: lbfwData.ghiChu
+            });
+        } else {
+            // Fallback: FW/LB từ module App nếu có (chỉ khi App cũng được chọn)
+            if (selectedModules.includes('App')) {
+                const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
+                const appData = parseAppSizingResult(appResult);
+                if (appData && appData.fwlb) {
+                    results.push({
+                        stt: stt++,
+                        module: 'FW/LB',
+                        cauHinh: appData.fwlb.cauHinh,
+                        soLuong: '',
+                        ghiChu: ''
+                    });
+                }
+            }
+        }
     }
     
     // Render bảng
@@ -8869,6 +8907,8 @@ function buildSavePayload() {
         }
         
         // === 5. TỔNG HỢP VÀ ĐỀ XUẤT ===
+        // Trước khi collect, aggregate lại từ kết quả định cỡ (chỉ module được chọn)
+        aggregateSizingResults();
         const summaryData = collectTongHop();
         payload.tongHopVaDeXuatContent = JSON.stringify(summaryData);
     } catch (e) {
