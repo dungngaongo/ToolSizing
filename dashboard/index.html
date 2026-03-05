@@ -386,6 +386,34 @@
         </div>
     </div>
 
+    <!-- Modal: Assign Admin1 to Project -->
+    <div class="modal-overlay" id="modal-assign-admin1" style="display:none">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3>Chỉ định người thẩm định</h3>
+                <button class="modal-close" onclick="closeAssignModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="assign-project-id">
+                <div class="form-group">
+                    <label>Dự án:</label>
+                    <p><strong id="assign-project-name"></strong></p>
+                </div>
+                <div class="form-group">
+                    <label for="assign-admin1-select">Chọn Admin1 thẩm định <span class="required">*</span></label>
+                    <select id="assign-admin1-select" class="form-select">
+                        <option value="">-- Không chỉ định --</option>
+                    </select>
+                    <small class="form-hint">Chọn người có quyền Admin1 để thẩm định/đánh giá dự án này. Chọn "Không chỉ định" để bỏ chỉ định.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAssignModal()">Hủy</button>
+                <button class="btn btn-primary" onclick="saveAssignAdmin1()">Lưu chỉ định</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast container -->
     <div class="toast-container" id="toast-container"></div>
 

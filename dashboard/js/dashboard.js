@@ -35,7 +35,12 @@ async function initDashboard() {
     if (typeof logAudit === 'function') logAudit('VIEW', 'SYSTEM', 'Dashboard', 'Truy cập trang quản trị');
 
     try {
-        await Promise.all([loadDashboardStats(), loadUsers(), loadProjects()]);
+        const currentUser = getCurrentUser();
+        if (currentUser.role === 'admin2') {
+            await Promise.all([loadDashboardStats(), loadUsers(), loadProjects()]);
+        } else {
+            await Promise.all([loadDashboardStats(), loadProjects()]);
+        }
     } catch (error) {
         console.error('Init error:', error);
         showToast('Lỗi khởi tạo dashboard', 'error');
@@ -46,13 +51,31 @@ async function initDashboard() {
 // ==================== DASHBOARD STATS ====================
 async function loadDashboardStats() {
     try {
-        const [users, projects] = await Promise.all([
-            fetchAPI('/users', { useCache: true, cacheTTL: 60000 }),
-            fetchAPI('/projects', { useCache: true, cacheTTL: 60000 })
-        ]);
+        const currentUser = getCurrentUser();
+        const isAdmin2 = currentUser.role === 'admin2';
+
+        // Admin2: hiện đầy đủ stats, role khác: chỉ hiện stats dự án của mình
+        let users = [];
+        let projects = [];
+
+        if (isAdmin2) {
+            [users, projects] = await Promise.all([
+                fetchAPI('/users', { useCache: true, cacheTTL: 60000 }),
+                fetchAPI('/projects/my-projects', { useCache: true, cacheTTL: 60000 })
+            ]);
+        } else {
+            projects = await fetchAPI('/projects/my-projects', { useCache: true, cacheTTL: 60000 });
+        }
 
         // Animate stat numbers
-        animateValue('stat-total-users', users.length);
+        if (isAdmin2) {
+            animateValue('stat-total-users', users.length);
+        } else {
+            // Ẩn stat users cho non-admin2
+            const statUsersCard = document.querySelector('.stat-users');
+            if (statUsersCard) statUsersCard.style.display = 'none';
+        }
+        
         animateValue('stat-total-projects', projects.length);
 
         const pending = projects.filter(p => p.status === 'THAM_DINH' || p.status === 'PHE_DUYET');

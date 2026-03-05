@@ -38,6 +38,6 @@ public class AuthController {
         String role = user.getRole() == null ? "user" : user.getRole();
         String token = com.example.demo.security.JwtUtil.generateToken(user.getUsername(), role);
         log.info("Login successful for username: {}, role: {}", user.getUsername(), role);
-        return ResponseEntity.ok(new LoginResponse(user.getUsername(), user.getUsername(), role, token));
+        return ResponseEntity.ok(new LoginResponse(user.getId(), user.getUsername(), user.getUsername(), role, token));
     }
 }

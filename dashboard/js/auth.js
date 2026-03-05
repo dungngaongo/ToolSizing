@@ -6,7 +6,7 @@
 
 // ==================== CONSTANTS ====================
 const AUTH_CONFIG = {
-    allowedRoles: ['admin2'],
+    allowedRoles: ['admin2', 'admin1', 'user'],
     sessionWarningMs: 5 * 60 * 1000,   // Cảnh báo 5 phút trước khi hết hạn
     checkIntervalMs: 30 * 1000,         // Kiểm tra mỗi 30 giây
     maxLoginAttempts: 5,                 // Tối đa 5 lần thử sai
@@ -99,12 +99,13 @@ async function handleLogin(e) {
 
         // Check role
         if (!AUTH_CONFIG.allowedRoles.includes(data.role)) {
-            throw new Error('Chỉ tài khoản admin2 mới được phép truy cập Dashboard');
+            throw new Error('Tài khoản của bạn không được phép truy cập Dashboard');
         }
 
         // Lưu vào SecureStorage (sessionStorage) - KHÔNG lưu password
         SecureStorage.set('token', data.token);
         SecureStorage.set('user', JSON.stringify({
+            userId: data.userId,
             username: data.username,
             displayName: data.displayName,
             role: data.role
@@ -213,12 +214,44 @@ function checkAuth() {
 
     const user = SecureStorage.getJSON('user');
 
-    // Display username
+    // Display username and role
     const nameEl = document.getElementById('current-user-name');
     if (nameEl) nameEl.textContent = user.displayName || user.username;
 
+    const roleEl = document.querySelector('.user-role');
+    if (roleEl) {
+        const roleLabels = { admin2: 'Quản trị viên cấp 2', admin1: 'Quản trị viên cấp 1', user: 'Người dùng' };
+        roleEl.textContent = roleLabels[user.role] || 'Người dùng';
+    }
+
+    // Ẩn/hiện các menu theo role
+    applyRoleBasedUI(user.role);
+
     // Start session monitor
     startSessionMonitor();
+}
+
+/**
+ * Ẩn/hiện UI elements theo role:
+ * - admin2: thấy tất cả
+ * - admin1: thấy Tổng quan + Quản lý Dự án
+ * - user: thấy Tổng quan + Quản lý Dự án (chỉ dự án của mình)
+ */
+function applyRoleBasedUI(role) {
+    // Sidebar nav items cần ẩn cho non-admin2
+    const adminOnlyPages = ['page-users', 'page-audit-log', 'page-reports'];
+    
+    if (role !== 'admin2') {
+        adminOnlyPages.forEach(pageId => {
+            const navItem = document.querySelector(`[data-page="${pageId}"]`);
+            if (navItem) navItem.style.display = 'none';
+            const page = document.getElementById(pageId);
+            if (page) page.style.display = 'none';
+        });
+    }
+
+    // Đặt data attribute cho role để CSS/JS khác có thể sử dụng
+    document.body.setAttribute('data-user-role', role);
 }
 
 /**

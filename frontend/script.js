@@ -372,6 +372,7 @@ async function logout() {
         localStorage.removeItem('userRole');
         localStorage.removeItem('rememberMe');
         localStorage.removeItem('authToken');
+        localStorage.removeItem('userId');
         clearProjectIds();
         window.location.href = 'login.html';
     }
@@ -379,6 +380,7 @@ async function logout() {
 
 function getCurrentUser() {
     return {
+        userId: localStorage.getItem('userId'),
         username: localStorage.getItem('username'),
         displayName: localStorage.getItem('displayName'),
         role: localStorage.getItem('userRole'),
@@ -686,7 +688,7 @@ async function loadProjectList() {
     
     try {
         Logger.debug('DEBUG: loadProjectList called');
-        const response = await fetchAPI(`${API_BASE_URL}/projects`, {}, { showError: true });
+        const response = await fetchAPI(`${API_BASE_URL}/projects/my-projects`, {}, { showError: true });
         if (response.ok) {
             allProjects = await response.json();
             

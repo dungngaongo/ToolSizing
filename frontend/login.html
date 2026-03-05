@@ -177,6 +177,7 @@
                 if (res.ok) {
                     const data = await res.json();
                     localStorage.setItem('isLoggedIn', 'true');
+                    localStorage.setItem('userId', data.userId || '');
                     localStorage.setItem('username', data.username || username);
                     localStorage.setItem('displayName', data.displayName || data.username || username);
                     localStorage.setItem('userRole', data.role || 'user');

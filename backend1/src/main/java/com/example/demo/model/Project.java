@@ -33,6 +33,9 @@ public class Project {
     @Column(name = "status_round")
     private Integer statusRound = 1; // Lần thứ mấy (1, 2, 3, ...)
 
+    @Column(name = "assigned_admin1_id")
+    private String assignedAdmin1Id; // Admin1 được chỉ định thẩm định/đánh giá dự án này
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

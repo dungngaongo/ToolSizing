@@ -1,7 +1,9 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.AssignAdmin1Request;
 import com.example.demo.dto.CreateProjectRequest;
 import com.example.demo.model.Project;
+import com.example.demo.model.User;
 import com.example.demo.service.ProjectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +34,20 @@ public class ProjectController {
 
     @GetMapping
     public ResponseEntity<List<Project>> getAll() {
-        log.debug("GET /api/projects - Fetching all projects");
-        return ResponseEntity.ok(projectService.getAll());
+        log.debug("GET /api/projects - Fetching projects for current user (role-based)");
+        return ResponseEntity.ok(projectService.getProjectsForCurrentUser());
+    }
+
+    /**
+     * Lấy danh sách dự án theo quyền của user hiện tại:
+     * - admin2: tất cả
+     * - admin1: chỉ dự án được chỉ định
+     * - user: chỉ dự án do mình tạo
+     */
+    @GetMapping("/my-projects")
+    public ResponseEntity<List<Project>> getMyProjects() {
+        log.debug("GET /api/projects/my-projects - Fetching projects for current user");
+        return ResponseEntity.ok(projectService.getProjectsForCurrentUser());
     }
 
     @GetMapping("/{id}")
@@ -57,6 +71,27 @@ public class ProjectController {
     @GetMapping("/user/{userId}/status/{status}")
     public ResponseEntity<List<Project>> getByUserIdAndStatus(@PathVariable String userId, @PathVariable String status) {
         return ResponseEntity.ok(projectService.getByUserIdAndStatus(userId, status));
+    }
+
+    /**
+     * Admin2 chỉ định admin1 thẩm định dự án.
+     */
+    @PutMapping("/{id}/assign-reviewer")
+    @PreAuthorize("hasRole('ADMIN2')")
+    public ResponseEntity<Project> assignReviewer(@PathVariable String id, @RequestBody AssignAdmin1Request request) {
+        log.info("PUT /api/projects/{}/assign-reviewer - Assigning admin1: {}", id, request.getAdmin1Id());
+        Project updated = projectService.assignAdmin1ToProject(id, request.getAdmin1Id());
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Lấy danh sách user admin1 (để admin2 chọn chỉ định).
+     */
+    @GetMapping("/admin1-users")
+    @PreAuthorize("hasRole('ADMIN2')")
+    public ResponseEntity<List<User>> getAdmin1Users() {
+        log.debug("GET /api/projects/admin1-users - Fetching admin1 users");
+        return ResponseEntity.ok(projectService.getAdmin1Users());
     }
 
     @PutMapping("/{id}")
