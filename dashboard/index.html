@@ -4,47 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Skip to content (accessibility) -->
+    <a href="#main-content" class="skip-link">Bỏ qua đến nội dung chính</a>
+
+    <!-- Session Warning Banner -->
+    <div class="session-warning" id="session-warning" style="display:none">
+        <span>⚠ Phiên đăng nhập sẽ hết hạn trong <strong id="session-warning-time">5</strong> phút</span>
+        <button onclick="dismissSessionWarning()">Đã hiểu</button>
+        <button onclick="logout()">Đăng xuất ngay</button>
+    </div>
+
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <div class="sidebar-logo">
-                <i class="fas fa-shield-halved"></i>
-            </div>
-            <h2>Admin Panel</h2>
+            <div class="sidebar-logo">A</div>
+            <h2>Admin</h2>
             <button class="sidebar-toggle" id="btn-sidebar-toggle" onclick="toggleSidebar()">
-                <i class="fas fa-angles-left"></i>
+                «
             </button>
         </div>
         <nav class="sidebar-nav">
             <a href="#" class="nav-item active" data-page="page-dashboard" onclick="navigateTo('page-dashboard', this)">
-                <i class="fas fa-chart-pie"></i>
                 <span>Tổng quan</span>
             </a>
             <a href="#" class="nav-item" data-page="page-users" onclick="navigateTo('page-users', this)">
-                <i class="fas fa-users"></i>
                 <span>Quản lý User</span>
             </a>
             <a href="#" class="nav-item" data-page="page-projects" onclick="navigateTo('page-projects', this)">
-                <i class="fas fa-folder-open"></i>
                 <span>Quản lý Dự án</span>
+            </a>
+            <a href="#" class="nav-item" data-page="page-audit-log" onclick="navigateTo('page-audit-log', this)">
+                <span>Lịch sử hoạt động</span>
+            </a>
+            <a href="#" class="nav-item" data-page="page-reports" onclick="navigateTo('page-reports', this)">
+                <span>Báo cáo & Thống kê</span>
             </a>
         </nav>
         <div class="sidebar-footer">
             <div class="user-info">
-                <div class="user-avatar">
-                    <i class="fas fa-user-shield"></i>
-                </div>
+                <div class="user-avatar">A</div>
                 <div class="user-details">
                     <span class="user-name" id="current-user-name">admin2</span>
                     <span class="user-role">Quản trị viên</span>
                 </div>
             </div>
             <button class="btn-logout" onclick="logout()">
-                <i class="fas fa-right-from-bracket"></i>
                 <span>Đăng xuất</span>
             </button>
         </div>
@@ -56,7 +65,7 @@
         <header class="top-header">
             <div class="header-left">
                 <button class="btn-menu-mobile" onclick="toggleSidebar()">
-                    <i class="fas fa-bars"></i>
+                    ☰
                 </button>
                 <h1 id="page-title">Tổng quan</h1>
             </div>
@@ -69,28 +78,24 @@
         <section class="page-content" id="page-dashboard">
             <div class="stats-grid">
                 <div class="stat-card stat-users">
-                    <div class="stat-icon"><i class="fas fa-users"></i></div>
                     <div class="stat-info">
                         <span class="stat-value" id="stat-total-users">0</span>
                         <span class="stat-label">Tổng User</span>
                     </div>
                 </div>
                 <div class="stat-card stat-projects">
-                    <div class="stat-icon"><i class="fas fa-folder-open"></i></div>
                     <div class="stat-info">
                         <span class="stat-value" id="stat-total-projects">0</span>
                         <span class="stat-label">Tổng Dự án</span>
                     </div>
                 </div>
                 <div class="stat-card stat-pending">
-                    <div class="stat-icon"><i class="fas fa-clock"></i></div>
                     <div class="stat-info">
                         <span class="stat-value" id="stat-pending-projects">0</span>
                         <span class="stat-label">Chờ phê duyệt</span>
                     </div>
                 </div>
                 <div class="stat-card stat-completed">
-                    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
                     <div class="stat-info">
                         <span class="stat-value" id="stat-completed-projects">0</span>
                         <span class="stat-label">Hoàn thành</span>
@@ -101,7 +106,7 @@
             <!-- Dự án chờ phê duyệt -->
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="fas fa-clock"></i> Dự án chờ phê duyệt</h3>
+                    <h3>Dự án chờ phê duyệt</h3>
                 </div>
                 <div class="card-body">
                     <table class="data-table" id="table-pending-projects">
@@ -125,7 +130,7 @@
             <!-- Phân bố dự án theo trạng thái -->
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="fas fa-chart-bar"></i> Phân bố dự án theo trạng thái</h3>
+                    <h3>Phân bố dự án theo trạng thái</h3>
                 </div>
                 <div class="card-body">
                     <div class="status-chart" id="status-chart"></div>
@@ -138,10 +143,9 @@
             <div class="page-toolbar">
                 <div class="toolbar-left">
                     <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="search-users" placeholder="Tìm kiếm user..." oninput="filterUsers()">
+                        <input type="text" id="search-users" placeholder="Tìm kiếm user...">
                     </div>
-                    <select id="filter-user-role" onchange="filterUsers()">
+                    <select id="filter-user-role">
                         <option value="">Tất cả role</option>
                         <option value="user">User</option>
                         <option value="admin1">Admin1</option>
@@ -149,9 +153,7 @@
                     </select>
                 </div>
                 <div class="toolbar-right">
-                    <button class="btn btn-primary" onclick="openUserModal()">
-                        <i class="fas fa-plus"></i> Tạo User
-                    </button>
+                    <button class="btn btn-primary" onclick="openUserModal()">Tạo User</button>
                 </div>
             </div>
             <div class="card">
@@ -169,6 +171,7 @@
                             <tr><td colspan="4" class="empty-row">Đang tải...</td></tr>
                         </tbody>
                     </table>
+                    <div id="pagination-users"></div>
                 </div>
             </div>
         </section>
@@ -178,10 +181,9 @@
             <div class="page-toolbar">
                 <div class="toolbar-left">
                     <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="search-projects" placeholder="Tìm kiếm dự án..." oninput="filterProjects()">
+                        <input type="text" id="search-projects" placeholder="Tìm kiếm dự án...">
                     </div>
-                    <select id="filter-project-status" onchange="filterProjects()">
+                    <select id="filter-project-status">
                         <option value="">Tất cả trạng thái</option>
                         <option value="SIZING">Sizing</option>
                         <option value="THAM_DINH">Thẩm định</option>
@@ -190,9 +192,7 @@
                     </select>
                 </div>
                 <div class="toolbar-right">
-                    <button class="btn btn-success" onclick="refreshProjects()">
-                        <i class="fas fa-sync-alt"></i> Làm mới
-                    </button>
+                    <button class="btn btn-success" onclick="refreshProjects()">Làm mới</button>
                 </div>
             </div>
             <div class="card">
@@ -213,6 +213,114 @@
                             <tr><td colspan="7" class="empty-row">Đang tải...</td></tr>
                         </tbody>
                     </table>
+                    <div id="pagination-projects"></div>
+                </div>
+            </div>
+        </section>
+        <!-- Page: Audit Log -->
+        <section class="page-content" id="page-audit-log" style="display:none">
+            <div class="audit-stats" id="audit-stats"></div>
+            <div class="page-toolbar">
+                <div class="toolbar-left toolbar-wrap">
+                    <div class="search-box">
+                        <input type="text" id="search-audit" placeholder="Tìm kiếm hoạt động...">
+                    </div>
+                    <select id="filter-audit-action">
+                        <option value="">Tất cả hành động</option>
+                        <option value="CREATE">Tạo mới</option>
+                        <option value="UPDATE">Cập nhật</option>
+                        <option value="DELETE">Xóa</option>
+                        <option value="APPROVE">Phê duyệt</option>
+                        <option value="LOGIN">Đăng nhập</option>
+                        <option value="LOGOUT">Đăng xuất</option>
+                    </select>
+                    <select id="filter-audit-target">
+                        <option value="">Tất cả đối tượng</option>
+                        <option value="USER">User</option>
+                        <option value="PROJECT">Dự án</option>
+                        <option value="SYSTEM">Hệ thống</option>
+                    </select>
+                    <input type="date" id="filter-audit-from" title="Từ ngày">
+                    <input type="date" id="filter-audit-to" title="Đến ngày">
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn btn-outline" onclick="exportAuditLog()" title="Xuất CSV">📥 Xuất CSV</button>
+                    <button class="btn btn-danger btn-sm" onclick="clearAuditLog()" title="Xóa lịch sử">🗑 Xóa</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <table class="data-table" id="table-audit-log">
+                        <thead>
+                            <tr>
+                                <th>Thời gian</th>
+                                <th>Người thực hiện</th>
+                                <th>Hành động</th>
+                                <th>Đối tượng</th>
+                                <th>Tên</th>
+                                <th>Chi tiết</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-audit-log">
+                            <tr><td colspan="6" class="empty-row">Chưa có hoạt động nào</td></tr>
+                        </tbody>
+                    </table>
+                    <div id="pagination-audit"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Page: Reports -->
+        <section class="page-content" id="page-reports" style="display:none">
+            <div class="report-toolbar">
+                <div class="report-range-group">
+                    <span class="range-label">Khoảng thời gian:</span>
+                    <button class="report-range-btn active" data-range="all">Tất cả</button>
+                    <button class="report-range-btn" data-range="week">7 ngày</button>
+                    <button class="report-range-btn" data-range="month">30 ngày</button>
+                    <button class="report-range-btn" data-range="quarter">3 tháng</button>
+                    <button class="report-range-btn" data-range="year">1 năm</button>
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn btn-outline" onclick="exportReport()">📥 Xuất báo cáo</button>
+                    <button class="btn btn-primary" onclick="loadReportData()">🔄 Làm mới</button>
+                </div>
+            </div>
+
+            <div id="report-content">
+                <!-- User summary cards -->
+                <div class="report-user-stats" id="report-user-stats"></div>
+
+                <!-- Charts row -->
+                <div class="report-charts-grid">
+                    <div class="card" id="chart-status"></div>
+                    <div class="card" id="chart-dev-unit"></div>
+                </div>
+                <div class="report-charts-grid">
+                    <div class="card" id="chart-owner"></div>
+                    <div class="card" id="chart-trend"></div>
+                </div>
+
+                <!-- Summary table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Bảng tổng hợp theo trạng thái</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Trạng thái</th>
+                                    <th>Số lượng</th>
+                                    <th>Tỉ lệ</th>
+                                    <th>Biểu đồ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-report-summary">
+                                <tr><td colspan="4" class="empty-row">Đang tải...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </section>
@@ -242,6 +350,7 @@
                         <label for="form-user-password">Mật khẩu <span class="required">*</span></label>
                         <input type="password" id="form-user-password" placeholder="Nhập mật khẩu">
                         <span class="field-error" id="err-user-password"></span>
+                        <div id="password-strength"></div>
                     </div>
                     <div class="form-group">
                         <label for="form-user-role">Role <span class="required">*</span></label>
@@ -255,9 +364,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeUserModal()">Hủy</button>
-                <button class="btn btn-primary" id="btn-save-user" onclick="saveUser()">
-                    <i class="fas fa-save"></i> Lưu
-                </button>
+                <button class="btn btn-primary" id="btn-save-user" onclick="saveUser()">Lưu</button>
             </div>
         </div>
     </div>
@@ -282,18 +389,21 @@
     <!-- Toast container -->
     <div class="toast-container" id="toast-container"></div>
 
-    <!-- Loading overlay -->
+    <!-- Loading overlay (with CSS spinner) -->
     <div class="loading-overlay" id="loading-overlay" style="display:none">
         <div class="loading-spinner">
-            <i class="fas fa-spinner fa-spin"></i>
+            <div class="spinner-ring"></div>
             <span id="loading-text">Đang tải...</span>
         </div>
     </div>
 
+    <script src="js/utils.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/audit-log.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/dashboard.js"></script>
     <script src="js/users.js"></script>
     <script src="js/projects.js"></script>
-    <script src="js/dashboard.js"></script>
+    <script src="js/reports.js"></script>
 </body>
 </html>

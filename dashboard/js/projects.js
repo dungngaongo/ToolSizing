@@ -1,45 +1,45 @@
 /**
- * projects.js - Quản lý Dự án
+ * projects.js - Enhanced Quản lý Dự án
+ * Features: Pagination, event delegation cho actions, debounced search
  */
 
 let allProjects = [];
+let filteredProjects = [];
+
+// Paginator instance
+const projectsPaginator = new Paginator({
+    containerId: 'pagination-projects',
+    pageSize: 10,
+    onPageChange: () => renderProjectsTable(filteredProjects)
+});
 
 async function loadProjects() {
     try {
         allProjects = await fetchAPI('/projects');
-        renderProjectsTable(allProjects);
+        filteredProjects = [...allProjects];
+        projectsPaginator.reset();
+        renderProjectsTable(filteredProjects);
     } catch (error) {
         showToast('Lỗi tải danh sách dự án: ' + error.message, 'error');
     }
 }
 
-function getStatusBadge(status) {
-    const map = {
-        'SIZING': { label: 'Sizing', cls: 'status-sizing' },
-        'THAM_DINH': { label: 'Thẩm định', cls: 'status-thamdinh' },
-        'PHE_DUYET': { label: 'Phê duyệt', cls: 'status-pheduyet' },
-        'HOAN_THANH': { label: 'Hoàn thành', cls: 'status-hoanthanh' },
-        'Draft': { label: 'Nháp', cls: 'status-draft' }
-    };
-    const info = map[status] || { label: status || 'N/A', cls: 'status-draft' };
-    return `<span class="status-badge ${info.cls}">${info.label}</span>`;
-}
-
-function formatDate(dateStr) {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
 function renderProjectsTable(projects) {
     const tbody = document.getElementById('tbody-projects');
     if (!projects || projects.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-row"><i class="fas fa-inbox"></i> Không có dự án nào</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-row"><div class="empty-state"><span class="empty-icon">📁</span><span>Không có dự án nào</span></div></td></tr>';
+        // Clear pagination
+        const pgContainer = document.getElementById('pagination-projects');
+        if (pgContainer) pgContainer.innerHTML = '';
         return;
     }
-    tbody.innerHTML = projects.map(p => `
+
+    // Phân trang
+    const pageItems = projectsPaginator.paginate(projects);
+
+    tbody.innerHTML = pageItems.map(p => `
         <tr>
-            <td><strong>${escapeHtml(p.name || '')}</strong></td>
+            <td>${escapeHtml(p.name || '')}</td>
             <td>${escapeHtml(p.devUnit || '-')}</td>
             <td>${escapeHtml(p.ownerName || '-')}</td>
             <td>${getStatusBadge(p.status)}</td>
@@ -47,37 +47,60 @@ function renderProjectsTable(projects) {
             <td>${formatDate(p.createdAt)}</td>
             <td class="actions-cell">
                 ${(p.status === 'THAM_DINH' || p.status === 'PHE_DUYET') ? `
-                <button class="btn-icon btn-icon-approve" title="Phê duyệt nhanh" onclick="quickApproveProject('${p.id}', '${escapeHtml(p.name)}')">
-                    <i class="fas fa-check-double"></i>
-                </button>` : ''}
-                <button class="btn-icon btn-icon-delete" title="Xóa" onclick="deleteProject('${p.id}', '${escapeHtml(p.name)}')">
-                    <i class="fas fa-trash"></i>
-                </button>
+                <button class="btn-icon btn-icon-approve" title="Phê duyệt nhanh"
+                    data-action="approve-project" data-id="${p.id}" data-name="${escapeHtml(p.name)}">D</button>` : ''}
+                <button class="btn-icon btn-icon-delete" title="Xóa"
+                    data-action="delete-project" data-id="${p.id}" data-name="${escapeHtml(p.name)}">X</button>
             </td>
         </tr>
     `).join('');
 }
 
+// ==================== EVENT DELEGATION cho project actions ====================
+document.addEventListener('DOMContentLoaded', () => {
+    const table = document.getElementById('table-projects');
+    if (table) {
+        table.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            const action = btn.dataset.action;
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+
+            if (action === 'delete-project') {
+                deleteProject(id, name);
+            } else if (action === 'approve-project') {
+                quickApproveProject(id, name);
+            }
+        });
+    }
+});
+
 function filterProjects() {
     const search = (document.getElementById('search-projects').value || '').toLowerCase();
     const statusFilter = document.getElementById('filter-project-status').value;
 
-    let filtered = allProjects;
+    filteredProjects = allProjects;
     if (search) {
-        filtered = filtered.filter(p =>
+        filteredProjects = filteredProjects.filter(p =>
             (p.name || '').toLowerCase().includes(search) ||
             (p.devUnit || '').toLowerCase().includes(search) ||
             (p.ownerName || '').toLowerCase().includes(search)
         );
     }
     if (statusFilter) {
-        filtered = filtered.filter(p => p.status === statusFilter);
+        filteredProjects = filteredProjects.filter(p => p.status === statusFilter);
     }
-    renderProjectsTable(filtered);
+
+    projectsPaginator.reset();
+    renderProjectsTable(filteredProjects);
 }
 
 async function refreshProjects() {
     showLoading(true, 'Đang tải dự án...');
+    // Xóa cache để lấy dữ liệu mới
+    RequestCache.invalidate('projects');
     await loadProjects();
     showLoading(false);
     showToast('Đã làm mới danh sách dự án', 'success');
@@ -93,6 +116,7 @@ async function deleteProject(id, name) {
     try {
         await fetchAPI(`/projects/${id}`, { method: 'DELETE' });
         showToast(`Đã xóa dự án "${name}"`, 'success');
+        if (typeof logAudit === 'function') logAudit('DELETE', 'PROJECT', name, `Xóa dự án ID=${id}`);
         await loadProjects();
         if (typeof loadDashboardStats === 'function') loadDashboardStats();
     } catch (error) {
@@ -108,8 +132,7 @@ async function quickApproveProject(id, name) {
     if (!confirmed) return;
 
     try {
-        // Update project status to HOAN_THANH
-        const project = allProjects.find(p => p.id === id);
+        const project = allProjects.find(p => p.id === id || String(p.id) === String(id));
         if (!project) throw new Error('Không tìm thấy dự án');
 
         await fetchAPI(`/projects/${id}`, {
@@ -123,6 +146,7 @@ async function quickApproveProject(id, name) {
             })
         });
         showToast(`Đã phê duyệt dự án "${name}"`, 'success');
+        if (typeof logAudit === 'function') logAudit('APPROVE', 'PROJECT', name, `Phê duyệt dự án → HOAN_THANH`);
         await loadProjects();
         if (typeof loadDashboardStats === 'function') loadDashboardStats();
     } catch (error) {

@@ -1,7 +1,19 @@
 /**
- * auth.js - Xác thực & guard cho Admin Dashboard
- * Chỉ cho phép role admin2 truy cập
+ * auth.js - Enhanced Authentication & Authorization
+ * Features: JWT validation, role-based access, session timeout warning,
+ *           rate limiting on login, secure storage
  */
+
+// ==================== CONSTANTS ====================
+const AUTH_CONFIG = {
+    allowedRoles: ['admin2'],
+    sessionWarningMs: 5 * 60 * 1000,   // Cảnh báo 5 phút trước khi hết hạn
+    checkIntervalMs: 30 * 1000,         // Kiểm tra mỗi 30 giây
+    maxLoginAttempts: 5,                 // Tối đa 5 lần thử sai
+    lockoutMs: 5 * 60 * 1000,           // Khóa 5 phút
+    loginPage: 'login.html',
+    dashboardPage: 'index.html'
+};
 
 // ==================== LOGIN PAGE LOGIC ====================
 if (document.getElementById('login-form')) {
@@ -9,16 +21,18 @@ if (document.getElementById('login-form')) {
 }
 
 function initLoginPage() {
-    // Nếu đã login và là admin2 → redirect dashboard
-    const token = localStorage.getItem('dashboard_token');
-    const user = JSON.parse(localStorage.getItem('dashboard_user') || 'null');
-    if (token && user && user.role === 'admin2') {
-        window.location.href = 'index.html';
+    // Đã đăng nhập hợp lệ -> redirect dashboard
+    if (isAuthenticated()) {
+        window.location.href = AUTH_CONFIG.dashboardPage;
         return;
     }
 
     document.getElementById('login-form').addEventListener('submit', handleLogin);
 }
+
+// Rate limiting state
+let loginAttempts = 0;
+let lockoutUntil = 0;
 
 async function handleLogin(e) {
     e.preventDefault();
@@ -33,14 +47,28 @@ async function handleLogin(e) {
     document.getElementById('error-username').textContent = '';
     document.getElementById('error-password').textContent = '';
 
-    // Validate
+    // --- Rate limit check ---
+    if (Date.now() < lockoutUntil) {
+        const remainSec = Math.ceil((lockoutUntil - Date.now()) / 1000);
+        errorDiv.textContent = `Quá nhiều lần thử. Vui lòng đợi ${remainSec} giây`;
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    // --- Validate inputs ---
     let valid = true;
     if (!username) {
         document.getElementById('error-username').textContent = 'Vui lòng nhập tên đăng nhập';
         valid = false;
+    } else if (username.length < 3) {
+        document.getElementById('error-username').textContent = 'Tên đăng nhập phải ít nhất 3 ký tự';
+        valid = false;
     }
     if (!password) {
         document.getElementById('error-password').textContent = 'Vui lòng nhập mật khẩu';
+        valid = false;
+    } else if (password.length < 4) {
+        document.getElementById('error-password').textContent = 'Mật khẩu phải ít nhất 4 ký tự';
         valid = false;
     }
     if (!valid) return;
@@ -51,7 +79,6 @@ async function handleLogin(e) {
     btnLogin.querySelector('.btn-loading').style.display = 'inline';
 
     try {
-        const API_BASE = 'http://localhost:8081/api';
         const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -61,23 +88,38 @@ async function handleLogin(e) {
         const data = await response.json();
 
         if (!response.ok) {
+            loginAttempts++;
+            if (loginAttempts >= AUTH_CONFIG.maxLoginAttempts) {
+                lockoutUntil = Date.now() + AUTH_CONFIG.lockoutMs;
+                loginAttempts = 0;
+                throw new Error(`Quá nhiều lần thử sai. Tài khoản bị khóa ${AUTH_CONFIG.lockoutMs / 60000} phút`);
+            }
             throw new Error(data.message || 'Đăng nhập thất bại');
         }
 
         // Check role
-        if (data.role !== 'admin2') {
+        if (!AUTH_CONFIG.allowedRoles.includes(data.role)) {
             throw new Error('Chỉ tài khoản admin2 mới được phép truy cập Dashboard');
         }
 
-        // Save token & user info
-        localStorage.setItem('dashboard_token', data.token);
-        localStorage.setItem('dashboard_user', JSON.stringify({
+        // Lưu vào SecureStorage (sessionStorage) - KHÔNG lưu password
+        SecureStorage.set('token', data.token);
+        SecureStorage.set('user', JSON.stringify({
             username: data.username,
             displayName: data.displayName,
             role: data.role
         }));
 
-        window.location.href = 'index.html';
+        loginAttempts = 0;
+
+        // Log login action (audit-log.js được load trước auth.js)
+        if (typeof logAudit === 'function') {
+            logAudit('LOGIN', 'SYSTEM', data.username, 'Đăng nhập thành công');
+        } else if (typeof AuditLog !== 'undefined') {
+            AuditLog.add({ action: 'LOGIN', target: 'SYSTEM', targetName: data.username, detail: 'Đăng nhập thành công' });
+        }
+
+        window.location.href = AUTH_CONFIG.dashboardPage;
 
     } catch (error) {
         errorDiv.textContent = error.message;
@@ -94,17 +136,14 @@ function togglePassword() {
     const icon = document.querySelector('.toggle-password i');
     if (input.type === 'password') {
         input.type = 'text';
-        icon.classList.replace('fa-eye', 'fa-eye-slash');
+        if (icon) icon.classList.replace('fa-eye', 'fa-eye-slash');
     } else {
         input.type = 'password';
-        icon.classList.replace('fa-eye-slash', 'fa-eye');
+        if (icon) icon.classList.replace('fa-eye-slash', 'fa-eye');
     }
 }
 
-// ==================== DASHBOARD AUTH GUARD ====================
-if (document.getElementById('sidebar')) {
-    checkAuth();
-}
+// ==================== JWT UTILITIES ====================
 
 /**
  * Decode JWT payload (không cần thư viện bên ngoài)
@@ -112,9 +151,12 @@ if (document.getElementById('sidebar')) {
 function decodeJwtPayload(token) {
     try {
         const base64Url = token.split('.')[1];
+        if (!base64Url) return null;
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(
-            atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+            atob(base64).split('').map(c =>
+                '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+            ).join('')
         );
         return JSON.parse(jsonPayload);
     } catch (e) {
@@ -128,51 +170,118 @@ function decodeJwtPayload(token) {
 function isTokenExpired(token) {
     const payload = decodeJwtPayload(token);
     if (!payload || !payload.exp) return true;
-    // exp là Unix timestamp (seconds), so sánh với thời gian hiện tại
     return (payload.exp * 1000) < Date.now();
 }
 
-function checkAuth() {
-    const token = localStorage.getItem('dashboard_token');
-    const user = JSON.parse(localStorage.getItem('dashboard_user') || 'null');
-
-    // Kiểm tra: có token, có user, role đúng, và token chưa hết hạn
-    if (!token || !user || user.role !== 'admin2' || isTokenExpired(token)) {
-        localStorage.removeItem('dashboard_token');
-        localStorage.removeItem('dashboard_user');
-        window.location.href = 'login.html';
-        return;
-    }
-
-    // Kiểm tra role từ JWT claims (double-check)
+/**
+ * Lấy thời gian còn lại (ms) trước khi token hết hạn
+ */
+function getTokenExpiryMs(token) {
     const payload = decodeJwtPayload(token);
-    if (!payload || payload.role !== 'admin2') {
-        localStorage.removeItem('dashboard_token');
-        localStorage.removeItem('dashboard_user');
-        window.location.href = 'login.html';
+    if (!payload || !payload.exp) return 0;
+    return (payload.exp * 1000) - Date.now();
+}
+
+// ==================== AUTH GUARD (Dashboard Pages) ====================
+if (document.getElementById('sidebar')) {
+    checkAuth();
+}
+
+/**
+ * Kiểm tra toàn diện: có token, token chưa hết hạn, role đúng
+ */
+function isAuthenticated() {
+    const token = SecureStorage.get('token');
+    const user = SecureStorage.getJSON('user');
+    if (!token || !user) return false;
+    if (!AUTH_CONFIG.allowedRoles.includes(user.role)) return false;
+    if (isTokenExpired(token)) return false;
+
+    // Double-check role từ JWT claims
+    const payload = decodeJwtPayload(token);
+    if (!payload || !AUTH_CONFIG.allowedRoles.includes(payload.role)) return false;
+
+    return true;
+}
+
+function checkAuth() {
+    if (!isAuthenticated()) {
+        SecureStorage.clear();
+        window.location.href = AUTH_CONFIG.loginPage;
         return;
     }
+
+    const user = SecureStorage.getJSON('user');
 
     // Display username
     const nameEl = document.getElementById('current-user-name');
     if (nameEl) nameEl.textContent = user.displayName || user.username;
 
-    // Auto-check token expiry mỗi phút
+    // Start session monitor
+    startSessionMonitor();
+}
+
+/**
+ * Monitor session: kiểm tra token hết hạn và cảnh báo trước khi hết
+ */
+function startSessionMonitor() {
     setInterval(() => {
-        const t = localStorage.getItem('dashboard_token');
-        if (!t || isTokenExpired(t)) {
-            alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-            logout();
+        const token = SecureStorage.get('token');
+        if (!token || isTokenExpired(token)) {
+            showSessionExpiredAlert();
+            return;
         }
-    }, 60000);
+
+        // Cảnh báo trước khi hết hạn
+        const remainMs = getTokenExpiryMs(token);
+        if (remainMs > 0 && remainMs <= AUTH_CONFIG.sessionWarningMs) {
+            showSessionWarning(Math.ceil(remainMs / 60000));
+        }
+    }, AUTH_CONFIG.checkIntervalMs);
+}
+
+function showSessionWarning(minutes) {
+    const warningEl = document.getElementById('session-warning');
+    if (warningEl && warningEl.style.display !== 'flex') {
+        const timeEl = document.getElementById('session-warning-time');
+        if (timeEl) timeEl.textContent = minutes;
+        warningEl.style.display = 'flex';
+    }
+}
+
+function dismissSessionWarning() {
+    const warningEl = document.getElementById('session-warning');
+    if (warningEl) warningEl.style.display = 'none';
+}
+
+function showSessionExpiredAlert() {
+    SecureStorage.clear();
+    RequestCache.clear();
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+        document.getElementById('loading-text').textContent = 'Phiên đăng nhập đã hết hạn. Đang chuyển hướng...';
+        overlay.style.display = 'flex';
+    }
+    setTimeout(() => {
+        window.location.href = AUTH_CONFIG.loginPage;
+    }, 1500);
 }
 
 function getCurrentUser() {
-    return JSON.parse(localStorage.getItem('dashboard_user') || '{}');
+    return SecureStorage.getJSON('user') || {};
+}
+
+/**
+ * Kiểm tra user hiện tại có role cụ thể không
+ */
+function hasRole(role) {
+    const user = getCurrentUser();
+    return user.role === role;
 }
 
 function logout() {
-    localStorage.removeItem('dashboard_token');
-    localStorage.removeItem('dashboard_user');
-    window.location.href = 'login.html';
+    if (typeof logAudit === 'function') logAudit('LOGOUT', 'SYSTEM', getCurrentUser().username || 'admin', 'Đăng xuất');
+    SecureStorage.clear();
+    RequestCache.clear();
+    window.location.href = AUTH_CONFIG.loginPage;
 }
