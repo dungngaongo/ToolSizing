@@ -5,6 +5,10 @@ import com.example.demo.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
@@ -31,14 +35,26 @@ public class DefaultUserLoader implements CommandLineRunner {
     public void run(String... args) throws Exception {
         List<CreateUserRequest> defaultUsers = loadFromEnv();
 
-        for (CreateUserRequest req : defaultUsers) {
-            try {
-                userService.create(req);
-                log.info("Default user created: {}", req.getUsername());
-            } catch (RuntimeException e) {
-                // Already exists or other validation error, skip
-                log.info("Skipping creating default user {}: {}", req.getUsername(), e.getMessage());
+        // Set system authentication so UserService allows creating admin roles during bootstrap
+        SecurityContext ctx = SecurityContextHolder.createEmptyContext();
+        ctx.setAuthentication(new UsernamePasswordAuthenticationToken(
+                "system", null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN2"))
+        ));
+        SecurityContextHolder.setContext(ctx);
+
+        try {
+            for (CreateUserRequest req : defaultUsers) {
+                try {
+                    userService.create(req);
+                    log.info("Default user created: {}", req.getUsername());
+                } catch (RuntimeException e) {
+                    // Already exists or other validation error, skip
+                    log.info("Skipping creating default user {}: {}", req.getUsername(), e.getMessage());
+                }
             }
+        } finally {
+            SecurityContextHolder.clearContext();
         }
     }
 

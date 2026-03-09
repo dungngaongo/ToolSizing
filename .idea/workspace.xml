@@ -5,22 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="48c3b22b-a743-4972-86f7-20881423ca99" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/controller/AuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/controller/AuthController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/controller/ProjectController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/controller/ProjectController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/controller/ProjectDataController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/controller/ProjectDataController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/dto/LoginResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/dto/LoginResponse.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/model/Project.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/model/Project.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/repository/ProjectRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/repository/ProjectRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/repository/UserRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/repository/UserRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/security/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/security/SecurityConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/ProjectService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/src/main/java/com/example/demo/service/ProjectService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dashboard/css/dashboard.css" beforeDir="false" afterPath="$PROJECT_DIR$/dashboard/css/dashboard.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dashboard/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/dashboard/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dashboard/js/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/dashboard/js/auth.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dashboard/js/dashboard.js" beforeDir="false" afterPath="$PROJECT_DIR$/dashboard/js/dashboard.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dashboard/js/projects.js" beforeDir="false" afterPath="$PROJECT_DIR$/dashboard/js/projects.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/script.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/script.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend1/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend1/pom.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
