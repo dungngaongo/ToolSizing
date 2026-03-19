@@ -1,5 +1,5 @@
 // Cấu hình API Backend
-const API_BASE_URL = 'http://localhost:8081/api';
+const API_BASE_URL = 'http://10.61.152.54:8081/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
@@ -4642,7 +4642,7 @@ function showSection(sectionId, linkElement, options = {}) {
     // 4. Khi chuyển sang trang Tổng hợp, tự động aggregate dữ liệu
     if (sectionId === 'page-summary') {
         aggregateSizingResults();
-    }
+    }    
 
     // 5. Cập nhật URL/history khi chuyển tab (chỉ khi đang ở project detail)
     if (!options.skipPushState && currentProjectId) {
