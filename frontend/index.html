@@ -269,7 +269,20 @@
             </div>
         <div id="page-input" class="page-section">
             <div class="form-container">
-                <h2 class="content-title">2. THÔNG TIN ĐẦU VÀO</h2>
+                <h2 class="content-title content-title-with-help">
+                    <span>2. THÔNG TIN ĐẦU VÀO</span>
+                    <span class="help-icon help-icon-inline">
+                        <i class="fa-solid fa-question"></i>
+                        <div class="help-content">
+                            <img src="hinhanh.img/logic.png"
+                                alt="Mẫu thông tin đầu vào"
+                                onclick="openModal(this.src)"
+                                style="cursor: zoom-in;"
+                                title="Bấm để phóng to">
+                            <p class="help-text">Ví dụ dữ liệu đầu vào gồm CCU, tải POC và dữ liệu định cỡ tương ứng.</p>
+                        </div>
+                    </span>
+                </h2>
                 <p style="color: #666; font-style: italic; margin-bottom: 15px; font-size: 13px;">
                     &lt;Nhập thông tin CCU, POC, Định cỡ. Tải ảnh sở cứ vào biểu tượng đám mây. Nhấn vào ảnh để xem to.&gt;
                 </p>
@@ -471,6 +484,17 @@
                         <div class="model-user-content">
                             <h3 class="model-header">
                                 <i class="fa-solid fa-plug" style="color: #ee0033;"></i> B2. Thông tin kết nối
+                                <span class="help-icon">
+                                    <i class="fa-solid fa-question"></i>
+                                    <div class="help-content">
+                                        <img src="hinhanh.img/logic.png"
+                                            alt="Mẫu thông tin kết nối"
+                                            onclick="openModal(this.src)"
+                                            style="cursor: zoom-in;"
+                                            title="Bấm để phóng to">
+                                        <p class="help-text">Ví dụ thể hiện IP nguồn, IP đích, port và giao thức kết nối.</p>
+                                    </div>
+                                </span>
                             </h3>
                             <div class="table-responsive">
                                 <table class="sizing-table" id="connection-info-table">
@@ -556,7 +580,20 @@
 
                     <div class="model-wrapper">
                         <div class="model-user-content">
-                            <h3 class="model-header"><i class="fa-solid fa-list-check" style="color: #ee0033;"></i> D. Chi tiết thành phần</h3>
+                            <h3 class="model-header">
+                                <i class="fa-solid fa-list-check" style="color: #ee0033;"></i> D. Chi tiết thành phần
+                                <span class="help-icon">
+                                    <i class="fa-solid fa-question"></i>
+                                    <div class="help-content">
+                                        <img src="hinhanh.img/vatly.png"
+                                            alt="Mẫu chi tiết thành phần"
+                                            onclick="openModal(this.src)"
+                                            style="cursor: zoom-in;"
+                                            title="Bấm để phóng to">
+                                        <p class="help-text">Ví dụ khai báo chi tiết module, zone mạng, hệ điều hành và số lượng VIP.</p>
+                                    </div>
+                                </span>
+                            </h3>
                             <div class="table-responsive">
                                 <table class="sizing-table">
                                     <thead>

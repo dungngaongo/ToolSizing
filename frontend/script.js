@@ -24,6 +24,7 @@ const TAB_SLUG_MAP = {
 const SLUG_TAB_MAP = Object.fromEntries(
     Object.entries(TAB_SLUG_MAP).map(([k, v]) => [v, k])
 );
+const TAB_FLOW_ORDER = ['page-request', 'page-input', 'page-model', 'page-sizing', 'page-summary'];
 
 /**
  * Tạo hash URL từ trạng thái hiện tại
@@ -215,6 +216,250 @@ function validateField(input, errorMessage, validatorFn) {
         return false;
     }
     return true;
+}
+
+function clearStrictValidationErrors(container) {
+    if (!container) return;
+    container.querySelectorAll('[data-strict-required-error="1"]').forEach(el => {
+        el.classList.remove('field-error');
+        delete el.dataset.strictRequiredError;
+    });
+}
+
+function isElementVisibleForValidation(element) {
+    if (!element) return false;
+    if (element.offsetParent !== null) return true;
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function shouldValidateAsRequired(element) {
+    if (!element || element.disabled || element.readOnly) return false;
+    if (!isElementVisibleForValidation(element)) return false;
+
+    // Bỏ qua các trường admin để chỉ validate dữ liệu user cần nhập.
+    if (element.closest('.admin-cell')) return false;
+    if (element.classList.contains('admin-eval') ||
+        element.classList.contains('admin-note') ||
+        element.classList.contains('admin-eval-select')) {
+        return false;
+    }
+    if (element.id && (element.id.startsWith('eval-') || element.id.startsWith('note-'))) return false;
+
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'input') {
+        const type = (element.type || 'text').toLowerCase();
+        if (['hidden', 'file', 'button', 'submit', 'reset', 'image'].includes(type)) return false;
+        if (['checkbox', 'radio'].includes(type)) return false;
+    }
+
+    return true;
+}
+
+function isRequiredControlFilled(element) {
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'select') {
+        return (element.value || '').trim() !== '';
+    }
+
+    if (tag === 'input') {
+        const type = (element.type || 'text').toLowerCase();
+        if (type === 'number') {
+            return element.value !== '';
+        }
+    }
+
+    return (element.value || '').trim() !== '';
+}
+
+function validateTabCompletion(sectionId, options = {}) {
+    const { focusFirstInvalid = true, showToastMessage = true } = options;
+    const section = document.getElementById(sectionId);
+    if (!section) return { isValid: true, firstInvalidElement: null };
+
+    clearStrictValidationErrors(section);
+
+    const controls = Array.from(section.querySelectorAll('input, textarea, select'))
+        .filter(shouldValidateAsRequired);
+
+    const invalidControls = controls.filter(el => !isRequiredControlFilled(el));
+    if (invalidControls.length === 0) {
+        return { isValid: true, firstInvalidElement: null };
+    }
+
+    invalidControls.forEach(el => {
+        el.classList.add('field-error');
+        el.dataset.strictRequiredError = '1';
+    });
+
+    const firstInvalidElement = invalidControls[0];
+    if (focusFirstInvalid && firstInvalidElement) {
+        firstInvalidElement.focus();
+        firstInvalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (showToastMessage) {
+        showToast('Vui lòng điền đầy đủ dữ liệu bắt buộc trước khi tiếp tục.', 'warning');
+    }
+
+    return {
+        isValid: false,
+        firstInvalidElement,
+        invalidCount: invalidControls.length
+    };
+}
+
+function getNextSectionId(currentSectionId) {
+    const currentIndex = TAB_FLOW_ORDER.indexOf(currentSectionId);
+    if (currentIndex < 0 || currentIndex >= TAB_FLOW_ORDER.length - 1) return null;
+    return TAB_FLOW_ORDER[currentIndex + 1];
+}
+
+function getSectionMenuLink(sectionId) {
+    return Array.from(document.querySelectorAll('.side-menu a'))
+        .find(link => (link.getAttribute('onclick') || '').includes(`'${sectionId}'`)) || null;
+}
+
+function getStickyTopBoundary() {
+    const header = document.querySelector('.header');
+    const tabs = document.querySelector('.horizontal-tabs');
+    const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
+    const tabsBottom = tabs ? tabs.getBoundingClientRect().bottom : 0;
+    return Math.max(0, headerBottom, tabsBottom);
+}
+
+function positionSingleHelpTooltip(icon) {
+    if (!icon) return;
+    const tooltip = icon.querySelector('.help-content');
+    if (!tooltip) return;
+
+    tooltip.classList.remove('tooltip-up', 'tooltip-down');
+
+    const iconRect = icon.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth || 280;
+    const tooltipHeight = tooltip.offsetHeight || 170;
+    const stickyTopBoundary = getStickyTopBoundary();
+    const viewportHeight = window.innerHeight;
+    const gap = 12;
+    const margin = 10;
+
+    const spaceAbove = iconRect.top - stickyTopBoundary;
+    const spaceBelow = viewportHeight - iconRect.bottom;
+    const requiredHeight = tooltipHeight + gap;
+
+    const nearTopBoundary = iconRect.top <= stickyTopBoundary + 24;
+    const nearBottomBoundary = iconRect.bottom + requiredHeight >= viewportHeight - margin;
+
+    let direction;
+    if (nearTopBoundary) {
+        direction = 'down';
+    } else if (nearBottomBoundary) {
+        direction = 'up';
+    } else {
+        direction = spaceBelow >= spaceAbove ? 'down' : 'up';
+    }
+
+    if (direction === 'down' && spaceBelow < requiredHeight && spaceAbove > spaceBelow) {
+        direction = 'up';
+    }
+    if (direction === 'up' && spaceAbove < requiredHeight && spaceBelow > spaceAbove) {
+        direction = 'down';
+    }
+
+    tooltip.classList.add(direction === 'up' ? 'tooltip-up' : 'tooltip-down');
+
+    const iconCenterX = iconRect.left + iconRect.width / 2;
+    const idealLeft = iconCenterX - tooltipWidth / 2;
+    const minLeft = margin;
+    const maxLeft = window.innerWidth - tooltipWidth - margin;
+    const clampedLeft = Math.max(minLeft, Math.min(idealLeft, maxLeft));
+    const leftRelativeToIcon = clampedLeft - iconRect.left;
+
+    tooltip.style.left = `${leftRelativeToIcon}px`;
+}
+
+function initHelpTooltipSmartPositioning() {
+    if (window.__helpTooltipSmartInited) return;
+    window.__helpTooltipSmartInited = true;
+
+    const helpIcons = Array.from(document.querySelectorAll('.help-icon'));
+    if (helpIcons.length === 0) return;
+
+    helpIcons.forEach(icon => {
+        icon.addEventListener('mouseenter', () => positionSingleHelpTooltip(icon));
+        icon.addEventListener('focusin', () => positionSingleHelpTooltip(icon));
+        icon.addEventListener('click', (e) => {
+            e.preventDefault();
+            positionSingleHelpTooltip(icon);
+        });
+    });
+
+    const repositionVisible = () => {
+        helpIcons.forEach(icon => {
+            const tooltip = icon.querySelector('.help-content');
+            if (!tooltip) return;
+            const style = window.getComputedStyle(tooltip);
+            if (style.visibility === 'visible' || icon.matches(':hover')) {
+                positionSingleHelpTooltip(icon);
+            }
+        });
+    };
+
+    window.addEventListener('resize', repositionVisible);
+    window.addEventListener('scroll', repositionVisible, { passive: true });
+}
+
+function updateFirstRowDeleteButtons(tbody) {
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.forEach((row, index) => {
+        row.querySelectorAll('.btn-delete, .btn-delete-row-item').forEach(btn => {
+            btn.style.display = index === 0 ? 'none' : '';
+        });
+    });
+}
+
+function ensureFirstRowExists(tbodyId, addRowFn) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+
+    if (tbody.querySelectorAll('tr').length === 0 && typeof addRowFn === 'function') {
+        addRowFn();
+    }
+
+    updateFirstRowDeleteButtons(tbody);
+}
+
+function initFirstRowGuards() {
+    if (window.__firstRowGuardsInited) return;
+    window.__firstRowGuardsInited = true;
+
+    const managedTables = [
+        { id: 'input-table-body', add: () => addInputRow() },
+        { id: 'connection-info-table-body', add: () => addConnectionRow() },
+        { id: 'arch-table-body', add: () => addArchRow() },
+        { id: 'baseline-table-body', add: () => addBaselineRow() },
+        { id: 'input-config-table-body', add: () => addInputConfigRow() },
+        { id: 'mariadb-ref-table-body', add: () => addMariaDBRefRow({}) },
+        { id: 'redis-config-table-body', add: () => addRedisConfigRow({}) },
+        { id: 'kafka-linear-table-body', add: () => addKafkaLinearRow({}) },
+        { id: 'k8s-baseline-table-body', add: () => addK8SBaselineRow() },
+        { id: 'k8s-input-config-table-body', add: () => addK8SInputConfigRow() },
+        { id: 'summary-table-body', add: () => addSummaryRow() }
+    ];
+
+    managedTables.forEach(item => {
+        const tbody = document.getElementById(item.id);
+        if (!tbody) return;
+
+        ensureFirstRowExists(item.id, item.add);
+
+        const observer = new MutationObserver(() => {
+            ensureFirstRowExists(item.id, item.add);
+        });
+        observer.observe(tbody, { childList: true });
+    });
 }
 
 /**
@@ -1163,11 +1408,17 @@ function resetAllForms() {
 
     // Clear architecture table
     const archBody = document.getElementById('arch-table-body');
-    if (archBody) archBody.innerHTML = '';
+    if (archBody) {
+        archBody.innerHTML = '';
+        archBody.appendChild(createArchTableRow(1, {}));
+    }
 
     // Clear connection info table
     const connBody = document.getElementById('connection-info-table-body');
-    if (connBody) connBody.innerHTML = '';
+    if (connBody) {
+        connBody.innerHTML = '';
+        connBody.appendChild(createConnectionTableRow(1, {}));
+    }
 
     // ========== CLEAR ĐỊNH CỠ HỆ THỐNG ==========
     // Clear all sizing table bodies
@@ -1525,6 +1776,8 @@ function loadMoHinhHeThong(data, admin) {
                     const tr = createArchTableRow(index + 1, row);
                     archBody.appendChild(tr);
                 });
+            } else {
+                archBody.appendChild(createArchTableRow(1, {}));
             }
             
             // Load admin review for each arch row
@@ -1547,7 +1800,11 @@ function loadMoHinhHeThong(data, admin) {
             }
         }
         // Load connection info table
-        if (data.connectionRows) loadConnectionInfo(data.connectionRows);
+        if (data.connectionRows && Array.isArray(data.connectionRows) && data.connectionRows.length > 0) {
+            loadConnectionInfo(data.connectionRows);
+        } else {
+            loadConnectionInfo([]);
+        }
         if (data.connectionImages && typeof loadImagesToContainer === 'function') {
             loadImagesToContainer('connection', data.connectionImages);
         }
@@ -2233,7 +2490,13 @@ function createArchTableRow(stt, data = {}) {
                 <option value="LB/FW" ${data.loaiModule === 'LB/FW' ? 'selected' : ''}>LB/FW</option>
             </select>
         </td>
-        <td><input type="text" placeholder="Ví dụ: Zone Internet" value="${data.zoneMang || ''}"></td> 
+        <td>
+            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
+                <option value="">-- Chọn --</option>
+                <option value="Public" ${data.zoneMang === 'Public' ? 'selected' : ''}>Public</option>
+                <option value="Private" ${data.zoneMang === 'Private' ? 'selected' : ''}>Private</option>
+            </select>
+        </td>
         <td>
             <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
                 <option value="">-- Chọn --</option>
@@ -2268,7 +2531,7 @@ function collectMoHinhHeThong() {
         archRows.push({
             moduleName: cells[1]?.querySelector('input')?.value || '',
             loaiModule: cells[2]?.querySelector('select')?.value || '',
-            zoneMang: cells[3]?.querySelector('input')?.value || '',
+            zoneMang: cells[3]?.querySelector('select')?.value || '',
             heDieuHanh: cells[4]?.querySelector('select')?.value || '',
             soLuongVIP: cells[5]?.querySelector('textarea')?.value || ''
             // NOTE: Admin eval/note NOT saved here - goes to moHinhAdminReview
@@ -3401,6 +3664,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     
     checkAuthStatus();
     applyRolePermissions();
+    initHelpTooltipSmartPositioning();
+    initFirstRowGuards();
 
     // ===== URL-based routing: khôi phục trạng thái từ URL hash =====
     const initState = parseAppHash(location.hash);
@@ -3527,7 +3792,7 @@ function addBaselineRow() {
 
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" class="baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <input type="file" accept="image/*" multiple class="baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
                 <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -3567,44 +3832,29 @@ function addBaselineRow() {
 // Generic inline evidence upload handler for per-row image columns
 function handleInlineEvidenceUpload(input) {
     const cell = input.closest('.inline-evidence-cell');
+    if (!cell) return;
     const previewSpan = cell.querySelector('.inline-evidence-preview');
     const uploadBtn = cell.querySelector('.btn-inline-evidence');
-    
-    if (input.files && input.files[0]) {
+
+    const files = Array.from(input.files || []);
+    if (!previewSpan || files.length === 0) return;
+
+    files.forEach(file => {
         const reader = new FileReader();
         reader.onload = function(e) {
-            previewSpan.innerHTML = `
-                <img src="${e.target.result}" alt="Evidence" style="display:none;" class="inline-evidence-img">
-                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
-                    <i class="fa-solid fa-eye"></i>
-                </button>
-                <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
-                    ✖
-                </button>
-            `;
-            uploadBtn.style.display = 'none';
+            previewSpan.insertAdjacentHTML('beforeend', createInlineEvidenceItemMarkup(e.target.result));
         };
-        reader.readAsDataURL(input.files[0]);
-    }
+        reader.readAsDataURL(file);
+    });
+
+    // Keep upload button visible to allow appending more images.
+    if (uploadBtn) uploadBtn.style.display = '';
+    input.value = '';
 }
 
-function removeInlineEvidence(btn) {
-    const cell = btn.closest('.inline-evidence-cell');
-    const previewSpan = cell.querySelector('.inline-evidence-preview');
-    const uploadBtn = cell.querySelector('.btn-inline-evidence');
-    const fileInput = cell.querySelector('input[type=file]');
-    previewSpan.innerHTML = '';
-    uploadBtn.style.display = '';
-    if (fileInput) fileInput.value = '';
-}
-
-// Load inline evidence image into a cell
-function loadInlineEvidence(cell, dataUrl) {
-    if (!cell || !dataUrl) return;
-    const previewSpan = cell.querySelector('.inline-evidence-preview');
-    const uploadBtn = cell.querySelector('.btn-inline-evidence');
-    if (previewSpan) {
-        previewSpan.innerHTML = `
+function createInlineEvidenceItemMarkup(dataUrl) {
+    return `
+        <span class="row-evidence-item">
             <img src="${dataUrl}" alt="Evidence" style="display:none;" class="inline-evidence-img">
             <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
                 <i class="fa-solid fa-eye"></i>
@@ -3612,8 +3862,66 @@ function loadInlineEvidence(cell, dataUrl) {
             <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
                 ✖
             </button>
-        `;
-        if (uploadBtn) uploadBtn.style.display = 'none';
+        </span>
+    `;
+}
+
+function removeInlineEvidence(btn) {
+    const cell = btn.closest('.inline-evidence-cell');
+    if (!cell) return;
+    const previewSpan = cell.querySelector('.inline-evidence-preview');
+    const uploadBtn = cell.querySelector('.btn-inline-evidence');
+    const fileInput = cell.querySelector('input[type=file]');
+
+    const item = btn.closest('.row-evidence-item');
+    if (item) {
+        item.remove();
+    } else if (previewSpan) {
+        previewSpan.innerHTML = '';
+    }
+
+    if (uploadBtn) {
+        const hasAnyEvidence = !!cell.querySelector('.inline-evidence-img');
+        uploadBtn.style.display = hasAnyEvidence ? '' : '';
+    }
+
+    if (fileInput) fileInput.value = '';
+}
+
+function getEvidenceImagesFromRowData(row) {
+    if (!row || typeof row !== 'object') return [];
+    if (Array.isArray(row.evidenceImages)) {
+        return row.evidenceImages.filter(Boolean);
+    }
+
+    const fallback = [row.evidenceImage, row.evidenceDataUrl].filter(Boolean);
+    return fallback;
+}
+
+function collectInlineEvidenceFromScope(scope) {
+    if (!scope) return [];
+    return Array.from(scope.querySelectorAll('.inline-evidence-preview .inline-evidence-img'))
+        .map(img => img.src)
+        .filter(Boolean);
+}
+
+// Load inline evidence image(s) into a cell
+function loadInlineEvidence(cell, dataUrlOrList) {
+    if (!cell || !dataUrlOrList) return;
+    const previewSpan = cell.querySelector('.inline-evidence-preview');
+    const uploadBtn = cell.querySelector('.btn-inline-evidence');
+
+    if (!previewSpan) return;
+
+    const images = Array.isArray(dataUrlOrList) ? dataUrlOrList.filter(Boolean) : [dataUrlOrList];
+    if (images.length === 0) return;
+
+    images.forEach(dataUrl => {
+        previewSpan.insertAdjacentHTML('beforeend', createInlineEvidenceItemMarkup(dataUrl));
+    });
+
+    if (uploadBtn) {
+        uploadBtn.style.display = '';
     }
 }
 
@@ -3889,7 +4197,7 @@ function collectBaselineTableData() {
     
     rows.forEach((row, index) => {
         // Collect user data
-        const evidenceImg = row.querySelector('.inline-evidence-img');
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             stt: index + 1,
             ip: row.querySelector('.ip-input')?.value || '',
@@ -3897,7 +4205,8 @@ function collectBaselineTableData() {
             ram: row.querySelector('.ram-input')?.value || '',
             disk: row.querySelector('.disk-input')?.value || '',
             cintRate: row.querySelector('.cint-input')?.value || '',
-            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : ''
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages
         });
     });
     
@@ -3929,7 +4238,7 @@ function collectInputConfigTableData() {
     const data = [];
     
     rows.forEach((row, index) => {
-        const evidenceImg = row.querySelector('.inline-evidence-img');
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             stt: index + 1,
             ip: row.querySelector('.ip-config-input')?.value || '',
@@ -3939,7 +4248,8 @@ function collectInputConfigTableData() {
             cintUsed: row.querySelector('.cint-used-input')?.value || '',
             ramUsed: row.querySelector('.ram-used-input')?.value || '',
             diskUsed: row.querySelector('.disk-used-input')?.value || '',
-            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : '',
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages,
             adminEval: row.querySelector('.input-config-eval')?.value || '',
             adminNote: row.querySelector('.input-config-note')?.value || ''
         });
@@ -4259,10 +4569,11 @@ function loadSizingData(data) {
                             if (diskInput) diskInput.value = row.disk || '';
                             if (cintInput) cintInput.value = row.cintRate || '';
                             
-                            // Load inline evidence image
-                            if (row.evidenceImage) {
+                            // Load inline evidence image(s)
+                            const baselineEvidenceImages = getEvidenceImagesFromRowData(row);
+                            if (baselineEvidenceImages.length > 0) {
                                 const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
-                                if (evidenceCell) loadInlineEvidence(evidenceCell, row.evidenceImage);
+                                if (evidenceCell) loadInlineEvidence(evidenceCell, baselineEvidenceImages);
                             }
                         }
                     });
@@ -4293,10 +4604,11 @@ function loadSizingData(data) {
                             if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
                             if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
                             if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
-                            // Load inline evidence image
-                            if (row.evidenceImage) {
+                            // Load inline evidence image(s)
+                            const inputCfgEvidenceImages = getEvidenceImagesFromRowData(row);
+                            if (inputCfgEvidenceImages.length > 0) {
                                 const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
-                                if (evidenceCell) loadInlineEvidence(evidenceCell, row.evidenceImage);
+                                if (evidenceCell) loadInlineEvidence(evidenceCell, inputCfgEvidenceImages);
                             }
                             // Admin eval/note
                             const evalSelect = lastRow.querySelector('.input-config-eval');
@@ -4614,6 +4926,24 @@ function loadSizingAdminReview(adminReview) {
 
 // Hàm chuyển Tab (Ẩn hiện các mục nội dung)
 function showSection(sectionId, linkElement, options = {}) {
+    const activeSection = document.querySelector('.page-section.active');
+    const activeSectionId = activeSection?.id;
+    const currentTabIndex = TAB_FLOW_ORDER.indexOf(activeSectionId);
+    const targetTabIndex = TAB_FLOW_ORDER.indexOf(sectionId);
+    const isKnownTabFlow = currentTabIndex !== -1 && targetTabIndex !== -1;
+    const isForwardNavigation = isKnownTabFlow && targetTabIndex > currentTabIndex;
+
+    if (!options.skipValidation && !options.skipPushState && activeSectionId && activeSectionId !== sectionId && isForwardNavigation) {
+        const validation = validateTabCompletion(activeSectionId, {
+            focusFirstInvalid: true,
+            showToastMessage: false
+        });
+        if (!validation.isValid) {
+            showToast('Không thể chuyển tab khi chưa điền xong dữ liệu ở tab hiện tại.', 'warning');
+            return;
+        }
+    }
+
     // 1. Ẩn tất cả các trang nội dung (có class .page-section)
     const sections = document.querySelectorAll('.page-section');
     sections.forEach(sec => {
@@ -4656,11 +4986,21 @@ document.addEventListener("DOMContentLoaded", function() {
     if(tbody && tbody.children.length === 0) {
         addBaselineRow();
     }
+    const connectionBody = document.getElementById('connection-info-table-body');
+    if (connectionBody && connectionBody.children.length === 0) {
+        connectionBody.appendChild(createConnectionTableRow(1, {}));
+    }
+    const archBody = document.getElementById('arch-table-body');
+    if (archBody && archBody.children.length === 0) {
+        archBody.appendChild(createArchTableRow(1, {}));
+    }
     // Tính tổng khi trang load
     updateBaselineTotal();
     updateInputConfigTotal();
     // Attach listeners to update POC/Sizing dropdowns when input table changes
     attachInputTableChangeListeners();
+    initHelpTooltipSmartPositioning();
+    initFirstRowGuards();
 });
 // ==================== XỬ LÝ BẢNG TÍNH TOÁN (INPUT CONFIG) ====================
 
@@ -4702,7 +5042,7 @@ function addInputConfigRow() {
 
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" class="input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <input type="file" accept="image/*" multiple class="input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
                 <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -4994,7 +5334,7 @@ function addK8SBaselineRow() {
         <td><input type="number" class="input-full text-center k8s-cint-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" class="k8s-baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <input type="file" accept="image/*" multiple class="k8s-baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
                 <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -5043,7 +5383,7 @@ function addK8SInputConfigRow() {
         <td><input type="number" class="input-full text-center k8s-disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" class="k8s-input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <input type="file" accept="image/*" multiple class="k8s-input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
                 <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -5396,7 +5736,7 @@ function collectK8SBaselineTableData() {
     const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
     const data = [];
     rows.forEach((row, index) => {
-        const evidenceImg = row.querySelector('.inline-evidence-img');
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             stt: index + 1,
             ip: row.querySelector('.k8s-ip-input')?.value || '',
@@ -5404,7 +5744,8 @@ function collectK8SBaselineTableData() {
             ram: row.querySelector('.k8s-ram-input')?.value || '',
             disk: row.querySelector('.k8s-disk-input')?.value || '',
             cintRate: row.querySelector('.k8s-cint-input')?.value || '',
-            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : ''
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages
         });
     });
     return data;
@@ -5414,7 +5755,7 @@ function collectK8SInputConfigTableData() {
     const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
     const data = [];
     rows.forEach((row, index) => {
-        const evidenceImg = row.querySelector('.inline-evidence-img');
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             stt: index + 1,
             ip: row.querySelector('.k8s-ip-config-input')?.value || '',
@@ -5424,7 +5765,8 @@ function collectK8SInputConfigTableData() {
             cintUsed: row.querySelector('.k8s-cint-used-input')?.value || '',
             ramUsed: row.querySelector('.k8s-ram-used-input')?.value || '',
             diskUsed: row.querySelector('.k8s-disk-used-input')?.value || '',
-            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : '',
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages,
             adminEval: row.querySelector('.k8s-input-config-eval')?.value || '',
             adminNote: row.querySelector('.k8s-input-config-note')?.value || ''
         });
@@ -5477,9 +5819,10 @@ function loadK8SData(data) {
                     if (diskInput) diskInput.value = row.disk || '';
                     if (cintInput) cintInput.value = row.cintRate || '';
 
-                    if (row.evidenceImage) {
+                    const k8sBaselineEvidenceImages = getEvidenceImagesFromRowData(row);
+                    if (k8sBaselineEvidenceImages.length > 0) {
                         const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
-                        if (evidenceCell) loadInlineEvidence(evidenceCell, row.evidenceImage);
+                        if (evidenceCell) loadInlineEvidence(evidenceCell, k8sBaselineEvidenceImages);
                     }
                 }
             });
@@ -5512,9 +5855,10 @@ function loadK8SData(data) {
                     if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
                     if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
 
-                    if (row.evidenceImage) {
+                    const k8sInputEvidenceImages = getEvidenceImagesFromRowData(row);
+                    if (k8sInputEvidenceImages.length > 0) {
                         const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
-                        if (evidenceCell) loadInlineEvidence(evidenceCell, row.evidenceImage);
+                        if (evidenceCell) loadInlineEvidence(evidenceCell, k8sInputEvidenceImages);
                     }
 
                     const evalSelect = lastRow.querySelector('.k8s-input-config-eval');
@@ -5893,7 +6237,7 @@ function addMariaDBRefRow(data = {}) {
         </td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" class="mariadb-ref-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <input type="file" accept="image/*" multiple class="mariadb-ref-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
                 <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -5918,10 +6262,11 @@ function addMariaDBRefRow(data = {}) {
     `;
     tbody.appendChild(tr);
     
-    // Load inline evidence image if provided
-    if (data.evidenceImage) {
+    // Load inline evidence image(s) if provided
+    const mariaRefEvidenceImages = getEvidenceImagesFromRowData(data);
+    if (mariaRefEvidenceImages.length > 0) {
         const evidenceCell = tr.querySelector('.inline-evidence-cell');
-        if (evidenceCell) loadInlineEvidence(evidenceCell, data.evidenceImage);
+        if (evidenceCell) loadInlineEvidence(evidenceCell, mariaRefEvidenceImages);
     }
     
     // Apply role permissions for new row
@@ -5936,7 +6281,7 @@ function collectMariaDBRefTableData() {
     const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
     const data = [];
     rows.forEach(row => {
-        const evidenceImg = row.querySelector('.inline-evidence-img');
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             ip: row.querySelector('.mariadb-ip')?.value || '',
             cpu: row.querySelector('.mariadb-cpu')?.value || '',
@@ -5944,7 +6289,8 @@ function collectMariaDBRefTableData() {
             cpuLoad: row.querySelector('.mariadb-cpu-load')?.value || '',
             ramLoad: row.querySelector('.mariadb-ram-load')?.value || '',
             isMaster: row.querySelector('.mariadb-master-radio')?.checked || false,
-            evidenceImage: evidenceImg && evidenceImg.src ? evidenceImg.src : ''
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages
         });
     });
     return data;
@@ -6518,7 +6864,7 @@ function addRedisConfigRow(data = {}) {
         </td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" class="redis-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <input type="file" accept="image/*" multiple class="redis-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
                 <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -6570,13 +6916,14 @@ function collectRedisConfigTableData() {
     const rows = document.querySelectorAll('#redis-config-table-body tr');
     const data = [];
     rows.forEach(row => {
-        const evidenceImg = row.querySelector('.inline-evidence-preview img');
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             ip: row.querySelector('.redis-config-ip')?.value || '',
             ram: row.querySelector('.redis-config-ram')?.value || '',
             ramLoad: row.querySelector('.redis-config-ram-load')?.value || '',
             isMaster: row.querySelector('.redis-master-checkbox')?.checked || false,
-            evidenceDataUrl: evidenceImg ? evidenceImg.src : '',
+            evidenceDataUrl: evidenceImages[0] || '',
+            evidenceImages: evidenceImages,
             adminEval: row.querySelector('.redis-config-eval')?.value || '',
             adminNote: row.querySelector('.redis-config-note')?.value || ''
         });
@@ -7056,23 +7403,14 @@ function loadRedisData(data) {
             document.getElementById('redis-config-table-body').innerHTML = '';
             cm.configTable.forEach(row => {
                 addRedisConfigRow(row);
-                // Restore evidence image if available
-                if (row.evidenceDataUrl) {
+                // Restore evidence image(s) if available
+                const redisEvidenceImages = getEvidenceImagesFromRowData(row);
+                if (redisEvidenceImages.length > 0) {
                     const rows = document.querySelectorAll('#redis-config-table-body tr');
                     const lastRow = rows[rows.length - 1];
-                    const previewSpan = lastRow.querySelector('.inline-evidence-preview');
-                    const uploadBtn = lastRow.querySelector('.btn-inline-evidence');
-                    if (previewSpan) {
-                        previewSpan.innerHTML = `
-                            <img src="${row.evidenceDataUrl}" alt="Evidence" style="display:none;" class="inline-evidence-img">
-                            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
-                                <i class="fa-solid fa-eye"></i>
-                            </button>
-                            <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
-                                ✖
-                            </button>
-                        `;
-                        if (uploadBtn) uploadBtn.style.display = 'none';
+                    const evidenceCell = lastRow?.querySelector('.inline-evidence-cell');
+                    if (evidenceCell) {
+                        loadInlineEvidence(evidenceCell, redisEvidenceImages);
                     }
                 }
             });
@@ -7228,7 +7566,7 @@ function addKafkaLinearRow(data = {}) {
         <td><input type="number" class="input-full sizing-user-input kafka-linear-disk-load" value="${data.diskLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" class="kafka-linear-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <input type="file" accept="image/*" multiple class="kafka-linear-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
                 <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -7285,7 +7623,7 @@ function collectKafkaLinearTableData() {
     const rows = document.querySelectorAll('#kafka-linear-table-body tr');
     const data = [];
     rows.forEach(row => {
-        const evidenceImg = row.querySelector('.inline-evidence-preview img');
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             ip: row.querySelector('.kafka-linear-ip')?.value || '',
             vcpu: row.querySelector('.kafka-linear-vcpu')?.value || '',
@@ -7294,7 +7632,8 @@ function collectKafkaLinearTableData() {
             cpuLoad: row.querySelector('.kafka-linear-cpu-load')?.value || '',
             ramLoad: row.querySelector('.kafka-linear-ram-load')?.value || '',
             diskLoad: row.querySelector('.kafka-linear-disk-load')?.value || '',
-            evidenceDataUrl: evidenceImg ? evidenceImg.src : '',
+            evidenceDataUrl: evidenceImages[0] || '',
+            evidenceImages: evidenceImages,
             adminEval: row.querySelector('.kafka-linear-eval')?.value || '',
             adminNote: row.querySelector('.kafka-linear-note')?.value || ''
         });
@@ -7692,23 +8031,14 @@ function loadKafkaData(data) {
             document.getElementById('kafka-linear-table-body').innerHTML = '';
             lm.linearTable.forEach(row => {
                 addKafkaLinearRow(row);
-                // Restore evidence image if available
-                if (row.evidenceDataUrl) {
+                // Restore evidence image(s) if available
+                const kafkaLinearEvidenceImages = getEvidenceImagesFromRowData(row);
+                if (kafkaLinearEvidenceImages.length > 0) {
                     const rows = document.querySelectorAll('#kafka-linear-table-body tr');
                     const lastRow = rows[rows.length - 1];
-                    const previewSpan = lastRow.querySelector('.inline-evidence-preview');
-                    const uploadBtn = lastRow.querySelector('.btn-inline-evidence');
-                    if (previewSpan) {
-                        previewSpan.innerHTML = `
-                            <img src="${row.evidenceDataUrl}" alt="Evidence" style="display:none;" class="inline-evidence-img">
-                            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
-                                <i class="fa-solid fa-eye"></i>
-                            </button>
-                            <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
-                                ✖
-                            </button>
-                        `;
-                        if (uploadBtn) uploadBtn.style.display = 'none';
+                    const evidenceCell = lastRow?.querySelector('.inline-evidence-cell');
+                    if (evidenceCell) {
+                        loadInlineEvidence(evidenceCell, kafkaLinearEvidenceImages);
                     }
                 }
             });
@@ -9246,6 +9576,19 @@ async function performManualSave() {
         showToast('Dự án đã hoàn thành, không thể chỉnh sửa.', 'warning');
         return;
     }
+
+    const activeSection = document.querySelector('.page-section.active');
+    const activeSectionId = activeSection?.id || null;
+    if (activeSectionId) {
+        const validation = validateTabCompletion(activeSectionId, {
+            focusFirstInvalid: true,
+            showToastMessage: true
+        });
+        if (!validation.isValid) {
+            showSaveStatus('error');
+            return;
+        }
+    }
     
     isSaving = true;
     showSaveStatus('saving');
@@ -9370,6 +9713,13 @@ async function performManualSave() {
             // User chỉnh sửa: có thể quay về SIZING nếu đang ở THAM_DINH/PHE_DUYET
             await updateProjectStatus('user_edit');
         }
+
+        if (activeSectionId) {
+            const nextSectionId = getNextSectionId(activeSectionId);
+            if (nextSectionId) {
+                showSection(nextSectionId, getSectionMenuLink(nextSectionId), { skipValidation: true });
+            }
+        }
     } catch (error) {
         Logger.error('Save error:', error);
         showSaveStatus('error');
@@ -9483,9 +9833,9 @@ function createConnectionTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td class="text-center">${stt}</td>
-        <td><input type="text" class="input-full" value="${escapeHtml(data.source || '')}" placeholder="VD: 10.0.0.1"></td>
-        <td><input type="text" class="input-full" value="${escapeHtml(data.destination || '')}" placeholder="VD: 10.0.0.2"></td>
-        <td><input type="text" class="input-full" value="${escapeHtml(data.port || '')}" placeholder="VD: 8080"></td>
+        <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="VD: 10.0.0.1&#10;10.0.0.3">${escapeHtml(data.source || '')}</textarea></td>
+        <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="VD: 10.0.0.2&#10;10.0.0.4">${escapeHtml(data.destination || '')}</textarea></td>
+        <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="VD: 8080&#10;8443">${escapeHtml(data.port || '')}</textarea></td>
         <td>
             <select class="input-full">
                 <option value="">-- Chọn --</option>
@@ -9494,7 +9844,7 @@ function createConnectionTableRow(stt, data = {}) {
                 <option value="TCP/UDP" ${data.protocol === 'TCP/UDP' ? 'selected' : ''}>TCP/UDP</option>
             </select>
         </td>
-        <td><input type="text" class="input-full" value="${escapeHtml(data.description || '')}" placeholder="Mô tả kết nối..."></td>
+        <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="Mô tả kết nối...">${escapeHtml(data.description || '')}</textarea></td>
         <td class="admin-cell">
             <select class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -9538,11 +9888,11 @@ function collectConnectionInfo() {
         // Chỉ thu thập dữ liệu user - KHÔNG thu thập admin fields
         // Admin review được thu thập riêng trong collectMoHinhAdminReview()
         rows.push({
-            source: cells[1]?.querySelector('input')?.value || '',
-            destination: cells[2]?.querySelector('input')?.value || '',
-            port: cells[3]?.querySelector('input')?.value || '',
+            source: cells[1]?.querySelector('textarea')?.value || cells[1]?.querySelector('input')?.value || '',
+            destination: cells[2]?.querySelector('textarea')?.value || cells[2]?.querySelector('input')?.value || '',
+            port: cells[3]?.querySelector('textarea')?.value || cells[3]?.querySelector('input')?.value || '',
             protocol: cells[4]?.querySelector('select')?.value || '',
-            description: cells[5]?.querySelector('input')?.value || ''
+            description: cells[5]?.querySelector('textarea')?.value || cells[5]?.querySelector('input')?.value || ''
             // NOTE: adminEval và adminNote KHÔNG được lưu ở đây
             // Chúng được lưu riêng trong moHinhAdminReview.connectionRowReviews
         });
@@ -9552,7 +9902,7 @@ function collectConnectionInfo() {
 
 function loadConnectionInfo(data) {
     const tbody = document.getElementById('connection-info-table-body');
-    if (!tbody || !data) return;
+    if (!tbody) return;
     tbody.innerHTML = '';
     
     if (Array.isArray(data) && data.length > 0) {
@@ -9568,6 +9918,8 @@ function loadConnectionInfo(data) {
             });
             tbody.appendChild(tr);
         });
+    } else {
+        tbody.appendChild(createConnectionTableRow(1, {}));
     }
 }
 

@@ -14,6 +14,14 @@ body {
     font-size: 14px;
 }
 
+:root {
+    --z-content: 5;
+    --z-header: 120;
+    --z-tabs: 110;
+    --z-help-popover: 3200;
+    --z-image-modal: 4200;
+}
+
 /* ========================================= */
 /* 2. LAYOUT (HEADER, BANNER, SIDEBAR)       */
 /* ========================================= */
@@ -36,7 +44,7 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.03);
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: var(--z-header);
 }
 
 .container {
@@ -176,10 +184,10 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.03);
     position: sticky;
     top: 56px;
-    z-index: 99;
+    z-index: var(--z-tabs);
 }
 
-.content { flex: 1; padding: 25px; min-height: 600px; }
+.content { flex: 1; padding: 25px; min-height: 600px; position: relative; z-index: var(--z-content); }
 
 .side-menu {
     list-style: none;
@@ -695,7 +703,7 @@ body {
 .modal-overlay {
     display: none;
     position: fixed;
-    z-index: 9999999;
+    z-index: var(--z-image-modal);
     left: 0;
     top: 0;
     width: 100%;
@@ -1280,6 +1288,12 @@ body.role-user .admin-note,
     gap: 4px;
 }
 
+/* Always keep first row non-deletable in table bodies */
+tbody tr:first-child .btn-delete,
+tbody tr:first-child .btn-delete-row-item {
+    display: none !important;
+}
+
 /* ========================================= */
 /* STYLE CHO MỤC 3: MÔ HÌNH HỆ THỐNG (FIX)   */
 /* ========================================= */
@@ -1301,6 +1315,7 @@ body.role-user .admin-note,
     border-color: #d0d0d0;
     box-shadow: 0 6px 20px rgba(0,0,0,0.08);
     transform: translateY(-1px);
+    z-index: 8;
 }
 
 /* Phần nội dung User nhập/Upload */
@@ -1381,6 +1396,18 @@ body.role-user .admin-note,
     gap: 20px;
     width: 100%;
 }
+
+.content-title-with-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.help-icon-inline {
+    margin-left: 0;
+    flex-shrink: 0;
+}
+
 /* ========================================= */
 /* STYLE CHO ICON HỎI CHẤM & ẢNH MẪU (TOOLTIP) */
 /* ========================================= */
@@ -1418,12 +1445,13 @@ body.role-user .admin-note,
     opacity: 0;
     
     position: absolute;
-    bottom: 140%; /* Hiện lên trên icon */
-    left: 50%;
-    transform: translateX(-50%) translateY(10px); /* Căn giữa */
+    top: auto;
+    bottom: auto;
+    left: 0;
+    transform: translateY(8px);
     
-    width: 450px; /* Kích thước khung rộng rãi */
-    max-width: 90vw; /* Không quá màn hình đt */
+    width: 280px;
+    max-width: 80vw;
     background-color: #fff;
     
     padding: 10px;
@@ -1431,47 +1459,78 @@ body.role-user .admin-note,
     border: 1px solid #ddd;
     box-shadow: 0 10px 30px rgba(0,0,0,0.2); /* Bóng đổ đậm tạo chiều sâu */
     
-    z-index: 999;
+    z-index: var(--z-help-popover);
     transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55); /* Hiệu ứng nảy */
     pointer-events: none; /* Tránh chuột che mất */
+}
+
+.help-content.tooltip-up {
+    bottom: calc(100% + 12px);
+}
+
+.help-content.tooltip-down {
+    top: calc(100% + 12px);
 }
 
 /* Khi hover vào icon thì hiện khung */
 .help-icon:hover .help-content {
     visibility: visible;
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
     pointer-events: auto; /* Cho phép click vào ảnh bên trong nếu cần */
 }
 
-/* Mũi tên nhỏ chỉ xuống dưới (Trang trí) */
-.help-content::after {
+/* Tooltip bung lên trên icon */
+.help-content.tooltip-up::after {
     content: "";
     position: absolute;
-    top: 100%;
+    bottom: -8px;
     left: 50%;
-    margin-left: -8px;
+    transform: translateX(-50%);
     border-width: 8px;
     border-style: solid;
     border-color: #fff transparent transparent transparent;
 }
 
-/* Đường viền mũi tên (cho khớp với border khung) */
-.help-content::before {
+.help-content.tooltip-up::before {
     content: "";
     position: absolute;
-    top: 100%;
+    bottom: -9px;
     left: 50%;
-    margin-left: -9px;
+    transform: translateX(-50%);
     border-width: 9px;
     border-style: solid;
     border-color: #ddd transparent transparent transparent;
 }
 
+/* Tooltip bung xuống dưới icon */
+.help-content.tooltip-down::after {
+    content: "";
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 8px;
+    border-style: solid;
+    border-color: transparent transparent #fff transparent;
+}
+
+.help-content.tooltip-down::before {
+    content: "";
+    position: absolute;
+    top: -9px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 9px;
+    border-style: solid;
+    border-color: transparent transparent #ddd transparent;
+}
+
 /* 3. Nội dung bên trong khung */
 .help-content img {
     width: 100%;
-    height: auto;
+    max-height: 150px;
+    object-fit: contain;
     border-radius: 4px;
     border: 1px solid #eee;
     margin-bottom: 8px;
@@ -1487,7 +1546,7 @@ body.role-user .admin-note,
     font-style: italic;
 }
 .model-wrapper:hover {
-    z-index: 100;
+    z-index: 8;
 }
 
 /* Bo góc dưới cho phần Admin (vì khung ngoài không còn cắt góc nữa) */
@@ -1514,7 +1573,8 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
 .header { 
     background: #fff; padding: 10px 20px; 
     border-bottom: 1px solid #ddd; 
-    display: flex; justify-content: space-between; align-items: center; 
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: var(--z-header);
 }
 .logo-vtf { color: #ee0033; margin: 0; font-size: 20px; font-weight: bold; }
 .container { width: 100%; display: flex; justify-content: space-between; align-items: center; }
@@ -1527,7 +1587,7 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
 /* Bố cục Flexbox */
 .main-content { display: flex; min-height: calc(100vh - 60px); }
 .sidebar { width: 250px; background: #fff; border-right: 1px solid #ddd; flex-shrink: 0; position: sticky; top: 70px; align-self: flex-start; max-height: calc(100vh - 80px); overflow-y: auto; }
-.content { flex-grow: 1; padding: 20px; overflow-x: hidden; }
+.content { flex-grow: 1; padding: 20px; overflow-x: hidden; position: relative; z-index: var(--z-content); }
 
 /* Sidebar Menu */
 .side-menu { list-style: none; padding: 0; margin: 0; }
