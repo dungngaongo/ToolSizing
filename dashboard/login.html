@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta name="referrer" content="no-referrer">
+    <title>Admin Dashboard - Đăng nhập</title>
+    <link rel="stylesheet" href="css/login.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-icon">A</div>
+                <h1>Admin Dashboard</h1>
+                <p>Đăng nhập tài khoản quản trị</p>
+            </div>
+            <form id="login-form" autocomplete="off" novalidate>
+                <div class="form-group">
+                    <label for="username">Tên đăng nhập</label>
+                    <input type="text" id="username" name="username" placeholder="Nhập tên đăng nhập" required autofocus>
+                    <span class="field-error" id="error-username"></span>
+                </div>
+                <div class="form-group">
+                    <label for="password">Mật khẩu</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" name="password" placeholder="Nhập mật khẩu" required>
+                    </div>
+                    <span class="field-error" id="error-password"></span>
+                </div>
+                <button type="submit" class="btn-login" id="btn-login">
+                    <span class="btn-text">Đăng nhập</span>
+                    <span class="btn-loading" style="display:none">Đang xử lý...</span>
+                </button>
+                <div id="login-error" class="login-error" style="display:none"></div>
+            </form>
+            <div class="login-footer">
+                <p>Chỉ tài khoản admin2 mới được phép truy cập</p>
+            </div>
+        </div>
+    </div>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/audit-log.js"></script>
+    <script src="js/auth.js"></script>
+</body>
+</html>

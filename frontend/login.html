@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Tool Sizing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div id="loginModal" class="login-container" style="display: flex;">
+        <div class="login-visual">
+            <div class="bg-image"></div>
+            <div class="overlay"></div>
+            
+            <div class="lang-flags">
+                <a href="#" class="flag active" title="Tiếng Việt"><img src="https://flagcdn.com/w40/vn.png" alt="VN"></a>
+                <a href="#" class="flag" title="English"><img src="https://flagcdn.com/w40/gb.png" alt="EN"></a>
+                <a href="#" class="flag" title="Français"><img src="https://flagcdn.com/w40/fr.png" alt="FR"></a>
+                <a href="#" class="flag" title="Português"><img src="https://flagcdn.com/w40/pt.png" alt="PT"></a>
+                <a href="#" class="flag" title="Español"><img src="https://flagcdn.com/w40/es.png" alt="ES"></a>
+            </div>
+        </div>
+
+        <div class="login-form-wrapper">
+            <div class="login-content">
+                <div class="logo-area">
+                    <i class="fa-solid fa-cloud-lock logo-icon"></i>
+                    <span class="logo-text">SIZING</span>
+                </div>
+
+                <h2 class="welcome-text">Đăng Nhập</h2>
+                <p class="sub-text">Vui lòng nhập thông tin đăng nhập</p>
+
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label for="username">
+                            <i class="fa-solid fa-user"></i> Tài khoản
+                        </label>
+                        <input type="text" id="username" name="username" placeholder="Nhập tài khoản của bạn" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">
+                            <i class="fa-solid fa-lock"></i> Mật khẩu
+                        </label>
+                        <input type="password" id="password" name="password" placeholder="Nhập mật khẩu của bạn" required>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="checkbox">
+                            <input type="checkbox" id="rememberMe" name="rememberMe">
+                            <span>Ghi nhớ tôi</span>
+                        </label>
+                        <a href="#" class="forgot-password">Quên mật khẩu?</a>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary login-btn">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                        <span>Đăng Nhập</span>
+                        <div class="shine"></div>
+                    </button>
+                </form>
+
+                <div id="loginMessage" style="margin-top: 15px; text-align: center; display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Cấu hình Backend URL
+        const BACKEND_URL = "http://localhost:8081";
+
+        // Kiểm tra xem user đã đăng nhập chưa từ localStorage
+        function checkLogin() {
+            const isLoggedIn = localStorage.getItem('isLoggedIn');
+            if (isLoggedIn === 'true') {
+                window.location.href = 'index.html';
+            }
+        }
+
+        // Toggle hiển thị mật khẩu
+        function togglePassword() {
+            const passInput = document.getElementById('password');
+            const icon = document.querySelector('.toggle-password i');
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                passInput.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
+
+        // Xóa trạng thái lỗi khi người dùng bắt đầu nhập
+        document.querySelectorAll('.form-group input').forEach(input => {
+            input.addEventListener('input', function() {
+                this.classList.remove('field-error');
+                const errMsg = this.parentElement.querySelector('.field-error-msg');
+                if (errMsg) errMsg.remove();
+                document.getElementById('loginMessage').style.display = 'none';
+            });
+        });
+
+        // Validate form
+        function validateLoginForm() {
+            const username = document.getElementById('username');
+            const password = document.getElementById('password');
+            let isValid = true;
+            
+            // Xóa lỗi cũ
+            document.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+            document.querySelectorAll('.field-error-msg').forEach(el => el.remove());
+            
+            if (!username.value.trim()) {
+                username.classList.add('field-error');
+                const err = document.createElement('div');
+                err.className = 'field-error-msg';
+                err.style.cssText = 'color: #dc3545; font-size: 12px; margin-top: 4px; display: flex; align-items: center; gap: 4px;';
+                err.innerHTML = '<i class="fa-solid fa-exclamation-circle" style="font-size:11px"></i> Vui lòng nhập tài khoản';
+                username.parentElement.appendChild(err);
+                if (isValid) username.focus();
+                isValid = false;
+            } else if (username.value.trim().length < 3) {
+                username.classList.add('field-error');
+                const err = document.createElement('div');
+                err.className = 'field-error-msg';
+                err.style.cssText = 'color: #dc3545; font-size: 12px; margin-top: 4px; display: flex; align-items: center; gap: 4px;';
+                err.innerHTML = '<i class="fa-solid fa-exclamation-circle" style="font-size:11px"></i> Tài khoản phải có ít nhất 3 ký tự';
+                username.parentElement.appendChild(err);
+                if (isValid) username.focus();
+                isValid = false;
+            }
+            
+            if (!password.value) {
+                password.classList.add('field-error');
+                const err = document.createElement('div');
+                err.className = 'field-error-msg';
+                err.style.cssText = 'color: #dc3545; font-size: 12px; margin-top: 4px; display: flex; align-items: center; gap: 4px;';
+                err.innerHTML = '<i class="fa-solid fa-exclamation-circle" style="font-size:11px"></i> Vui lòng nhập mật khẩu';
+                password.parentElement.appendChild(err);
+                if (isValid) password.focus();
+                isValid = false;
+            }
+            
+            return isValid;
+        }
+
+        // Xử lý đăng nhập
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Client-side validation
+            if (!validateLoginForm()) {
+                document.querySelector('.login-form').classList.add('shake');
+                setTimeout(() => document.querySelector('.login-form').classList.remove('shake'), 500);
+                return;
+            }
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('loginMessage');
+            const submitBtn = document.querySelector('.login-btn');
+            
+            // Hiệu ứng loading trên nút
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang đăng nhập...</span>';
+            
+            const apiUrl = BACKEND_URL ? (BACKEND_URL + '/api/auth/login') : '/api/auth/login';
+
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            }).then(async res => {
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('isLoggedIn', 'true');
+                    localStorage.setItem('userId', data.userId || '');
+                    localStorage.setItem('username', data.username || username);
+                    localStorage.setItem('displayName', data.displayName || data.username || username);
+                    localStorage.setItem('userRole', data.role || 'user');
+                    localStorage.setItem('rememberMe', document.getElementById('rememberMe').checked);
+                    if (data.token) localStorage.setItem('authToken', data.token);
+                    
+                    // Clear currentProjectId để chuyển hướng đến danh sách dự án
+                    localStorage.removeItem('currentProjectId');
+                    localStorage.removeItem('currentProjectDataId');
+                    
+                    submitBtn.innerHTML = '<i class="fa-solid fa-check-circle"></i> <span>Đăng nhập thành công!</span>';
+                    submitBtn.style.background = '#28a745';
+                    messageDiv.innerHTML = '<span style="color: green;"><i class="fa-solid fa-check-circle"></i> Đang chuyển hướng...</span>';
+                    messageDiv.style.display = 'block';
+                    setTimeout(() => { window.location.href = 'index.html'; }, 800);
+                } else {
+                    let text = 'Sai tài khoản hoặc mật khẩu!';
+                    try {
+                        const err = await res.json();
+                        // Parse backend ErrorResponse format
+                        if (err && err.message) text = err.message;
+                        else if (err && err.error) text = err.error;
+                    } catch(_){}
+                    
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> <span>Đăng Nhập</span> <div class="shine"></div>';
+                    messageDiv.innerHTML = `<span style="color: red;"><i class="fa-solid fa-exclamation-circle"></i> ${text}</span>`;
+                    messageDiv.style.display = 'block';
+                    document.querySelector('.login-form').classList.add('shake');
+                    setTimeout(() => { document.querySelector('.login-form').classList.remove('shake'); }, 500);
+                }
+            }).catch(err => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> <span>Đăng Nhập</span> <div class="shine"></div>';
+                messageDiv.innerHTML = `<span style="color: red;"><i class="fa-solid fa-exclamation-circle"></i> Lỗi kết nối: Không thể liên lạc với máy chủ. Vui lòng thử lại.</span>`;
+                messageDiv.style.display = 'block';
+            });
+        });
+
+        // Xử lý nút quên mật khẩu
+        document.querySelector('.forgot-password').addEventListener('click', function(e) {
+            e.preventDefault();
+            alert('Vui lòng liên hệ quản trị viên để đặt lại mật khẩu');
+        });
+
+        // Kiểm tra login khi trang load
+        window.addEventListener('DOMContentLoaded', checkLogin);
+    </script>
+</body>
+</html>

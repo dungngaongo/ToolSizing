@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: demo
+  datasource:
+    url: jdbc:mysql://localhost:3306/demo?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: cungvay10
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+server:
+  address: 0.0.0.0
+  port: 8081
+
+logging:
+  level:
+    root: INFO
+    com.example.demo: DEBUG
+    com.example.demo.controller: INFO
+    com.example.demo.service: DEBUG
+    com.example.demo.security: INFO
+    com.example.demo.exception: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
