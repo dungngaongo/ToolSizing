@@ -4,7 +4,9 @@ import com.example.demo.dto.CreateProjectDataRequest;
 import com.example.demo.dto.UpdateProjectDataRequest;
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ResourceNotFoundException;
+import com.example.demo.model.Project;
 import com.example.demo.model.ProjectData;
+import com.example.demo.repository.ProjectRepository;
 import com.example.demo.repository.ProjectDataRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,15 +24,18 @@ public class ProjectDataService {
     private static final Logger log = LoggerFactory.getLogger(ProjectDataService.class);
 
     private final ProjectDataRepository projectDataRepository;
+    private final ProjectRepository projectRepository;
 
-    public ProjectDataService(ProjectDataRepository projectDataRepository) {
+    public ProjectDataService(ProjectDataRepository projectDataRepository, ProjectRepository projectRepository) {
         this.projectDataRepository = projectDataRepository;
+        this.projectRepository = projectRepository;
     }
 
     private final ObjectMapper mapper = new ObjectMapper();
 
     public ProjectData create(CreateProjectDataRequest request) {
         log.info("Creating/updating ProjectData for projectId: {}", request.getProjectId());
+        ensureProjectExists(request.getProjectId());
         // Kiểm tra xem đã có ProjectData cho project này chưa
         Optional<ProjectData> existing = projectDataRepository.findFirstByProjectId(request.getProjectId());
         
@@ -57,7 +62,8 @@ public class ProjectDataService {
         
         // Tạo mới nếu chưa tồn tại
         ProjectData projectData = new ProjectData();
-        projectData.setProjectId(request.getProjectId());
+        Project project = projectRepository.getReferenceById(request.getProjectId());
+        projectData.setProject(project);
         projectData.setYeuCauBaiToanContent(request.getYeuCauBaiToanContent());
         projectData.setThongTinDauVaoContent(request.getThongTinDauVaoContent());
         projectData.setMoHinhHeThongContent(request.getMoHinhHeThongContent());
@@ -81,6 +87,7 @@ public class ProjectDataService {
 
     public ProjectData update(String projectId, UpdateProjectDataRequest request) {
         log.info("Updating ProjectData for projectId: {}", projectId);
+        ensureProjectExists(projectId);
         // Sử dụng findFirstByProjectId để tránh lỗi khi có nhiều bản ghi
         ProjectData projectData = projectDataRepository.findFirstByProjectId(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("ProjectData", "projectId", projectId));
@@ -146,6 +153,15 @@ public class ProjectDataService {
             for (int i = 1; i < allData.size(); i++) {
                 projectDataRepository.deleteById(allData.get(i).getId());
             }
+        }
+    }
+
+    private void ensureProjectExists(String projectId) {
+        if (projectId == null || projectId.isBlank()) {
+            throw new BadRequestException("projectId is required");
+        }
+        if (!projectRepository.existsById(projectId)) {
+            throw new BadRequestException("Invalid projectId: " + projectId);
         }
     }
 }

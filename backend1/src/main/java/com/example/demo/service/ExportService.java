@@ -1380,7 +1380,9 @@ public class ExportService {
             java.util.List<JsonNode> filteredRows = new java.util.ArrayList<>();
             for (int i = 0; i < summaryRows.size(); i++) {
                 JsonNode r = summaryRows.get(i);
-                String moduleName = txt(r, "module").trim();
+                String moduleType = txt(r, "moduleType").trim();
+                String moduleNameLegacy = txt(r, "module").trim();
+                String moduleName = !moduleType.isEmpty() ? moduleType : moduleNameLegacy;
                 if (!filterByModules) {
                     filteredRows.add(r);
                 } else {
@@ -1398,23 +1400,29 @@ public class ExportService {
             }
 
             if (!filteredRows.isEmpty()) {
-                XWPFTable table = doc.createTable(filteredRows.size() + 1, 5);
+                XWPFTable table = doc.createTable(filteredRows.size() + 1, 6);
                 styleTable(table);
 
                 setCell(table, 0, 0, "STT", true, "D9E2F3");
-                setCell(table, 0, 1, "Module", true, "D9E2F3");
-                setCell(table, 0, 2, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
-                setCell(table, 0, 3, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-                setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
+                setCell(table, 0, 1, "Lo\u1ea1i module", true, "D9E2F3");
+                setCell(table, 0, 2, "T\u00ean module", true, "D9E2F3");
+                setCell(table, 0, 3, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                setCell(table, 0, 4, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                setCell(table, 0, 5, "Ghi ch\u00fa", true, "D9E2F3");
 
                 for (int i = 0; i < filteredRows.size(); i++) {
                     JsonNode r = filteredRows.get(i);
+                    String moduleType = txt(r, "moduleType");
+                    String moduleLegacy = txt(r, "module");
+                    String moduleName = txt(r, "moduleName");
+                    String resolvedModuleType = !moduleType.isEmpty() ? moduleType : moduleLegacy;
                     setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
-                    setCell(table, i + 1, 1, txt(r, "module"), false, null);
+                    setCell(table, i + 1, 1, resolvedModuleType, false, null);
+                    setCell(table, i + 1, 2, moduleName, false, null);
                     String cauHinh = txt(r, "cauHinh").replaceAll("<br>", "\n").replaceAll("<[^>]+>", "");
-                    setCellWithLineBreaks(table, i + 1, 2, cauHinh);
-                    setCell(table, i + 1, 3, txt(r, "soLuong"), false, null);
-                    setCell(table, i + 1, 4, txt(r, "ghiChu"), false, null);
+                    setCellWithLineBreaks(table, i + 1, 3, cauHinh);
+                    setCell(table, i + 1, 4, txt(r, "soLuong"), false, null);
+                    setCell(table, i + 1, 5, txt(r, "ghiChu"), false, null);
                 }
             }
         }

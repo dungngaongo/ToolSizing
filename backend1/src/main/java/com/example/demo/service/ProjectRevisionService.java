@@ -3,10 +3,14 @@ package com.example.demo.service;
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.dto.CreateProjectRevisionRequest;
+import com.example.demo.model.Project;
 import com.example.demo.model.ProjectData;
 import com.example.demo.model.ProjectRevision;
+import com.example.demo.model.User;
+import com.example.demo.repository.ProjectRepository;
 import com.example.demo.repository.ProjectDataRepository;
 import com.example.demo.repository.ProjectRevisionRepository;
+import com.example.demo.repository.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,6 +27,8 @@ public class ProjectRevisionService {
 
     private final ProjectRevisionRepository projectRevisionRepository;
     private final ProjectDataRepository projectDataRepository;
+    private final ProjectRepository projectRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     // Sau mỗi MAX_INCREMENTALS incremental revisions, tự động tạo baseline mới
@@ -36,10 +42,14 @@ public class ProjectRevisionService {
     };
 
     public ProjectRevisionService(ProjectRevisionRepository projectRevisionRepository,
-                                   ProjectDataRepository projectDataRepository,
-                                   ObjectMapper objectMapper) {
+                                  ProjectDataRepository projectDataRepository,
+                                  ProjectRepository projectRepository,
+                                  UserRepository userRepository,
+                                  ObjectMapper objectMapper) {
         this.projectRevisionRepository = projectRevisionRepository;
         this.projectDataRepository = projectDataRepository;
+        this.projectRepository = projectRepository;
+        this.userRepository = userRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -51,6 +61,8 @@ public class ProjectRevisionService {
     public ProjectRevision createRevision(CreateProjectRevisionRequest request) {
         log.info("Creating revision for projectId: {}, userId: {}, forceBaseline: {}",
                 request.getProjectId(), request.getUserId(), request.isForceBaseline());
+        validateRevisionRequest(request);
+
         // Lấy ProjectData hiện tại
         ProjectData projectData = projectDataRepository.findFirstByProjectId(request.getProjectId())
                 .orElseThrow(() -> new ResourceNotFoundException("ProjectData", "projectId", request.getProjectId()));
@@ -80,8 +92,14 @@ public class ProjectRevisionService {
         }
 
         ProjectRevision revision = new ProjectRevision();
-        revision.setProjectId(request.getProjectId());
-        revision.setUserId(request.getUserId());
+        Project project = projectRepository.getReferenceById(request.getProjectId());
+        revision.setProject(project);
+        if (request.getUserId() != null && !request.getUserId().isBlank()) {
+            User revisionUser = userRepository.getReferenceById(request.getUserId());
+            revision.setUser(revisionUser);
+        } else {
+            revision.setUser(null);
+        }
         revision.setChangeLog(request.getChangeLog());
 
         if (shouldCreateBaseline) {
@@ -95,7 +113,7 @@ public class ProjectRevisionService {
             log.info("Creating INCREMENTAL revision for projectId: {}", request.getProjectId());
             String baselineId = latestBaselineOpt.get().getId();
             revision.setRevisionType("INCREMENTAL");
-            revision.setBaselineId(baselineId);
+            revision.setBaseline(latestBaselineOpt.get());
 
             // Reconstruct trạng thái tại revision trước đó
             String previousFullSnapshot = reconstructFullSnapshotJson(request.getProjectId(), baselineId);
@@ -278,6 +296,20 @@ public class ProjectRevisionService {
     public void delete(String id) {
         log.info("Deleting revision id: {}", id);
         projectRevisionRepository.deleteById(id);
+    }
+
+    private void validateRevisionRequest(CreateProjectRevisionRequest request) {
+        if (request.getProjectId() == null || request.getProjectId().isBlank()) {
+            throw new BadRequestException("projectId is required");
+        }
+        if (!projectRepository.existsById(request.getProjectId())) {
+            throw new BadRequestException("Invalid projectId: " + request.getProjectId());
+        }
+
+        if (request.getUserId() != null && !request.getUserId().isBlank()
+                && !userRepository.existsById(request.getUserId())) {
+            throw new BadRequestException("Invalid userId: " + request.getUserId());
+        }
     }
 }
 

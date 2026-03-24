@@ -1480,11 +1480,32 @@ function resetAllForms() {
     const summaryBody = document.getElementById('summary-table-body');
     if (summaryBody) {
         summaryBody.innerHTML = `<tr>
-            <td colspan="5" class="text-center" style="color: #999; padding: 30px;">
+            <td colspan="6" class="text-center" style="color: #999; padding: 30px;">
                 <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực hiện tính toán ở các module trước.
             </td>
         </tr>`;
     }
+
+    if (document.getElementById('app-virtualization-mode')) {
+        document.getElementById('app-virtualization-mode').value = 'ram';
+    }
+    if (document.getElementById('app-vcpu-flavor')) {
+        document.getElementById('app-vcpu-flavor').value = '8';
+    }
+    if (document.getElementById('app-ram-flavor')) {
+        document.getElementById('app-ram-flavor').value = '32';
+    }
+    if (document.getElementById('k8s-virtualization-mode')) {
+        document.getElementById('k8s-virtualization-mode').value = 'ram';
+    }
+    if (document.getElementById('k8s-vcpu-flavor')) {
+        document.getElementById('k8s-vcpu-flavor').value = '8';
+    }
+    if (document.getElementById('k8s-ram-flavor')) {
+        document.getElementById('k8s-ram-flavor').value = '32';
+    }
+    onVirtualizationModeChange('app');
+    onVirtualizationModeChange('k8s');
 
     // Clear all inline evidence previews (e.g. mariadb storage, etc.)
     document.querySelectorAll('.inline-evidence-preview').forEach(el => {
@@ -1518,6 +1539,8 @@ function resetAllForms() {
     if (menuLinks[0]) menuLinks[0].classList.add("active");
     const firstPage = document.getElementById('page-request');
     if (firstPage) firstPage.classList.add("active");
+
+    try { updateModuleVisibility(); } catch (e) {}
 }
 
 // ==================== LOAD DATA FROM DATABASE ====================
@@ -2303,13 +2326,11 @@ function populatePocSizingDropdowns() {
         { selectId: 'k8s-input-row-select', pocId: 'k8s-poc-value', sizingId: 'k8s-sizing-value' },
         { selectId: 'lbfw-input-row-select', pocId: 'lbfw-poc-value', sizingId: 'lbfw-sizing-value' }
     ];
-    
-    rowSelectors.forEach(({ selectId, pocId, sizingId }) => {
-        const select = document.getElementById(selectId);
+
+    const repopulateSingleSelector = (select, pocInput, sizingInput) => {
         if (!select) return;
         const currentVal = select.value;
-        
-        // Clear and rebuild options
+
         select.innerHTML = '<option value="">-- Chọn từ bảng đầu vào --</option>';
         inputRows.forEach(row => {
             const option = document.createElement('option');
@@ -2322,26 +2343,31 @@ function populatePocSizingDropdowns() {
             option.textContent = label;
             select.appendChild(option);
         });
-        
-        // Restore previous selection if still valid
+
         if (currentVal !== '' && select.querySelector(`option[value="${currentVal}"]`)) {
             select.value = currentVal;
         } else {
-            // Clear the readonly display inputs
-            const pocInput = document.getElementById(pocId);
-            const sizingInput = document.getElementById(sizingId);
             if (pocInput) pocInput.value = '';
             if (sizingInput) sizingInput.value = '';
         }
-        
-        // Refresh display values from the currently selected option
+
         if (select.value !== '') {
             const selectedOption = select.options[select.selectedIndex];
-            const pocInput = document.getElementById(pocId);
-            const sizingInput = document.getElementById(sizingId);
             if (pocInput) pocInput.value = selectedOption.dataset.poc || '';
             if (sizingInput) sizingInput.value = selectedOption.dataset.sizing || '';
         }
+    };
+    
+    rowSelectors.forEach(({ selectId, pocId, sizingId }) => {
+        const baseSelect = document.getElementById(selectId);
+        repopulateSingleSelector(baseSelect, document.getElementById(pocId), document.getElementById(sizingId));
+
+        document.querySelectorAll(`[id^="${selectId}__inst_"]`).forEach(instanceSelect => {
+            const suffix = instanceSelect.id.substring(selectId.length);
+            const instancePoc = document.getElementById(`${pocId}${suffix}`);
+            const instanceSizing = document.getElementById(`${sizingId}${suffix}`);
+            repopulateSingleSelector(instanceSelect, instancePoc, instanceSizing);
+        });
     });
 }
 
@@ -2478,7 +2504,7 @@ function createArchTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td>${stt}</td>
-        <td><input type="text" placeholder="Tên module" value="${data.moduleName || ''}"></td>
+        <td><input type="text" placeholder="Tên module" value="${data.moduleName || ''}" oninput="updateModuleVisibility()"></td>
         <td>
             <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;" onchange="updateModuleVisibility()">
                 <option value="">-- Chọn --</option>
@@ -2641,20 +2667,191 @@ function addArchRow() {
  * Lấy danh sách các module được chọn từ bảng Chi tiết thành phần
  * @returns {Array} Mảng các loại module được chọn (App, Redis, MariaDB, Kafka, K8S, LB/FW)
  */
-function getSelectedModules() {
-    const selectedModules = new Set();
-    
-    document.querySelectorAll('#arch-table-body tr').forEach(row => {
+function getModuleInstancesFromArchTable() {
+    const instances = [];
+    const moduleCounters = {};
+
+    document.querySelectorAll('#arch-table-body tr').forEach((row, rowIndex) => {
         const cells = row.querySelectorAll('td');
-        const loaiModuleSelect = cells[2]?.querySelector('select');
-        const loaiModule = loaiModuleSelect?.value?.trim();
-        
-        if (loaiModule) {
-            selectedModules.add(loaiModule);
-        }
+        const moduleName = cells[1]?.querySelector('input')?.value?.trim() || '';
+        const moduleType = cells[2]?.querySelector('select')?.value?.trim() || '';
+
+        if (!moduleType) return;
+
+        moduleCounters[moduleType] = (moduleCounters[moduleType] || 0) + 1;
+        instances.push({
+            rowIndex,
+            moduleType,
+            moduleName,
+            sequence: moduleCounters[moduleType]
+        });
     });
-    
-    return Array.from(selectedModules);
+
+    return instances;
+}
+
+function getModuleInstancesByType() {
+    const grouped = {};
+    getModuleInstancesFromArchTable().forEach(instance => {
+        if (!grouped[instance.moduleType]) {
+            grouped[instance.moduleType] = [];
+        }
+        grouped[instance.moduleType].push(instance);
+    });
+    return grouped;
+}
+
+function getSelectedModules() {
+    return Object.keys(getModuleInstancesByType());
+}
+
+function getModuleInstanceDisplayName(instance) {
+    if (instance.moduleName) return instance.moduleName;
+    return `${instance.moduleType} #${instance.sequence}`;
+}
+
+const MODULE_TEMPLATE_MAPPING = {
+    'App': 'module-app-content',
+    'Redis': 'module-redis-content',
+    'MariaDB': 'module-mariadb-content',
+    'Kafka': 'module-kafka-content',
+    'K8S': 'module-k8s-content',
+    'LB/FW': 'module-lbfw-content'
+};
+
+const MODULE_ICON_MAPPING = {
+    'App': 'fa-solid fa-cube',
+    'Redis': 'fa-solid fa-database',
+    'MariaDB': 'fa-solid fa-database',
+    'Kafka': 'fa-solid fa-stream',
+    'K8S': 'fa-brands fa-kubernetes',
+    'LB/FW': 'fa-solid fa-shield-halved'
+};
+
+const moduleTemplateRegistry = {};
+let moduleTemplatesInitialized = false;
+
+function getModuleInstanceKey(instance) {
+    return `${instance.moduleType}-${instance.rowIndex + 1}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function initializeModuleInstanceTemplates() {
+    if (moduleTemplatesInitialized) return;
+
+    Object.entries(MODULE_TEMPLATE_MAPPING).forEach(([moduleName, contentId]) => {
+        const content = document.getElementById(contentId);
+        const wrapper = content?.closest('.module-collapsible');
+        if (!wrapper || !wrapper.parentNode) return;
+
+        const anchorId = `module-anchor-${contentId}`;
+        const anchor = document.createElement('div');
+        anchor.id = anchorId;
+        wrapper.parentNode.replaceChild(anchor, wrapper);
+
+        moduleTemplateRegistry[moduleName] = {
+            anchorId,
+            templateHtml: wrapper.outerHTML
+        };
+    });
+
+    moduleTemplatesInitialized = true;
+}
+
+function runInInstanceContext(instanceKey, callback) {
+    const suffix = `__inst_${instanceKey}`;
+    const nodes = Array.from(document.querySelectorAll(`[id$="${suffix}"]`));
+    const renamed = [];
+
+    nodes.forEach(node => {
+        const currentId = node.id;
+        const baseId = currentId.substring(0, currentId.length - suffix.length);
+        renamed.push({ node, currentId });
+        node.id = baseId;
+    });
+
+    const previousKey = window.__activeInstanceKey;
+    window.__activeInstanceKey = instanceKey;
+    try {
+        if (typeof callback === 'function') {
+            return callback();
+        }
+    } finally {
+        renamed.forEach(item => {
+            item.node.id = item.currentId;
+        });
+        window.__activeInstanceKey = previousKey;
+    }
+}
+
+function rewriteInlineHandlersForInstance(root, instanceKey) {
+    const candidates = root.querySelectorAll('*');
+    candidates.forEach(el => {
+        ['onclick', 'onchange', 'oninput'].forEach(attr => {
+            const raw = el.getAttribute(attr);
+            if (!raw) return;
+            const wrapped = `return runInInstanceContext('${instanceKey}', function(){ ${raw} });`;
+            el.setAttribute(attr, wrapped);
+        });
+    });
+}
+
+function createModuleCloneForInstance(moduleName, instance) {
+    const registryItem = moduleTemplateRegistry[moduleName];
+    if (!registryItem) return null;
+
+    const holder = document.createElement('div');
+    holder.innerHTML = registryItem.templateHtml;
+    const wrapper = holder.firstElementChild;
+    if (!wrapper) return null;
+
+    const instanceKey = getModuleInstanceKey(instance);
+    wrapper.classList.add('module-instance-wrapper');
+    wrapper.dataset.moduleType = moduleName;
+    wrapper.dataset.instanceKey = instanceKey;
+
+    wrapper.querySelectorAll('[id]').forEach(node => {
+        node.id = `${node.id}__inst_${instanceKey}`;
+    });
+
+    rewriteInlineHandlersForInstance(wrapper, instanceKey);
+
+    const header = wrapper.querySelector('.module-collapsible-header');
+    const titleSpan = header?.querySelector('span');
+    if (titleSpan) {
+        const iconClass = MODULE_ICON_MAPPING[moduleName] || 'fa-solid fa-cube';
+        titleSpan.innerHTML = `<i class="${iconClass}"></i> Module ${moduleName} - ${escapeHtml(getModuleInstanceDisplayName(instance))}`;
+    }
+
+    if (header) {
+        header.title = getModuleInstanceDisplayName(instance);
+    }
+
+    if (moduleName === 'App' || moduleName === 'K8S') {
+        const prefix = moduleName === 'App' ? 'app' : 'k8s';
+        runInInstanceContext(instanceKey, () => onVirtualizationModeChange(prefix));
+    }
+
+    return wrapper;
+}
+
+function renderModuleInstances(moduleName, moduleInstances) {
+    const registryItem = moduleTemplateRegistry[moduleName];
+    if (!registryItem) return;
+
+    const anchor = document.getElementById(registryItem.anchorId);
+    if (!anchor || !anchor.parentNode) return;
+
+    document.querySelectorAll(`.module-instance-wrapper[data-module-type="${moduleName}"]`).forEach(node => {
+        node.remove();
+    });
+
+    let cursor = anchor;
+    moduleInstances.forEach(instance => {
+        const clone = createModuleCloneForInstance(moduleName, instance);
+        if (!clone) return;
+        cursor.after(clone);
+        cursor = clone;
+    });
 }
 
 /**
@@ -2662,38 +2859,16 @@ function getSelectedModules() {
  * Chỉ hiển thị module được chọn, ẩn các module khác
  */
 function updateModuleVisibility() {
-    const selectedModules = getSelectedModules();
-    
-    // Định nghĩa mapping giữa loại module và ID của collapsible section
-    const moduleMapping = {
-        'App': 'module-app-content',
-        'Redis': 'module-redis-content', 
-        'MariaDB': 'module-mariadb-content',
-        'Kafka': 'module-kafka-content',
-        'K8S': 'module-k8s-content',
-        'LB/FW': 'module-lbfw-content'
-    };
-    
-    // Duyệt qua tất cả các module sections
-    Object.entries(moduleMapping).forEach(([moduleName, contentId]) => {
-        const moduleContent = document.getElementById(contentId);
-        const moduleWrapper = moduleContent?.closest('.module-collapsible');
-        
-        if (moduleWrapper) {
-            if (selectedModules.includes(moduleName)) {
-                // Hiển thị module được chọn
-                moduleWrapper.style.display = 'block';
-            } else {
-                // Ẩn module không được chọn, và collapse nó
-                moduleWrapper.style.display = 'none';
-                moduleContent.classList.remove('expanded');
-                const header = moduleContent.previousElementSibling;
-                if (header) {
-                    header.classList.remove('active');
-                }
-            }
-        }
+    initializeModuleInstanceTemplates();
+    const instancesByType = getModuleInstancesByType();
+
+    Object.keys(MODULE_TEMPLATE_MAPPING).forEach(moduleName => {
+        renderModuleInstances(moduleName, instancesByType[moduleName] || []);
     });
+
+    try { populatePocSizingDropdowns(); } catch (e) {}
+
+    try { applyRolePermissions(); } catch (e) {}
 }
 
 // ==================== TỔNG HỢP VÀ ĐỀ XUẤT ====================
@@ -2707,26 +2882,28 @@ function loadTongHop(data) {
             const tr = createSummaryTableRow(index + 1, row);
             tbody.appendChild(tr);
         });
+    } else {
+        tbody.innerHTML = `<tr>
+            <td colspan="6" class="text-center" style="color: #999; padding: 30px;">
+                <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực hiện tính toán ở các module trước.
+            </td>
+        </tr>`;
     }
 }
 
 function createSummaryTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
-    // Escape HTML để tránh XSS và đảm bảo ký tự đặc biệt hiển thị đúng
-    const escapedModule = escapeHtml(data.module || '');
-    const escapedRam = escapeHtml(data.ram || '');
-    const escapedVolume = escapeHtml(data.volume || '');
+    const moduleType = escapeHtml(data.moduleType || data.module || '');
+    const moduleName = escapeHtml(data.moduleName || '');
     const escapedGhiChu = escapeHtml(data.ghiChu || '');
-    
+
     tr.innerHTML = `
         <td>${stt}</td>
-        <td><input type="text" placeholder="Ví dụ: APP Service" value="${escapedModule}"></td>
-        <td><input type="number" value="${data.soLuong || 1}"></td>
-        <td><input type="number" value="${data.vCPU || 1}"></td>
-        <td><input type="text" placeholder="Ví dụ: 24" value="${escapedRam}"></td>
-        <td><input type="text" placeholder="/u01: 100" value="${escapedVolume}"></td>
-        <td><textarea rows="1">${escapedGhiChu}</textarea></td>
-        <td><button class="btn-delete" onclick="removeSummaryRow(this)">✖</button></td>
+        <td><strong>${moduleType}</strong></td>
+        <td>${moduleName}</td>
+        <td>${data.cauHinh || ''}</td>
+        <td class="text-center">${data.soLuong || ''}</td>
+        <td>${escapedGhiChu}</td>
     `;
     return tr;
 }
@@ -2736,12 +2913,13 @@ function collectTongHop() {
     const summaryRows = [];
     document.querySelectorAll('#summary-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
-        if (cells.length >= 5 && !cells[0].hasAttribute('colspan')) {
+        if (cells.length >= 6 && !cells[0].hasAttribute('colspan')) {
             summaryRows.push({
-                module: cells[1]?.textContent?.trim() || '',
-                cauHinh: cells[2]?.innerHTML || '',
-                soLuong: cells[3]?.textContent?.trim() || '',
-                ghiChu: cells[4]?.textContent?.trim() || ''
+                moduleType: cells[1]?.textContent?.trim() || '',
+                moduleName: cells[2]?.textContent?.trim() || '',
+                cauHinh: cells[3]?.innerHTML || '',
+                soLuong: cells[4]?.textContent?.trim() || '',
+                ghiChu: cells[5]?.textContent?.trim() || ''
             });
         }
     });
@@ -2753,174 +2931,201 @@ function collectTongHop() {
 function aggregateSizingResults() {
     const tbody = document.getElementById('summary-table-body');
     if (!tbody) return;
-    
-    // Chỉ tổng hợp các module đã được chọn trong Mô hình hệ thống (archRows)
-    const selectedModules = getSelectedModules();
+    const instancesByType = getModuleInstancesByType();
+    const selectedModules = Object.keys(instancesByType);
     
     const results = [];
     let stt = 1;
     
     // 1. Module App - Chỉ khi module App được chọn trong mô hình
     if (selectedModules.includes('App')) {
-        const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
-        const appData = parseAppSizingResult(appResult);
-        if (appData) {
-            results.push({
-                stt: stt++,
-                module: 'App',
-                cauHinh: appData.cauHinh,
-                soLuong: appData.soLuong,
-                ghiChu: appData.ghiChu
+        (instancesByType.App || []).forEach(instance => {
+            const instanceKey = getModuleInstanceKey(instance);
+            const appData = runInInstanceContext(instanceKey, () => {
+                const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
+                return parseAppSizingResult(appResult);
             });
-            
-            // FW/LB từ App (nếu LB/FW cũng được chọn)
-            if (selectedModules.includes('LB/FW') && appData.fwlb) {
-                // Sẽ xử lý ở phần LB/FW bên dưới
+            if (appData) {
+                results.push({
+                    stt: stt++,
+                    moduleType: 'App',
+                    moduleName: getModuleInstanceDisplayName(instance),
+                    cauHinh: appData.cauHinh,
+                    soLuong: appData.soLuong,
+                    ghiChu: appData.ghiChu
+                });
             }
-        }
+        });
     }
     
     // 2. Module MariaDB - Chỉ khi module MariaDB được chọn
     if (selectedModules.includes('MariaDB')) {
-        const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
-        const mariaData = parseMariaDBSizingResult(mariaResult);
-        if (mariaData) {
-            results.push({
-                stt: stt++,
-                module: 'MariaDB',
-                cauHinh: mariaData.cauHinh,
-                soLuong: mariaData.soLuong,
-                ghiChu: mariaData.ghiChu
+        (instancesByType.MariaDB || []).forEach(instance => {
+            const instanceKey = getModuleInstanceKey(instance);
+            const mariaData = runInInstanceContext(instanceKey, () => {
+                const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
+                return parseMariaDBSizingResult(mariaResult);
             });
-            if (mariaData.maxScale) {
+            if (mariaData) {
+                const instanceName = getModuleInstanceDisplayName(instance);
                 results.push({
                     stt: stt++,
-                    module: 'MaxScale',
-                    cauHinh: mariaData.maxScale.cauHinh,
-                    soLuong: mariaData.maxScale.soLuong,
-                    ghiChu: mariaData.maxScale.ghiChu
+                    moduleType: 'MariaDB',
+                    moduleName: instanceName,
+                    cauHinh: mariaData.cauHinh,
+                    soLuong: mariaData.soLuong,
+                    ghiChu: mariaData.ghiChu
                 });
+                if (mariaData.maxScale) {
+                    results.push({
+                        stt: stt++,
+                        moduleType: 'MaxScale',
+                        moduleName: instanceName,
+                        cauHinh: mariaData.maxScale.cauHinh,
+                        soLuong: mariaData.maxScale.soLuong,
+                        ghiChu: mariaData.maxScale.ghiChu
+                    });
+                }
+                if (mariaData.nas) {
+                    results.push({
+                        stt: stt++,
+                        moduleType: 'NAS',
+                        moduleName: instanceName,
+                        cauHinh: mariaData.nas.cauHinh,
+                        soLuong: mariaData.nas.soLuong,
+                        ghiChu: mariaData.nas.ghiChu
+                    });
+                }
             }
-            if (mariaData.nas) {
-                results.push({
-                    stt: stt++,
-                    module: 'NAS',
-                    cauHinh: mariaData.nas.cauHinh,
-                    soLuong: mariaData.nas.soLuong,
-                    ghiChu: mariaData.nas.ghiChu
-                });
-            }
-        }
+        });
     }
     
     // 3. Module Redis - Chỉ khi module Redis được chọn
     if (selectedModules.includes('Redis')) {
-        const redisKeyBtn = document.getElementById('redis-method-key');
-        const isKeyMethodSelected = redisKeyBtn?.classList.contains('active') === true;
-        
-        let redisResult = '';
-        if (isKeyMethodSelected) {
-            redisResult = document.getElementById('redis-key-result-container')?.innerHTML || '';
-        } else {
-            redisResult = document.getElementById('redis-config-result-container')?.innerHTML || '';
-        }
-        
-        const redisData = parseRedisSizingResult(redisResult);
-        if (redisData) {
-            results.push({
-                stt: stt++,
-                module: 'Redis',
-                cauHinh: redisData.cauHinh,
-                soLuong: redisData.soLuong,
-                ghiChu: redisData.ghiChu
+        (instancesByType.Redis || []).forEach(instance => {
+            const instanceKey = getModuleInstanceKey(instance);
+            const redisData = runInInstanceContext(instanceKey, () => {
+                const redisKeyBtn = document.getElementById('redis-method-key');
+                const isKeyMethodSelected = redisKeyBtn?.classList.contains('active') === true;
+                const redisResult = isKeyMethodSelected
+                    ? (document.getElementById('redis-key-result-container')?.innerHTML || '')
+                    : (document.getElementById('redis-config-result-container')?.innerHTML || '');
+                return parseRedisSizingResult(redisResult);
             });
-        }
+            if (redisData) {
+                results.push({
+                    stt: stt++,
+                    moduleType: 'Redis',
+                    moduleName: getModuleInstanceDisplayName(instance),
+                    cauHinh: redisData.cauHinh,
+                    soLuong: redisData.soLuong,
+                    ghiChu: redisData.ghiChu
+                });
+            }
+        });
     }
     
     // 4. Module Kafka - Chỉ khi module Kafka được chọn
     if (selectedModules.includes('Kafka')) {
-        const kafkaMethodThroughputBtn = document.getElementById('kafka-method-throughput');
-        const isThroughputMethodSelected = kafkaMethodThroughputBtn?.classList.contains('active') === true;
-        
-        let kafkaResult = '';
-        if (isThroughputMethodSelected) {
-            kafkaResult = document.getElementById('kafka-throughput-result-container')?.innerHTML || '';
-        } else {
-            kafkaResult = document.getElementById('kafka-linear-result-container')?.innerHTML || '';
-        }
-        
-        const kafkaData = parseKafkaSizingResult(kafkaResult);
-        if (kafkaData) {
-            results.push({
-                stt: stt++,
-                module: 'Kafka',
-                cauHinh: kafkaData.cauHinh,
-                soLuong: kafkaData.soLuong,
-                ghiChu: kafkaData.ghiChu
+        (instancesByType.Kafka || []).forEach(instance => {
+            const instanceKey = getModuleInstanceKey(instance);
+            const kafkaData = runInInstanceContext(instanceKey, () => {
+                const kafkaMethodThroughputBtn = document.getElementById('kafka-method-throughput');
+                const isThroughputMethodSelected = kafkaMethodThroughputBtn?.classList.contains('active') === true;
+                const kafkaResult = isThroughputMethodSelected
+                    ? (document.getElementById('kafka-throughput-result-container')?.innerHTML || '')
+                    : (document.getElementById('kafka-linear-result-container')?.innerHTML || '');
+                return parseKafkaSizingResult(kafkaResult);
             });
-            if (kafkaData.zookeeper) {
+            if (kafkaData) {
+                const instanceName = getModuleInstanceDisplayName(instance);
                 results.push({
                     stt: stt++,
-                    module: 'Zookeeper/KRaft',
-                    cauHinh: kafkaData.zookeeper.cauHinh,
-                    soLuong: kafkaData.zookeeper.soLuong,
-                    ghiChu: kafkaData.zookeeper.ghiChu
+                    moduleType: 'Kafka',
+                    moduleName: instanceName,
+                    cauHinh: kafkaData.cauHinh,
+                    soLuong: kafkaData.soLuong,
+                    ghiChu: kafkaData.ghiChu
                 });
+                if (kafkaData.zookeeper) {
+                    results.push({
+                        stt: stt++,
+                        moduleType: 'Zookeeper/KRaft',
+                        moduleName: instanceName,
+                        cauHinh: kafkaData.zookeeper.cauHinh,
+                        soLuong: kafkaData.zookeeper.soLuong,
+                        ghiChu: kafkaData.zookeeper.ghiChu
+                    });
+                }
             }
-        }
+        });
     }
     
     // 5. Module K8S - Chỉ khi module K8S được chọn
     if (selectedModules.includes('K8S')) {
-        const k8sResult = document.getElementById('k8s-result-container')?.innerHTML || '';
-        const k8sData = parseK8SSizingResult(k8sResult);
-        if (k8sData && Array.isArray(k8sData)) {
-            k8sData.forEach(item => {
-                results.push({
-                    stt: stt++,
-                    module: item.module,
-                    cauHinh: item.cauHinh,
-                    soLuong: item.soLuong,
-                    ghiChu: item.ghiChu
-                });
+        (instancesByType.K8S || []).forEach(instance => {
+            const instanceKey = getModuleInstanceKey(instance);
+            const k8sData = runInInstanceContext(instanceKey, () => {
+                const k8sResult = document.getElementById('k8s-result-container')?.innerHTML || '';
+                return parseK8SSizingResult(k8sResult);
             });
-        }
+            if (k8sData && Array.isArray(k8sData)) {
+                const instanceName = getModuleInstanceDisplayName(instance);
+                k8sData.forEach(item => {
+                    results.push({
+                        stt: stt++,
+                        moduleType: item.module,
+                        moduleName: instanceName,
+                        cauHinh: item.cauHinh,
+                        soLuong: item.soLuong,
+                        ghiChu: item.ghiChu
+                    });
+                });
+            }
+        });
     }
     
     // 6. Module LB/FW - Chỉ khi module LB/FW được chọn
     if (selectedModules.includes('LB/FW')) {
-        const lbfwResult = document.getElementById('lbfw-result-container')?.innerHTML || '';
-        const lbfwData = parseLBFWSizingResult(lbfwResult);
-        if (lbfwData) {
-            results.push({
-                stt: stt++,
-                module: 'FW/LB',
-                cauHinh: lbfwData.cauHinh,
-                soLuong: lbfwData.soLuong,
-                ghiChu: lbfwData.ghiChu
+        (instancesByType['LB/FW'] || []).forEach(instance => {
+            const instanceKey = getModuleInstanceKey(instance);
+            const lbfwData = runInInstanceContext(instanceKey, () => {
+                const lbfwResult = document.getElementById('lbfw-result-container')?.innerHTML || '';
+                return parseLBFWSizingResult(lbfwResult);
             });
-        } else {
-            // Fallback: FW/LB từ module App nếu có (chỉ khi App cũng được chọn)
-            if (selectedModules.includes('App')) {
-                const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
-                const appData = parseAppSizingResult(appResult);
+            if (lbfwData) {
+                results.push({
+                    stt: stt++,
+                    moduleType: 'FW/LB',
+                    moduleName: getModuleInstanceDisplayName(instance),
+                    cauHinh: lbfwData.cauHinh,
+                    soLuong: lbfwData.soLuong,
+                    ghiChu: lbfwData.ghiChu
+                });
+            } else if (selectedModules.includes('App')) {
+                // Fallback: FW/LB từ App nếu có (chỉ khi App cũng được chọn)
+                const appData = runInInstanceContext(instanceKey, () => {
+                    const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
+                    return parseAppSizingResult(appResult);
+                });
                 if (appData && appData.fwlb) {
                     results.push({
                         stt: stt++,
-                        module: 'FW/LB',
+                        moduleType: 'FW/LB',
+                        moduleName: getModuleInstanceDisplayName(instance),
                         cauHinh: appData.fwlb.cauHinh,
                         soLuong: '',
                         ghiChu: ''
                     });
                 }
             }
-        }
+        });
     }
     
     // Render bảng
     if (results.length === 0) {
         tbody.innerHTML = `<tr>
-            <td colspan="5" class="text-center" style="color: #999; padding: 30px;">
+            <td colspan="6" class="text-center" style="color: #999; padding: 30px;">
                 <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực hiện tính toán ở các module trước.
             </td>
         </tr>`;
@@ -2928,10 +3133,11 @@ function aggregateSizingResults() {
         tbody.innerHTML = results.map(r => `
             <tr>
                 <td class="text-center">${r.stt}</td>
-                <td><strong>${r.module}</strong></td>
-                <td>${r.cauHinh}</td>
-                <td class="text-center">${r.soLuong}</td>
-                <td>${r.ghiChu}</td>
+                <td><strong>${r.moduleType || ''}</strong></td>
+                <td>${r.moduleName || ''}</td>
+                <td>${r.cauHinh || ''}</td>
+                <td class="text-center">${r.soLuong || ''}</td>
+                <td>${r.ghiChu || ''}</td>
             </tr>
         `).join('');
     }
@@ -3666,6 +3872,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     applyRolePermissions();
     initHelpTooltipSmartPositioning();
     initFirstRowGuards();
+    onVirtualizationModeChange('app');
+    onVirtualizationModeChange('k8s');
 
     // ===== URL-based routing: khôi phục trạng thái từ URL hash =====
     const initState = parseAppHash(location.hash);
@@ -4293,32 +4501,73 @@ function collectEvidenceSizingData() {
 
 // Collect all sizing data for saving (USER DATA ONLY)
 function collectAllSizingData() {
+    const instances = getModuleInstancesFromArchTable();
+    const moduleInstances = [];
+
+    const collectByTypeInContext = (moduleType) => {
+        if (moduleType === 'App') {
+            const container = document.getElementById('sizing-result-container');
+            if (container) {
+                container.querySelectorAll('textarea').forEach(ta => {
+                    ta.textContent = ta.value;
+                });
+            }
+            return {
+                baselineTable: collectBaselineTableData(),
+                inputConfigTable: collectInputConfigTableData(),
+                selectedInputRow: document.getElementById('app-input-row-select')?.value || '',
+                pocValue: document.getElementById('poc-value')?.value || '',
+                sizingValue: document.getElementById('sizing-value')?.value || '',
+                virtualizationMode: document.getElementById('app-virtualization-mode')?.value || 'ram',
+                vcpuFlavor: document.getElementById('app-vcpu-flavor')?.value || '8',
+                ramFlavor: document.getElementById('app-ram-flavor')?.value || '32',
+                flavorEval: document.getElementById('app-flavor-eval')?.value || '',
+                flavorNote: document.getElementById('app-flavor-note')?.value || '',
+                sizingResult: container?.innerHTML || ''
+            };
+        }
+        if (moduleType === 'MariaDB') return collectMariaDBData();
+        if (moduleType === 'Redis') return collectRedisData();
+        if (moduleType === 'Kafka') return collectKafkaData();
+        if (moduleType === 'K8S') return collectK8SData();
+        if (moduleType === 'LB/FW') return collectLBFWData();
+        return {};
+    };
+
+    instances.forEach(instance => {
+        const instanceKey = getModuleInstanceKey(instance);
+        const data = runInInstanceContext(instanceKey, () => collectByTypeInContext(instance.moduleType));
+        moduleInstances.push({
+            instanceKey,
+            moduleType: instance.moduleType,
+            moduleName: instance.moduleName || '',
+            sequence: instance.sequence,
+            data
+        });
+    });
+
+    const firstByType = {};
+    moduleInstances.forEach(item => {
+        if (!firstByType[item.moduleType]) {
+            firstByType[item.moduleType] = item.data;
+        }
+    });
+
+    const moduleInstanceSnapshots = Array.from(document.querySelectorAll('.module-instance-wrapper')).map(wrapper => ({
+        instanceKey: wrapper.dataset.instanceKey || '',
+        moduleType: wrapper.dataset.moduleType || '',
+        html: wrapper.innerHTML
+    }));
+
     return {
-        moduleApp: {
-            baselineTable: collectBaselineTableData(),
-            inputConfigTable: collectInputConfigTableData(),
-            selectedInputRow: document.getElementById('app-input-row-select')?.value || '',
-            pocValue: document.getElementById('poc-value')?.value || '',
-            sizingValue: document.getElementById('sizing-value')?.value || '',
-            sizingResult: (() => {
-                // Sync textarea values into DOM trước khi lấy innerHTML
-                // (textarea.value không tự phản ánh vào innerHTML)
-                const container = document.getElementById('sizing-result-container');
-                if (container) {
-                    container.querySelectorAll('textarea').forEach(ta => {
-                        ta.textContent = ta.value;
-                    });
-                    return container.innerHTML;
-                }
-                return '';
-            })()
-            // NOTE: Admin review is NOT saved here - it goes to dinhCoAdminReview
-        },
-        moduleMariaDB: collectMariaDBData(),
-        moduleRedis: collectRedisData(),
-        moduleKafka: collectKafkaData(),
-        moduleK8S: collectK8SData(),
-        moduleLBFW: collectLBFWData()
+        moduleApp: firstByType.App || {},
+        moduleMariaDB: firstByType.MariaDB || {},
+        moduleRedis: firstByType.Redis || {},
+        moduleKafka: firstByType.Kafka || {},
+        moduleK8S: firstByType.K8S || {},
+        moduleLBFW: firstByType['LB/FW'] || {},
+        moduleInstances,
+        moduleInstanceSnapshots
     };
 }
 
@@ -4338,89 +4587,140 @@ function collectMariaDBRefAdminReviewData() {
 
 // Collect all admin review data for sizing section (ADMIN ONLY)
 function collectSizingAdminReviewData() {
-    return {
-        moduleApp: {
-            // Admin review for each row in baseline table
-            baselineRowReviews: collectBaselineAdminReviewData(),
-            // Admin review for each row in input config table
-            inputConfigRowReviews: (() => {
-                const reviews = [];
-                document.querySelectorAll('#input-config-table-body tr').forEach(row => {
-                    reviews.push({
-                        eval: row.querySelector('.input-config-eval')?.value || '',
-                        note: row.querySelector('.input-config-note')?.value || ''
+    const instances = getModuleInstancesFromArchTable();
+    const moduleInstanceReviews = [];
+
+    const collectReviewByTypeInContext = (moduleType) => {
+        if (moduleType === 'App') {
+            return {
+                baselineRowReviews: collectBaselineAdminReviewData(),
+                inputConfigRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#input-config-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.input-config-eval')?.value || '',
+                            note: row.querySelector('.input-config-note')?.value || ''
+                        });
                     });
-                });
-                return reviews;
-            })()
-        },
-        moduleMariaDB: {
-            refRowReviews: collectMariaDBRefAdminReviewData(),
-            storageReview: {
-                eval: document.getElementById('eval-mariadb-storage')?.value || '',
-                note: document.getElementById('note-mariadb-storage')?.value || ''
-            }
-        },
-        moduleRedis: {
-            overallReview: {
-                eval: document.getElementById('eval-module-redis')?.value || '',
-                note: document.getElementById('note-module-redis')?.value || ''
-            },
-            configRowReviews: (() => {
-                const reviews = [];
-                document.querySelectorAll('#redis-config-table-body tr').forEach(row => {
-                    reviews.push({
-                        eval: row.querySelector('.redis-config-eval')?.value || '',
-                        note: row.querySelector('.redis-config-note')?.value || ''
-                    });
-                });
-                return reviews;
-            })()
-        },
-        moduleKafka: {
-            overallReview: {
-                eval: document.getElementById('eval-module-kafka')?.value || '',
-                note: document.getElementById('note-module-kafka')?.value || ''
-            },
-            linearRowReviews: (() => {
-                const reviews = [];
-                document.querySelectorAll('#kafka-linear-table-body tr').forEach(row => {
-                    reviews.push({
-                        eval: row.querySelector('.kafka-linear-eval')?.value || '',
-                        note: row.querySelector('.kafka-linear-note')?.value || ''
-                    });
-                });
-                return reviews;
-            })()
-        },
-        moduleK8S: {
-            baselineRowReviews: (() => {
-                const reviews = [];
-                document.querySelectorAll('#k8s-baseline-table-body tr').forEach(row => {
-                    reviews.push({
-                        eval: row.querySelector('.k8s-baseline-eval')?.value || '',
-                        note: row.querySelector('.k8s-baseline-note')?.value || ''
-                    });
-                });
-                return reviews;
-            })(),
-            inputConfigRowReviews: (() => {
-                const reviews = [];
-                document.querySelectorAll('#k8s-input-config-table-body tr').forEach(row => {
-                    reviews.push({
-                        eval: row.querySelector('.k8s-input-config-eval')?.value || '',
-                        note: row.querySelector('.k8s-input-config-note')?.value || ''
-                    });
-                });
-                return reviews;
-            })()
-        },
-        moduleLBFW: {
-            overallReview: {
-                eval: document.getElementById('eval-module-lbfw')?.value || '',
-                note: document.getElementById('note-module-lbfw')?.value || ''
-            }
+                    return reviews;
+                })(),
+                flavorReview: {
+                    eval: document.getElementById('app-flavor-eval')?.value || '',
+                    note: document.getElementById('app-flavor-note')?.value || ''
+                }
+            };
         }
+        if (moduleType === 'MariaDB') {
+            return {
+                refRowReviews: collectMariaDBRefAdminReviewData(),
+                storageReview: {
+                    eval: document.getElementById('eval-mariadb-storage')?.value || '',
+                    note: document.getElementById('note-mariadb-storage')?.value || ''
+                }
+            };
+        }
+        if (moduleType === 'Redis') {
+            return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-redis')?.value || '',
+                    note: document.getElementById('note-module-redis')?.value || ''
+                },
+                configRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#redis-config-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.redis-config-eval')?.value || '',
+                            note: row.querySelector('.redis-config-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })()
+            };
+        }
+        if (moduleType === 'Kafka') {
+            return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-kafka')?.value || '',
+                    note: document.getElementById('note-module-kafka')?.value || ''
+                },
+                linearRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#kafka-linear-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.kafka-linear-eval')?.value || '',
+                            note: row.querySelector('.kafka-linear-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })()
+            };
+        }
+        if (moduleType === 'K8S') {
+            return {
+                baselineRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#k8s-baseline-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.k8s-baseline-eval')?.value || '',
+                            note: row.querySelector('.k8s-baseline-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })(),
+                inputConfigRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#k8s-input-config-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.k8s-input-config-eval')?.value || '',
+                            note: row.querySelector('.k8s-input-config-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })(),
+                flavorReview: {
+                    eval: document.getElementById('k8s-flavor-eval')?.value || '',
+                    note: document.getElementById('k8s-flavor-note')?.value || ''
+                }
+            };
+        }
+        if (moduleType === 'LB/FW') {
+            return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-lbfw')?.value || '',
+                    note: document.getElementById('note-module-lbfw')?.value || ''
+                }
+            };
+        }
+        return {};
+    };
+
+    instances.forEach(instance => {
+        const instanceKey = getModuleInstanceKey(instance);
+        const reviewData = runInInstanceContext(instanceKey, () => collectReviewByTypeInContext(instance.moduleType));
+        moduleInstanceReviews.push({
+            instanceKey,
+            moduleType: instance.moduleType,
+            moduleName: instance.moduleName || '',
+            sequence: instance.sequence,
+            reviewData
+        });
+    });
+
+    const firstByType = {};
+    moduleInstanceReviews.forEach(item => {
+        if (!firstByType[item.moduleType]) {
+            firstByType[item.moduleType] = item.reviewData;
+        }
+    });
+
+    return {
+        moduleApp: firstByType.App || {},
+        moduleMariaDB: firstByType.MariaDB || {},
+        moduleRedis: firstByType.Redis || {},
+        moduleKafka: firstByType.Kafka || {},
+        moduleK8S: firstByType.K8S || {},
+        moduleLBFW: firstByType['LB/FW'] || {},
+        moduleInstanceReviews
     };
 }
 
@@ -4480,24 +4780,24 @@ async function evaluateSizingSection() {
         return;
     }
 
-    // Check at least one module has evaluation (row-level reviews)
-    const hasBaselineReview = document.querySelector('#baseline-table-body .admin-eval-select[value="OK"], #baseline-table-body .admin-eval-select[value="NOK"]');
-    const hasInputConfigReview = document.querySelector('#input-config-table-body .input-config-eval[value="OK"], #input-config-table-body .input-config-eval[value="NOK"]');
-    const hasMariaDBReview = document.querySelector('#mariadb-ref-table-body .mariadb-ref-eval[value="OK"], #mariadb-ref-table-body .mariadb-ref-eval[value="NOK"]');
-    const evalModuleRedis = document.getElementById('eval-module-redis')?.value;
-    const evalModuleKafka = document.getElementById('eval-module-kafka')?.value;
-    const hasK8SBaselineReview = document.querySelector('#k8s-baseline-table-body .k8s-baseline-eval[value="OK"], #k8s-baseline-table-body .k8s-baseline-eval[value="NOK"]');
-    const hasK8SInputConfigReview = document.querySelector('#k8s-input-config-table-body .k8s-input-config-eval[value="OK"], #k8s-input-config-table-body .k8s-input-config-eval[value="NOK"]');
-    const evalModuleLBFW = document.getElementById('eval-module-lbfw')?.value;
-    
-    if (!hasBaselineReview && !hasInputConfigReview && !hasMariaDBReview && !evalModuleRedis && !evalModuleKafka && !hasK8SBaselineReview && !hasK8SInputConfigReview && !evalModuleLBFW) {
-        showToast('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một mục!', 'warning');
-        return;
-    }
-
     try {
         // Collect all admin review data using the new function
         const adminData = collectSizingAdminReviewData();
+
+        const hasEvaluationValue = (obj) => {
+            if (obj == null) return false;
+            if (Array.isArray(obj)) return obj.some(hasEvaluationValue);
+            if (typeof obj === 'object') {
+                if (typeof obj.eval === 'string' && obj.eval.trim() !== '') return true;
+                return Object.values(obj).some(hasEvaluationValue);
+            }
+            return false;
+        };
+
+        if (!hasEvaluationValue(adminData)) {
+            showToast('Vui lòng chọn đánh giá (OK/NOK) cho ít nhất một mục!', 'warning');
+            return;
+        }
 
         const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
             method: 'POST',
@@ -4538,122 +4838,162 @@ function loadSizingData(data) {
     
     try {
         const sizingData = typeof data === 'string' ? JSON.parse(data) : data;
+        const instancesByType = getModuleInstancesByType();
+        const withFirstInstance = (moduleType, callback) => {
+            const firstInstance = (instancesByType[moduleType] || [])[0];
+            if (!firstInstance) return;
+            return runInInstanceContext(getModuleInstanceKey(firstInstance), callback);
+        };
+
+        if (Array.isArray(sizingData.moduleInstanceSnapshots) && sizingData.moduleInstanceSnapshots.length > 0) {
+            sizingData.moduleInstanceSnapshots.forEach(snapshot => {
+                if (!snapshot || !snapshot.instanceKey) return;
+                const wrapper = document.querySelector(`.module-instance-wrapper[data-instance-key="${snapshot.instanceKey}"]`);
+                if (wrapper && typeof snapshot.html === 'string') {
+                    wrapper.innerHTML = snapshot.html;
+                }
+            });
+            try { populatePocSizingDropdowns(); } catch (e) {}
+            try { applyRolePermissions(); } catch (e) {}
+            Logger.debug('Loaded sizing data from module instance snapshots successfully');
+            return;
+        }
         
         // Load Module App data
         if (sizingData.moduleApp) {
-            const moduleApp = sizingData.moduleApp;
-            
-            // Load baseline table data
-            if (moduleApp.baselineTable && Array.isArray(moduleApp.baselineTable) && moduleApp.baselineTable.length > 0) {
-                const tbody = document.getElementById('baseline-table-body');
-                if (tbody) {
-                    tbody.innerHTML = ''; // Clear existing rows
-                    // Also clear input-config-table-body since addBaselineRow adds rows there
-                    const inputConfigTbody = document.getElementById('input-config-table-body');
-                    if (inputConfigTbody) inputConfigTbody.innerHTML = '';
-                    
-                    moduleApp.baselineTable.forEach((row, idx) => {
-                        addBaselineRow(); // Add a new row
-                        const lastRow = tbody.lastElementChild;
-                        if (lastRow) {
-                            // Use specific class selectors
-                            const ipInput = lastRow.querySelector('.ip-input');
-                            const cpuInput = lastRow.querySelector('.cpu-input');
-                            const ramInput = lastRow.querySelector('.ram-input');
-                            const diskInput = lastRow.querySelector('.disk-input');
-                            const cintInput = lastRow.querySelector('.cint-input');
-                            
-                            if (ipInput) ipInput.value = row.ip || '';
-                            if (cpuInput) cpuInput.value = row.cpu || '';
-                            if (ramInput) ramInput.value = row.ram || '';
-                            if (diskInput) diskInput.value = row.disk || '';
-                            if (cintInput) cintInput.value = row.cintRate || '';
-                            
-                            // Load inline evidence image(s)
-                            const baselineEvidenceImages = getEvidenceImagesFromRowData(row);
-                            if (baselineEvidenceImages.length > 0) {
-                                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
-                                if (evidenceCell) loadInlineEvidence(evidenceCell, baselineEvidenceImages);
+            withFirstInstance('App', () => {
+                const moduleApp = sizingData.moduleApp;
+                
+                // Load baseline table data
+                if (moduleApp.baselineTable && Array.isArray(moduleApp.baselineTable) && moduleApp.baselineTable.length > 0) {
+                    const tbody = document.getElementById('baseline-table-body');
+                    if (tbody) {
+                        tbody.innerHTML = ''; // Clear existing rows
+                        // Also clear input-config-table-body since addBaselineRow adds rows there
+                        const inputConfigTbody = document.getElementById('input-config-table-body');
+                        if (inputConfigTbody) inputConfigTbody.innerHTML = '';
+                        
+                        moduleApp.baselineTable.forEach((row, idx) => {
+                            addBaselineRow(); // Add a new row
+                            const lastRow = tbody.lastElementChild;
+                            if (lastRow) {
+                                // Use specific class selectors
+                                const ipInput = lastRow.querySelector('.ip-input');
+                                const cpuInput = lastRow.querySelector('.cpu-input');
+                                const ramInput = lastRow.querySelector('.ram-input');
+                                const diskInput = lastRow.querySelector('.disk-input');
+                                const cintInput = lastRow.querySelector('.cint-input');
+                                
+                                if (ipInput) ipInput.value = row.ip || '';
+                                if (cpuInput) cpuInput.value = row.cpu || '';
+                                if (ramInput) ramInput.value = row.ram || '';
+                                if (diskInput) diskInput.value = row.disk || '';
+                                if (cintInput) cintInput.value = row.cintRate || '';
+                                
+                                // Load inline evidence image(s)
+                                const baselineEvidenceImages = getEvidenceImagesFromRowData(row);
+                                if (baselineEvidenceImages.length > 0) {
+                                    const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                                    if (evidenceCell) loadInlineEvidence(evidenceCell, baselineEvidenceImages);
+                                }
                             }
-                        }
-                    });
-                    updateBaselineTotal();
+                        });
+                        updateBaselineTotal();
+                    }
                 }
-            }
-            
-            // Load input config table data
-            if (moduleApp.inputConfigTable && Array.isArray(moduleApp.inputConfigTable) && moduleApp.inputConfigTable.length > 0) {
-                const tbody = document.getElementById('input-config-table-body');
-                if (tbody) {
-                    tbody.innerHTML = ''; // Clear existing rows
-                    moduleApp.inputConfigTable.forEach((row, idx) => {
-                        addInputConfigRow(); // Add a new row
-                        const lastRow = tbody.lastElementChild;
-                        if (lastRow) {
-                            const ipInput = lastRow.querySelector('.ip-config-input');
-                            const cpuLoadInput = lastRow.querySelector('.cpu-load-input');
-                            const ramLoadInput = lastRow.querySelector('.ram-load-input');
-                            const diskLoadInput = lastRow.querySelector('.disk-load-input');
-                            const cintUsedInput = lastRow.querySelector('.cint-used-input');
-                            const ramUsedInput = lastRow.querySelector('.ram-used-input');
-                            const diskUsedInput = lastRow.querySelector('.disk-used-input');
-                            if (ipInput) ipInput.value = row.ip || '';
-                            if (cpuLoadInput) cpuLoadInput.value = row.cpuLoad || '';
-                            if (ramLoadInput) ramLoadInput.value = row.ramLoad || '';
-                            if (diskLoadInput) diskLoadInput.value = row.diskLoad || '';
-                            if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
-                            if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
-                            if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
-                            // Load inline evidence image(s)
-                            const inputCfgEvidenceImages = getEvidenceImagesFromRowData(row);
-                            if (inputCfgEvidenceImages.length > 0) {
-                                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
-                                if (evidenceCell) loadInlineEvidence(evidenceCell, inputCfgEvidenceImages);
+                
+                // Load input config table data
+                if (moduleApp.inputConfigTable && Array.isArray(moduleApp.inputConfigTable) && moduleApp.inputConfigTable.length > 0) {
+                    const tbody = document.getElementById('input-config-table-body');
+                    if (tbody) {
+                        tbody.innerHTML = ''; // Clear existing rows
+                        moduleApp.inputConfigTable.forEach((row, idx) => {
+                            addInputConfigRow(); // Add a new row
+                            const lastRow = tbody.lastElementChild;
+                            if (lastRow) {
+                                const ipInput = lastRow.querySelector('.ip-config-input');
+                                const cpuLoadInput = lastRow.querySelector('.cpu-load-input');
+                                const ramLoadInput = lastRow.querySelector('.ram-load-input');
+                                const diskLoadInput = lastRow.querySelector('.disk-load-input');
+                                const cintUsedInput = lastRow.querySelector('.cint-used-input');
+                                const ramUsedInput = lastRow.querySelector('.ram-used-input');
+                                const diskUsedInput = lastRow.querySelector('.disk-used-input');
+                                if (ipInput) ipInput.value = row.ip || '';
+                                if (cpuLoadInput) cpuLoadInput.value = row.cpuLoad || '';
+                                if (ramLoadInput) ramLoadInput.value = row.ramLoad || '';
+                                if (diskLoadInput) diskLoadInput.value = row.diskLoad || '';
+                                if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
+                                if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
+                                if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
+                                // Load inline evidence image(s)
+                                const inputCfgEvidenceImages = getEvidenceImagesFromRowData(row);
+                                if (inputCfgEvidenceImages.length > 0) {
+                                    const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                                    if (evidenceCell) loadInlineEvidence(evidenceCell, inputCfgEvidenceImages);
+                                }
+                                // Admin eval/note
+                                const evalSelect = lastRow.querySelector('.input-config-eval');
+                                const noteInput = lastRow.querySelector('.input-config-note');
+                                if (evalSelect && row.adminEval) { evalSelect.value = row.adminEval; styleAdminSelect(evalSelect); }
+                                if (noteInput && row.adminNote) noteInput.value = row.adminNote;
                             }
-                            // Admin eval/note
-                            const evalSelect = lastRow.querySelector('.input-config-eval');
-                            const noteInput = lastRow.querySelector('.input-config-note');
-                            if (evalSelect && row.adminEval) { evalSelect.value = row.adminEval; styleAdminSelect(evalSelect); }
-                            if (noteInput && row.adminNote) noteInput.value = row.adminNote;
-                        }
-                    });
-                    updateInputConfigTotal();
+                        });
+                        updateInputConfigTotal();
+                    }
                 }
-            }
-            
-            // Load POC and Sizing values
-            if (moduleApp.selectedInputRow !== undefined && moduleApp.selectedInputRow !== '' && document.getElementById('app-input-row-select')) {
-                document.getElementById('app-input-row-select').value = moduleApp.selectedInputRow;
-                // Trigger display update
-                onInputRowSelect(document.getElementById('app-input-row-select'), 'poc-value', 'sizing-value');
-            }
-            if (moduleApp.pocValue && document.getElementById('poc-value')) {
-                document.getElementById('poc-value').value = moduleApp.pocValue;
-            }
-            if (moduleApp.sizingValue && document.getElementById('sizing-value')) {
-                document.getElementById('sizing-value').value = moduleApp.sizingValue;
-            }
-            
-            // Load sizing result
-            if (moduleApp.sizingResult && document.getElementById('sizing-result-container')) {
-                document.getElementById('sizing-result-container').innerHTML = moduleApp.sizingResult;
-            }
-            
-            // Auto expand the module if has data
-            if (moduleApp.pocValue || moduleApp.sizingValue || moduleApp.sizingResult || 
-                (moduleApp.baselineTable && moduleApp.baselineTable.length > 0)) {
-                const content = document.getElementById('module-app-content');
-                const header = content?.previousElementSibling;
-                if (content && !content.classList.contains('expanded')) {
-                    content.classList.add('expanded');
-                    if (header) header.classList.add('active');
+                
+                // Load POC and Sizing values
+                if (moduleApp.selectedInputRow !== undefined && moduleApp.selectedInputRow !== '' && document.getElementById('app-input-row-select')) {
+                    document.getElementById('app-input-row-select').value = moduleApp.selectedInputRow;
+                    // Trigger display update
+                    onInputRowSelect(document.getElementById('app-input-row-select'), 'poc-value', 'sizing-value');
                 }
-            }
+                if (moduleApp.pocValue && document.getElementById('poc-value')) {
+                    document.getElementById('poc-value').value = moduleApp.pocValue;
+                }
+                if (moduleApp.sizingValue && document.getElementById('sizing-value')) {
+                    document.getElementById('sizing-value').value = moduleApp.sizingValue;
+                }
+
+                if (document.getElementById('app-virtualization-mode')) {
+                    document.getElementById('app-virtualization-mode').value = moduleApp.virtualizationMode || 'ram';
+                    if (document.getElementById('app-vcpu-flavor')) {
+                        document.getElementById('app-vcpu-flavor').value = moduleApp.vcpuFlavor || '8';
+                    }
+                    if (document.getElementById('app-ram-flavor')) {
+                        document.getElementById('app-ram-flavor').value = moduleApp.ramFlavor || '32';
+                    }
+                    onVirtualizationModeChange('app');
+                }
+                if (document.getElementById('app-flavor-eval')) {
+                    document.getElementById('app-flavor-eval').value = moduleApp.flavorEval || '';
+                    styleAdminSelect(document.getElementById('app-flavor-eval'));
+                }
+                if (document.getElementById('app-flavor-note')) {
+                    document.getElementById('app-flavor-note').value = moduleApp.flavorNote || '';
+                }
+                
+                // Load sizing result
+                if (moduleApp.sizingResult && document.getElementById('sizing-result-container')) {
+                    document.getElementById('sizing-result-container').innerHTML = moduleApp.sizingResult;
+                }
+                
+                // Auto expand the module if has data
+                if (moduleApp.pocValue || moduleApp.sizingValue || moduleApp.sizingResult || 
+                    (moduleApp.baselineTable && moduleApp.baselineTable.length > 0)) {
+                    const content = document.getElementById('module-app-content');
+                    const header = content?.previousElementSibling;
+                    if (content && !content.classList.contains('expanded')) {
+                        content.classList.add('expanded');
+                        if (header) header.classList.add('active');
+                    }
+                }
+            });
         }
         
         // Load Module MariaDB data
         if (sizingData.moduleMariaDB) {
-            loadMariaDBData(sizingData.moduleMariaDB);
+            withFirstInstance('MariaDB', () => loadMariaDBData(sizingData.moduleMariaDB));
             
             // Auto expand if has data
             const mariadb = sizingData.moduleMariaDB;
@@ -4671,7 +5011,7 @@ function loadSizingData(data) {
         
         // Load Module Redis data
         if (sizingData.moduleRedis) {
-            loadRedisData(sizingData.moduleRedis);
+            withFirstInstance('Redis', () => loadRedisData(sizingData.moduleRedis));
             
             // Auto expand if has data
             const redis = sizingData.moduleRedis;
@@ -4688,7 +5028,7 @@ function loadSizingData(data) {
         
         // Load Module Kafka data
         if (sizingData.moduleKafka) {
-            loadKafkaData(sizingData.moduleKafka);
+            withFirstInstance('Kafka', () => loadKafkaData(sizingData.moduleKafka));
             
             // Auto expand if has data
             const kafka = sizingData.moduleKafka;
@@ -4707,12 +5047,12 @@ function loadSizingData(data) {
         
         // Load Module K8S data
         if (sizingData.moduleK8S) {
-            loadK8SData(sizingData.moduleK8S);
+            withFirstInstance('K8S', () => loadK8SData(sizingData.moduleK8S));
         }
         
         // Load Module LB/FW data
         if (sizingData.moduleLBFW) {
-            loadLBFWData(sizingData.moduleLBFW);
+            withFirstInstance('LB/FW', () => loadLBFWData(sizingData.moduleLBFW));
         }
         
         // Re-apply role permissions after loading data (disable admin fields for user, etc.)
@@ -4729,6 +5069,47 @@ function loadSizingAdminReview(adminReview) {
     if (!adminReview) return;
     
     try {
+        if (Array.isArray(adminReview.moduleInstanceReviews) && adminReview.moduleInstanceReviews.length > 0) {
+            adminReview.moduleInstanceReviews.forEach(item => {
+                if (!item || !item.instanceKey) return;
+                const legacyReview = {};
+                if (item.moduleType === 'App') legacyReview.moduleApp = item.reviewData || {};
+                if (item.moduleType === 'MariaDB') legacyReview.moduleMariaDB = item.reviewData || {};
+                if (item.moduleType === 'Redis') legacyReview.moduleRedis = item.reviewData || {};
+                if (item.moduleType === 'Kafka') legacyReview.moduleKafka = item.reviewData || {};
+                if (item.moduleType === 'K8S') legacyReview.moduleK8S = item.reviewData || {};
+                if (item.moduleType === 'LB/FW') legacyReview.moduleLBFW = item.reviewData || {};
+                runInInstanceContext(item.instanceKey, () => loadSizingAdminReview(legacyReview));
+            });
+            applyRolePermissions();
+            Logger.debug('Loaded sizing admin review by module instances successfully');
+            return;
+        }
+
+        const instancesByType = getModuleInstancesByType();
+        const firstInstanceKey = (moduleType) => {
+            const first = (instancesByType[moduleType] || [])[0];
+            return first ? getModuleInstanceKey(first) : '';
+        };
+        const legacyMappedReviews = [];
+        const appKey = firstInstanceKey('App');
+        if (adminReview.moduleApp && appKey) legacyMappedReviews.push({ instanceKey: appKey, moduleType: 'App', reviewData: adminReview.moduleApp });
+        const mariaKey = firstInstanceKey('MariaDB');
+        if (adminReview.moduleMariaDB && mariaKey) legacyMappedReviews.push({ instanceKey: mariaKey, moduleType: 'MariaDB', reviewData: adminReview.moduleMariaDB });
+        const redisKey = firstInstanceKey('Redis');
+        if (adminReview.moduleRedis && redisKey) legacyMappedReviews.push({ instanceKey: redisKey, moduleType: 'Redis', reviewData: adminReview.moduleRedis });
+        const kafkaKey = firstInstanceKey('Kafka');
+        if (adminReview.moduleKafka && kafkaKey) legacyMappedReviews.push({ instanceKey: kafkaKey, moduleType: 'Kafka', reviewData: adminReview.moduleKafka });
+        const k8sKey = firstInstanceKey('K8S');
+        if (adminReview.moduleK8S && k8sKey) legacyMappedReviews.push({ instanceKey: k8sKey, moduleType: 'K8S', reviewData: adminReview.moduleK8S });
+        const lbfwKey = firstInstanceKey('LB/FW');
+        if (adminReview.moduleLBFW && lbfwKey) legacyMappedReviews.push({ instanceKey: lbfwKey, moduleType: 'LB/FW', reviewData: adminReview.moduleLBFW });
+
+        if (legacyMappedReviews.length > 0) {
+            loadSizingAdminReview({ moduleInstanceReviews: legacyMappedReviews });
+            return;
+        }
+
         // Load module app admin review
         if (adminReview.moduleApp) {
             // Load baseline row reviews
@@ -4765,6 +5146,17 @@ function loadSizingAdminReview(adminReview) {
                         }
                     }
                 });
+            }
+
+            if (adminReview.moduleApp.flavorReview) {
+                const flavorReview = adminReview.moduleApp.flavorReview;
+                const evalEl = document.getElementById('app-flavor-eval');
+                const noteEl = document.getElementById('app-flavor-note');
+                if (evalEl) {
+                    evalEl.value = flavorReview.eval || '';
+                    styleAdminSelect(evalEl);
+                }
+                if (noteEl) noteEl.value = flavorReview.note || '';
             }
         }
         
@@ -4898,6 +5290,17 @@ function loadSizingAdminReview(adminReview) {
                         }
                     }
                 });
+            }
+
+            if (adminReview.moduleK8S.flavorReview) {
+                const flavorReview = adminReview.moduleK8S.flavorReview;
+                const evalEl = document.getElementById('k8s-flavor-eval');
+                const noteEl = document.getElementById('k8s-flavor-note');
+                if (evalEl) {
+                    evalEl.value = flavorReview.eval || '';
+                    styleAdminSelect(evalEl);
+                }
+                if (noteEl) noteEl.value = flavorReview.note || '';
             }
         }
         
@@ -5154,6 +5557,35 @@ function updateInputConfigTotal() {
 }
 
 // Tính toán đề xuất số server & hiển thị bảng kết quả (lấy POC/Định cỡ từ phần THÔNG TIN ĐẦU VÀO)
+function onVirtualizationModeChange(prefix) {
+    const modeSelect = document.getElementById(`${prefix}-virtualization-mode`);
+    const vcpuSelect = document.getElementById(`${prefix}-vcpu-flavor`);
+    const ramSelect = document.getElementById(`${prefix}-ram-flavor`);
+    if (!modeSelect || !vcpuSelect || !ramSelect) return;
+
+    const mode = modeSelect.value === 'vcpu' ? 'vcpu' : 'ram';
+    vcpuSelect.disabled = mode !== 'vcpu';
+    ramSelect.disabled = mode !== 'ram';
+}
+
+function getVirtualizationChoice(prefix) {
+    const modeSelect = document.getElementById(`${prefix}-virtualization-mode`);
+    const vcpuSelect = document.getElementById(`${prefix}-vcpu-flavor`);
+    const ramSelect = document.getElementById(`${prefix}-ram-flavor`);
+
+    const mode = modeSelect?.value === 'vcpu' ? 'vcpu' : 'ram';
+    const vcpu = parseFloat(vcpuSelect?.value || 0);
+    const ram = parseFloat(ramSelect?.value || 0);
+
+    return {
+        mode,
+        vcpu,
+        ram,
+        selectedValue: mode === 'vcpu' ? vcpu : ram,
+        selectedLabel: mode === 'vcpu' ? `${vcpu} Cint` : `${ram} GB RAM`
+    };
+}
+
 function calculateSizingRecommendations() {
     const poc = parseFloat(document.getElementById('poc-value')?.value) || 0;
     const sizing = parseFloat(document.getElementById('sizing-value')?.value) || 0;
@@ -5179,8 +5611,15 @@ function calculateSizingRecommendations() {
     const ramAfterKPI = ramForTPS / 0.9 * 1.1;
     const diskAfterKPI = diskForTPS / 0.8 * 1.1;
 
-    // Tính N = RAM sau KPI / 64 (làm tròn lên)
-    const ketqua = Math.ceil(ramAfterKPI / 32);
+    const virtualization = getVirtualizationChoice('app');
+    if (!virtualization.selectedValue) {
+        showToast('Vui lòng chọn cấu hình ảo hóa hợp lệ trước khi tính toán.', 'warning');
+        return;
+    }
+
+    const ketqua = virtualization.mode === 'vcpu'
+        ? Math.ceil(cintAfterKPI / virtualization.vcpu)
+        : Math.ceil(ramAfterKPI / virtualization.ram);
 
     let html = '';
     
@@ -5236,9 +5675,16 @@ function calculateSizingRecommendations() {
             </table>`;
 
     // ==================== ĐỀ XUẤT ====================
+    const recommendationFormula = virtualization.mode === 'vcpu'
+        ? `N = ${cintAfterKPI.toFixed(2)} / ${virtualization.vcpu}`
+        : `N = ${ramAfterKPI.toFixed(2)} / ${virtualization.ram}`;
+    const recommendationTarget = virtualization.mode === 'vcpu'
+        ? `theo vCPU <strong>${virtualization.selectedLabel}</strong>`
+        : `theo RAM <strong>${virtualization.selectedLabel}</strong>`;
+
     html += `<div style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
-                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa <strong>≈ 32 GB RAM</strong>, lựa chọn số N theo RAM: 
-                N = ${ramAfterKPI.toFixed(2)} / 32 ≈ <strong>${ketqua}</strong>
+                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa ${recommendationTarget}, lựa chọn số N theo mode đã chọn: 
+                ${recommendationFormula} ≈ <strong>${ketqua}</strong>
             </div>`;
 
     // ==================== BẢNG 2: Giá trị N với Cint/RAM/Disk ====================
@@ -5283,8 +5729,12 @@ function calculateSizingRecommendations() {
     html += `</tbody></table>`;
 
     // ==================== BẢNG 3: Đề xuất cấu hình ====================
-    const cintPerServer = Math.ceil(cintAfterKPI / ketqua);
-    const ramPerServer = Math.ceil(ramAfterKPI / ketqua);
+    const cintPerServer = virtualization.mode === 'vcpu'
+        ? virtualization.vcpu
+        : Math.ceil(cintAfterKPI / ketqua);
+    const ramPerServer = virtualization.mode === 'ram'
+        ? virtualization.ram
+        : Math.ceil(ramAfterKPI / ketqua);
     const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
     
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
@@ -5571,7 +6021,15 @@ function calculateK8SSizing() {
     const ramAfterKPI = ramForTPS / 0.9 * 1.1;
     const diskAfterKPI = diskForTPS / 0.8 * 1.1;
 
-    const ketqua = Math.ceil(ramAfterKPI / 32);
+    const virtualization = getVirtualizationChoice('k8s');
+    if (!virtualization.selectedValue) {
+        showToast('Vui lòng chọn cấu hình ảo hóa hợp lệ trước khi tính toán.', 'warning');
+        return;
+    }
+
+    const ketqua = virtualization.mode === 'vcpu'
+        ? Math.ceil(cintAfterKPI / virtualization.vcpu)
+        : Math.ceil(ramAfterKPI / virtualization.ram);
 
     let html = '';
 
@@ -5627,9 +6085,16 @@ function calculateK8SSizing() {
             </table>`;
 
     // Đề xuất
+    const recommendationFormula = virtualization.mode === 'vcpu'
+        ? `N = ${cintAfterKPI.toFixed(2)} / ${virtualization.vcpu}`
+        : `N = ${ramAfterKPI.toFixed(2)} / ${virtualization.ram}`;
+    const recommendationTarget = virtualization.mode === 'vcpu'
+        ? `theo vCPU <strong>${virtualization.selectedLabel}</strong>`
+        : `theo RAM <strong>${virtualization.selectedLabel}</strong>`;
+
     html += `<div style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
-                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa <strong>≈ 32 GB RAM</strong>, lựa chọn số N theo RAM: 
-                N = ${ramAfterKPI.toFixed(2)} / 32 ≈ <strong>${ketqua}</strong>
+                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa ${recommendationTarget}, lựa chọn số N theo mode đã chọn: 
+                ${recommendationFormula} ≈ <strong>${ketqua}</strong>
             </div>`;
 
     // Bảng 2: Phân bổ theo N
@@ -5674,8 +6139,12 @@ function calculateK8SSizing() {
     html += `</tbody></table>`;
 
     // Bảng 3: Đề xuất cấu hình K8S (3 dòng: K8S Master, K8S Worker, K8S ETCD)
-    const cintPerServer = Math.ceil(cintAfterKPI / ketqua);
-    const ramPerServer = Math.ceil(ramAfterKPI / ketqua);
+    const cintPerServer = virtualization.mode === 'vcpu'
+        ? virtualization.vcpu
+        : Math.ceil(cintAfterKPI / ketqua);
+    const ramPerServer = virtualization.mode === 'ram'
+        ? virtualization.ram
+        : Math.ceil(ramAfterKPI / ketqua);
     const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
 
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
@@ -5781,6 +6250,11 @@ function collectK8SData() {
         selectedInputRow: document.getElementById('k8s-input-row-select')?.value || '',
         pocValue: document.getElementById('k8s-poc-value')?.value || '',
         sizingValue: document.getElementById('k8s-sizing-value')?.value || '',
+        virtualizationMode: document.getElementById('k8s-virtualization-mode')?.value || 'ram',
+        vcpuFlavor: document.getElementById('k8s-vcpu-flavor')?.value || '8',
+        ramFlavor: document.getElementById('k8s-ram-flavor')?.value || '32',
+        flavorEval: document.getElementById('k8s-flavor-eval')?.value || '',
+        flavorNote: document.getElementById('k8s-flavor-note')?.value || '',
         sizingResult: (() => {
             const container = document.getElementById('k8s-result-container');
             if (container) {
@@ -5881,6 +6355,24 @@ function loadK8SData(data) {
     }
     if (data.sizingValue && document.getElementById('k8s-sizing-value')) {
         document.getElementById('k8s-sizing-value').value = data.sizingValue;
+    }
+
+    if (document.getElementById('k8s-virtualization-mode')) {
+        document.getElementById('k8s-virtualization-mode').value = data.virtualizationMode || 'ram';
+        if (document.getElementById('k8s-vcpu-flavor')) {
+            document.getElementById('k8s-vcpu-flavor').value = data.vcpuFlavor || '8';
+        }
+        if (document.getElementById('k8s-ram-flavor')) {
+            document.getElementById('k8s-ram-flavor').value = data.ramFlavor || '32';
+        }
+        onVirtualizationModeChange('k8s');
+    }
+    if (document.getElementById('k8s-flavor-eval')) {
+        document.getElementById('k8s-flavor-eval').value = data.flavorEval || '';
+        styleAdminSelect(document.getElementById('k8s-flavor-eval'));
+    }
+    if (document.getElementById('k8s-flavor-note')) {
+        document.getElementById('k8s-flavor-note').value = data.flavorNote || '';
     }
 
     // Load sizing result
@@ -9354,7 +9846,7 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
     
     data.summaryRows.forEach((row, index) => {
         const prevRow = prevRows[index] || {};
-        const fields = ['module', 'soLuong', 'vCPU', 'ram', 'volume', 'ghiChu'];
+        const fields = ['moduleType', 'moduleName', 'module', 'cauHinh', 'soLuong', 'ghiChu'];
         
         let hasChange = false;
         for (const f of fields) {
@@ -9366,15 +9858,20 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
         if (hasChange || isNewRow) {
             changeCount++;
             const rowClass = isNewRow ? 'diff-row-added' : '';
+            const rowModuleType = row.moduleType || row.module || '';
+            const prevModuleType = prevRow.moduleType || prevRow.module || '';
+            const rowModuleName = row.moduleName || '';
+            const prevModuleName = prevRow.moduleName || '';
+            const rowCauHinh = row.cauHinh || row.volume || '';
+            const prevCauHinh = prevRow.cauHinh || prevRow.volume || '';
             
             changedRowsHtml.push(`
                 <tr class="${rowClass}">
                     <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${index + 1}</td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(row.module, prevRow.module)}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowModuleType, prevModuleType)}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowModuleName, prevModuleName)}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowCauHinh, prevCauHinh)}</td>
                     <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${renderTextDiff(row.soLuong, prevRow.soLuong)}</td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${renderTextDiff(row.vCPU, prevRow.vCPU)}</td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${renderTextDiff(row.ram, prevRow.ram)}</td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(row.volume, prevRow.volume)}</td>
                     <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(row.ghiChu, prevRow.ghiChu)}</td>
                 </tr>
             `);
@@ -9385,15 +9882,17 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
     if (prevRows.length > data.summaryRows.length) {
         for (let i = data.summaryRows.length; i < prevRows.length; i++) {
             const prevRow = prevRows[i];
+            const prevModuleType = prevRow.moduleType || prevRow.module || '-';
+            const prevModuleName = prevRow.moduleName || '-';
+            const prevCauHinh = prevRow.cauHinh || prevRow.volume || '-';
             changeCount++;
             changedRowsHtml.push(`
                 <tr class="diff-row-removed">
                     <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${i + 1}</td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.module || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevModuleType}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevModuleName}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevCauHinh}</div></td>
                     <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.soLuong || '-'}</div></td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.vCPU || '-'}</div></td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.ram || '-'}</div></td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.volume || '-'}</div></td>
                     <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.ghiChu || '-'}</div></td>
                 </tr>
             `);
@@ -9422,11 +9921,10 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
                 <thead>
                     <tr style="background: #f1f5f9;">
                         <th style="padding: 10px; border: 1px solid #e2e8f0;">STT</th>
-                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Loại module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Tên module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Cấu hình</th>
                         <th style="padding: 10px; border: 1px solid #e2e8f0;">Số lượng</th>
-                        <th style="padding: 10px; border: 1px solid #e2e8f0;">vCPU</th>
-                        <th style="padding: 10px; border: 1px solid #e2e8f0;">RAM</th>
-                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Volume</th>
                         <th style="padding: 10px; border: 1px solid #e2e8f0;">Ghi chú</th>
                     </tr>
                 </thead>

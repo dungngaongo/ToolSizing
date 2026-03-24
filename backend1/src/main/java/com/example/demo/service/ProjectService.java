@@ -6,6 +6,7 @@ import com.example.demo.model.ProjectData;
 import com.example.demo.model.User;
 import com.example.demo.repository.ProjectDataRepository;
 import com.example.demo.repository.ProjectRepository;
+import com.example.demo.repository.ProjectRevisionRepository;
 import com.example.demo.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,11 +28,16 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final ProjectDataRepository projectDataRepository;
+    private final ProjectRevisionRepository projectRevisionRepository;
     private final UserRepository userRepository;
 
-    public ProjectService(ProjectRepository projectRepository, ProjectDataRepository projectDataRepository, UserRepository userRepository) {
+    public ProjectService(ProjectRepository projectRepository,
+                          ProjectDataRepository projectDataRepository,
+                          ProjectRevisionRepository projectRevisionRepository,
+                          UserRepository userRepository) {
         this.projectRepository = projectRepository;
         this.projectDataRepository = projectDataRepository;
+        this.projectRevisionRepository = projectRevisionRepository;
         this.userRepository = userRepository;
     }
 
@@ -44,10 +50,14 @@ public class ProjectService {
             if (currentUser != null) {
                 userId = currentUser.getId();
             }
+        } else {
+            ensureUserExists(userId, "project owner");
         }
         log.info("Creating project '{}' for userId: {}", request.getName(), userId);
         Project project = new Project();
-        project.setUserId(userId);
+        if (userId != null && !userId.isBlank()) {
+            project.setOwner(userRepository.getReferenceById(userId));
+        }
         project.setName(request.getName());
         project.setDevUnit(request.getDevUnit());
         project.setOwnerName(request.getOwnerName());
@@ -106,7 +116,8 @@ public class ProjectService {
             project.setStatusRound(request.getStatusRound());
         }
         if (request.getUserId() != null) {
-            project.setUserId(request.getUserId());
+            ensureUserExists(request.getUserId(), "project owner");
+            project.setOwner(userRepository.getReferenceById(request.getUserId()));
         }
         if (request.getDevUnit() != null) {
             project.setDevUnit(request.getDevUnit());
@@ -120,8 +131,9 @@ public class ProjectService {
     @Transactional
     public void delete(String id) {
         log.info("Deleting project id: {}", id);
-        // Xóa ProjectData liên quan
-        projectDataRepository.findFirstByProjectId(id).ifPresent(projectDataRepository::delete);
+        // Backward compatible cleanup for environments where FK cascade is not yet active.
+        projectDataRepository.deleteByProjectId(id);
+        projectRevisionRepository.deleteByProjectId(id);
         projectRepository.deleteById(id);
         log.info("Project deleted successfully: {}", id);
     }
@@ -174,7 +186,7 @@ public class ProjectService {
         if (admin1Id == null || admin1Id.isBlank()) {
             // Bỏ chỉ định
             log.info("Removing admin1 assignment from project '{}'", project.getName());
-            project.setAssignedAdmin1Id(null);
+            project.setAssignedAdmin1(null);
         } else {
             // Kiểm tra admin1 tồn tại và có role admin1
             User admin1 = userRepository.findById(admin1Id)
@@ -183,7 +195,7 @@ public class ProjectService {
                 throw new BadRequestException("User '" + admin1.getUsername() + "' không có role admin1");
             }
             log.info("Assigning admin1 '{}' to project '{}'", admin1.getUsername(), project.getName());
-            project.setAssignedAdmin1Id(admin1Id);
+            project.setAssignedAdmin1(admin1);
         }
 
         return projectRepository.save(project);
@@ -226,6 +238,12 @@ public class ProjectService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) return null;
         return userRepository.findByUsername(auth.getName()).orElse(null);
+    }
+
+    private void ensureUserExists(String userId, String label) {
+        if (!userRepository.existsById(userId)) {
+            throw new BadRequestException("Invalid " + label + " id: " + userId);
+        }
     }
 }
 
