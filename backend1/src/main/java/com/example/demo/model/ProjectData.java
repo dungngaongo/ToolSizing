@@ -1,19 +1,25 @@
 package com.example.demo.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Data;
 
 import java.util.UUID;
 
 @Entity
-@Table(name = "project_data")
+@Table(name = "project_data", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_project_data_project_id", columnNames = "project_id")
+})
 @Data
 public class ProjectData {
     @Id
     private String id;
 
-    @Column(name = "project_id", nullable = false)
-    private String projectId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "project_id", nullable = false, foreignKey = @ForeignKey(name = "fk_project_data_project"))
+    @JsonIgnore
+    private Project project;
 
     @Column(name = "yeu_cau_bai_toan_content", columnDefinition = "LONGTEXT")
     @Lob
@@ -56,6 +62,23 @@ public class ProjectData {
         if (this.id == null) {
             this.id = UUID.randomUUID().toString();
         }
+    }
+
+    @JsonProperty("projectId")
+    public String getProjectId() {
+        return project != null ? project.getId() : null;
+    }
+
+    @JsonProperty("projectId")
+    public void setProjectId(String projectId) {
+        if (projectId == null || projectId.isBlank()) {
+            this.project = null;
+            return;
+        }
+        if (this.project == null) {
+            this.project = new Project();
+        }
+        this.project.setId(projectId);
     }
 }
 
