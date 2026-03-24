@@ -756,6 +756,44 @@
                                                 <input id="sizing-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                             </div>
 
+                                            <div style="min-width:220px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Mode cấu hình ảo hóa</label>
+                                                <select id="app-virtualization-mode" class="input-full sizing-user-input" onchange="onVirtualizationModeChange('app')">
+                                                    <option value="ram" selected>Theo RAM</option>
+                                                    <option value="vcpu">Theo vCPU</option>
+                                                </select>
+                                            </div>
+                                            <div style="min-width:180px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu hình vCPU (Cint)</label>
+                                                <select id="app-vcpu-flavor" class="input-full sizing-user-input" disabled>
+                                                    <option value="8">8 Cint</option>
+                                                    <option value="16">16 Cint</option>
+                                                    <option value="32">32 Cint</option>
+                                                </select>
+                                            </div>
+                                            <div style="min-width:180px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu hình RAM (GB)</label>
+                                                <select id="app-ram-flavor" class="input-full sizing-user-input">
+                                                    <option value="8">8 GB</option>
+                                                    <option value="16">16 GB</option>
+                                                    <option value="32" selected>32 GB</option>
+                                                    <option value="64">64 GB</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="admin-cell" style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Đánh giá</label>
+                                                <select id="app-flavor-eval" class="input-full admin-eval-select" onchange="styleAdminSelect(this)">
+                                                    <option value="">--</option>
+                                                    <option value="OK">OK</option>
+                                                    <option value="NOK">NOK</option>
+                                                </select>
+                                            </div>
+                                            <div class="admin-cell" style="min-width:220px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Ghi chú admin</label>
+                                                <input id="app-flavor-note" type="text" class="input-full admin-note" placeholder="Nhận xét cấu hình...">
+                                            </div>
+
                                             <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
                                                 <button type="button" class="btn-submit sizing-user-btn" onclick="calculateSizingRecommendations()">Tính toán</button>
                                                 <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('sizing-result-container').innerHTML='';">Xóa kết quả</button>
@@ -1563,6 +1601,42 @@
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định cỡ</label>
                                                 <input id="k8s-sizing-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                             </div>
+                                            <div style="min-width:220px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Mode cấu hình ảo hóa</label>
+                                                <select id="k8s-virtualization-mode" class="input-full sizing-user-input" onchange="onVirtualizationModeChange('k8s')">
+                                                    <option value="ram" selected>Theo RAM</option>
+                                                    <option value="vcpu">Theo vCPU</option>
+                                                </select>
+                                            </div>
+                                            <div style="min-width:180px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu hình vCPU (Cint)</label>
+                                                <select id="k8s-vcpu-flavor" class="input-full sizing-user-input" disabled>
+                                                    <option value="8">8 Cint</option>
+                                                    <option value="16">16 Cint</option>
+                                                    <option value="32">32 Cint</option>
+                                                </select>
+                                            </div>
+                                            <div style="min-width:180px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu hình RAM (GB)</label>
+                                                <select id="k8s-ram-flavor" class="input-full sizing-user-input">
+                                                    <option value="8">8 GB</option>
+                                                    <option value="16">16 GB</option>
+                                                    <option value="32" selected>32 GB</option>
+                                                    <option value="64">64 GB</option>
+                                                </select>
+                                            </div>
+                                            <div class="admin-cell" style="min-width:120px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Đánh giá</label>
+                                                <select id="k8s-flavor-eval" class="input-full admin-eval-select" onchange="styleAdminSelect(this)">
+                                                    <option value="">--</option>
+                                                    <option value="OK">OK</option>
+                                                    <option value="NOK">NOK</option>
+                                                </select>
+                                            </div>
+                                            <div class="admin-cell" style="min-width:220px;">
+                                                <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Ghi chú admin</label>
+                                                <input id="k8s-flavor-note" type="text" class="input-full admin-note" placeholder="Nhận xét cấu hình...">
+                                            </div>
                                             <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
                                                 <button type="button" class="btn-submit sizing-user-btn" onclick="calculateK8SSizing()">Tính toán</button>
                                                 <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('k8s-result-container').innerHTML='';">Xóa kết quả</button>
@@ -1678,7 +1752,8 @@
                             <thead>
                                 <tr>
                                     <th style="width: 60px;">STT</th>
-                                    <th style="width: 120px;">Module</th>
+                                    <th style="width: 120px;">Loại module</th>
+                                    <th style="width: 180px;">Tên module</th>
                                     <th>Cấu hình</th>
                                     <th style="width: 80px;">Số lượng</th>
                                     <th style="width: 200px;">Ghi chú</th>
@@ -1686,7 +1761,7 @@
                             </thead>
                             <tbody id="summary-table-body">
                                 <tr>
-                                    <td colspan="5" class="text-center" style="color: #999; padding: 30px;">
+                                    <td colspan="6" class="text-center" style="color: #999; padding: 30px;">
                                         <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực hiện tính toán ở các module trước.
                                     </td>
                                 </tr>
