@@ -228,9 +228,32 @@ function clearStrictValidationErrors(container) {
 
 function isElementVisibleForValidation(element) {
     if (!element) return false;
-    if (element.offsetParent !== null) return true;
-    const style = window.getComputedStyle(element);
-    return style.display !== 'none' && style.visibility !== 'hidden';
+
+    // Respect explicit hidden markers first
+    if (element.hidden || element.getAttribute('aria-hidden') === 'true') {
+        return false;
+    }
+
+    // Walk up the tree to detect hidden ancestors (display:none, collapsed modules, etc.)
+    let node = element;
+    while (node && node !== document.body) {
+        if (node.hidden || node.getAttribute?.('aria-hidden') === 'true') {
+            return false;
+        }
+
+        if (node.classList?.contains('module-collapsible-content') && !node.classList.contains('expanded')) {
+            return false;
+        }
+
+        const style = window.getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden') {
+            return false;
+        }
+
+        node = node.parentElement;
+    }
+
+    return true;
 }
 
 function shouldValidateAsRequired(element) {
@@ -245,6 +268,11 @@ function shouldValidateAsRequired(element) {
         return false;
     }
     if (element.id && (element.id.startsWith('eval-') || element.id.startsWith('note-'))) return false;
+
+    // Sizing section: validate only fields explicitly marked as required.
+    if (element.closest('#page-sizing')) {
+        return element.dataset.sizingRequired === '1';
+    }
 
     const tag = element.tagName.toLowerCase();
     if (tag === 'input') {
@@ -272,10 +300,92 @@ function isRequiredControlFilled(element) {
     return (element.value || '').trim() !== '';
 }
 
+const SIZING_REQUIRED_SELECTOR_GROUPS = {
+    App: [
+        'select[id^="app-input-row-select"]',
+        '#baseline-table-body .ip-input',
+        '#baseline-table-body .cpu-input',
+        '#baseline-table-body .ram-input',
+        '#baseline-table-body .disk-input',
+        '#baseline-table-body .cint-input',
+        '#input-config-table-body .cpu-load-input',
+        '#input-config-table-body .ram-load-input',
+        '#input-config-table-body .disk-load-input'
+    ],
+    MariaDB: [
+        'select[id^="mariadb-input-row-select"]',
+        '#mariadb-ref-table-body .mariadb-ip',
+        '#mariadb-ref-table-body .mariadb-cpu',
+        '#mariadb-ref-table-body .mariadb-ram',
+        '#mariadb-ref-table-body .mariadb-cpu-load',
+        '#mariadb-ref-table-body .mariadb-ram-load',
+        'input[id^="mariadb-storage-data-used"]',
+        'input[id^="mariadb-storage-log-used"]'
+    ],
+    Redis: [
+        'select[id^="redis-key-input-row-select"]',
+        'select[id^="redis-config-input-row-select"]',
+        '#redis-method-key-content input[id^="redis-key-count-poc"]',
+        '#redis-method-key-content input[id^="redis-record-size"]',
+        '#redis-method-config-content .redis-config-ram',
+        '#redis-method-config-content .redis-config-ram-load'
+    ],
+    Kafka: [
+        'select[id^="kafka-throughput-input-row-select"]',
+        'select[id^="kafka-linear-input-row-select"]',
+        '#kafka-method-throughput-content input[id^="kafka-throughput-a"]',
+        '#kafka-method-linear-content .kafka-linear-vcpu',
+        '#kafka-method-linear-content .kafka-linear-ram',
+        '#kafka-method-linear-content .kafka-linear-disk',
+        '#kafka-method-linear-content .kafka-linear-cpu-load',
+        '#kafka-method-linear-content .kafka-linear-ram-load',
+        '#kafka-method-linear-content .kafka-linear-disk-load'
+    ],
+    K8S: [
+        'select[id^="k8s-input-row-select"]',
+        '#k8s-baseline-table-body .k8s-ip-input',
+        '#k8s-baseline-table-body .k8s-cpu-input',
+        '#k8s-baseline-table-body .k8s-ram-input',
+        '#k8s-baseline-table-body .k8s-disk-input',
+        '#k8s-baseline-table-body .k8s-cint-input',
+        '#k8s-input-config-table-body .k8s-cpu-load-input',
+        '#k8s-input-config-table-body .k8s-ram-load-input',
+        '#k8s-input-config-table-body .k8s-disk-load-input'
+    ],
+    'LB/FW': [
+        'select[id^="lbfw-input-row-select"]',
+        'input[id^="lbfw-peak-upload"]',
+        'input[id^="lbfw-peak-download"]'
+    ]
+};
+
+const SIZING_REQUIRED_SELECTORS = Object.values(SIZING_REQUIRED_SELECTOR_GROUPS).flat();
+
+function refreshSizingRequiredMarkers(section = null) {
+    const sizingSection = section || document.getElementById('page-sizing');
+    if (!sizingSection) return;
+
+    sizingSection.querySelectorAll('[data-sizing-required="1"]').forEach(el => {
+        delete el.dataset.sizingRequired;
+    });
+
+    SIZING_REQUIRED_SELECTORS.forEach(selector => {
+        sizingSection.querySelectorAll(selector).forEach(el => {
+            if (el.closest('.admin-cell')) return;
+            if (el.classList.contains('admin-eval') || el.classList.contains('admin-note') || el.classList.contains('admin-eval-select')) return;
+            el.dataset.sizingRequired = '1';
+        });
+    });
+}
+
 function validateTabCompletion(sectionId, options = {}) {
     const { focusFirstInvalid = true, showToastMessage = true } = options;
     const section = document.getElementById(sectionId);
     if (!section) return { isValid: true, firstInvalidElement: null };
+
+    if (sectionId === 'page-sizing') {
+        refreshSizingRequiredMarkers(section);
+    }
 
     clearStrictValidationErrors(section);
 
@@ -2294,11 +2404,11 @@ function populatePocSizingDropdowns() {
         const dauVao = cells[1]?.querySelector('textarea')?.value?.trim() || '';
         
         // POC: column 2 (cell-wrapper > input)
-        const pocInput = cells[2]?.querySelector('input[type="text"]');
+        const pocInput = cells[2]?.querySelector('input');
         const pocVal = pocInput?.value?.trim() || '';
         
         // Sizing: column 3 (cell-wrapper > input)
-        const sizingInput = cells[3]?.querySelector('input[type="text"]');
+        const sizingInput = cells[3]?.querySelector('input');
         const sizingVal = sizingInput?.value?.trim() || '';
         
         if (pocVal || sizingVal) {
@@ -2310,7 +2420,7 @@ function populatePocSizingDropdowns() {
             });
         }
     });
-    
+
     // All combined row-selector dropdown IDs and their associated POC/Sizing display input IDs
     const rowSelectors = [
         { selectId: 'app-input-row-select', pocId: 'poc-value', sizingId: 'sizing-value' },
@@ -2369,25 +2479,131 @@ function populatePocSizingDropdowns() {
 
 // Called when user selects a row from combined POC & Sizing dropdown
 function onInputRowSelect(selectEl, pocInputId, sizingInputId) {
-    if (!selectEl) return;
-    const pocInput = document.getElementById(pocInputId);
-    const sizingInput = document.getElementById(sizingInputId);
+    const normalizedSelectEl = (() => {
+        if (selectEl && typeof selectEl === 'object' && typeof selectEl.tagName === 'string' && selectEl.tagName.toUpperCase() === 'SELECT') {
+            return selectEl;
+        }
+        if (selectEl && typeof selectEl === 'object') {
+            const target = selectEl.target || selectEl.currentTarget || selectEl.srcElement;
+            if (target && typeof target.tagName === 'string' && target.tagName.toUpperCase() === 'SELECT') {
+                return target;
+            }
+        }
+        if (typeof selectEl === 'string') {
+            return document.getElementById(selectEl);
+        }
+        const activeEl = document.activeElement;
+        if (activeEl && typeof activeEl.tagName === 'string' && activeEl.tagName.toUpperCase() === 'SELECT') {
+            return activeEl;
+        }
+
+        const selectorCandidates = Array.from(document.querySelectorAll('select[onchange*="onInputRowSelect"]'));
+        const matched = selectorCandidates.find(el => {
+            const raw = el.getAttribute('onchange') || '';
+            return raw.includes(`'${pocInputId}'`) && raw.includes(`'${sizingInputId}'`) && el.value !== '';
+        }) || selectorCandidates.find(el => {
+            const raw = el.getAttribute('onchange') || '';
+            return raw.includes(`'${pocInputId}'`) && raw.includes(`'${sizingInputId}'`);
+        });
+        if (matched) return matched;
+
+        return null;
+    })();
+
+    const resolveInputBySelectContext = (baseId, fieldKind) => {
+        if (!baseId) return null;
+
+        // Instance element with suffix (e.g. __inst_App-1)
+        const selectId = normalizedSelectEl?.id || '';
+        const marker = '__inst_';
+        const markerIndex = selectId.indexOf(marker);
+        if (markerIndex >= 0) {
+            const suffix = selectId.substring(markerIndex);
+            const instanceEl = document.getElementById(`${baseId}${suffix}`);
+            if (instanceEl) return instanceEl;
+        }
+
+        // If select has no suffixed id, infer suffix from closest instance wrapper.
+        const getClosest = (el, selector) => {
+            if (el && typeof el.closest === 'function') return el.closest(selector);
+            return null;
+        };
+        const instanceWrapper = getClosest(normalizedSelectEl, '.module-instance-wrapper');
+        const instanceKey = instanceWrapper?.dataset?.instanceKey;
+        if (instanceKey) {
+            const inferred = document.getElementById(`${baseId}__inst_${instanceKey}`);
+            if (inferred) return inferred;
+        }
+
+        // Prefer search in the same module block as the select to avoid writing to hidden/template nodes.
+        const scope = getClosest(normalizedSelectEl, '.module-instance-wrapper') || getClosest(normalizedSelectEl, '.module-content') || null;
+        if (scope) {
+            const scopedById = scope.querySelector(`[id="${baseId}"]`);
+            if (scopedById) return scopedById;
+
+            // Last local fallback for App-like UI blocks: pick readonly input by field order.
+            const localReadonlyInputs = Array.from(scope.querySelectorAll('input[readonly]'));
+            if (localReadonlyInputs.length >= 2) {
+                if (fieldKind === 'poc') return localReadonlyInputs[0] || null;
+                if (fieldKind === 'sizing') return localReadonlyInputs[1] || null;
+            }
+        }
+
+        // Global fallback for instance ids: choose the first match.
+        const globalInstanceCandidates = document.querySelectorAll(`[id^="${baseId}__inst_"]`);
+        if (globalInstanceCandidates.length > 0) {
+            return globalInstanceCandidates[0];
+        }
+
+        // Base page element (non-instance)
+        return document.getElementById(baseId);
+    };
+
+    const pocInput = resolveInputBySelectContext(pocInputId, 'poc');
+    const sizingInput = resolveInputBySelectContext(sizingInputId, 'sizing');
     if (!pocInput || !sizingInput) return;
 
-    if (!selectEl.options || selectEl.selectedIndex < 0 || selectEl.value === '') {
+    if (!normalizedSelectEl || !normalizedSelectEl.options || typeof normalizedSelectEl.selectedIndex !== 'number' || normalizedSelectEl.selectedIndex < 0) {
         pocInput.value = '';
         sizingInput.value = '';
         return;
     }
 
-    const selectedOption = selectEl.options[selectEl.selectedIndex];
-    if (!selectedOption) {
+    const selectedOption = normalizedSelectEl.options[normalizedSelectEl.selectedIndex];
+    if (!selectedOption || normalizedSelectEl.value === '') {
         pocInput.value = '';
         sizingInput.value = '';
         return;
     }
-    pocInput.value = selectedOption.dataset.poc || '';
-    sizingInput.value = selectedOption.dataset.sizing || '';
+
+    let pocValue = selectedOption.dataset?.poc || '';
+    let sizingValue = selectedOption.dataset?.sizing || '';
+
+    // Fallback: đọc trực tiếp từ bảng Thông tin đầu vào theo chỉ số dòng
+    if (!pocValue && !sizingValue) {
+        const rowIndex = Number.parseInt(normalizedSelectEl.value, 10);
+        if (!Number.isNaN(rowIndex) && rowIndex >= 0) {
+            const sourceRows = document.querySelectorAll('#input-table-body tr');
+            const sourceRow = sourceRows[rowIndex];
+            if (sourceRow) {
+                const cells = sourceRow.querySelectorAll('td');
+                pocValue = cells[2]?.querySelector('input')?.value?.trim() || '';
+                sizingValue = cells[3]?.querySelector('input')?.value?.trim() || '';
+            }
+        }
+    }
+
+    // Last resort: parse values from option label text (e.g. "POC=100, Định cỡ=600")
+    if (!pocValue && !sizingValue && selectedOption?.textContent) {
+        const label = selectedOption.textContent;
+        const pocMatch = label.match(/POC\s*=\s*([^,\)]+)/i);
+        const sizingMatch = label.match(/Định\s*cỡ\s*=\s*([^,\)]+)/i);
+        pocValue = (pocMatch?.[1] || '').trim();
+        sizingValue = (sizingMatch?.[1] || '').trim();
+    }
+
+    pocInput.value = pocValue;
+    sizingInput.value = sizingValue;
 }
 
 function attachInputTableChangeListeners() {
@@ -2783,7 +2999,7 @@ function initializeModuleInstanceTemplates() {
     moduleTemplatesInitialized = true;
 }
 
-function runInInstanceContext(instanceKey, callback) {
+function runInInstanceContext(instanceKey, callback, thisArg) {
     const suffix = `__inst_${instanceKey}`;
     const nodes = Array.from(document.querySelectorAll(`[id$="${suffix}"]`));
     const renamed = [];
@@ -2799,7 +3015,7 @@ function runInInstanceContext(instanceKey, callback) {
     window.__activeInstanceKey = instanceKey;
     try {
         if (typeof callback === 'function') {
-            return callback();
+            return callback.call(thisArg);
         }
     } finally {
         renamed.forEach(item => {
@@ -2809,13 +3025,20 @@ function runInInstanceContext(instanceKey, callback) {
     }
 }
 
+function buildInstanceAwareHandler(handlerCode) {
+    if (window.__activeInstanceKey) {
+        return `return runInInstanceContext('${window.__activeInstanceKey}', function(){ ${handlerCode} }, this);`;
+    }
+    return handlerCode;
+}
+
 function rewriteInlineHandlersForInstance(root, instanceKey) {
     const candidates = root.querySelectorAll('*');
     candidates.forEach(el => {
         ['onclick', 'onchange', 'oninput'].forEach(attr => {
             const raw = el.getAttribute(attr);
             if (!raw) return;
-            const wrapped = `return runInInstanceContext('${instanceKey}', function(){ ${raw} });`;
+            const wrapped = `return runInInstanceContext('${instanceKey}', function(){ ${raw} }, this);`;
             el.setAttribute(attr, wrapped);
         });
     });
@@ -2860,7 +3083,87 @@ function createModuleCloneForInstance(moduleName, instance) {
     return wrapper;
 }
 
-function renderModuleInstances(moduleName, moduleInstances) {
+function captureFormControlStates(scope) {
+    if (!scope) return [];
+
+    return Array.from(scope.querySelectorAll('input, textarea, select')).map((el, index) => ({
+        index,
+        id: el.id || '',
+        tag: el.tagName.toLowerCase(),
+        type: (el.type || '').toLowerCase(),
+        value: el.value,
+        checked: typeof el.checked === 'boolean' ? el.checked : undefined,
+        selectedIndex: typeof el.selectedIndex === 'number' ? el.selectedIndex : undefined
+    }));
+}
+
+function applyFormControlStates(scope, states) {
+    if (!scope || !Array.isArray(states) || states.length === 0) return;
+
+    const controls = Array.from(scope.querySelectorAll('input, textarea, select'));
+    if (controls.length === 0) return;
+
+    const stateById = new Map();
+    states.forEach(state => {
+        if (state && state.id) stateById.set(state.id, state);
+    });
+
+    controls.forEach((el, index) => {
+        let state = null;
+
+        if (el.id && stateById.has(el.id)) {
+            state = stateById.get(el.id);
+        } else if (states[index]) {
+            state = states[index];
+        }
+
+        if (!state) return;
+
+        const tag = el.tagName.toLowerCase();
+        const type = (el.type || '').toLowerCase();
+
+        if (tag === 'input') {
+            if (type === 'file') return;
+            if (type === 'checkbox' || type === 'radio') {
+                if (typeof state.checked === 'boolean') el.checked = state.checked;
+                return;
+            }
+            el.value = state.value ?? '';
+            return;
+        }
+
+        if (tag === 'textarea') {
+            el.value = state.value ?? '';
+            return;
+        }
+
+        if (tag === 'select') {
+            const stateValue = state.value ?? '';
+            const hasOption = Array.from(el.options).some(opt => opt.value === stateValue);
+            if (hasOption) {
+                el.value = stateValue;
+            } else if (typeof state.selectedIndex === 'number' && state.selectedIndex >= 0 && state.selectedIndex < el.options.length) {
+                el.selectedIndex = state.selectedIndex;
+            }
+        }
+    });
+}
+
+function captureCurrentModuleInstanceSnapshots() {
+    const snapshots = new Map();
+    document.querySelectorAll('.module-instance-wrapper[data-instance-key]').forEach(wrapper => {
+        const instanceKey = wrapper.dataset.instanceKey;
+        if (!instanceKey) return;
+        snapshots.set(instanceKey, {
+            html: wrapper.innerHTML,
+            moduleType: wrapper.dataset.moduleType || '',
+            controlStates: captureFormControlStates(wrapper)
+        });
+    });
+    return snapshots;
+}
+
+function renderModuleInstances(moduleName, moduleInstances, preservedSnapshots = null) {
     const registryItem = moduleTemplateRegistry[moduleName];
     if (!registryItem) return;
 
@@ -2875,6 +3178,15 @@ function renderModuleInstances(moduleName, moduleInstances) {
     moduleInstances.forEach(instance => {
         const clone = createModuleCloneForInstance(moduleName, instance);
         if (!clone) return;
+
+        const instanceKey = getModuleInstanceKey(instance);
+        const snapshot = preservedSnapshots?.get(instanceKey);
+        if (snapshot && snapshot.moduleType === moduleName && typeof snapshot.html === 'string') {
+            clone.innerHTML = snapshot.html;
+            rewriteInlineHandlersForInstance(clone, instanceKey);
+            applyFormControlStates(clone, snapshot.controlStates);
+        }
+
         cursor.after(clone);
         cursor = clone;
     });
@@ -2887,12 +3199,15 @@ function renderModuleInstances(moduleName, moduleInstances) {
 function updateModuleVisibility() {
     initializeModuleInstanceTemplates();
     const instancesByType = getModuleInstancesByType();
+    const preservedSnapshots = captureCurrentModuleInstanceSnapshots();
 
     Object.keys(MODULE_TEMPLATE_MAPPING).forEach(moduleName => {
-        renderModuleInstances(moduleName, instancesByType[moduleName] || []);
+        renderModuleInstances(moduleName, instancesByType[moduleName] || [], preservedSnapshots);
     });
 
     try { populatePocSizingDropdowns(); } catch (e) {}
+
+    try { refreshSizingRequiredMarkers(); } catch (e) {}
 
     try { applyRolePermissions(); } catch (e) {}
 }
@@ -4004,30 +4319,35 @@ function addBaselineRow() {
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
     const rowId = 'baseline-row-' + Date.now() + '-' + rowCount;
+    const syncIpHandler = buildInstanceAwareHandler('syncIPToInputConfig(this)');
+    const recalcHandler = buildInstanceAwareHandler('updateBaselineTotal(); recalculateInputConfigForRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteRowHandler = buildInstanceAwareHandler('deleteBaselineRow(this)');
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         
-        <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="syncIPToInputConfig(this)"></td>
+        <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
         
         <td><input type="text" class="input-full cpu-input" placeholder="Intel Xeon..."></td>
         
         <td>
-            <input type="number" class="input-full text-center ram-input" value="0" min="0" oninput="updateBaselineTotal(); recalculateInputConfigForRow(this)">
+            <input type="number" class="input-full text-center ram-input" value="0" min="0" oninput="${recalcHandler}">
         </td>
 
         <td>
-            <input type="number" class="input-full text-center disk-input" value="0" min="0" oninput="updateBaselineTotal(); recalculateInputConfigForRow(this)">
+            <input type="number" class="input-full text-center disk-input" value="0" min="0" oninput="${recalcHandler}">
         </td>
         
         <td>
-            <input type="number" class="input-full text-center cint-input" value="0" min="0" oninput="updateBaselineTotal(); recalculateInputConfigForRow(this)">
+            <input type="number" class="input-full text-center cint-input" value="0" min="0" oninput="${recalcHandler}">
         </td>
 
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="baseline-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
@@ -4047,7 +4367,7 @@ function addBaselineRow() {
         </td>
         
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="deleteBaselineRow(this)">
+            <button class="btn-delete-row-item" onclick="${deleteRowHandler}">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -4582,7 +4902,8 @@ function collectAllSizingData() {
     const moduleInstanceSnapshots = Array.from(document.querySelectorAll('.module-instance-wrapper')).map(wrapper => ({
         instanceKey: wrapper.dataset.instanceKey || '',
         moduleType: wrapper.dataset.moduleType || '',
-        html: wrapper.innerHTML
+        html: wrapper.innerHTML,
+        controlStates: captureFormControlStates(wrapper)
     }));
 
     return {
@@ -4877,9 +5198,12 @@ function loadSizingData(data) {
                 const wrapper = document.querySelector(`.module-instance-wrapper[data-instance-key="${snapshot.instanceKey}"]`);
                 if (wrapper && typeof snapshot.html === 'string') {
                     wrapper.innerHTML = snapshot.html;
+                    rewriteInlineHandlersForInstance(wrapper, snapshot.instanceKey);
+                    applyFormControlStates(wrapper, snapshot.controlStates);
                 }
             });
             try { populatePocSizingDropdowns(); } catch (e) {}
+            try { refreshSizingRequiredMarkers(); } catch (e) {}
             try { applyRolePermissions(); } catch (e) {}
             Logger.debug('Loaded sizing data from module instance snapshots successfully');
             return;
@@ -5439,6 +5763,10 @@ function addInputConfigRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
+    const calcHandler = buildInstanceAwareHandler('calculateInputConfigRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteRowHandler = buildInstanceAwareHandler('deleteInputConfigRow(this)');
     
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
@@ -5446,15 +5774,15 @@ function addInputConfigRow() {
         <td><input type="text" class="input-full text-center ip-config-input" placeholder="10.x.x.x"></td>
         
         <td>
-            <input type="number" class="input-full text-center cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateInputConfigRow(this)">
+            <input type="number" class="input-full text-center cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}">
         </td>
 
         <td>
-            <input type="number" class="input-full text-center ram-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateInputConfigRow(this)">
+            <input type="number" class="input-full text-center ram-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}">
         </td>
 
         <td>
-            <input type="number" class="input-full text-center disk-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateInputConfigRow(this)">
+            <input type="number" class="input-full text-center disk-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}">
         </td>
         
         <td>
@@ -5471,8 +5799,8 @@ function addInputConfigRow() {
 
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="input-config-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
@@ -5491,7 +5819,7 @@ function addInputConfigRow() {
         </td>
         
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="deleteInputConfigRow(this)">
+            <button class="btn-delete-row-item" onclick="${deleteRowHandler}">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -5715,9 +6043,7 @@ function calculateSizingRecommendations() {
 
     // ==================== BẢNG 2: Giá trị N với Cint/RAM/Disk ====================
     const nValues = [
-        { label: 'Ketqua - 1', value: Math.max(1, ketqua - 1) },
         { label: 'Ketqua', value: ketqua },
-        { label: 'Ketqua + 1', value: ketqua + 1 }
     ];
 
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Bảng phân bổ theo số lượng N</h4>`;
@@ -8619,7 +8945,7 @@ async function createRevision(changeDescription = '', forceBaseline = false) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 projectId: currentProjectId,
-                userId: user.username || user.displayName || 'User',
+                userId: user.userId || user.username || user.displayName || 'User',
                 changeLog: changeLog,
                 forceBaseline: forceBaseline
             })
