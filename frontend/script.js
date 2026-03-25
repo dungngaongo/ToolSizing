@@ -2025,10 +2025,6 @@ async function saveYeuCauBaiToan() {
     }
 }
 
-// ==================== CÁC PHẦN KHÁC (GIỮ NGUYÊN) ====================
-// (Phần Thông tin đầu vào, Mô hình hệ thống, Tổng hợp... vẫn giữ nguyên code cũ
-// vì bạn chưa yêu cầu đổi giao diện các phần đó trong lần prompt này)
-
 // ==================== THÔNG TIN ĐẦU VÀO ====================
 
 function loadThongTinDauVao(data) {
@@ -2373,23 +2369,27 @@ function populatePocSizingDropdowns() {
 
 // Called when user selects a row from combined POC & Sizing dropdown
 function onInputRowSelect(selectEl, pocInputId, sizingInputId) {
+    if (!selectEl) return;
     const pocInput = document.getElementById(pocInputId);
     const sizingInput = document.getElementById(sizingInputId);
     if (!pocInput || !sizingInput) return;
-    
-    const selectedOption = selectEl.options[selectEl.selectedIndex];
-    if (!selectedOption || selectEl.value === '') {
+
+    if (!selectEl.options || selectEl.selectedIndex < 0 || selectEl.value === '') {
         pocInput.value = '';
         sizingInput.value = '';
         return;
     }
-    
+
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    if (!selectedOption) {
+        pocInput.value = '';
+        sizingInput.value = '';
+        return;
+    }
     pocInput.value = selectedOption.dataset.poc || '';
     sizingInput.value = selectedOption.dataset.sizing || '';
 }
 
-// Callback when input table changes (add/delete row, or value change)
-// Attach change listeners to input table to auto-update dropdowns
 function attachInputTableChangeListeners() {
     const tbody = document.getElementById('input-table-body');
     if (!tbody) return;
@@ -2472,6 +2472,32 @@ function addInputRow() {
     const tr = createInputTableRow(nextSTT);
     tbody.appendChild(tr);
     try { applyRolePermissions(); } catch (e) {}
+}
+
+function ensureAppSelectHandler() {
+    const sel = document.getElementById('app-input-row-select');
+    if (sel && !sel.getAttribute('onchange')) {
+        sel.setAttribute('onchange', "onInputRowSelect(this,'poc-value','sizing-value')");
+    }
+}
+
+function rewireInputTableListeners() {
+    const tbody = document.getElementById('input-table-body');
+    if (!tbody) return;
+
+    if (tbody._listener) {
+        tbody.removeEventListener('input', tbody._listener);
+    }
+
+    const listener = (e) => {
+        clearTimeout(tbody._dropdownUpdateTimer);
+        tbody._dropdownUpdateTimer = setTimeout(() => {
+            populatePocSizingDropdowns();
+            ensureAppSelectHandler();
+        }, 300);
+    };
+    tbody._listener = listener;
+    tbody.addEventListener('input', listener);
 }
 
 // 7. Hàm thêm dòng Baseline (Giữ nguyên)
