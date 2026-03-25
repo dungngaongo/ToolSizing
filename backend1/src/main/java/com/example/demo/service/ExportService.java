@@ -344,7 +344,18 @@ public class ExportService {
         boolean exportAll = selectedModules.isEmpty();
         
         if (exportAll || selectedModules.contains("App")) {
-            writeModuleApp(doc, root.path("moduleApp"));
+            List<ModuleInstanceData> appInstances = extractModuleInstances(root, "App", "moduleApp");
+            if (appInstances.isEmpty()) {
+                writeModuleApp(doc, root.path("moduleApp"), "1. Module App");
+            } else {
+                for (int i = 0; i < appInstances.size(); i++) {
+                    String heading = "1. Module App";
+                    if (appInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(appInstances.get(i), i + 1, "App");
+                    }
+                    writeModuleApp(doc, appInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("MariaDB")) {
             List<ModuleInstanceData> mariaInstances = extractModuleInstances(root, "MariaDB", "moduleMariaDB");
@@ -361,16 +372,60 @@ public class ExportService {
             }
         }
         if (exportAll || selectedModules.contains("Redis")) {
-            writeModuleRedis(doc, root.path("moduleRedis"));
+            List<ModuleInstanceData> redisInstances = extractModuleInstances(root, "Redis", "moduleRedis");
+            if (redisInstances.isEmpty()) {
+                writeModuleRedis(doc, root.path("moduleRedis"), "3. Module Redis");
+            } else {
+                for (int i = 0; i < redisInstances.size(); i++) {
+                    String heading = "3. Module Redis";
+                    if (redisInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(redisInstances.get(i), i + 1, "Redis");
+                    }
+                    writeModuleRedis(doc, redisInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("Kafka")) {
-            writeModuleKafka(doc, root.path("moduleKafka"));
+            List<ModuleInstanceData> kafkaInstances = extractModuleInstances(root, "Kafka", "moduleKafka");
+            if (kafkaInstances.isEmpty()) {
+                writeModuleKafka(doc, root.path("moduleKafka"), "4. Module Kafka");
+            } else {
+                for (int i = 0; i < kafkaInstances.size(); i++) {
+                    String heading = "4. Module Kafka";
+                    if (kafkaInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(kafkaInstances.get(i), i + 1, "Kafka");
+                    }
+                    writeModuleKafka(doc, kafkaInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("K8S")) {
-            writeModuleK8S(doc, root.path("moduleK8S"));
+            List<ModuleInstanceData> k8sInstances = extractModuleInstances(root, "K8S", "moduleK8S");
+            if (k8sInstances.isEmpty()) {
+                writeModuleK8S(doc, root.path("moduleK8S"), "5. Module K8S");
+            } else {
+                for (int i = 0; i < k8sInstances.size(); i++) {
+                    String heading = "5. Module K8S";
+                    if (k8sInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(k8sInstances.get(i), i + 1, "K8S");
+                    }
+                    writeModuleK8S(doc, k8sInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("LB/FW")) {
-            writeModuleLBFW(doc, root.path("moduleLBFW"));
+            List<ModuleInstanceData> lbfwInstances = extractModuleInstances(root, "LB/FW", "moduleLBFW");
+            if (lbfwInstances.isEmpty()) {
+                writeModuleLBFW(doc, root.path("moduleLBFW"), "6. Module LB/FW");
+            } else {
+                for (int i = 0; i < lbfwInstances.size(); i++) {
+                    String heading = "6. Module LB/FW";
+                    if (lbfwInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(lbfwInstances.get(i), i + 1, "LB/FW");
+                    }
+                    writeModuleLBFW(doc, lbfwInstances.get(i).data, heading);
+                }
+            }
         }
     }
 
@@ -407,9 +462,9 @@ public class ExportService {
     }
 
     // ---------- Module App ----------
-    private void writeModuleApp(XWPFDocument doc, JsonNode moduleApp) {
+    private void writeModuleApp(XWPFDocument doc, JsonNode moduleApp, String heading) {
         if (moduleApp.isMissingNode()) return;
-        addSubHeading(doc, "1. Module App");
+        addSubHeading(doc, heading);
 
         // Baseline table
         JsonNode baselineTable = moduleApp.path("baselineTable");
@@ -448,6 +503,30 @@ public class ExportService {
             setCell(table, rows + 1, 4, formatNum(totalDisk), true, "E2EFDA");
             setCell(table, rows + 1, 5, formatNum(totalCint), true, "E2EFDA");
             doc.createParagraph();
+
+            boolean hasBaselineEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = baselineTable.get(i);
+                JsonNode evidenceImages = row.path("evidenceImages");
+                String evidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = evidenceImages.isArray() && evidenceImages.size() > 0;
+                if (!hasCurrentEvidence && evidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasBaselineEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu:");
+                    hasBaselineEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                if (hasCurrentEvidence) {
+                    addImagesFromArray(doc, evidenceImages);
+                } else {
+                    addBase64Image(doc, evidenceImage);
+                }
+            }
         }
 
         addImagesFromArray(doc, moduleApp.path("baselineEvidence"));
@@ -494,6 +573,30 @@ public class ExportService {
             setCell(table, rows + 1, 6, formatNum(totalRamUsed), true, "E2EFDA");
             setCell(table, rows + 1, 7, formatNum(totalDiskUsed), true, "E2EFDA");
             doc.createParagraph();
+
+            boolean hasInputEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = inputConfig.get(i);
+                JsonNode evidenceImages = row.path("evidenceImages");
+                String evidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = evidenceImages.isArray() && evidenceImages.size() > 0;
+                if (!hasCurrentEvidence && evidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasInputEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o:");
+                    hasInputEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                if (hasCurrentEvidence) {
+                    addImagesFromArray(doc, evidenceImages);
+                } else {
+                    addBase64Image(doc, evidenceImage);
+                }
+            }
         }
 
         // Evidence images
@@ -503,7 +606,11 @@ public class ExportService {
             addImagesFromArray(doc, evidenceImages);
         }
 
-        // Sizing result
+        String selectedInputRow = txt(moduleApp, "selectedInputRow");
+        if (!selectedInputRow.isEmpty()) {
+            addLabelValue(doc, "D\u00f2ng \u0111\u1ea7u v\u00e0o \u0111\u00e3 ch\u1ecdn:", selectedInputRow);
+        }
+
         String pocValue = txt(moduleApp, "pocValue");
         String sizingValue = txt(moduleApp, "sizingValue");
         if (!pocValue.isEmpty() || !sizingValue.isEmpty()) {
@@ -511,11 +618,41 @@ public class ExportService {
             addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingValue);
         }
 
+        String virtualizationMode = txt(moduleApp, "virtualizationMode");
+        String vcpuFlavor = txt(moduleApp, "vcpuFlavor");
+        String ramFlavor = txt(moduleApp, "ramFlavor");
+        if (!virtualizationMode.isEmpty() || !vcpuFlavor.isEmpty() || !ramFlavor.isEmpty()) {
+            String modeDisplay = virtualizationMode;
+            if ("vcpu".equalsIgnoreCase(virtualizationMode)) {
+                modeDisplay = "Theo vCPU";
+            } else if ("ram".equalsIgnoreCase(virtualizationMode)) {
+                modeDisplay = "Theo RAM";
+            }
+            if (!modeDisplay.isEmpty()) {
+                addLabelValue(doc, "Ch\u1ebf \u0111\u1ed9 \u1ea3o h\u00f3a:", modeDisplay);
+            }
+            if (!vcpuFlavor.isEmpty()) {
+                addLabelValue(doc, "Flavor vCPU \u0111\u00e3 ch\u1ecdn:", vcpuFlavor + " Cint");
+            }
+            if (!ramFlavor.isEmpty()) {
+                addLabelValue(doc, "Flavor RAM \u0111\u00e3 ch\u1ecdn:", ramFlavor + " GB");
+            }
+        }
+
+        String flavorEval = txt(moduleApp, "flavorEval");
+        String flavorNote = txt(moduleApp, "flavorNote");
+        if (!flavorEval.isEmpty() || !flavorNote.isEmpty()) {
+            addLabelValue(doc, "\u0110\u00e1nh gi\u00e1 flavor:", flavorEval);
+            addLabelValue(doc, "Ghi ch\u00fa flavor:", flavorNote);
+        }
+
         String sizingResult = txt(moduleApp, "sizingResult");
         if (!sizingResult.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
             parseAndWriteAppSizingResult(doc, sizingResult);
         }
+
+        doc.createParagraph();
     }
 
     // Parse Module App sizing result HTML and write to DOC with proper formatting
@@ -996,9 +1133,9 @@ public class ExportService {
     }
 
     // ---------- Module Redis ----------
-    private void writeModuleRedis(XWPFDocument doc, JsonNode moduleRedis) {
+    private void writeModuleRedis(XWPFDocument doc, JsonNode moduleRedis, String heading) {
         if (moduleRedis.isMissingNode()) return;
-        addSubHeading(doc, "3. Module Redis");
+        addSubHeading(doc, heading);
 
         String selectedMethod = txt(moduleRedis, "selectedMethod");
         if (!selectedMethod.isEmpty()) {
@@ -1155,9 +1292,9 @@ public class ExportService {
     }
 
     // ---------- Module Kafka ----------
-    private void writeModuleKafka(XWPFDocument doc, JsonNode moduleKafka) {
+    private void writeModuleKafka(XWPFDocument doc, JsonNode moduleKafka, String heading) {
         if (moduleKafka.isMissingNode()) return;
-        addSubHeading(doc, "4. Module Kafka");
+        addSubHeading(doc, heading);
 
         String selectedMethod = txt(moduleKafka, "selectedMethod");
         if (!selectedMethod.isEmpty()) {
@@ -1308,9 +1445,9 @@ public class ExportService {
     }
 
     // ---------- Module K8S ----------
-    private void writeModuleK8S(XWPFDocument doc, JsonNode moduleK8S) {
+    private void writeModuleK8S(XWPFDocument doc, JsonNode moduleK8S, String heading) {
         if (moduleK8S.isMissingNode()) return;
-        addSubHeading(doc, "5. Module K8S");
+        addSubHeading(doc, heading);
 
         // Baseline table
         JsonNode baselineTable = moduleK8S.path("baselineTable");
@@ -1511,9 +1648,9 @@ public class ExportService {
     }
 
     // ---------- Module LB/FW ----------
-    private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW) {
+    private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW, String heading) {
         if (moduleLBFW.isMissingNode()) return;
-        addSubHeading(doc, "6. Module LB/FW");
+        addSubHeading(doc, heading);
 
         // Evidence images
         addImagesFromArray(doc, moduleLBFW.path("evidenceImages"));
