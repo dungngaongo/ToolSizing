@@ -18,7 +18,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ExportService {
@@ -31,6 +35,18 @@ public class ExportService {
     private final ProjectRepository projectRepository;
     private final ProjectDataRepository projectDataRepository;
     private final ObjectMapper objectMapper;
+
+    private static class ModuleInstanceData {
+        private final String moduleName;
+        private final String instanceKey;
+        private final JsonNode data;
+
+        private ModuleInstanceData(String moduleName, String instanceKey, JsonNode data) {
+            this.moduleName = moduleName;
+            this.instanceKey = instanceKey;
+            this.data = data;
+        }
+    }
 
     public ExportService(ProjectRepository projectRepository,
                          ProjectDataRepository projectDataRepository,
@@ -213,6 +229,35 @@ public class ExportService {
         addSubHeading(doc, "2. M\u00f4 h\u00ecnh logic");
         addImagesFromArray(doc, root.path("logicalImages"));
 
+        JsonNode logicComponentRows = root.path("logicComponentRows");
+        List<JsonNode> nonEmptyLogicRows = new ArrayList<>();
+        if (logicComponentRows.isArray()) {
+            for (JsonNode row : logicComponentRows) {
+                String componentName = txt(row, "componentName").trim();
+                String mainTask = txt(row, "mainTask").trim();
+                if (!componentName.isEmpty() || !mainTask.isEmpty()) {
+                    nonEmptyLogicRows.add(row);
+                }
+            }
+        }
+        if (!nonEmptyLogicRows.isEmpty()) {
+            addSubHeading2(doc, "Th\u00e0nh ph\u1ea7n m\u00f4 h\u00ecnh Logic");
+            XWPFTable logicTable = doc.createTable(nonEmptyLogicRows.size() + 1, 3);
+            styleTable(logicTable);
+
+            setCell(logicTable, 0, 0, "STT", true, "D9E2F3");
+            setCell(logicTable, 0, 1, "T\u00ean th\u00e0nh ph\u1ea7n/Module", true, "D9E2F3");
+            setCell(logicTable, 0, 2, "Nhi\u1ec7m v\u1ee5 ch\u00ednh", true, "D9E2F3");
+
+            for (int i = 0; i < nonEmptyLogicRows.size(); i++) {
+                JsonNode row = nonEmptyLogicRows.get(i);
+                setCell(logicTable, i + 1, 0, String.valueOf(i + 1), false, null);
+                setCell(logicTable, i + 1, 1, txt(row, "componentName"), false, null);
+                setCell(logicTable, i + 1, 2, txt(row, "mainTask"), false, null);
+            }
+            doc.createParagraph();
+        }
+
         // B2. Thông tin kết nối (đặt sau mô hình logic)
         JsonNode connectionRows = root.path("connectionRows");
         if (connectionRows.isArray() && connectionRows.size() > 0) {
@@ -299,29 +344,127 @@ public class ExportService {
         boolean exportAll = selectedModules.isEmpty();
         
         if (exportAll || selectedModules.contains("App")) {
-            writeModuleApp(doc, root.path("moduleApp"));
+            List<ModuleInstanceData> appInstances = extractModuleInstances(root, "App", "moduleApp");
+            if (appInstances.isEmpty()) {
+                writeModuleApp(doc, root.path("moduleApp"), "1. Module App");
+            } else {
+                for (int i = 0; i < appInstances.size(); i++) {
+                    String heading = "1. Module App";
+                    if (appInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(appInstances.get(i), i + 1, "App");
+                    }
+                    writeModuleApp(doc, appInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("MariaDB")) {
-            writeModuleMariaDB(doc, root.path("moduleMariaDB"));
+            List<ModuleInstanceData> mariaInstances = extractModuleInstances(root, "MariaDB", "moduleMariaDB");
+            if (mariaInstances.isEmpty()) {
+                writeModuleMariaDB(doc, root.path("moduleMariaDB"), "2. Module MariaDB");
+            } else {
+                for (int i = 0; i < mariaInstances.size(); i++) {
+                    String heading = "2. Module MariaDB";
+                    if (mariaInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(mariaInstances.get(i), i + 1, "MariaDB");
+                    }
+                    writeModuleMariaDB(doc, mariaInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("Redis")) {
-            writeModuleRedis(doc, root.path("moduleRedis"));
+            List<ModuleInstanceData> redisInstances = extractModuleInstances(root, "Redis", "moduleRedis");
+            if (redisInstances.isEmpty()) {
+                writeModuleRedis(doc, root.path("moduleRedis"), "3. Module Redis");
+            } else {
+                for (int i = 0; i < redisInstances.size(); i++) {
+                    String heading = "3. Module Redis";
+                    if (redisInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(redisInstances.get(i), i + 1, "Redis");
+                    }
+                    writeModuleRedis(doc, redisInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("Kafka")) {
-            writeModuleKafka(doc, root.path("moduleKafka"));
+            List<ModuleInstanceData> kafkaInstances = extractModuleInstances(root, "Kafka", "moduleKafka");
+            if (kafkaInstances.isEmpty()) {
+                writeModuleKafka(doc, root.path("moduleKafka"), "4. Module Kafka");
+            } else {
+                for (int i = 0; i < kafkaInstances.size(); i++) {
+                    String heading = "4. Module Kafka";
+                    if (kafkaInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(kafkaInstances.get(i), i + 1, "Kafka");
+                    }
+                    writeModuleKafka(doc, kafkaInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("K8S")) {
-            writeModuleK8S(doc, root.path("moduleK8S"));
+            List<ModuleInstanceData> k8sInstances = extractModuleInstances(root, "K8S", "moduleK8S");
+            if (k8sInstances.isEmpty()) {
+                writeModuleK8S(doc, root.path("moduleK8S"), "5. Module K8S");
+            } else {
+                for (int i = 0; i < k8sInstances.size(); i++) {
+                    String heading = "5. Module K8S";
+                    if (k8sInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(k8sInstances.get(i), i + 1, "K8S");
+                    }
+                    writeModuleK8S(doc, k8sInstances.get(i).data, heading);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("LB/FW")) {
-            writeModuleLBFW(doc, root.path("moduleLBFW"));
+            List<ModuleInstanceData> lbfwInstances = extractModuleInstances(root, "LB/FW", "moduleLBFW");
+            if (lbfwInstances.isEmpty()) {
+                writeModuleLBFW(doc, root.path("moduleLBFW"), "6. Module LB/FW");
+            } else {
+                for (int i = 0; i < lbfwInstances.size(); i++) {
+                    String heading = "6. Module LB/FW";
+                    if (lbfwInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(lbfwInstances.get(i), i + 1, "LB/FW");
+                    }
+                    writeModuleLBFW(doc, lbfwInstances.get(i).data, heading);
+                }
+            }
         }
     }
 
+    private List<ModuleInstanceData> extractModuleInstances(JsonNode root, String moduleType, String legacyField) {
+        List<ModuleInstanceData> instances = new ArrayList<>();
+
+        JsonNode moduleInstances = root.path("moduleInstances");
+        if (moduleInstances.isArray()) {
+            for (JsonNode item : moduleInstances) {
+                if (!moduleType.equalsIgnoreCase(txt(item, "moduleType").trim())) {
+                    continue;
+                }
+                JsonNode data = item.path("data");
+                if (!data.isMissingNode() && !data.isNull()) {
+                    instances.add(new ModuleInstanceData(txt(item, "moduleName"), txt(item, "instanceKey"), data));
+                }
+            }
+        }
+
+        if (instances.isEmpty()) {
+            JsonNode legacyNode = root.path(legacyField);
+            if (!legacyNode.isMissingNode() && !legacyNode.isNull()) {
+                instances.add(new ModuleInstanceData("", "", legacyNode));
+            }
+        }
+
+        return instances;
+    }
+
+    private String resolveInstanceLabel(ModuleInstanceData instance, int index, String defaultPrefix) {
+        if (!instance.moduleName.isBlank()) return instance.moduleName;
+        if (!instance.instanceKey.isBlank()) return instance.instanceKey;
+        return defaultPrefix + " #" + index;
+    }
+
     // ---------- Module App ----------
-    private void writeModuleApp(XWPFDocument doc, JsonNode moduleApp) {
+    private void writeModuleApp(XWPFDocument doc, JsonNode moduleApp, String heading) {
         if (moduleApp.isMissingNode()) return;
-        addSubHeading(doc, "1. Module App");
+        addSubHeading(doc, heading);
 
         // Baseline table
         JsonNode baselineTable = moduleApp.path("baselineTable");
@@ -360,6 +503,30 @@ public class ExportService {
             setCell(table, rows + 1, 4, formatNum(totalDisk), true, "E2EFDA");
             setCell(table, rows + 1, 5, formatNum(totalCint), true, "E2EFDA");
             doc.createParagraph();
+
+            boolean hasBaselineEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = baselineTable.get(i);
+                JsonNode evidenceImages = row.path("evidenceImages");
+                String evidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = evidenceImages.isArray() && evidenceImages.size() > 0;
+                if (!hasCurrentEvidence && evidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasBaselineEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu:");
+                    hasBaselineEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                if (hasCurrentEvidence) {
+                    addImagesFromArray(doc, evidenceImages);
+                } else {
+                    addBase64Image(doc, evidenceImage);
+                }
+            }
         }
 
         addImagesFromArray(doc, moduleApp.path("baselineEvidence"));
@@ -406,6 +573,30 @@ public class ExportService {
             setCell(table, rows + 1, 6, formatNum(totalRamUsed), true, "E2EFDA");
             setCell(table, rows + 1, 7, formatNum(totalDiskUsed), true, "E2EFDA");
             doc.createParagraph();
+
+            boolean hasInputEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = inputConfig.get(i);
+                JsonNode evidenceImages = row.path("evidenceImages");
+                String evidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = evidenceImages.isArray() && evidenceImages.size() > 0;
+                if (!hasCurrentEvidence && evidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasInputEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o:");
+                    hasInputEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                if (hasCurrentEvidence) {
+                    addImagesFromArray(doc, evidenceImages);
+                } else {
+                    addBase64Image(doc, evidenceImage);
+                }
+            }
         }
 
         // Evidence images
@@ -415,7 +606,11 @@ public class ExportService {
             addImagesFromArray(doc, evidenceImages);
         }
 
-        // Sizing result
+        String selectedInputRow = txt(moduleApp, "selectedInputRow");
+        if (!selectedInputRow.isEmpty()) {
+            addLabelValue(doc, "D\u00f2ng \u0111\u1ea7u v\u00e0o \u0111\u00e3 ch\u1ecdn:", selectedInputRow);
+        }
+
         String pocValue = txt(moduleApp, "pocValue");
         String sizingValue = txt(moduleApp, "sizingValue");
         if (!pocValue.isEmpty() || !sizingValue.isEmpty()) {
@@ -423,11 +618,41 @@ public class ExportService {
             addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingValue);
         }
 
+        String virtualizationMode = txt(moduleApp, "virtualizationMode");
+        String vcpuFlavor = txt(moduleApp, "vcpuFlavor");
+        String ramFlavor = txt(moduleApp, "ramFlavor");
+        if (!virtualizationMode.isEmpty() || !vcpuFlavor.isEmpty() || !ramFlavor.isEmpty()) {
+            String modeDisplay = virtualizationMode;
+            if ("vcpu".equalsIgnoreCase(virtualizationMode)) {
+                modeDisplay = "Theo vCPU";
+            } else if ("ram".equalsIgnoreCase(virtualizationMode)) {
+                modeDisplay = "Theo RAM";
+            }
+            if (!modeDisplay.isEmpty()) {
+                addLabelValue(doc, "Ch\u1ebf \u0111\u1ed9 \u1ea3o h\u00f3a:", modeDisplay);
+            }
+            if (!vcpuFlavor.isEmpty()) {
+                addLabelValue(doc, "Flavor vCPU \u0111\u00e3 ch\u1ecdn:", vcpuFlavor + " Cint");
+            }
+            if (!ramFlavor.isEmpty()) {
+                addLabelValue(doc, "Flavor RAM \u0111\u00e3 ch\u1ecdn:", ramFlavor + " GB");
+            }
+        }
+
+        String flavorEval = txt(moduleApp, "flavorEval");
+        String flavorNote = txt(moduleApp, "flavorNote");
+        if (!flavorEval.isEmpty() || !flavorNote.isEmpty()) {
+            addLabelValue(doc, "\u0110\u00e1nh gi\u00e1 flavor:", flavorEval);
+            addLabelValue(doc, "Ghi ch\u00fa flavor:", flavorNote);
+        }
+
         String sizingResult = txt(moduleApp, "sizingResult");
         if (!sizingResult.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
             parseAndWriteAppSizingResult(doc, sizingResult);
         }
+
+        doc.createParagraph();
     }
 
     // Parse Module App sizing result HTML and write to DOC with proper formatting
@@ -564,9 +789,9 @@ public class ExportService {
     }
 
     // ---------- Module MariaDB ----------
-    private void writeModuleMariaDB(XWPFDocument doc, JsonNode moduleMariaDB) {
+    private void writeModuleMariaDB(XWPFDocument doc, JsonNode moduleMariaDB, String heading) {
         if (moduleMariaDB.isMissingNode()) return;
-        addSubHeading(doc, "2. Module MariaDB");
+        addSubHeading(doc, heading);
 
         // Ref table
         JsonNode refTable = moduleMariaDB.path("refTable");
@@ -597,6 +822,30 @@ public class ExportService {
                 setCell(table, i + 1, 6, isMaster ? "\u2713" : "", false, null);
             }
             doc.createParagraph();
+
+            boolean hasRefEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode r = refTable.get(i);
+                JsonNode evidenceImages = r.path("evidenceImages");
+                String legacyEvidence = txt(r, "evidenceImage");
+                boolean hasCurrentEvidence = evidenceImages.isArray() && evidenceImages.size() > 0;
+                if (!hasCurrentEvidence && legacyEvidence.isBlank()) {
+                    continue;
+                }
+
+                if (!hasRefEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 b\u1ea3ng tham chi\u1ebfu MariaDB:");
+                    hasRefEvidence = true;
+                }
+
+                String ip = txt(r, "ip").trim();
+                addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                if (hasCurrentEvidence) {
+                    addImagesFromArray(doc, evidenceImages);
+                } else {
+                    addBase64Image(doc, legacyEvidence);
+                }
+            }
         }
 
         // Storage
@@ -632,6 +881,12 @@ public class ExportService {
                         addBase64Image(doc, imgData);
                     }
                 }
+            } else {
+                String storageLegacyEvidence = txt(storage, "evidenceImage");
+                if (!storageLegacyEvidence.isEmpty()) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 Storage:");
+                    addBase64Image(doc, storageLegacyEvidence);
+                }
             }
         }
 
@@ -645,9 +900,25 @@ public class ExportService {
             addLabelValue(doc, "Ghi ch\u00fa:", note);
         }
 
+        String replicationModel = txt(moduleMariaDB, "replicationModel");
+        if (!replicationModel.isEmpty()) {
+            String normalized = replicationModel.trim().toLowerCase();
+            String displayModel;
+            if ("multi-master".equals(normalized) || "active-active".equals(normalized)) {
+                displayModel = "Active-Active (Multi-Master)";
+            } else if ("asynchronous".equals(normalized)) {
+                displayModel = "Master-Slave (Asynchronous)";
+            } else {
+                displayModel = replicationModel;
+            }
+            addLabelValue(doc, "M\u00f4 h\u00ecnh replication:", displayModel);
+        }
+
         // CCU
+        String selectedInputRow = txt(moduleMariaDB, "selectedInputRow");
         String inputCCU = txt(moduleMariaDB, "inputCCU");
         String sizingCCU = txt(moduleMariaDB, "sizingCCU");
+
         if (!inputCCU.isEmpty() || !sizingCCU.isEmpty()) {
             addLabelValue(doc, "CCU \u0111\u1ea7u v\u00e0o:", inputCCU);
             addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingCCU);
@@ -666,70 +937,205 @@ public class ExportService {
     // Parse Module MariaDB result HTML and write to DOC with proper formatting
     private void parseAndWriteMariaDBResult(XWPFDocument doc, String html) {
         try {
-            // Extract thông tin tính toán
-            java.util.regex.Pattern infoPattern = java.util.regex.Pattern.compile(
-                "Th\u00f4ng tin t\u00ednh to\u00e1n.*?</ul>",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher infoMatcher = infoPattern.matcher(html);
+            Pattern infoPattern = Pattern.compile("(Th\\u00f4ng tin t\\u00ednh to\\u00e1n|C\\u00f4ng th\\u1ee9c t\\u00ednh to\\u00e1n).*?</ul>", Pattern.DOTALL);
+            Matcher infoMatcher = infoPattern.matcher(html);
             if (infoMatcher.find()) {
                 String infoContent = infoMatcher.group(0);
-                java.util.regex.Pattern liPattern = java.util.regex.Pattern.compile("<li>([^<]+)</li>");
-                java.util.regex.Matcher liMatcher = liPattern.matcher(infoContent);
+                Pattern liPattern = Pattern.compile("<li>([\\s\\S]*?)</li>", Pattern.CASE_INSENSITIVE);
+                Matcher liMatcher = liPattern.matcher(infoContent);
                 while (liMatcher.find()) {
-                    String text = liMatcher.group(1).replaceAll("<[^>]*>", "").trim();
-                    addNormalText(doc, "\u2022 " + text);
+                    String text = stripHtml(liMatcher.group(1));
+                    if (!text.isEmpty()) {
+                        addNormalText(doc, "\u2022 " + text);
+                    }
                 }
             }
-            
-            // Extract bảng kết quả đề xuất
-            java.util.regex.Pattern configPattern = java.util.regex.Pattern.compile(
-                "(\\d+)\\s*vCPU.*?(\\d+)\\s*GB\\s*RAM.*?/data:\\s*(\\d+)\\s*GB.*?/log:\\s*(\\d+)\\s*GB",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher configMatcher = configPattern.matcher(html);
-            if (configMatcher.find()) {
+
+            String mariaRow = extractRowByLabel(html, "MariaDB");
+            String maxScaleRow = extractRowByLabel(html, "MaxScale");
+            String nasRow = extractRowByLabel(html, "NAS");
+
+            List<String[]> resultRows = new ArrayList<>();
+
+            if (!mariaRow.isEmpty()) {
+                String mariaList = extractListContent(mariaRow);
+                String vcpu = firstGroup(mariaList, "(\\d+)\\s*vCPU");
+                String ram = firstGroup(mariaList, "(\\d+)\\s*GB\\s*RAM");
+                String data = firstGroup(mariaList, "/data[:\\s]*(\\d+)\\s*GB");
+                String logDisk = firstGroup(mariaList, "/log[:\\s]*(\\d+)\\s*GB");
+
+                StringBuilder configBuilder = new StringBuilder();
+                if (!vcpu.isEmpty()) configBuilder.append(vcpu).append(" vCPU\n");
+                if (!ram.isEmpty()) configBuilder.append(ram).append(" GB RAM\n");
+                if (!data.isEmpty()) configBuilder.append("/data: ").append(data).append(" GB\n");
+                if (!logDisk.isEmpty()) configBuilder.append("/log: ").append(logDisk).append(" GB");
+
+                String config = configBuilder.toString().trim();
+                if (config.isEmpty()) {
+                    config = stripHtml(extractListContent(mariaRow));
+                }
+                if (!config.isEmpty()) {
+                    resultRows.add(new String[]{
+                            "MariaDB",
+                            config,
+                            extractQuantity(mariaRow, "3"),
+                            extractNoteCell(mariaRow)
+                    });
+                }
+            }
+
+            if (!maxScaleRow.isEmpty()) {
+                String maxScaleList = extractListContent(maxScaleRow);
+                String msVcpu = firstGroup(maxScaleList, "(\\d+)\\s*vCPU");
+                String msRam = firstGroup(maxScaleList, "(\\d+)\\s*GB\\s*RAM");
+                String msDisk = firstGroup(maxScaleList, "/u01[:\\s]*(\\d+)\\s*GB");
+
+                StringBuilder configBuilder = new StringBuilder();
+                if (!msVcpu.isEmpty()) configBuilder.append(msVcpu).append(" vCPU\n");
+                if (!msRam.isEmpty()) configBuilder.append(msRam).append(" GB RAM\n");
+                if (!msDisk.isEmpty()) configBuilder.append("/u01: ").append(msDisk).append(" GB");
+
+                String config = configBuilder.toString().trim();
+                if (config.isEmpty()) {
+                    config = stripHtml(maxScaleList);
+                }
+                if (!config.isEmpty()) {
+                    String note = extractNoteCell(maxScaleRow);
+                    if (note.isEmpty()) note = "C\u1ea5u h\u00ecnh t\u1ed1i thi\u1ec3u + 1 VIP";
+                    resultRows.add(new String[]{
+                            "MaxScale",
+                            config,
+                            extractQuantity(maxScaleRow, "2"),
+                            note
+                    });
+                }
+            }
+
+            if (!nasRow.isEmpty()) {
+                String nasSize = firstGroup(nasRow, "<strong>(\\d+)\\s*GB</strong>");
+                String nasConfig = !nasSize.isEmpty() ? nasSize + " GB" : stripHtml(extractListContent(nasRow));
+                if (!nasConfig.isEmpty()) {
+                    String note = extractNoteCell(nasRow);
+                    if (note.isEmpty()) note = "Mount chung (/backup c\u1ea7n)";
+                    resultRows.add(new String[]{
+                            "NAS",
+                            nasConfig,
+                            extractQuantity(nasRow, "-"),
+                            note
+                    });
+                }
+            }
+
+            if (!resultRows.isEmpty()) {
                 doc.createParagraph();
                 addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                XWPFTable table = doc.createTable(3, 4);
+                XWPFTable table = doc.createTable(resultRows.size() + 1, 4);
                 styleTable(table);
-                
+
                 setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
                 setCell(table, 0, 1, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
                 setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
                 setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
-                
-                String config = configMatcher.group(1) + " vCPU\n" + configMatcher.group(2) + " GB RAM\n/data: " + configMatcher.group(3) + " GB\n/log: " + configMatcher.group(4) + " GB";
-                setCell(table, 1, 0, "MariaDB", true, "E6FFED");
-                setCell(table, 1, 1, config, false, "E6FFED");
-                setCell(table, 1, 2, "3", true, "E6FFED");
-                setCell(table, 1, 3, "Gi\u00e1 tr\u1ecb MariaDB l\u1ea5y gi\u00e1 tr\u1ecb t\u00ednh \u0111\u01b0\u1ee3c \u1edf tr\u00ean", false, "E6FFED");
-                
-                // Extract NAS
-                java.util.regex.Pattern nasPattern = java.util.regex.Pattern.compile(
-                    "NAS.*?<strong>(\\d+)\\s*GB</strong>",
-                    java.util.regex.Pattern.DOTALL
-                );
-                java.util.regex.Matcher nasMatcher = nasPattern.matcher(html);
-                if (nasMatcher.find()) {
-                    setCell(table, 2, 0, "NAS", true, "FFF9E6");
-                    setCell(table, 2, 1, nasMatcher.group(1) + " GB", false, "FFF9E6");
-                    setCell(table, 2, 2, "-", true, "FFF9E6");
-                    setCell(table, 2, 3, "Mount chung (/data + /log + /backup)", false, "FFF9E6");
+
+                for (int i = 0; i < resultRows.size(); i++) {
+                    String[] row = resultRows.get(i);
+                    String bgColor = "E6FFED";
+                    if ("NAS".equalsIgnoreCase(row[0])) {
+                        bgColor = "FFF9E6";
+                    } else if ("MaxScale".equalsIgnoreCase(row[0])) {
+                        bgColor = "F0F9FF";
+                    }
+
+                    setCell(table, i + 1, 0, row[0], true, bgColor);
+                    setCell(table, i + 1, 1, row[1], false, bgColor);
+                    setCell(table, i + 1, 2, row[2], true, bgColor);
+                    setCell(table, i + 1, 3, row[3], false, bgColor);
                 }
                 doc.createParagraph();
+            } else {
+                String plainText = stripHtml(html);
+                if (!plainText.isEmpty()) {
+                    addNormalText(doc, plainText);
+                }
             }
         } catch (Exception e) {
+            log.warn("Failed to parse MariaDB result HTML: {}", e.getMessage());
             // Fallback to plain text if parsing fails
             String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
             if (!plainText.isEmpty()) addNormalText(doc, plainText);
         }
     }
 
+    private String extractRowByLabel(String html, String label) {
+        Pattern rowPattern = Pattern.compile("<tr[^>]*>[\\s\\S]*?</tr>", Pattern.CASE_INSENSITIVE);
+        Matcher rowMatcher = rowPattern.matcher(html);
+        String escapedLabel = Pattern.quote(label);
+        Pattern labelPattern = Pattern.compile("<td[^>]*>\\s*<strong>\\s*" + escapedLabel + "\\s*</strong>\\s*</td>", Pattern.CASE_INSENSITIVE);
+        while (rowMatcher.find()) {
+            String row = rowMatcher.group();
+            if (labelPattern.matcher(row).find()) {
+                return row;
+            }
+        }
+        return "";
+    }
+
+    private String extractListContent(String html) {
+        Matcher listMatcher = Pattern.compile("<ul[^>]*>([\\s\\S]*?)</ul>", Pattern.CASE_INSENSITIVE).matcher(html);
+        if (listMatcher.find()) {
+            return listMatcher.group(1);
+        }
+        return "";
+    }
+
+    private String extractQuantity(String rowHtml, String defaultValue) {
+        Matcher quantityMatcher = Pattern.compile("<td[^>]*class=\"text-center\"[^>]*>\\s*<strong>([^<]+)</strong>\\s*</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
+        if (quantityMatcher.find()) {
+            return stripHtml(quantityMatcher.group(1));
+        }
+
+        Matcher fallbackStrongMatcher = Pattern.compile("<td[^>]*>\\s*<strong>([^<]+)</strong>\\s*</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
+        int strongIndex = 0;
+        while (fallbackStrongMatcher.find()) {
+            strongIndex++;
+            if (strongIndex >= 2) {
+                String value = stripHtml(fallbackStrongMatcher.group(1));
+                if (!value.isEmpty()) return value;
+            }
+        }
+        return defaultValue;
+    }
+
+    private String extractNoteCell(String rowHtml) {
+        Matcher cellMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
+        List<String> cells = new ArrayList<>();
+        while (cellMatcher.find()) {
+            cells.add(cellMatcher.group(1));
+        }
+        if (cells.size() >= 4) {
+            return stripHtml(cells.get(3));
+        }
+        return "";
+    }
+
+    private String firstGroup(String input, String regex) {
+        if (input == null || input.isBlank()) return "";
+        Matcher matcher = Pattern.compile(regex, Pattern.CASE_INSENSITIVE).matcher(input);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "";
+    }
+
+    private String stripHtml(String html) {
+        if (html == null || html.isBlank()) return "";
+        return html.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+    }
+
     // ---------- Module Redis ----------
-    private void writeModuleRedis(XWPFDocument doc, JsonNode moduleRedis) {
+    private void writeModuleRedis(XWPFDocument doc, JsonNode moduleRedis, String heading) {
         if (moduleRedis.isMissingNode()) return;
-        addSubHeading(doc, "3. Module Redis");
+        addSubHeading(doc, heading);
 
         String selectedMethod = txt(moduleRedis, "selectedMethod");
         if (!selectedMethod.isEmpty()) {
@@ -886,9 +1292,9 @@ public class ExportService {
     }
 
     // ---------- Module Kafka ----------
-    private void writeModuleKafka(XWPFDocument doc, JsonNode moduleKafka) {
+    private void writeModuleKafka(XWPFDocument doc, JsonNode moduleKafka, String heading) {
         if (moduleKafka.isMissingNode()) return;
-        addSubHeading(doc, "4. Module Kafka");
+        addSubHeading(doc, heading);
 
         String selectedMethod = txt(moduleKafka, "selectedMethod");
         if (!selectedMethod.isEmpty()) {
@@ -1039,9 +1445,9 @@ public class ExportService {
     }
 
     // ---------- Module K8S ----------
-    private void writeModuleK8S(XWPFDocument doc, JsonNode moduleK8S) {
+    private void writeModuleK8S(XWPFDocument doc, JsonNode moduleK8S, String heading) {
         if (moduleK8S.isMissingNode()) return;
-        addSubHeading(doc, "5. Module K8S");
+        addSubHeading(doc, heading);
 
         // Baseline table
         JsonNode baselineTable = moduleK8S.path("baselineTable");
@@ -1242,9 +1648,9 @@ public class ExportService {
     }
 
     // ---------- Module LB/FW ----------
-    private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW) {
+    private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW, String heading) {
         if (moduleLBFW.isMissingNode()) return;
-        addSubHeading(doc, "6. Module LB/FW");
+        addSubHeading(doc, heading);
 
         // Evidence images
         addImagesFromArray(doc, moduleLBFW.path("evidenceImages"));
