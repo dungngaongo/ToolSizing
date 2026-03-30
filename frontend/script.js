@@ -4297,16 +4297,18 @@ async function exportToWord() {
 
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tổng hợp và lưu dữ liệu...</span>';
-        
-        // 1. Aggregate và lưu summary data trước khi export
-        aggregateSizingResults();
-        const summaryData = collectTongHop();
-        
-        // Lưu summary data vào database
+
+        // 1. Lưu full payload (bao gồm dữ liệu định cỡ + kết quả tổng hợp)
+        // để DOCX luôn lấy đúng dữ liệu Kafka mới tính toán.
+        const payload = buildSavePayload();
+        if (!payload) {
+            throw new Error('Không thể tổng hợp dữ liệu để xuất báo cáo');
+        }
+
         await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tongHopVaDeXuatContent: JSON.stringify(summaryData) })
+            body: JSON.stringify(payload)
         });
         
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tạo file DOCX...</span>';
@@ -5157,7 +5159,7 @@ function collectSizingAdminReviewData() {
                 },
                 linearRowReviews: (() => {
                     const reviews = [];
-                    document.querySelectorAll('#kafka-linear-table-body tr').forEach(row => {
+                    getKafkaLinearRows().forEach(row => {
                         reviews.push({
                             eval: row.querySelector('.kafka-linear-eval')?.value || '',
                             note: row.querySelector('.kafka-linear-note')?.value || ''
@@ -5171,7 +5173,7 @@ function collectSizingAdminReviewData() {
             return {
                 baselineRowReviews: (() => {
                     const reviews = [];
-                    document.querySelectorAll('#k8s-baseline-table-body tr').forEach(row => {
+                    getK8SBaselineRows().forEach(row => {
                         reviews.push({
                             eval: row.querySelector('.k8s-baseline-eval')?.value || '',
                             note: row.querySelector('.k8s-baseline-note')?.value || ''
@@ -5181,7 +5183,7 @@ function collectSizingAdminReviewData() {
                 })(),
                 inputConfigRowReviews: (() => {
                     const reviews = [];
-                    document.querySelectorAll('#k8s-input-config-table-body tr').forEach(row => {
+                    getK8SInputConfigRows().forEach(row => {
                         reviews.push({
                             eval: row.querySelector('.k8s-input-config-eval')?.value || '',
                             note: row.querySelector('.k8s-input-config-note')?.value || ''
@@ -5755,7 +5757,7 @@ function loadSizingAdminReview(adminReview) {
             
             // Load Kafka linear row reviews
             if (adminReview.moduleKafka.linearRowReviews) {
-                const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+                const rows = getKafkaLinearRows();
                 adminReview.moduleKafka.linearRowReviews.forEach((review, index) => {
                     if (rows[index]) {
                         const adminEval = rows[index].querySelector('.kafka-linear-eval');
@@ -5775,7 +5777,7 @@ function loadSizingAdminReview(adminReview) {
         // Load module K8S admin review
         if (adminReview.moduleK8S) {
             if (adminReview.moduleK8S.baselineRowReviews) {
-                const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+                const rows = getK8SBaselineRows();
                 adminReview.moduleK8S.baselineRowReviews.forEach((review, index) => {
                     if (rows[index]) {
                         const adminEval = rows[index].querySelector('.k8s-baseline-eval');
@@ -5791,7 +5793,7 @@ function loadSizingAdminReview(adminReview) {
                 });
             }
             if (adminReview.moduleK8S.inputConfigRowReviews) {
-                const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+                const rows = getK8SInputConfigRows();
                 adminReview.moduleK8S.inputConfigRowReviews.forEach((review, index) => {
                     if (rows[index]) {
                         const adminEval = rows[index].querySelector('.k8s-input-config-eval');
@@ -6085,6 +6087,13 @@ function onVirtualizationModeChange(prefix) {
     const mode = modeSelect.value === 'vcpu' ? 'vcpu' : 'ram';
     vcpuSelect.disabled = mode !== 'vcpu';
     ramSelect.disabled = mode !== 'ram';
+
+    const vcpuContainer = vcpuSelect.closest('div');
+    const ramContainer = ramSelect.closest('div');
+    if (vcpuContainer && ramContainer) {
+        vcpuContainer.style.display = mode === 'vcpu' ? '' : 'none';
+        ramContainer.style.display = mode === 'ram' ? '' : 'none';
+    }
 }
 
 function getVirtualizationChoice(prefix) {
@@ -6284,6 +6293,18 @@ function calculateSizingRecommendations() {
 
 // ==================== MODULE K8S FUNCTIONS ====================
 
+function getK8SBaselineRows() {
+    const tbody = document.getElementById('k8s-baseline-table-body');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr'));
+}
+
+function getK8SInputConfigRows() {
+    const tbody = document.getElementById('k8s-input-config-table-body');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr'));
+}
+
 function addK8SBaselineRow() {
     const tbody = document.getElementById('k8s-baseline-table-body');
     const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
@@ -6291,18 +6312,25 @@ function addK8SBaselineRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
+    const syncIpHandler = buildInstanceAwareHandler('syncK8SIPToInputConfig(this)');
+    const baselineRamHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
+    const baselineDiskHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
+    const baselineCintHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
+    const baselineUploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const baselineUploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteBaselineHandler = buildInstanceAwareHandler('deleteK8SBaselineRow(this)');
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
-        <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" oninput="syncK8SIPToInputConfig(this)"></td>
+        <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
         <td><input type="text" class="input-full k8s-cpu-input" placeholder="Intel Xeon..."></td>
-        <td><input type="number" class="input-full text-center k8s-ram-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
-        <td><input type="number" class="input-full text-center k8s-disk-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
-        <td><input type="number" class="input-full text-center k8s-cint-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-ram-input" value="0" min="0" oninput="${baselineRamHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-input" value="0" min="0" oninput="${baselineDiskHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-cint-input" value="0" min="0" oninput="${baselineCintHandler}"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="k8s-baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="k8s-baseline-evidence-input" onchange="${baselineUploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${baselineUploadClickHandler}" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
@@ -6319,7 +6347,7 @@ function addK8SBaselineRow() {
             <input type="text" class="input-full admin-note k8s-baseline-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="deleteK8SBaselineRow(this)">
+            <button class="btn-delete-row-item" onclick="${deleteBaselineHandler}">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -6338,20 +6366,24 @@ function addK8SInputConfigRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
+    const calculateRowHandler = buildInstanceAwareHandler('calculateK8SInputConfigRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteHandler = buildInstanceAwareHandler('deleteK8SInputConfigRow(this)');
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         <td><input type="text" class="input-full text-center k8s-ip-config-input" placeholder="10.x.x.x"></td>
-        <td><input type="number" class="input-full text-center k8s-cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
-        <td><input type="number" class="input-full text-center k8s-ram-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
-        <td><input type="number" class="input-full text-center k8s-disk-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-ram-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
         <td><input type="number" class="input-full text-center k8s-cint-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td><input type="number" class="input-full text-center k8s-ram-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td><input type="number" class="input-full text-center k8s-disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="k8s-input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="k8s-input-config-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
@@ -6368,7 +6400,7 @@ function addK8SInputConfigRow() {
             <input type="text" class="input-full admin-note k8s-input-config-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="deleteK8SInputConfigRow(this)">
+            <button class="btn-delete-row-item" onclick="${deleteHandler}">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -6386,7 +6418,7 @@ function calculateK8SInputConfigRow(input) {
     const ramUsedInput = row.querySelector('.k8s-ram-used-input');
     const diskUsedInput = row.querySelector('.k8s-disk-used-input');
 
-    const baselineRows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    const baselineRows = getK8SBaselineRows();
     const rowIndex = Array.from(row.parentNode.children).indexOf(row);
 
     if (rowIndex < baselineRows.length) {
@@ -6433,7 +6465,7 @@ function deleteK8SInputConfigRow(btn) {
 }
 
 function updateK8SRowNumbers() {
-    const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    const rows = getK8SBaselineRows();
     rows.forEach((row, index) => {
         const sttCell = row.querySelector('.stt-cell');
         if (sttCell) sttCell.innerText = index + 1;
@@ -6441,7 +6473,7 @@ function updateK8SRowNumbers() {
 }
 
 function updateK8SInputConfigRowNumbers() {
-    const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+    const rows = getK8SInputConfigRows();
     rows.forEach((row, index) => {
         const sttCell = row.querySelector('.stt-cell');
         if (sttCell) sttCell.innerText = index + 1;
@@ -6456,14 +6488,17 @@ function updateK8SBaselineTotal() {
 
     let totalRam = 0, totalCint = 0, totalDisk = 0;
 
-    document.querySelectorAll('#k8s-baseline-table-body .k8s-ram-input').forEach(input => {
-        totalRam += parseFloat(input.value) || 0;
+    getK8SBaselineRows().forEach(row => {
+        const input = row.querySelector('.k8s-ram-input');
+        totalRam += parseFloat(input?.value) || 0;
     });
-    document.querySelectorAll('#k8s-baseline-table-body .k8s-cint-input').forEach(input => {
-        totalCint += parseFloat(input.value) || 0;
+    getK8SBaselineRows().forEach(row => {
+        const input = row.querySelector('.k8s-cint-input');
+        totalCint += parseFloat(input?.value) || 0;
     });
-    document.querySelectorAll('#k8s-baseline-table-body .k8s-disk-input').forEach(input => {
-        totalDisk += parseFloat(input.value) || 0;
+    getK8SBaselineRows().forEach(row => {
+        const input = row.querySelector('.k8s-disk-input');
+        totalDisk += parseFloat(input?.value) || 0;
     });
 
     totalRamEl.innerText = totalRam;
@@ -6479,14 +6514,10 @@ function updateK8SInputConfigTotal() {
 
     let totalCintUsed = 0, totalRamUsed = 0, totalDiskUsed = 0;
 
-    document.querySelectorAll('#k8s-input-config-table-body .k8s-cint-used-input').forEach(input => {
-        totalCintUsed += parseFloat(input.value) || 0;
-    });
-    document.querySelectorAll('#k8s-input-config-table-body .k8s-ram-used-input').forEach(input => {
-        totalRamUsed += parseFloat(input.value) || 0;
-    });
-    document.querySelectorAll('#k8s-input-config-table-body .k8s-disk-used-input').forEach(input => {
-        totalDiskUsed += parseFloat(input.value) || 0;
+    getK8SInputConfigRows().forEach(row => {
+        totalCintUsed += parseFloat(row.querySelector('.k8s-cint-used-input')?.value) || 0;
+        totalRamUsed += parseFloat(row.querySelector('.k8s-ram-used-input')?.value) || 0;
+        totalDiskUsed += parseFloat(row.querySelector('.k8s-disk-used-input')?.value) || 0;
     });
 
     totalCintUsedEl.innerText = totalCintUsed.toFixed(2);
@@ -6616,9 +6647,7 @@ function calculateK8SSizing() {
 
     // Bảng 2: Phân bổ theo N
     const nValues = [
-        { label: 'Ketqua - 1', value: Math.max(1, ketqua - 1) },
         { label: 'Ketqua', value: ketqua },
-        { label: 'Ketqua + 1', value: ketqua + 1 }
     ];
 
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Bảng phân bổ theo số lượng N</h4>`;
@@ -6719,7 +6748,7 @@ function calculateK8SSizing() {
 }
 
 function collectK8SBaselineTableData() {
-    const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    const rows = getK8SBaselineRows();
     const data = [];
     rows.forEach((row, index) => {
         const evidenceImages = collectInlineEvidenceFromScope(row);
@@ -6738,7 +6767,7 @@ function collectK8SBaselineTableData() {
 }
 
 function collectK8SInputConfigTableData() {
-    const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+    const rows = getK8SInputConfigRows();
     const data = [];
     rows.forEach((row, index) => {
         const evidenceImages = collectInlineEvidenceFromScope(row);
@@ -7145,64 +7174,69 @@ function loadLBFWData(data) {
 function parseK8SSizingResult(html) {
     if (!html || html.trim() === '') return null;
 
+    const cleanText = (raw) => (raw || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const configTableMatch = html.match(/Đề xuất cấu hình[\s\S]*?<table[^>]*>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>[\s\S]*?<\/table>/i);
+    if (!configTableMatch) return null;
+
+    const tbodyHtml = configTableMatch[1];
+    const rowMatches = Array.from(tbodyHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi));
+    if (rowMatches.length === 0) return null;
+
+    const parsedByName = {};
+    rowMatches.forEach(match => {
+        const rowHtml = match[1];
+        const tdMatches = Array.from(rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map(m => m[1]);
+        if (tdMatches.length < 4) return;
+
+        const componentName = cleanText(tdMatches[0]);
+        if (!componentName) return;
+
+        const listItems = Array.from(tdMatches[1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)).map(m => cleanText(m[1]));
+        const listContent = listItems.join('\n');
+        const quantityText = cleanText(tdMatches[2]);
+        const noteText = cleanText(tdMatches[3]);
+
+        parsedByName[componentName] = {
+            listContent,
+            quantity: (quantityText.match(/\d+/) || [quantityText])[0] || '',
+            note: noteText
+        };
+    });
+
+    const orderedComponents = ['K8S Master', 'K8S Worker', 'K8S ETCD'];
     const results = [];
+    orderedComponents.forEach(componentName => {
+        const item = parsedByName[componentName];
+        if (!item) return;
 
-    // K8S Master - fixed config
-    const masterMatch = html.match(/K8S Master[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
-    if (masterMatch) {
-        const listContent = masterMatch[1];
-        const vcpu = listContent.match(/(\d+)\s*vCPU/i);
-        const ram = listContent.match(/(\d+)\s*GB/i);
-        const disk = listContent.match(/DISK[:\s]*(\d+)\s*GB/i);
+        const vcpu = item.listContent.match(/(\d+)\s*vCPU/i);
+        const cpuCint = item.listContent.match(/CPU[:\s]*=?\s*(\d+)\s*Cint/i);
+        const ram = item.listContent.match(/RAM[:\s=]*(\d+)\s*GB/i) || item.listContent.match(/(\d+)\s*GB/i);
+        const disk = item.listContent.match(/DISK[:\s=]*(\d+)\s*GB/i);
+
         let cauHinh = '';
-        if (vcpu) cauHinh += `- vCPU = ${vcpu[1]}\n`;
+        if (componentName === 'K8S Worker' && cpuCint) {
+            cauHinh += `- CPU = ${cpuCint[1]} Cint\n`;
+        } else if (vcpu) {
+            cauHinh += `- vCPU = ${vcpu[1]}\n`;
+        }
         if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
         if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
-        results.push({
-            module: 'K8S Master',
-            cauHinh: cauHinh.replace(/\n/g, '<br>'),
-            soLuong: masterMatch[2],
-            ghiChu: 'Storage Master phải nằm ở 3 cụm storage khác nhau'
-        });
-    }
 
-    // K8S Worker - calculated
-    const workerMatch = html.match(/K8S Worker[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
-    if (workerMatch) {
-        const listContent = workerMatch[1];
-        const cpuCint = listContent.match(/CPU[:\s]*=?\s*(\d+)\s*Cint/i);
-        const ram = listContent.match(/RAM[:\s]*=?\s*(\d+)\s*GB/i);
-        const disk = listContent.match(/DISK[:\s]*=?\s*(\d+)\s*GB/i);
-        let cauHinh = '';
-        if (cpuCint) cauHinh += `- CPU = ${cpuCint[1]} Cint\n`;
-        if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
-        if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
-        results.push({
-            module: 'K8S Worker',
-            cauHinh: cauHinh.replace(/\n/g, '<br>'),
-            soLuong: workerMatch[2],
-            ghiChu: 'Dự phòng N+1'
-        });
-    }
+        const fallbackNote = componentName === 'K8S Worker'
+            ? 'Dự phòng N+1'
+            : (componentName === 'K8S Master'
+                ? 'Storage Master phải nằm ở 3 cụm storage khác nhau'
+                : 'Storage ETCD phải nằm ở 3 cụm storage khác nhau');
 
-    // K8S ETCD - fixed config
-    const etcdMatch = html.match(/K8S ETCD[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
-    if (etcdMatch) {
-        const listContent = etcdMatch[1];
-        const vcpu = listContent.match(/(\d+)\s*vCPU/i);
-        const ram = listContent.match(/(\d+)\s*GB/i);
-        const disk = listContent.match(/DISK[:\s]*(\d+)\s*GB/i);
-        let cauHinh = '';
-        if (vcpu) cauHinh += `- vCPU = ${vcpu[1]}\n`;
-        if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
-        if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
         results.push({
-            module: 'K8S ETCD',
+            module: componentName,
             cauHinh: cauHinh.replace(/\n/g, '<br>'),
-            soLuong: etcdMatch[2],
-            ghiChu: 'Storage ETCD phải nằm ở 3 cụm storage khác nhau'
+            soLuong: item.quantity,
+            ghiChu: item.note || fallbackNote
         });
-    }
+    });
 
     return results.length > 0 ? results : null;
 }
@@ -8180,42 +8214,6 @@ function calculateRedisKeyMethod() {
         </tbody>
     </table>`;
     
-    // Bảng tổng hợp
-    const totalVCPU = vcpu * totalServers;
-    const totalRAM = Math.ceil(ramPerServer) * totalServers;
-    const totalDisk = Math.ceil(diskPerServer) * totalServers;
-    
-    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
-        <i class="fa-solid fa-table"></i> Bảng tổng hợp tài nguyên
-    </h4>`;
-    
-    html += `<table class="sizing-table" style="margin-top: 10px;">
-        <thead>
-            <tr>
-                <th>Module</th>
-                <th>Số lượng</th>
-                <th>vCPU/server</th>
-                <th>RAM/server (GB)</th>
-                <th>Disk/server (GB)</th>
-                <th>Tổng vCPU</th>
-                <th>Tổng RAM (GB)</th>
-                <th>Tổng Disk (GB)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr style="background: #f0f9ff;">
-                <td><strong>Redis</strong></td>
-                <td class="text-center">${totalServers}</td>
-                <td class="text-center">${vcpu}</td>
-                <td class="text-center">${Math.ceil(ramPerServer)}</td>
-                <td class="text-center">${Math.ceil(diskPerServer)}</td>
-                <td class="text-center"><strong>${totalVCPU}</strong></td>
-                <td class="text-center"><strong>${totalRAM}</strong></td>
-                <td class="text-center"><strong>${totalDisk}</strong></td>
-            </tr>
-        </tbody>
-    </table>`;
-    
     const container = document.getElementById('redis-key-result-container');
     if (container) container.innerHTML = html;
 }
@@ -8334,42 +8332,6 @@ function calculateRedisConfigMethod() {
                 </td>
                 <td class="text-center"><strong>${totalServers}</strong></td>
                 <td>${masterCount} master × (1 + ${slavePerMaster} slave)</td>
-            </tr>
-        </tbody>
-    </table>`;
-    
-    // Bảng tổng hợp
-    const totalVCPU = vcpu * totalServers;
-    const totalRAM = Math.ceil(ramPerServer) * totalServers;
-    const totalDisk = Math.ceil(diskPerServer) * totalServers;
-    
-    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
-        <i class="fa-solid fa-table"></i> Bảng tổng hợp tài nguyên
-    </h4>`;
-    
-    html += `<table class="sizing-table" style="margin-top: 10px;">
-        <thead>
-            <tr>
-                <th>Module</th>
-                <th>Số lượng</th>
-                <th>vCPU/server</th>
-                <th>RAM/server (GB)</th>
-                <th>Disk/server (GB)</th>
-                <th>Tổng vCPU</th>
-                <th>Tổng RAM (GB)</th>
-                <th>Tổng Disk (GB)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr style="background: #f0f9ff;">
-                <td><strong>Redis</strong></td>
-                <td class="text-center">${totalServers}</td>
-                <td class="text-center">${vcpu}</td>
-                <td class="text-center">${Math.ceil(ramPerServer)}</td>
-                <td class="text-center">${Math.ceil(diskPerServer)}</td>
-                <td class="text-center"><strong>${totalVCPU}</strong></td>
-                <td class="text-center"><strong>${totalRAM}</strong></td>
-                <td class="text-center"><strong>${totalDisk}</strong></td>
             </tr>
         </tbody>
     </table>`;
@@ -8675,8 +8637,14 @@ function addKafkaLinearRow(data = {}) {
 }
 
 // Cập nhật tổng cho bảng Linear
+function getKafkaLinearRows() {
+    const tbody = document.getElementById('kafka-linear-table-body');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr'));
+}
+
 function updateKafkaLinearTotal() {
-    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+    const rows = getKafkaLinearRows();
     let totalCPU = 0, totalRAM = 0, totalDisk = 0;
     
     rows.forEach(row => {
@@ -8691,15 +8659,18 @@ function updateKafkaLinearTotal() {
         totalRAM += ram * (ramLoad / 100);
         totalDisk += disk * (diskLoad / 100);
     });
-    
-    document.getElementById('kafka-linear-total-cpu').innerText = totalCPU.toFixed(2);
-    document.getElementById('kafka-linear-total-ram').innerText = totalRAM.toFixed(2);
-    document.getElementById('kafka-linear-total-disk').innerText = totalDisk.toFixed(2);
+
+    const totalCpuEl = document.getElementById('kafka-linear-total-cpu');
+    const totalRamEl = document.getElementById('kafka-linear-total-ram');
+    const totalDiskEl = document.getElementById('kafka-linear-total-disk');
+    if (totalCpuEl) totalCpuEl.innerText = totalCPU.toFixed(2);
+    if (totalRamEl) totalRamEl.innerText = totalRAM.toFixed(2);
+    if (totalDiskEl) totalDiskEl.innerText = totalDisk.toFixed(2);
 }
 
 // Thu thập dữ liệu bảng Linear
 function collectKafkaLinearTableData() {
-    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+    const rows = getKafkaLinearRows();
     const data = [];
     rows.forEach(row => {
         const evidenceImages = collectInlineEvidenceFromScope(row);
@@ -8833,22 +8804,16 @@ function calculateKafkaThroughputMethod() {
             </tr>
         </thead>
         <tbody>`;
-    
-    for (let n = 3; n <= 7; n++) {
-        const diskPerServer = D_GB / n;
-        const ramPerServer = (S * R / n) + 8;
-        const isOptimal = n === optimalN;
-        const ramStatus = ramPerServer >= 16 && ramPerServer <= 64 ? '✓' : '✗';
-        const rowStyle = isOptimal ? 'background: #e6ffed; font-weight: 600;' : '';
-        
-        html += `<tr style="${rowStyle}">
-            <td class="text-center">${n}${isOptimal ? ' ★' : ''}</td>
-            <td class="text-center">${diskPerServer >= 1024 ? (diskPerServer/1024).toFixed(2) + ' TB' : diskPerServer.toFixed(2) + ' GB'}</td>
-            <td class="text-center">${ramPerServer.toFixed(2)} GB ${ramStatus}</td>
-            <td class="text-center">${vCPU}</td>
-            <td>${isOptimal ? 'Khuyến nghị (16 < RAM < 64)' : (ramPerServer > 64 ? 'RAM quá cao' : (ramPerServer < 16 ? 'RAM thấp' : ''))}</td>
-        </tr>`;
-    }
+
+    const diskPerServerByOptimal = D_GB / optimalN;
+    const ramPerServerByOptimal = (S * R / optimalN) + 8;
+    html += `<tr style="background: #e6ffed; font-weight: 600;">
+        <td class="text-center">${optimalN} ★</td>
+        <td class="text-center">${diskPerServerByOptimal >= 1024 ? (diskPerServerByOptimal / 1024).toFixed(2) + ' TB' : diskPerServerByOptimal.toFixed(2) + ' GB'}</td>
+        <td class="text-center">${ramPerServerByOptimal.toFixed(2)} GB ✓</td>
+        <td class="text-center">${vCPU}</td>
+        <td>Khuyến nghị (16 < RAM < 64)</td>
+    </tr>`;
     
     html += `</tbody></table>`;
     
@@ -8910,10 +8875,22 @@ function calculateKafkaLinearMethod() {
         return;
     }
     
-    // Lấy tổng từ bảng
-    const totalCPU = parseFloat(document.getElementById('kafka-linear-total-cpu')?.innerText) || 0;
-    const totalRAM = parseFloat(document.getElementById('kafka-linear-total-ram')?.innerText) || 0;
-    const totalDisk = parseFloat(document.getElementById('kafka-linear-total-disk')?.innerText) || 0;
+    // Tính tổng trực tiếp từ bảng để đảm bảo đúng theo module instance đang active
+    const rows = getKafkaLinearRows();
+    let totalCPU = 0, totalRAM = 0, totalDisk = 0;
+    rows.forEach(row => {
+        const vcpu = parseFloat(row.querySelector('.kafka-linear-vcpu')?.value) || 0;
+        const ram = parseFloat(row.querySelector('.kafka-linear-ram')?.value) || 0;
+        const disk = parseFloat(row.querySelector('.kafka-linear-disk')?.value) || 0;
+        const cpuLoad = parseFloat(row.querySelector('.kafka-linear-cpu-load')?.value) || 0;
+        const ramLoad = parseFloat(row.querySelector('.kafka-linear-ram-load')?.value) || 0;
+        const diskLoad = parseFloat(row.querySelector('.kafka-linear-disk-load')?.value) || 0;
+
+        totalCPU += vcpu * (cpuLoad / 100);
+        totalRAM += ram * (ramLoad / 100);
+        totalDisk += disk * (diskLoad / 100);
+    });
+    updateKafkaLinearTotal();
     
     if (totalCPU <= 0 && totalRAM <= 0 && totalDisk <= 0) {
         showToast('Vui lòng nhập thông tin các Broker hiện tại!', 'warning');
@@ -8966,6 +8943,36 @@ function calculateKafkaLinearMethod() {
             <li><strong>Disk cần:</strong> ${totalDisk.toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${diskNeeded.toFixed(2)} GB</strong></li>
         </ul>
     </div>`;
+
+    // Bảng phân bổ theo số lượng broker để so sánh các phương án N
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-table"></i> Bảng phân bổ theo số lượng Broker (N)
+    </h4>`;
+
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 80px;">N (Broker)</th>
+                <th>CPU/Node</th>
+                <th>RAM/Node</th>
+                <th>Disk/Node</th>
+                <th>Ghi chú</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    const cpuPerNodeOptimal = cpuNeeded / optimalN;
+    const ramPerNodeOptimal = ramNeeded / optimalN;
+    const diskPerNodeOptimal = diskNeeded / optimalN;
+    html += `<tr style="background: #e6ffed; font-weight: 600;">
+        <td class="text-center">${optimalN} ★</td>
+        <td class="text-center">${Math.ceil(cpuPerNodeOptimal)}</td>
+        <td class="text-center">${ramPerNodeOptimal.toFixed(2)} GB ✓</td>
+        <td class="text-center">${diskPerNodeOptimal >= 1024 ? (diskPerNodeOptimal / 1024).toFixed(2) + ' TB' : Math.ceil(diskPerNodeOptimal) + ' GB'}</td>
+        <td>Khuyến nghị (16 <= RAM <= 64)</td>
+    </tr>`;
+
+    html += `</tbody></table>`;
     
     // Bảng kết quả
     html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
@@ -9107,21 +9114,24 @@ function loadKafkaData(data) {
         
         // Load bảng linear
         if (lm.linearTable && Array.isArray(lm.linearTable)) {
-            document.getElementById('kafka-linear-table-body').innerHTML = '';
-            lm.linearTable.forEach(row => {
-                addKafkaLinearRow(row);
-                // Restore evidence image(s) if available
-                const kafkaLinearEvidenceImages = getEvidenceImagesFromRowData(row);
-                if (kafkaLinearEvidenceImages.length > 0) {
-                    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
-                    const lastRow = rows[rows.length - 1];
-                    const evidenceCell = lastRow?.querySelector('.inline-evidence-cell');
-                    if (evidenceCell) {
-                        loadInlineEvidence(evidenceCell, kafkaLinearEvidenceImages);
+            const linearTbody = document.getElementById('kafka-linear-table-body');
+            if (linearTbody) {
+                linearTbody.innerHTML = '';
+                lm.linearTable.forEach(row => {
+                    addKafkaLinearRow(row);
+                    // Restore evidence image(s) if available
+                    const kafkaLinearEvidenceImages = getEvidenceImagesFromRowData(row);
+                    if (kafkaLinearEvidenceImages.length > 0) {
+                        const rows = getKafkaLinearRows();
+                        const lastRow = rows[rows.length - 1];
+                        const evidenceCell = lastRow?.querySelector('.inline-evidence-cell');
+                        if (evidenceCell) {
+                            loadInlineEvidence(evidenceCell, kafkaLinearEvidenceImages);
+                        }
                     }
-                }
-            });
-            updateKafkaLinearTotal();
+                });
+                updateKafkaLinearTotal();
+            }
         }
         
         // Load kết quả
