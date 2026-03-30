@@ -48,6 +48,23 @@ public class ExportService {
         }
     }
 
+    private static class AppendixImage {
+        private final String ref;
+        private final String title;
+        private final String base64;
+
+        private AppendixImage(String ref, String title, String base64) {
+            this.ref = ref;
+            this.title = title;
+            this.base64 = base64;
+        }
+    }
+
+    private static class ExportContext {
+        private final List<AppendixImage> appendixImages = new ArrayList<>();
+        private int nextImageIndex = 1;
+    }
+
     public ExportService(ProjectRepository projectRepository,
                          ProjectDataRepository projectDataRepository,
                          ObjectMapper objectMapper) {
@@ -66,6 +83,7 @@ public class ExportService {
         log.info("=== Export for projectId: {} ===", projectId);
 
         XWPFDocument doc = new XWPFDocument();
+        ExportContext context = new ExportContext();
 
         // ===== TITLE =====
         addTitle(doc, project.getName());
@@ -77,25 +95,27 @@ public class ExportService {
 
         // ===== II. THONG TIN DAU VAO =====
         if (pd.getThongTinDauVaoContent() != null) {
-            writeThongTinDauVao(doc, objectMapper.readTree(pd.getThongTinDauVaoContent()));
+            writeThongTinDauVao(doc, objectMapper.readTree(pd.getThongTinDauVaoContent()), context);
         }
 
         // ===== III. MO HINH HE THONG =====
         JsonNode moHinhNode = null;
         if (pd.getMoHinhHeThongContent() != null) {
             moHinhNode = objectMapper.readTree(pd.getMoHinhHeThongContent());
-            writeMoHinhHeThong(doc, moHinhNode);
+            writeMoHinhHeThong(doc, moHinhNode, context);
         }
 
         // ===== IV. DINH CO HE THONG =====
         if (pd.getDinhCoHeThongContent() != null) {
-            writeDinhCoHeThong(doc, objectMapper.readTree(pd.getDinhCoHeThongContent()), moHinhNode);
+            writeDinhCoHeThong(doc, objectMapper.readTree(pd.getDinhCoHeThongContent()), moHinhNode, context);
         }
 
         // ===== V. TONG HOP VA DE XUAT =====
         if (pd.getTongHopVaDeXuatContent() != null) {
             writeTongHop(doc, objectMapper.readTree(pd.getTongHopVaDeXuatContent()), moHinhNode);
         }
+
+        writeAppendix(doc, context);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         doc.write(out);
@@ -147,7 +167,7 @@ public class ExportService {
     }
 
     // ======================== II. THONG TIN DAU VAO ========================
-    private void writeThongTinDauVao(XWPFDocument doc, JsonNode root) {
+    private void writeThongTinDauVao(XWPFDocument doc, JsonNode root, ExportContext context) {
         addSectionHeading(doc, "II. TH\u00d4NG TIN \u0110\u1ea6U V\u00c0O");
 
         JsonNode inputRows = root.path("inputRows");
@@ -187,6 +207,7 @@ public class ExportService {
 
             // POC evidence images
             boolean hasPocEvidence = false;
+            List<String> pocRefs = new ArrayList<>();
             for (int i = 0; i < inputRows.size(); i++) {
                 JsonNode pocNode = inputRows.get(i).path("taiHeThongPOC");
                 if (pocNode.isObject()) {
@@ -196,13 +217,17 @@ public class ExportService {
                             addSubHeading(doc, "S\u1edf c\u1ee9 t\u1ea3i h\u1ec7 th\u1ed1ng POC:");
                             hasPocEvidence = true;
                         }
-                        addImagesFromArray(doc, imgs);
+                        String rowName = txt(inputRows.get(i), "dauVao").trim();
+                        String detail = "D\u00f2ng " + (i + 1) + (rowName.isEmpty() ? "" : (" - " + rowName));
+                        pocRefs.addAll(collectImageRefs(imgs, buildCaption("S\u1edf c\u1ee9 t\u1ea3i h\u1ec7 th\u1ed1ng POC", detail), context));
                     }
                 }
             }
+            addAppendixNote(doc, pocRefs);
 
             // Sizing evidence images
             boolean hasSizingEvidence = false;
+            List<String> sizingRefs = new ArrayList<>();
             for (int i = 0; i < inputRows.size(); i++) {
                 JsonNode dinhCoNode = inputRows.get(i).path("dinhCo");
                 if (dinhCoNode.isObject()) {
@@ -212,22 +237,25 @@ public class ExportService {
                             addSubHeading(doc, "S\u1edf c\u1ee9 \u0111\u1ecbnh c\u1ee1:");
                             hasSizingEvidence = true;
                         }
-                        addImagesFromArray(doc, imgs);
+                        String rowName = txt(inputRows.get(i), "dauVao").trim();
+                        String detail = "D\u00f2ng " + (i + 1) + (rowName.isEmpty() ? "" : (" - " + rowName));
+                        sizingRefs.addAll(collectImageRefs(imgs, buildCaption("S\u1edf c\u1ee9 \u0111\u1ecbnh c\u1ee1", detail), context));
                     }
                 }
             }
+            addAppendixNote(doc, sizingRefs);
         }
     }
 
     // ======================== III. MO HINH HE THONG ========================
-    private void writeMoHinhHeThong(XWPFDocument doc, JsonNode root) {
+    private void writeMoHinhHeThong(XWPFDocument doc, JsonNode root, ExportContext context) {
         addSectionHeading(doc, "III. M\u00d4 H\u00ccNH H\u1ec6 TH\u1ed0NG");
 
         addSubHeading(doc, "1. M\u00f4 h\u00ecnh v\u1eadt l\u00fd");
-        addImagesFromArray(doc, root.path("physicalImages"));
+        addAppendixNote(doc, collectImageRefs(root.path("physicalImages"), buildCaption("M\u00f4 h\u00ecnh v\u1eadt l\u00fd", null), context));
 
         addSubHeading(doc, "2. M\u00f4 h\u00ecnh logic");
-        addImagesFromArray(doc, root.path("logicalImages"));
+        addAppendixNote(doc, collectImageRefs(root.path("logicalImages"), buildCaption("M\u00f4 h\u00ecnh logic", null), context));
 
         JsonNode logicComponentRows = root.path("logicComponentRows");
         List<JsonNode> nonEmptyLogicRows = new ArrayList<>();
@@ -284,11 +312,11 @@ public class ExportService {
             doc.createParagraph();
 
             // Connection evidence images
-            addImagesFromArray(doc, root.path("connectionImages"));
+            addAppendixNote(doc, collectImageRefs(root.path("connectionImages"), buildCaption("S\u01a1 \u0111\u1ed3 k\u1ebft n\u1ed1i", null), context));
         }
 
         addSubHeading(doc, "4. Lu\u1ed3ng nghi\u1ec7p v\u1ee5");
-        addImagesFromArray(doc, root.path("flowImages"));
+        addAppendixNote(doc, collectImageRefs(root.path("flowImages"), buildCaption("S\u01a1 \u0111\u1ed3 lu\u1ed3ng nghi\u1ec7p v\u1ee5", null), context));
 
         String flowExplanation = txt(root, "flowExplanation");
         if (!flowExplanation.isEmpty()) {
@@ -323,7 +351,7 @@ public class ExportService {
     }
 
     // ======================== IV. DINH CO HE THONG ========================
-    private void writeDinhCoHeThong(XWPFDocument doc, JsonNode root, JsonNode moHinhNode) {
+    private void writeDinhCoHeThong(XWPFDocument doc, JsonNode root, JsonNode moHinhNode, ExportContext context) {
         addSectionHeading(doc, "IV. ĐỊNH C\u1ee0 H\u1ec6 TH\u1ed0NG");
         
         // Get selected modules from moHinhHeThong archRows
@@ -346,84 +374,84 @@ public class ExportService {
         if (exportAll || selectedModules.contains("App")) {
             List<ModuleInstanceData> appInstances = extractModuleInstances(root, "App", "moduleApp");
             if (appInstances.isEmpty()) {
-                writeModuleApp(doc, root.path("moduleApp"), "1. Module App");
+                writeModuleApp(doc, root.path("moduleApp"), "1. Module App", context);
             } else {
                 for (int i = 0; i < appInstances.size(); i++) {
                     String heading = "1. Module App";
                     if (appInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(appInstances.get(i), i + 1, "App");
                     }
-                    writeModuleApp(doc, appInstances.get(i).data, heading);
+                    writeModuleApp(doc, appInstances.get(i).data, heading, context);
                 }
             }
         }
         if (exportAll || selectedModules.contains("MariaDB")) {
             List<ModuleInstanceData> mariaInstances = extractModuleInstances(root, "MariaDB", "moduleMariaDB");
             if (mariaInstances.isEmpty()) {
-                writeModuleMariaDB(doc, root.path("moduleMariaDB"), "2. Module MariaDB");
+                writeModuleMariaDB(doc, root.path("moduleMariaDB"), "2. Module MariaDB", context);
             } else {
                 for (int i = 0; i < mariaInstances.size(); i++) {
                     String heading = "2. Module MariaDB";
                     if (mariaInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(mariaInstances.get(i), i + 1, "MariaDB");
                     }
-                    writeModuleMariaDB(doc, mariaInstances.get(i).data, heading);
+                    writeModuleMariaDB(doc, mariaInstances.get(i).data, heading, context);
                 }
             }
         }
         if (exportAll || selectedModules.contains("Redis")) {
             List<ModuleInstanceData> redisInstances = extractModuleInstances(root, "Redis", "moduleRedis");
             if (redisInstances.isEmpty()) {
-                writeModuleRedis(doc, root.path("moduleRedis"), "3. Module Redis");
+                writeModuleRedis(doc, root.path("moduleRedis"), "3. Module Redis", context);
             } else {
                 for (int i = 0; i < redisInstances.size(); i++) {
                     String heading = "3. Module Redis";
                     if (redisInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(redisInstances.get(i), i + 1, "Redis");
                     }
-                    writeModuleRedis(doc, redisInstances.get(i).data, heading);
+                    writeModuleRedis(doc, redisInstances.get(i).data, heading, context);
                 }
             }
         }
         if (exportAll || selectedModules.contains("Kafka")) {
             List<ModuleInstanceData> kafkaInstances = extractModuleInstances(root, "Kafka", "moduleKafka");
             if (kafkaInstances.isEmpty()) {
-                writeModuleKafka(doc, root.path("moduleKafka"), "4. Module Kafka");
+                writeModuleKafka(doc, root.path("moduleKafka"), "4. Module Kafka", context);
             } else {
                 for (int i = 0; i < kafkaInstances.size(); i++) {
                     String heading = "4. Module Kafka";
                     if (kafkaInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(kafkaInstances.get(i), i + 1, "Kafka");
                     }
-                    writeModuleKafka(doc, kafkaInstances.get(i).data, heading);
+                    writeModuleKafka(doc, kafkaInstances.get(i).data, heading, context);
                 }
             }
         }
         if (exportAll || selectedModules.contains("K8S")) {
             List<ModuleInstanceData> k8sInstances = extractModuleInstances(root, "K8S", "moduleK8S");
             if (k8sInstances.isEmpty()) {
-                writeModuleK8S(doc, root.path("moduleK8S"), "5. Module K8S");
+                writeModuleK8S(doc, root.path("moduleK8S"), "5. Module K8S", context);
             } else {
                 for (int i = 0; i < k8sInstances.size(); i++) {
                     String heading = "5. Module K8S";
                     if (k8sInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(k8sInstances.get(i), i + 1, "K8S");
                     }
-                    writeModuleK8S(doc, k8sInstances.get(i).data, heading);
+                    writeModuleK8S(doc, k8sInstances.get(i).data, heading, context);
                 }
             }
         }
         if (exportAll || selectedModules.contains("LB/FW")) {
             List<ModuleInstanceData> lbfwInstances = extractModuleInstances(root, "LB/FW", "moduleLBFW");
             if (lbfwInstances.isEmpty()) {
-                writeModuleLBFW(doc, root.path("moduleLBFW"), "6. Module LB/FW");
+                writeModuleLBFW(doc, root.path("moduleLBFW"), "6. Module LB/FW", context);
             } else {
                 for (int i = 0; i < lbfwInstances.size(); i++) {
                     String heading = "6. Module LB/FW";
                     if (lbfwInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(lbfwInstances.get(i), i + 1, "LB/FW");
                     }
-                    writeModuleLBFW(doc, lbfwInstances.get(i).data, heading);
+                    writeModuleLBFW(doc, lbfwInstances.get(i).data, heading, context);
                 }
             }
         }
@@ -462,7 +490,7 @@ public class ExportService {
     }
 
     // ---------- Module App ----------
-    private void writeModuleApp(XWPFDocument doc, JsonNode moduleApp, String heading) {
+    private void writeModuleApp(XWPFDocument doc, JsonNode moduleApp, String heading, ExportContext context) {
         if (moduleApp.isMissingNode()) return;
         addSubHeading(doc, heading);
 
@@ -521,15 +549,16 @@ public class ExportService {
 
                 String ip = txt(row, "ip").trim();
                 addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                String detail = "D\u00f2ng " + (i + 1) + (ip.isEmpty() ? "" : (" - " + ip));
                 if (hasCurrentEvidence) {
-                    addImagesFromArray(doc, evidenceImages);
+                    addAppendixNote(doc, collectImageRefs(evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu", detail), context));
                 } else {
-                    addBase64Image(doc, evidenceImage);
+                    addAppendixNote(doc, collectSingleImageRef(evidenceImage, buildCaption(heading + " - S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu", detail), context));
                 }
             }
         }
 
-        addImagesFromArray(doc, moduleApp.path("baselineEvidence"));
+        addAppendixNote(doc, collectImageRefs(moduleApp.path("baselineEvidence"), buildCaption(heading + " - S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu", null), context));
 
         // Input config table
         JsonNode inputConfig = moduleApp.path("inputConfigTable");
@@ -591,10 +620,11 @@ public class ExportService {
 
                 String ip = txt(row, "ip").trim();
                 addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                String detail = "D\u00f2ng " + (i + 1) + (ip.isEmpty() ? "" : (" - " + ip));
                 if (hasCurrentEvidence) {
-                    addImagesFromArray(doc, evidenceImages);
+                    addAppendixNote(doc, collectImageRefs(evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o", detail), context));
                 } else {
-                    addBase64Image(doc, evidenceImage);
+                    addAppendixNote(doc, collectSingleImageRef(evidenceImage, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o", detail), context));
                 }
             }
         }
@@ -603,7 +633,7 @@ public class ExportService {
         JsonNode evidenceImages = moduleApp.path("evidenceImages");
         if (evidenceImages.isArray() && evidenceImages.size() > 0) {
             addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o:");
-            addImagesFromArray(doc, evidenceImages);
+            addAppendixNote(doc, collectImageRefs(evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o", null), context));
         }
 
         String selectedInputRow = txt(moduleApp, "selectedInputRow");
@@ -801,7 +831,7 @@ public class ExportService {
     }
 
     // ---------- Module MariaDB ----------
-    private void writeModuleMariaDB(XWPFDocument doc, JsonNode moduleMariaDB, String heading) {
+    private void writeModuleMariaDB(XWPFDocument doc, JsonNode moduleMariaDB, String heading, ExportContext context) {
         if (moduleMariaDB.isMissingNode()) return;
         addSubHeading(doc, heading);
 
@@ -852,10 +882,11 @@ public class ExportService {
 
                 String ip = txt(r, "ip").trim();
                 addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                String detail = "D\u00f2ng " + (i + 1) + (ip.isEmpty() ? "" : (" - " + ip));
                 if (hasCurrentEvidence) {
-                    addImagesFromArray(doc, evidenceImages);
+                    addAppendixNote(doc, collectImageRefs(evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 b\u1ea3ng tham chi\u1ebfu MariaDB", detail), context));
                 } else {
-                    addBase64Image(doc, legacyEvidence);
+                    addAppendixNote(doc, collectSingleImageRef(legacyEvidence, buildCaption(heading + " - S\u1edf c\u1ee9 b\u1ea3ng tham chi\u1ebfu MariaDB", detail), context));
                 }
             }
         }
@@ -887,24 +918,28 @@ public class ExportService {
             JsonNode storageEvidenceImages = storage.path("evidenceImages");
             if (storageEvidenceImages.isArray() && storageEvidenceImages.size() > 0) {
                 addSubHeading2(doc, "S\u1edf c\u1ee9 Storage:");
+                List<String> storageRefs = new ArrayList<>();
+                int storageImageIndex = 1;
                 for (JsonNode imgNode : storageEvidenceImages) {
                     String imgData = imgNode.asText("");
                     if (!imgData.isEmpty()) {
-                        addBase64Image(doc, imgData);
+                        storageRefs.addAll(collectSingleImageRef(imgData, buildCaption(heading + " - S\u1edf c\u1ee9 storage MariaDB", "\u1ea2nh " + storageImageIndex), context));
+                        storageImageIndex++;
                     }
                 }
+                addAppendixNote(doc, storageRefs);
             } else {
                 String storageLegacyEvidence = txt(storage, "evidenceImage");
                 if (!storageLegacyEvidence.isEmpty()) {
                     addSubHeading2(doc, "S\u1edf c\u1ee9 Storage:");
-                    addBase64Image(doc, storageLegacyEvidence);
+                    addAppendixNote(doc, collectSingleImageRef(storageLegacyEvidence, buildCaption(heading + " - S\u1edf c\u1ee9 storage MariaDB", null), context));
                 }
             }
         }
 
         // Evidence
-        addImagesFromArray(doc, moduleMariaDB.path("evidence"));
-        addImagesFromArray(doc, moduleMariaDB.path("refEvidence"));
+        addAppendixNote(doc, collectImageRefs(moduleMariaDB.path("evidence"), buildCaption(heading + " - S\u1edf c\u1ee9 MariaDB", null), context));
+        addAppendixNote(doc, collectImageRefs(moduleMariaDB.path("refEvidence"), buildCaption(heading + " - S\u1edf c\u1ee9 tham chi\u1ebfu MariaDB", null), context));
 
         // Note
         String note = txt(moduleMariaDB, "note");
@@ -1180,7 +1215,7 @@ public class ExportService {
     }
 
     // ---------- Module Redis ----------
-    private void writeModuleRedis(XWPFDocument doc, JsonNode moduleRedis, String heading) {
+    private void writeModuleRedis(XWPFDocument doc, JsonNode moduleRedis, String heading, ExportContext context) {
         if (moduleRedis.isMissingNode()) return;
         addSubHeading(doc, heading);
 
@@ -1203,7 +1238,7 @@ public class ExportService {
                     addLabelValue(doc, "T\u1ed5ng l\u01b0\u1ee3ng Key d\u1ef1 ki\u1ebfn:", keyCount);
                     addLabelValue(doc, "K\u00edch th\u01b0\u1edbc trung b\u00ecnh 1 b\u1ea3n ghi (KB):", recordSize);
                     if (!importance.isEmpty()) addLabelValue(doc, "M\u1ee9c \u0111\u1ed9 quan tr\u1ecdng:", importance);
-                    addImagesFromArray(doc, keyMethod.path("evidenceImages"));
+                    addAppendixNote(doc, collectImageRefs(keyMethod.path("evidenceImages"), buildCaption(heading + " - S\u1edf c\u1ee9 ph\u01b0\u01a1ng ph\u00e1p Key", null), context));
 
                     String resultHTML = txt(keyMethod, "resultHTML");
                     if (!resultHTML.isEmpty()) {
@@ -1353,7 +1388,7 @@ public class ExportService {
     }
 
     // ---------- Module Kafka ----------
-    private void writeModuleKafka(XWPFDocument doc, JsonNode moduleKafka, String heading) {
+    private void writeModuleKafka(XWPFDocument doc, JsonNode moduleKafka, String heading, ExportContext context) {
         if (moduleKafka.isMissingNode()) return;
         addSubHeading(doc, heading);
 
@@ -1375,8 +1410,8 @@ public class ExportService {
                     addLabelValue(doc, "Retention Time (h):", txt(throughputMethod, "retentionTime"));
                     addLabelValue(doc, "Replication Factor:", txt(throughputMethod, "replicationFactor"));
                     addLabelValue(doc, "Compression:", txt(throughputMethod, "compression"));
-                    addImagesFromArray(doc, throughputMethod.path("throughputEvidence"));
-                    addImagesFromArray(doc, throughputMethod.path("compressionEvidence"));
+                    addAppendixNote(doc, collectImageRefs(throughputMethod.path("throughputEvidence"), buildCaption(heading + " - S\u1edf c\u1ee9 throughput Kafka", null), context));
+                    addAppendixNote(doc, collectImageRefs(throughputMethod.path("compressionEvidence"), buildCaption(heading + " - S\u1edf c\u1ee9 compression Kafka", null), context));
 
                     String resultHTML = txt(throughputMethod, "resultHTML");
                     if (!resultHTML.isEmpty()) {
@@ -1591,7 +1626,7 @@ public class ExportService {
     }
 
     // ---------- Module K8S ----------
-    private void writeModuleK8S(XWPFDocument doc, JsonNode moduleK8S, String heading) {
+    private void writeModuleK8S(XWPFDocument doc, JsonNode moduleK8S, String heading, ExportContext context) {
         if (moduleK8S.isMissingNode()) return;
         addSubHeading(doc, heading);
 
@@ -1876,12 +1911,12 @@ public class ExportService {
     }
 
     // ---------- Module LB/FW ----------
-    private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW, String heading) {
+    private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW, String heading, ExportContext context) {
         if (moduleLBFW.isMissingNode()) return;
         addSubHeading(doc, heading);
 
         // Evidence images
-        addImagesFromArray(doc, moduleLBFW.path("evidenceImages"));
+        addAppendixNote(doc, collectImageRefs(moduleLBFW.path("evidenceImages"), buildCaption(heading + " - S\u1edf c\u1ee9 LB/FW", null), context));
 
         // Peak values
         String peakUpload = txt(moduleLBFW, "peakUpload");
@@ -2148,6 +2183,21 @@ public class ExportService {
         return String.format("%.2f", val);
     }
 
+    private String buildCaption(String baseTitle, String detail) {
+        String base = baseTitle == null ? "" : baseTitle.trim();
+        String extra = detail == null ? "" : detail.trim();
+
+        String caption = extra.isEmpty() ? base : (base + " (" + extra + ")");
+        if (caption.isEmpty()) {
+            return "H\u00ecnh \u1ea3nh s\u1edf c\u1ee9.";
+        }
+
+        if (!caption.endsWith(".") && !caption.endsWith("!") && !caption.endsWith("?")) {
+            caption = caption + ".";
+        }
+        return caption;
+    }
+
     private void addSectionHeading(XWPFDocument doc, String text) {
         XWPFParagraph p = doc.createParagraph();
         p.setSpacingBefore(200);
@@ -2264,13 +2314,49 @@ public class ExportService {
         }
     }
 
-    private void addImagesFromArray(XWPFDocument doc, JsonNode imagesNode) {
-        if (imagesNode == null || !imagesNode.isArray()) return;
+    private List<String> collectImageRefs(JsonNode imagesNode, String title, ExportContext context) {
+        List<String> refs = new ArrayList<>();
+        if (imagesNode == null || !imagesNode.isArray()) return refs;
+
         for (JsonNode img : imagesNode) {
             String base64 = "";
-            if (img.has("base64")) base64 = img.get("base64").asText("");
-            else if (img.has("dataUrl")) base64 = img.get("dataUrl").asText("");
-            if (!base64.isEmpty()) addBase64Image(doc, base64);
+            if (img.isObject()) {
+                if (img.has("base64")) base64 = img.get("base64").asText("");
+                else if (img.has("dataUrl")) base64 = img.get("dataUrl").asText("");
+            } else if (img.isTextual()) {
+                base64 = img.asText("");
+            }
+
+            if (base64 != null && !base64.isBlank()) {
+                refs.addAll(collectSingleImageRef(base64, title, context));
+            }
+        }
+        return refs;
+    }
+
+    private List<String> collectSingleImageRef(String base64, String title, ExportContext context) {
+        List<String> refs = new ArrayList<>();
+        if (base64 == null || base64.isBlank()) return refs;
+
+        String ref = "H\u00ecnh PL-" + context.nextImageIndex++;
+        context.appendixImages.add(new AppendixImage(ref, title, base64));
+        refs.add(ref);
+        return refs;
+    }
+
+    private void addAppendixNote(XWPFDocument doc, List<String> refs) {
+        if (refs == null || refs.isEmpty()) return;
+        addNormalText(doc, "Ghi ch\u00fa: Xem " + String.join(", ", refs) + " t\u1ea1i Ph\u1ee5 l\u1ee5c.");
+    }
+
+    private void writeAppendix(XWPFDocument doc, ExportContext context) {
+        if (context.appendixImages.isEmpty()) return;
+
+        addSectionHeading(doc, "PH\u1ee4 L\u1ee4C - H\u00ccNH \u1ea2NH S\u1ede C\u1ee8");
+        for (AppendixImage image : context.appendixImages) {
+            addSubHeading2(doc, image.ref + ": " + image.title);
+            addBase64Image(doc, image.base64);
+            doc.createParagraph();
         }
     }
 
