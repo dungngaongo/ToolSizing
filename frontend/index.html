@@ -231,7 +231,11 @@
                                 </tr>
                                 <tr>
                                     <td><strong>7. Nguyên tắc định cỡ</strong> <span class="info-icon" title="Tham chiếu tài liệu Guideline">?</span></td>
-                                    <td><textarea class="input-full" rows="2" placeholder="Nhập nguyên tắc..." style="resize: vertical; min-height: 36px;"></textarea></td>
+                                    <td><textarea id="sizing-rule-fixed" class="input-full" rows="8" readonly style="resize: none; min-height: 120px; background-color: #f8f9fa;">
+                                        Tính toán tăng trưởng mở rộng hệ thống trong vòng 01 năm theo yêu cầu kinh doanh. Đảm bảo khả năng dự phòng: Các thiết bị phần 
+                                        cứng phải đảm bảo hoạt động với cơ chế dự phòng active-active hoặc active-standby, Đảm bảo hiệu suất hoạt động (KPI): Tải CPU 
+                                        không quá 75%, RAM không vượt quá 90% và ổ cứng không vượt quá 80%, Datanode không vượt quá 50%, 
+                                        Hệ số dự phòng sai số tính toán: 1.1</textarea></td>
                                     <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>

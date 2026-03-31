@@ -1696,6 +1696,9 @@ function resetAllForms() {
     if (firstPage) firstPage.classList.add("active");
 
     try { updateModuleVisibility(); } catch (e) {}
+
+    // Always restore fixed sizing rule after global reset.
+    applyFixedSizingRule();
 }
 
 // ==================== LOAD DATA FROM DATABASE ====================
@@ -1790,6 +1793,9 @@ async function loadAllDataFromDB() {
         showToast('Lỗi khi tải dữ liệu dự án: ' + error.message, 'error', 5000);
     }
 
+    // Keep fixed sizing rule visible even when project has no saved request content yet.
+    applyFixedSizingRule();
+
     // Khôi phục tab đang xem
     if (activeSectionId) {
         showSection(activeSectionId, activeMenuLink);
@@ -1808,6 +1814,18 @@ async function loadAllDataFromDB() {
 }
 
 // ==================== 1. YÊU CẦU BÀI TOÁN ====================
+
+const FIXED_SIZING_RULE = `Tính toán tăng trưởng mở rộng hệ thống trong vòng 01 năm theo yêu cầu kinh doanh 
+Đảm bảo khả năng dự phòng: Các thiết bị phần cứng phải đảm bảo hoạt động với cơ chế dự phòng active-active hoặc active-standby,
+Đảm bảo hiệu suất hoạt động (KPI): Tải CPU không quá 75%, RAM không vượt quá 90% và ổ cứng không vượt quá 80%, Datanode không vượt quá 50%,
+Hệ số dự phòng sai số tính toán: 1.1`;
+
+function applyFixedSizingRule() {
+    const sizingRuleEl = document.getElementById('sizing-rule-fixed');
+    if (!sizingRuleEl) return;
+    sizingRuleEl.value = FIXED_SIZING_RULE;
+    sizingRuleEl.readOnly = true;
+}
 
 function loadYeuCauBaiToan(data) {
     const rows = document.querySelectorAll('#request-table-body tr');
@@ -1869,8 +1887,9 @@ function loadYeuCauBaiToan(data) {
     loadRowData(4, data.sizingPurpose, data.adminReview?.row4);
     // Dòng 6: Cơ sở
     loadRowData(5, data.sizingBasis, data.adminReview?.row5);
-    // Dòng 7: Nguyên tắc
-    loadRowData(6, data.sizingRule, data.adminReview?.row6);
+    // Dòng 7: Nguyên tắc định cỡ luôn cố định, không lấy theo dữ liệu lưu cũ
+    loadRowData(6, FIXED_SIZING_RULE, data.adminReview?.row6);
+    applyFixedSizingRule();
     // Dòng 8: Mức độ
     loadRowData(7, data.importance, data.adminReview?.row7);
     // Dòng 9: Thời gian
@@ -2029,6 +2048,7 @@ function loadMoHinhHeThong(data, admin) {
 
 function collectYeuCauBaiToan() {
     const rows = document.querySelectorAll('#request-table-body tr');
+    applyFixedSizingRule();
 
     // Helper lấy value User Input
     const getVal = (rowIndex) => {
@@ -2063,7 +2083,7 @@ function collectYeuCauBaiToan() {
         contactPerson: contactCombined,
         sizingPurpose: getVal(4), // Dòng 5 là index 4
         sizingBasis: getVal(5),
-        sizingRule: getVal(6),
+        sizingRule: FIXED_SIZING_RULE,
         importance: getVal(7),
         deploymentTime: getVal(8),
 
@@ -4358,6 +4378,7 @@ async function exportToWord() {
 
 document.addEventListener("DOMContentLoaded", async function () {
     Logger.debug('Current Project ID:', currentProjectId);
+    applyFixedSizingRule();
     
     // Kiểm tra xem người dùng đã đăng nhập chưa
     const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -5902,6 +5923,7 @@ function showSection(sectionId, linkElement, options = {}) {
 
 // Tự động thêm 1 dòng trắng khi load trang lần đầu
 document.addEventListener("DOMContentLoaded", function() {
+    applyFixedSizingRule();
     const tbody = document.getElementById('baseline-table-body');
     if(tbody && tbody.children.length === 0) {
         addBaselineRow();

@@ -22,6 +22,10 @@ public class Project {
     @JsonIgnore
     private User owner;
 
+    @Column(name = "user_id", insertable = false, updatable = false)
+    @JsonIgnore
+    private String userIdRef;
+
     @Column(nullable = false)
     private String name;
     
@@ -42,6 +46,10 @@ public class Project {
     @JsonIgnore
     private User assignedAdmin1; // Admin1 được chỉ định thẩm định/đánh giá dự án này
 
+    @Column(name = "assigned_admin1_id", insertable = false, updatable = false)
+    @JsonIgnore
+    private String assignedAdmin1IdRef;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -59,6 +67,9 @@ public class Project {
 
     @JsonProperty("userId")
     public String getUserId() {
+        if (userIdRef != null && !userIdRef.isBlank()) {
+            return userIdRef;
+        }
         return owner != null ? owner.getId() : null;
     }
 
@@ -76,6 +87,9 @@ public class Project {
 
     @JsonProperty("assignedAdmin1Id")
     public String getAssignedAdmin1Id() {
+        if (assignedAdmin1IdRef != null && !assignedAdmin1IdRef.isBlank()) {
+            return assignedAdmin1IdRef;
+        }
         return assignedAdmin1 != null ? assignedAdmin1.getId() : null;
     }
 
