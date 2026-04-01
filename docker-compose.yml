@@ -7,11 +7,11 @@ services:
   # ===========================================================
   mysql:
     image: mysql:8.0
-    container_name: demo_mysql
+    container_name: sizing_mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-demo}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sizing}
     ports:
       - "3307:3306"
     volumes:
@@ -22,7 +22,7 @@ services:
       timeout: 5s
       retries: 12
     networks:
-      - demo_net
+      - sizing_net
 
   # ===========================================================
   # 2. Spring Boot Backend
@@ -31,13 +31,13 @@ services:
     build:
       context: ./backend1
       dockerfile: Dockerfile
-    container_name: demo_backend
+    container_name: sizing_backend
     restart: unless-stopped
     ports:
       - "8081:8081"
     environment:
       # Override datasource để trỏ sang container mysql thay vì localhost
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-demo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-sizing}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
     depends_on:
@@ -46,14 +46,14 @@ services:
     volumes:
       - ./.env:/app/.env:ro
     networks:
-      - demo_net
+      - sizing_net
 
   # ===========================================================
   # 3. Frontend & Dashboard (nginx static files)
   # ===========================================================
   frontend:
     image: nginx:alpine
-    container_name: demo_frontend
+    container_name: sizing_frontend
     restart: unless-stopped
     ports:
       - "3000:80"
@@ -62,7 +62,7 @@ services:
       - ./dashboard:/usr/share/nginx/html/dashboard:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
-      - demo_net
+      - sizing_net
 
 # ===========================================================
 # Volumes & Networks
@@ -71,5 +71,5 @@ volumes:
   mysql_data:
 
 networks:
-  demo_net:
+  sizing_net:
     driver: bridge

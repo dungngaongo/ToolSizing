@@ -72,7 +72,7 @@ Tài liệu này mô tả kế hoạch chi tiết triển khai AI Bot nội bộ
 ### 3.1 Cây thư mục chi tiết
 
 ```
-demo/
+sizing/
 ├── aibot/                          # ⭐ PYTHON AI BOT SERVICE
 │   ├── .env                        # Environment variables (KHÔNG commit)
 │   ├── .env.example                # Mẫu environment variables
