@@ -1,8 +1,8 @@
 spring:
   application:
-    name: demo
+    name: sizing
   datasource:
-    url: jdbc:mysql://localhost:3306/demo?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/sizing?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root
     password: 2112
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -26,10 +26,10 @@ server:
 logging:
   level:
     root: INFO
-    com.example.demo: DEBUG
-    com.example.demo.controller: INFO
-    com.example.demo.service: DEBUG
-    com.example.demo.security: INFO
-    com.example.demo.exception: WARN
+    com.example.sizing: DEBUG
+    com.example.sizing.controller: INFO
+    com.example.sizing.service: DEBUG
+    com.example.sizing.security: INFO
+    com.example.sizing.exception: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

@@ -38,7 +38,7 @@ WORKDIR /app
 # Tạo user non-root để tăng bảo mật
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY --from=builder /build/target/demo-*.jar app.jar
+COPY --from=builder /build/target/sizing-*.jar app.jar
 
 RUN chown appuser:appgroup app.jar
 USER appuser
