@@ -10,7 +10,7 @@ pipeline {
         appType = "jar"
         processName = "${appName}-${appVersion}.${appType}"
         folderDeploy = "/data/${appUser}"
-        buildScript = "cd backend1 && chmod +x mvnw && ./mvnw clean install -DskipTests=true"
+        buildScript = "cd backend1 && chmod +x mvnw && mvn clean install -DskipTests=true"
     }
 
     stages {
