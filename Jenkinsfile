@@ -3,10 +3,6 @@ pipeline {
         label 'sizing' // Sẽ chạy trên Agent 192 của bạn
     }
 
-    tools {
-        maven 'maven-3.9' // Tên này phải giống tên trong Global Tool Configuration
-    }
-
     environment {
         appUser = "sizing"
         appName = "sizing"
@@ -14,7 +10,7 @@ pipeline {
         appType = "jar"
         processName = "${appName}-${appVersion}.${appType}"
         folderDeploy = "/data/${appUser}"
-        buildScript = "mvn clean install -DskipTests=true"
+        buildScript = "./mvnw clean install -DskipTests=true"
     }
 
     stages {
