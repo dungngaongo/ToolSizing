@@ -3,6 +3,10 @@ pipeline {
         label 'sizing' // Sẽ chạy trên Agent 192 của bạn
     }
 
+    tools {
+        maven 'maven-3.9' // Tên này phải giống tên trong Global Tool Configuration
+    }
+
     environment {
         appUser = "sizing"
         appName = "sizing"
