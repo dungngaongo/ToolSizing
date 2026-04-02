@@ -18,6 +18,7 @@ pipeline {
             steps {
                 // Sử dụng script block để chạy nhiều lệnh shell
                 sh(script: "whoami; pwd; ls -la", label: "First stage")
+                sh "mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout"
             }
         }
         stage('build') {
