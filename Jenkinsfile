@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label 'sizing' // Sẽ chạy trên Agent 192 của bạn
+        label 'sizing' 
     }
 
     environment {
@@ -8,23 +8,27 @@ pipeline {
         appName = "sizing"
         appVersion = "0.0.1-SNAPSHOT"
         appType = "jar"
-        processName = "${appName}-${appVersion}.${appType}"
-        folderDeploy = "/data/${appUser}"
-        buildScript = "cd backend1 && chmod +x mvnw && mvn clean install -DskipTests=true -o"
+        // Sử dụng mvn hệ thống vì bạn đã cài sẵn Maven 3.6.3 trên Agent 192
+        buildScript = "cd backend1 && mvn clean install -DskipTests=true -o"
     }
 
     stages {
         stage('Info') {
             steps {
-                // Sử dụng script block để chạy nhiều lệnh shell
-                sh(script: "whoami; pwd; ls -la", label: "First stage")
-                sh "mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout"
+                sh "whoami; pwd; mvn -v"
+                // Kiểm tra xem thư mục repo có file parent chưa (đã check qua find rồi nên yên tâm)
+                sh "ls -la /var/lib/jenkins/.m2/repository/org/springframework/boot/spring-boot-starter-parent/3.5.9/"
             }
         }
-        stage('build') {
+        stage('Build') {
             steps {
-                // Sử dụng script block để chạy nhiều lệnh shell
-                sh(script: "${buildScript}", label: "Build with maven")
+                sh(script: "${env.buildScript}", label: "Build with maven")
+            }
+        }
+        stage('Post-Build Check') {
+            steps {
+                // Kiểm tra xem file JAR đã được tạo ra chưa
+                sh "ls -la backend1/target/*.jar"
             }
         }
     }
