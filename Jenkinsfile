@@ -4,13 +4,13 @@ pipeline {
     }
 
     environment {
-        appUser : "sizing"
-        appName : "sizing"
-        appVersion : "0.0.1-SNAPSHOT"
-        appType : "jar"
-        processName : "${appName}-${appVersion}.${appType}"
-        folderDeploy : "/data/${appUser}"
-        buildScript : "mvn clean install -DskipTests=true"
+        appUser = "sizing"
+        appName = "sizing"
+        appVersion = "0.0.1-SNAPSHOT"
+        appType = "jar"
+        processName = "${appName}-${appVersion}.${appType}"
+        folderDeploy = "/data/${appUser}"
+        buildScript = "mvn clean install -DskipTests=true"
     }
 
     stages {
