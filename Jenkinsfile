@@ -1,11 +1,13 @@
 pipeline {
     agent {
-        label 'sizing'
-    }}
+        label 'sizing' // Sẽ chạy trên Agent 192 của bạn
+    }
+
     stages {
         stage('Info') {
             steps {
-                sh (script: """ whoami;pwd;ls -la """ , label: "First stage")
+                // Sử dụng script block để chạy nhiều lệnh shell
+                sh(script: "whoami; pwd; ls -la", label: "First stage")
             }
         }
     }
