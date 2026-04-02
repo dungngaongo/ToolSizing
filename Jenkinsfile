@@ -9,7 +9,7 @@ pipeline {
         appVersion = "0.0.1-SNAPSHOT"
         appType = "jar"
         // Sử dụng mvn hệ thống vì bạn đã cài sẵn Maven 3.6.3 trên Agent 192
-        buildScript = "cd backend1 && mvn clean install -DskipTests=true -o -Dmaven.repo.local=/var/lib/jenkins/.m2/repository"
+        buildScript = "cd backend1 && mvn install -DskipTests=true -o -Dmaven.repo.local=/var/lib/jenkins/.m2/repository"
     }
 
     stages {
