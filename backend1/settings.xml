@@ -29,25 +29,4 @@
 
     </servers>
 
-    <!-- lưu ý thiết lập proxy: nexus.kcntt.net không đi qua proxy -->
-    <proxies>
-        <proxy>
-            <id>http-proxy</id>
-            <active>true</active>
-            <protocol>http</protocol>
-            <host>...</host>
-            <port>...</port>
-            <nonProxyHosts>localhost|127.0.0.1|::1|*.kcntt.net|...</nonProxyHosts>
-        </proxy>
-        <proxy>
-            <id>https-proxy</id>
-            <active>true</active>
-            <protocol>https</protocol>
-            <host>...</host>
-            <port>...</port>
-            <nonProxyHosts>localhost|127.0.0.1|::1|*.kcntt.net|...</nonProxyHosts>
-        </proxy>
-
-    </proxies>
-
 </settings>
