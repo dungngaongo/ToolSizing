@@ -8,6 +8,7 @@ pipeline {
         appName = "sizing"
         appVersion = "0.0.1-SNAPSHOT"
         appType = "jar"
+        imageName = "sizing-test"
         buildScript = "cd backend1 && mvn install -DskipTests=true"
     }
 
@@ -23,9 +24,23 @@ pipeline {
                 """
             }
         }
-        stage('Build') {
+        stage('Build Docker Image') {
             steps {
-                sh (script: """ ${buildScript} """, label: "Build with maven")
+                sh """
+                    echo "=== BUILD IMAGE FROM DOCKERFILE ==="
+                    
+                    docker build -t ${imageName}:latest .
+                """
+            }
+        }
+
+        stage('Run Test Container') {
+            steps {
+                sh """
+                    echo "=== RUN CONTAINER ==="
+                    
+                    docker run --rm -p 8081:8081 ${imageName}:latest
+                """
             }
         }
     }
