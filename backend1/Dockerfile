@@ -1,49 +1,41 @@
 # ============================================================
-# Stage 1: Build - Dùng image maven sẵn có (không cần tải Maven qua mvnw)
+# Stage 1: Build
 # ============================================================
-FROM maven:3.9-eclipse-temurin-21-alpine AS builder
-
-# Nhận proxy từ --build-arg để Maven tải dependencies qua proxy
-ARG http_proxy
-ARG https_proxy
-ARG HTTP_PROXY
-ARG HTTPS_PROXY
-ENV http_proxy=$http_proxy \
-    https_proxy=$https_proxy \
-    HTTP_PROXY=$HTTP_PROXY \
-    HTTPS_PROXY=$HTTPS_PROXY
-
-# Các flag SSL bypass cho cả Aether (Maven 3.9+) và Wagon
-ARG MVN_SSL_FLAGS="-Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true -Dmaven.wagon.http.ssl.ignore.validity.dates=true -Daether.connector.https.securityMode=insecure"
+FROM registry-lab.kcntt.net/maven:3.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /build
 
-# Copy pom.xml trước để cache layer dependencies
+# Copy pom.xml trước để tận dụng cache layer
 COPY pom.xml ./
 
+# Copy cấu hình Maven (dùng Nexus nội bộ)
 COPY settings.xml /root/.m2/settings.xml
 
-# Tải dependencies trước (cache lại nếu pom.xml không đổi)
-RUN mvn dependency:go-offline -B $MVN_SSL_FLAGS
+# Tải dependencies từ Nexus
+RUN mvn dependency:go-offline -B
 
-# Copy toàn bộ source code và build
+# Copy source code
 COPY src/ src/
 
-RUN mvn package -DskipTests -B $MVN_SSL_FLAGS
+# Build jar
+RUN mvn package -DskipTests -B
 
 # ============================================================
-# Stage 2: Runtime - Image gọn nhẹ chỉ chứa JRE + JAR
+# Stage 2: Runtime
 # ============================================================
-FROM eclipse-temurin:21-jre-alpine AS runtime
+FROM registry-lab.kcntt.net/eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Tạo user non-root để tăng bảo mật
+# Tạo user non-root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
+# Copy jar từ stage build
 COPY --from=builder /build/target/sizing-*.jar app.jar
 
+# Set quyền (có thể gộp bằng --chown nhưng giữ rõ ràng)
 RUN chown appuser:appgroup app.jar
+
 USER appuser
 
 EXPOSE 8081
