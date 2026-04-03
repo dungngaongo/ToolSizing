@@ -5,7 +5,7 @@
         <mirror>
             <id>vtt-maven-group</id>
             <mirrorOf>*</mirrorOf>
-            <url>https://nexus-lab.kcntt.net/</url>
+            <url>https://nexus.kcntt.net/repository/maven-group/</url>
         </mirror>
     </mirrors>
 
@@ -13,7 +13,7 @@
     <servers>
         <server>
             <id>vtt-maven-releases</id>
-            <username>vtt_mavn</username>
+            <username>vtt_mvn</username>
             <password>123456aA@</password>
         </server>
         <server>
@@ -28,5 +28,26 @@
         </server>
 
     </servers>
+
+    <!-- lưu ý thiết lập proxy: nexus.kcntt.net không đi qua proxy -->
+    <proxies>
+        <proxy>
+            <id>http-proxy</id>
+            <active>true</active>
+            <protocol>http</protocol>
+            <host>...</host>
+            <port>...</port>
+            <nonProxyHosts>localhost|127.0.0.1|::1|*.kcntt.net|...</nonProxyHosts>
+        </proxy>
+        <proxy>
+            <id>https-proxy</id>
+            <active>true</active>
+            <protocol>https</protocol>
+            <host>...</host>
+            <port>...</port>
+            <nonProxyHosts>localhost|127.0.0.1|::1|*.kcntt.net|...</nonProxyHosts>
+        </proxy>
+
+    </proxies>
 
 </settings>
