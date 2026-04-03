@@ -14,7 +14,13 @@ pipeline {
     stages {
         stage('Info') {
             steps {
-                sh (script: """ whoami;pwd;ls -la """, label: "First stage")
+                sh """ 
+                    echo "=== INFO ==="
+                    whoami
+                    pwd
+                    ls -la
+                    docker --version
+                """
             }
         }
         stage('Build') {
