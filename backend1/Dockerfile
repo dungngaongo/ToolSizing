@@ -24,7 +24,7 @@ COPY pom.xml ./
 COPY settings.xml /root/.m2/settings.xml
 
 # Tải dependencies trước (cache lại nếu pom.xml không đổi)
-RUN mvn dependency:go-offline -B $MVN_SSL_FLAGS
+RUN mvn dependency:go-offline -B -X
 
 # Copy toàn bộ source code và build
 COPY src/ src/
