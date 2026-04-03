@@ -30,7 +30,7 @@ pipeline {
                     cd backend1
                     echo "=== BUILD IMAGE FROM DOCKERFILE ==="
                     
-                    docker build -t ${imageName}:latest .
+                    docker build --network=host -t ${imageName}:latest .
                 """
             }
         }
