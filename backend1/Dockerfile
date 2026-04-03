@@ -21,11 +21,14 @@ WORKDIR /build
 # Copy pom.xml trước để cache layer dependencies
 COPY pom.xml ./
 
+COPY settings.xml /root/.m2/settings.xml
+
 # Tải dependencies trước (cache lại nếu pom.xml không đổi)
 RUN mvn dependency:go-offline -B $MVN_SSL_FLAGS
 
 # Copy toàn bộ source code và build
 COPY src/ src/
+
 RUN mvn package -DskipTests -B $MVN_SSL_FLAGS
 
 # ============================================================
