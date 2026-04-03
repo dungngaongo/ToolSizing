@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1: Build
 # ============================================================
-FROM registry-lab.kcntt.net/maven:3.9-eclipse-temurin-21-alpine AS builder
+FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /build
 
@@ -23,7 +23,7 @@ RUN mvn package -DskipTests -B
 # ============================================================
 # Stage 2: Runtime
 # ============================================================
-FROM registry-lab.kcntt.net/eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
