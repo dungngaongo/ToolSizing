@@ -39,9 +39,11 @@ pipeline {
                 sh """
                     echo "=== RUN CONTAINER ==="
                     
-                    docker run --rm -p 8081:8081 ${imageName}:latest
+                    docker run -d -p 8081:8081 --name sizing-test-container ${imageName}:latest
+                    
+                    docker ps
                 """
-            }
+    }
         }
     }
 }
