@@ -5,7 +5,7 @@
         <mirror>
             <id>vtt-maven-group</id>
             <mirrorOf>*</mirrorOf>
-            <url>https://nexus.kcntt.net/repository/maven-group/</url>
+            <url>https://nexus-lab.kcntt.net/</url>
         </mirror>
     </mirrors>
 
@@ -13,17 +13,17 @@
     <servers>
         <server>
             <id>vtt-maven-releases</id>
-            <username>vtt_maven</username>
+            <username>vtt_mavn</username>
             <password>123456aA@</password>
         </server>
         <server>
             <id>vtt-maven-snapshots</id>
-            <username>vtt_maven</username>
+            <username>vtt_mvn</username>
             <password>123456aA@</password>
         </server>
         <server>
             <id>vtt-maven-3rdparty</id>
-            <username>vtt_maven</username>
+            <username>vtt_mvn</username>
             <password>123456aA@</password>
         </server>
 
