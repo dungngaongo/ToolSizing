@@ -27,6 +27,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh """
+                    cd backend1
                     echo "=== BUILD IMAGE FROM DOCKERFILE ==="
                     
                     docker build -t ${imageName}:latest .
