@@ -4,12 +4,7 @@ pipeline {
     }
 
     environment {
-        appUser = "sizing"
-        appName = "sizing"
-        appVersion = "0.0.1-SNAPSHOT"
-        appType = "jar"
         imageName = "sizing-test"
-        buildScript = "cd backend1 && mvn install -DskipTests=true"
     }
 
     stages {
@@ -24,27 +19,36 @@ pipeline {
                 """
             }
         }
+        stage('Build Artifact (Maven)') {
+            steps {
+                sh """
+                    echo "=== STEP 1: COMPILING JAVA ==="
+                    cd backend1
+                    # Chạy mvn install để tạo ra file .jar trong thư mục target/
+                    mvn clean install -DskipTests=true
+                """
+            }
+        }
         stage('Build Docker Image') {
             steps {
                 sh """
+                    echo "=== STEP 2: PACKAGING DOCKER ==="
                     cd backend1
-                    echo "=== BUILD IMAGE FROM DOCKERFILE ==="
-                    
+                    # Docker build lúc này chỉ việc lấy file .jar đã có sẵn
                     docker build --network=host -t ${imageName}:latest .
                 """
             }
         }
 
-        stage('Run Test Container') {
+        stage('Run Container') {
             steps {
                 sh """
-                    echo "=== RUN CONTAINER ==="
-                    
+                    echo "=== STEP 3: DEPLOYING ==="
+                    # Xóa container cũ nếu đang chạy để tránh trùng tên
+                    docker rm -f sizing-test-container || true
                     docker run -d -p 8081:8081 --name sizing-test-container ${imageName}:latest
-                    
-                    docker ps
                 """
-    }
+            }
         }
     }
 }
