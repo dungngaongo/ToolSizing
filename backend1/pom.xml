@@ -22,7 +22,7 @@
     </parent>
     <groupId>com.example</groupId>
     <artifactId>sizing</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.3-SNAPSHOT</version>
     <name>sizing</name>
     <description>sizing project for Spring Boot</description>
     <url/>
@@ -39,7 +39,7 @@
         <url/>
     </scm>
     <properties>
-        <java.version>25</java.version>
+        <java.version>21</java.version>
     </properties>
     <dependencies>
         <dependency>
