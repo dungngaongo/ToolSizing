@@ -1,35 +1,42 @@
 pipeline {
     agent {
-        docker {
-            // Thay bằng địa chỉ Maven Image trong Registry nội bộ của bạn
-            image 'registry.company.com/maven:3.9.6-eclipse-temurin-21'
-            label 'sizing'
-            // Map file settings.xml từ máy host vào trong container
-            args '-v /root/.m2/settings.xml:/root/.m2/settings.xml'
-        }
+        label 'sizing' // Chạy trực tiếp trên Agent 192 của bạn
     }
 
     stages {
-        stage('Build Artifact (Inside Maven Container)') {
+        stage('Build Artifact (Maven)') {
             steps {
-                sh """
-                    echo "=== BUILDING WITH DOCKER MAVEN ==="
-                    cd backend1
-                    mvn clean install -DskipTests=true
-                """
+                script {
+                    echo "=== STEP 1: BUILDING JAR INSIDE MAVEN CONTAINER ==="
+                    // Di chuyển vào thư mục code
+                    dir('backend1') {
+                        sh """
+                            docker run --rm \
+                                --network=host \
+                                -v /root/.m2:/root/.m2 \
+                                -v \$(pwd):/app \
+                                -w /app \
+                                registry-lab.kcntt.net/maven:3.9.6-eclipse-temurin-21 \
+                                mvn clean install -DskipTests=true
+                        """
+                    }
+                }
             }
         }
 
-        stage('Build Docker Image') {
-            // Stage này cần chạy Docker lệnh của máy Host nên ta dùng agent any 
-            // hoặc định nghĩa lại agent để thoát khỏi container Maven
-            agent { label 'sizing' } 
+        stage('Build & Run Application') {
             steps {
-                sh """
-                    echo "=== PACKAGING FINAL IMAGE ==="
-                    cd backend1
-                    docker build --network=host -t sizing-test:latest .
-                """
+                echo "=== STEP 2: PACKAGING & DEPLOYING ==="
+                dir('backend1') {
+                    sh """
+                        # Build image từ Dockerfile (đã có file .jar từ bước trên)
+                        docker build -t sizing-test:latest .
+                        
+                        # Xóa container cũ nếu có và chạy bản mới
+                        docker rm -f sizing-test-container || true
+                        docker run -d -p 8081:8081 --name sizing-test-container sizing-test:latest
+                    """
+                }
             }
         }
     }
