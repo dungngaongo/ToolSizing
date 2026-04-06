@@ -12,7 +12,7 @@ pipeline {
                     sh """
                         docker run --rm \
                             --network=host \
-                            -v /root/.m2:/root/.m2 \
+                            -v /home/jenkins/.m2:/root/.m2 \
                             -v \$(pwd):/app \
                             -w /app \
                             maven:3.9-eclipse-temurin-21-alpine \
