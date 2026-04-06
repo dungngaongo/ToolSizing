@@ -1,52 +1,34 @@
 pipeline {
     agent {
-        label 'sizing' 
-    }
-
-    environment {
-        imageName = "sizing-test"
+        docker {
+            // Thay bằng địa chỉ Maven Image trong Registry nội bộ của bạn
+            image 'registry.company.com/maven:3.9.6-eclipse-temurin-21'
+            label 'sizing'
+            // Map file settings.xml từ máy host vào trong container
+            args '-v /root/.m2/settings.xml:/root/.m2/settings.xml'
+        }
     }
 
     stages {
-        stage('Info') {
-            steps {
-                sh """ 
-                    echo "=== INFO ==="
-                    whoami
-                    pwd
-                    ls -la
-                    docker --version
-                """
-            }
-        }
-        stage('Build Artifact (Maven)') {
+        stage('Build Artifact (Inside Maven Container)') {
             steps {
                 sh """
-                    echo "=== STEP 1: COMPILING JAVA ==="
+                    echo "=== BUILDING WITH DOCKER MAVEN ==="
                     cd backend1
-                    # Chạy mvn install để tạo ra file .jar trong thư mục target/
                     mvn clean install -DskipTests=true
                 """
             }
         }
-        stage('Build Docker Image') {
-            steps {
-                sh """
-                    echo "=== STEP 2: PACKAGING DOCKER ==="
-                    cd backend1
-                    # Docker build lúc này chỉ việc lấy file .jar đã có sẵn
-                    docker build --network=host -t ${imageName}:latest .
-                """
-            }
-        }
 
-        stage('Run Container') {
+        stage('Build Docker Image') {
+            // Stage này cần chạy Docker lệnh của máy Host nên ta dùng agent any 
+            // hoặc định nghĩa lại agent để thoát khỏi container Maven
+            agent { label 'sizing' } 
             steps {
                 sh """
-                    echo "=== STEP 3: DEPLOYING ==="
-                    # Xóa container cũ nếu đang chạy để tránh trùng tên
-                    docker rm -f sizing-test-container || true
-                    docker run -d -p 8081:8081 --name sizing-test-container ${imageName}:latest
+                    echo "=== PACKAGING FINAL IMAGE ==="
+                    cd backend1
+                    docker build --network=host -t sizing-test:latest .
                 """
             }
         }
