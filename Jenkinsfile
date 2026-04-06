@@ -43,8 +43,12 @@ pipeline {
         stage('3. Stop Old Container') {
             steps {
                 sh """
-                    echo "=== STOP OLD CONTAINER ==="
+                    echo "=== CLEAN PORT 8081 ==="
+
                     docker rm -f ${CONTAINER_NAME} || true
+
+                    # Kill container chiếm port
+                    docker ps -q --filter "publish=8081" | xargs -r docker rm -f
                 """
             }
         }
