@@ -1,49 +1,39 @@
 pipeline {
-    agent {
-        label 'sizing' // Chạy trên server 191/192 của bạn
-    }
+    agent { label 'sizing' }
 
     stages {
         stage('1. Build Artifact (Maven)') {
             steps {
-                echo "=== ĐANG BUILD FILE JAR TRONG CONTAINER MAVEN ==="
-                // Di chuyển vào thư mục chứa code Java
                 dir('backend1') {
                     sh """
+                        echo "=== ĐANG BUILD BẰNG DOCKER MAVEN ==="
+                        
                         docker run --rm \
                             --network=host \
-                            -v /home/jenkins/.m2:/root/.m2 \
+                            -v /home/jenkins/settings.xml:/tmp/settings.xml \
                             -v \$(pwd):/app \
                             -w /app \
                             maven:3.9-eclipse-temurin-21-alpine \
-                            mvn clean install -DskipTests=true
+                            mvn -s /tmp/settings.xml clean install -DskipTests=true
                     """
                 }
             }
         }
 
-        stage('2. Build Docker Image') {
+        stage('2. Build & Run Application') {
             steps {
-                echo "=== ĐANG ĐÓNG GÓI IMAGE CUỐI CÙNG ==="
                 dir('backend1') {
                     sh """
-                        # Build image dựa trên Dockerfile của bạn
+                        echo "=== ĐANG ĐÓNG GÓI VÀ CHẠY CONTAINER ==="
+                        
+                        # Build image từ Dockerfile
                         docker build -t sizing-test:latest .
+                        
+                        # Restart container
+                        docker rm -f sizing-test-container || true
+                        docker run -d -p 8081:8081 --name sizing-test-container sizing-test:latest
                     """
                 }
-            }
-        }
-
-        stage('3. Deploy Container') {
-            steps {
-                echo "=== ĐANG KHỞI CHẠY ỨNG DỤNG ==="
-                sh """
-                    # Xóa container cũ nếu đang chạy để tránh trùng tên
-                    docker rm -f sizing-test-container || true
-                    
-                    # Chạy container mới từ image vừa build
-                    docker run -d -p 8081:8081 --name sizing-test-container sizing-test:latest
-                """
             }
         }
     }
