@@ -13,3 +13,5 @@ EXPOSE 8081
 
 # Chạy ứng dụng
 ENTRYPOINT ["java", "-jar", "app.jar"]
+
+
