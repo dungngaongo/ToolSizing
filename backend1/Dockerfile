@@ -1,4 +1,4 @@
-# Sử dụng Registry nội bộ 
+# Sử dụng Registry nội bộ  1
 FROM http://registry-lab.kcntt.net/eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
