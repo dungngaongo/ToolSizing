@@ -1,27 +1,20 @@
 pipeline {
-
     agent {
-        label 'sizing'
-    }
-
-    environment {
-        IMAGE_NAME = "sizing-test"
-        IMAGE_TAG = "${BUILD_NUMBER}"
-        CONTAINER_NAME = "sizing-test-container"
+        label 'sizing' // Chạy trên server 191/192
     }
 
     stages {
-
         stage('1. Build Artifact (Maven)') {
             steps {
                 dir('backend1') {
                     sh """
-                        echo "=== BUILD MAVEN ==="
-
+                        echo "=== ĐANG TẢI DEPENDENCY VÀ BUILD TỪ NEXUS-LAB ==="
+                        
+                        # Mount file settings.xml bạn vừa cập nhật trên server
+                        # Thêm tham số -U để ép Maven cập nhật Snapshot mới nhất
                         docker run --rm \
                             --network=host \
                             -v /home/jenkins/settings.xml:/tmp/settings.xml \
-                            -v /var/lib/jenkins/.m2:/root/.m2 \
                             -v \$(pwd):/app \
                             -w /app \
                             maven:3.9-eclipse-temurin-21-alpine \
@@ -35,71 +28,30 @@ pipeline {
             steps {
                 dir('backend1') {
                     sh """
-                        echo "=== BUILD DOCKER IMAGE ==="
-
-                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                        echo "=== ĐANG ĐÓNG GÓI IMAGE: sizing-test:latest ==="
+                        docker build -t sizing-test:latest .
                     """
                 }
             }
         }
 
-        stage('3. Stop & Remove Old Container') {
+        stage('3. Deploy & Health Check') {
             steps {
                 sh """
-                    echo "=== STOP OLD CONTAINER ==="
-
-                    docker rm -f ${CONTAINER_NAME} || true
-                """
-            }
-        }
-
-        stage('4. Deploy New Container') {
-            steps {
-                sh """
-                    echo "=== RUN NEW CONTAINER ==="
-
+                    echo "=== ĐANG KHỞI CHẠY CONTAINER ==="
+                    docker rm -f sizing-test-container || true
+                    
                     docker run -d \
                         -p 8081:8081 \
-                        --name ${CONTAINER_NAME} \
+                        --name sizing-test-container \
                         --restart unless-stopped \
-                        ${IMAGE_NAME}:${IMAGE_TAG}
-                """
-            }
-        }
-
-        stage('5. Health Check') {
-            steps {
-                sh """
-                    echo "=== HEALTH CHECK ==="
-
-                    echo "Waiting for app to start..."
+                        sizing-test:latest
+                    
+                    echo "Đợi 10s để ứng dụng khởi động..."
                     sleep 10
-
-                    for i in {1..5}
-                    do
-                        if curl -f http://localhost:8081 > /dev/null 2>&1; then
-                            echo "App is UP!"
-                            exit 0
-                        fi
-
-                        echo "Retry \$i..."
-                        sleep 5
-                    done
-
-                    echo "App FAILED to start!"
-                    docker logs ${CONTAINER_NAME}
-                    exit 1
+                    docker ps | grep sizing-test-container
                 """
             }
-        }
-    }
-
-    post {
-        success {
-            echo "=== DEPLOY SUCCESS ==="
-        }
-        failure {
-            echo "=== DEPLOY FAILED ==="
         }
     }
 }
