@@ -1,39 +1,56 @@
 pipeline {
-    agent { label 'sizing' }
+    agent {
+        label 'sizing' // Chạy trên server 191/192
+    }
 
     stages {
         stage('1. Build Artifact (Maven)') {
             steps {
                 dir('backend1') {
                     sh """
-                        echo "=== ĐANG BUILD BẰNG DOCKER MAVEN ==="
+                        echo "=== ĐANG TẢI DEPENDENCY VÀ BUILD TỪ NEXUS-LAB ==="
                         
+                        # Mount file settings.xml bạn vừa cập nhật trên server
+                        # Thêm tham số -U để ép Maven cập nhật Snapshot mới nhất
                         docker run --rm \
                             --network=host \
                             -v /home/jenkins/settings.xml:/tmp/settings.xml \
                             -v \$(pwd):/app \
                             -w /app \
                             maven:3.9-eclipse-temurin-21-alpine \
-                            mvn -s /tmp/settings.xml clean install -DskipTests=true
+                            mvn -s /tmp/settings.xml clean install -DskipTests=true -U
                     """
                 }
             }
         }
 
-        stage('2. Build & Run Application') {
+        stage('2. Build Docker Image') {
             steps {
                 dir('backend1') {
                     sh """
-                        echo "=== ĐANG ĐÓNG GÓI VÀ CHẠY CONTAINER ==="
-                        
-                        # Build image từ Dockerfile
+                        echo "=== ĐANG ĐÓNG GÓI IMAGE: sizing-test:latest ==="
                         docker build -t sizing-test:latest .
-                        
-                        # Restart container
-                        docker rm -f sizing-test-container || true
-                        docker run -d -p 8081:8081 --name sizing-test-container sizing-test:latest
                     """
                 }
+            }
+        }
+
+        stage('3. Deploy & Health Check') {
+            steps {
+                sh """
+                    echo "=== ĐANG KHỞI CHẠY CONTAINER ==="
+                    docker rm -f sizing-test-container || true
+                    
+                    docker run -d \
+                        -p 8081:8081 \
+                        --name sizing-test-container \
+                        --restart unless-stopped \
+                        sizing-test:latest
+                    
+                    echo "Đợi 10s để ứng dụng khởi động..."
+                    sleep 10
+                    docker ps | grep sizing-test-container
+                """
             }
         }
     }
