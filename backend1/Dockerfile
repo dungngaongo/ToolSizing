@@ -2,7 +2,10 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-COPY target/sizing-0.0.1-SNAPSHOT.jar app.jar
+COPY target/sizing-*.jar app.jar
+
+# Set timezone VN
+RUN ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
 
 EXPOSE 8081
 
