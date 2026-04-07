@@ -10,11 +10,10 @@ pipeline {
                     sh """
                         echo "=== ĐANG TẢI DEPENDENCY VÀ BUILD TỪ NEXUS-LAB ==="
                         
-                        # Mount file settings.xml bạn vừa cập nhật trên server
-                        # Thêm tham số -U để ép Maven cập nhật Snapshot mới nhất
                         docker run --rm \
                             --network=host \
                             -v /home/jenkins/settings.xml:/tmp/settings.xml \
+                            -v /var/lib/jenkins/.m2:/root/.m2 \
                             -v \$(pwd):/app \
                             -w /app \
                             maven:3.9-eclipse-temurin-21-alpine \
@@ -42,7 +41,7 @@ pipeline {
                     docker rm -f sizing-test-container || true
                     
                     docker run -d \
-                        -p 8081:8081 \
+                        -p 8081:8085 \
                         --name sizing-test-container \
                         --restart unless-stopped \
                         sizing-test:latest
