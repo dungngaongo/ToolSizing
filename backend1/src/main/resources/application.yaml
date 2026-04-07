@@ -2,7 +2,7 @@ spring:
   application:
     name: sizing
   datasource:
-    url: jdbc:mysql://10.207.252.12:33063/sizing?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://10.207.252.12:33063
     username: sizing
     password: Admin123@
     driver-class-name: com.mysql.cj.jdbc.Driver
