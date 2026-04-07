@@ -41,7 +41,7 @@ pipeline {
                     docker rm -f sizing-test-container || true
                     
                     docker run -d \
-                        -p 8081:8081 \
+                        -p 8081:8085 \
                         --name sizing-test-container \
                         --restart unless-stopped \
                         sizing-test:latest
