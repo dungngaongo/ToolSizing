@@ -2,10 +2,10 @@ spring:
   application:
     name: sizing
   datasource:
-    url: jdbc:mysql://10.207.252.12:33063/sizing?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: sizing
-    password: Admin123@
-    driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://10.207.252.12:33063/sizing?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      username: sizing
+      password: Admin123@
+      driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
       ddl-auto: validate
