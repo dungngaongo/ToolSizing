@@ -22,7 +22,7 @@ WORKDIR /app
 COPY .m2/settings.xml /root/.m2/settings.xml
 
 # Copy source code vào container
-COPY backend1 /app
+COPY . /app
 
 # Build jar
 RUN mvn -s /root/.m2/settings.xml clean package -DskipTests=true
