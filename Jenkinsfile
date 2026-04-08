@@ -61,7 +61,7 @@ pipeline {
 
                     echo "=== DEPLOY NGINX + FRONTEND ==="
 
-                    docker-compose up -d --build
+                    docker compose up -d --build
 
                     echo "=== CHECK NGINX ==="
                     docker ps | grep sizing-nginx
