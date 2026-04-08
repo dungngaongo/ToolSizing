@@ -3,6 +3,7 @@ version: '3.8'
 services:
   nginx:
     build: .
+    dockerfile: nginx/Dockerfile
     container_name: sizing-nginx
     ports:
       - "80:80"
