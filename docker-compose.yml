@@ -5,7 +5,6 @@ services:
     build:
       context: .
       dockerfile: nginx/Dockerfile
-    container_name: sizing-nginx
     ports:
       - "80:80"
     restart: always
