@@ -1,75 +1,13 @@
-version: "3.9"
+version: '3.8'
 
 services:
-
-  # ===========================================================
-  # 1. MySQL Database
-  # ===========================================================
-  mysql:
-    image: mysql:8.0
-    container_name: sizing_mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-sizing}
+  nginx:
+    image: nginx:latest
+    container_name: sizing-nginx
     ports:
-      - "3307:3306"
+      - "80:80"
     volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "--password=${MYSQL_ROOT_PASSWORD:-root}"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    networks:
-      - sizing_net
-
-  # ===========================================================
-  # 2. Spring Boot Backend
-  # ===========================================================
-  backend:
-    build:
-      context: ./backend1
-      dockerfile: Dockerfile
-    container_name: sizing_backend
-    restart: unless-stopped
-    ports:
-      - "8081:8081"
-    environment:
-      # Override datasource để trỏ sang container mysql thay vì localhost
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-sizing}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
-    depends_on:
-      mysql:
-        condition: service_healthy
-    volumes:
-      - ./.env:/app/.env:ro
-    networks:
-      - sizing_net
-
-  # ===========================================================
-  # 3. Frontend & Dashboard (nginx static files)
-  # ===========================================================
-  frontend:
-    image: nginx:alpine
-    container_name: sizing_frontend
-    restart: unless-stopped
-    ports:
-      - "3000:80"
-    volumes:
-      - ./frontend:/usr/share/nginx/html/frontend:ro
-      - ./dashboard:/usr/share/nginx/html/dashboard:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    networks:
-      - sizing_net
-
-# ===========================================================
-# Volumes & Networks
-# ===========================================================
-volumes:
-  mysql_data:
-
-networks:
-  sizing_net:
-    driver: bridge
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./frontend/frontend:/usr/share/nginx/html/frontend
+      - ./frontend/dashboard:/usr/share/nginx/html/dashboard
+    restart: always
