@@ -55,16 +55,12 @@ pipeline {
         stage('4. Deploy Frontend (Nginx)') {
             steps {
                 sh """
-                    echo "=== FIX PERMISSION ==="
-                    pwd
-                    ls -ld
-
                     echo "=== DEPLOY NGINX + FRONTEND ==="
 
-                    docker compose up -d --build
+                    docker-compose up -d --build --force-recreate --remove-orphans
 
                     echo "=== CHECK NGINX ==="
-                    docker ps | grep sizing-nginx
+                    docker ps | grep nginx
                 """
             }
         }
