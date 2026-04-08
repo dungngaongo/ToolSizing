@@ -56,8 +56,8 @@ pipeline {
             steps {
                 sh """
                     echo "=== FIX PERMISSION ==="
-                    chmod -R 755 frontend
-                    chmod -R 755 dashboard
+                    sudo chmod -R 755 frontend
+                    sudo chmod -R 755 dashboard
 
                     echo "=== DEPLOY NGINX + FRONTEND ==="
                     docker-compose down || true
