@@ -59,6 +59,8 @@ pipeline {
                     whoami
                     pwd
                     ls -ld
+                    chmod -R 755 frontend
+                    chmod -R 755 dashboard
                     echo "=== DEPLOY NGINX + FRONTEND ==="
                     docker-compose down || true
                     docker-compose up -d
