@@ -56,6 +56,8 @@ pipeline {
             steps {
                 sh """
                     echo "=== FIX PERMISSION ==="
+                    whoami
+                    ls -ld
                     sudo chmod -R 755 frontend
                     sudo chmod -R 755 dashboard
 
