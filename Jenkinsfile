@@ -4,24 +4,24 @@ pipeline {
     }
 
     stages {
-        stage('1. Build Artifact (Maven)') {
-            steps {
-                dir('backend1') {
-                    sh """
-                        echo "=== ĐANG TẢI DEPENDENCY VÀ BUILD TỪ NEXUS-LAB ==="
+        // stage('1. Build Artifact (Maven)') {
+        //     steps {
+        //         dir('backend1') {
+        //             sh """
+        //                 echo "=== ĐANG TẢI DEPENDENCY VÀ BUILD TỪ NEXUS-LAB ==="
                         
-                        docker run --rm \
-                            --network=host \
-                            -v /home/jenkins/settings.xml:/tmp/settings.xml \
-                            -v /var/lib/jenkins/.m2:/root/.m2 \
-                            -v \$(pwd):/app \
-                            -w /app \
-                            maven:3.9-eclipse-temurin-21-alpine \
-                            mvn -s /tmp/settings.xml clean install -DskipTests=true -U
-                    """
-                }
-            }
-        }
+        //                 docker run --rm \
+        //                     --network=host \
+        //                     -v /home/jenkins/settings.xml:/tmp/settings.xml \
+        //                     -v /var/lib/jenkins/.m2:/root/.m2 \
+        //                     -v \$(pwd):/app \
+        //                     -w /app \
+        //                     maven:3.9-eclipse-temurin-21-alpine \
+        //                     mvn -s /tmp/settings.xml clean install -DskipTests=true -U
+        //             """
+        //         }
+        //     }
+        // }
 
         stage('2. Build Docker Image') {
             steps {
