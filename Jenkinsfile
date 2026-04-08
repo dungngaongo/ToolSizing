@@ -57,7 +57,7 @@ pipeline {
                 sh """
                     echo "=== DEPLOY NGINX + FRONTEND ==="
 
-                    docker-compose up -d --build --force-recreate --remove-orphans
+                    docker compose up -d --build --force-recreate --remove-orphans
 
                     echo "=== CHECK NGINX ==="
                     docker ps | grep nginx
