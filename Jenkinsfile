@@ -55,11 +55,16 @@ pipeline {
         stage('4. Deploy Frontend (Nginx)') {
             steps {
                 sh """
+                    echo "=== FIX PERMISSION ==="
+                    whoami
+                    pwd
+                    ls -ld
+                    chmod -R 755 frontend
+                    chmod -R 755 dashboard
                     echo "=== DEPLOY NGINX + FRONTEND ==="
-                    
                     docker-compose down || true
                     docker-compose up -d
-                    
+
                     echo "=== CHECK NGINX ==="
                     docker ps | grep sizing-nginx
                 """
