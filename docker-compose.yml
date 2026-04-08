@@ -2,14 +2,10 @@ version: '3.8'
 
 services:
   nginx:
-    build: .
-    dockerfile: nginx/Dockerfile
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
     container_name: sizing-nginx
     ports:
       - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./frontend:/usr/share/nginx/html/frontend
-      - ./dashboard:/usr/share/nginx/html/dashboard
     restart: always
-
