@@ -10,7 +10,7 @@ pipeline {
                     sh """
                         echo "=== ĐANG TẢI DEPENDENCY VÀ BUILD TỪ NEXUS-LAB ==="
                         
-                        docker run --rm \
+                        docker run   \
                             --network=host \
                             -v /home/jenkins/settings.xml:/tmp/settings.xml \
                             -v /var/lib/jenkins/.m2:/root/.m2 \
@@ -18,6 +18,8 @@ pipeline {
                             -w /app \
                             maven:3.9-eclipse-temurin-21-alpine \
                             mvn -s /tmp/settings.xml clean install -DskipTests=true -U
+                        
+                        ls -l target/
                     """
                 }
             }
