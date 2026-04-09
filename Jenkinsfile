@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label 'sizing' // Chạy trên server 191/192
+        label 'sizing' // Chạy trên server 191
     }
 
     stages {
