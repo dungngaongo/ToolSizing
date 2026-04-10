@@ -1,14 +1,17 @@
 pipeline {
     agent {
-        label 'sizing' // Chạy trên server 191
+        label 'sizing'
     }
 
     stages {
-        stage('1. Build Artifact (Maven)') {
+        stage('1. Build Backend (Maven)') {
+            when {
+                changeset "backend1/**"
+            }
             steps {
                 dir('backend1') {
                     sh """
-                        echo "=== ĐANG TẢI DEPENDENCY VÀ BUILD TỪ NEXUS-LAB ==="
+                        echo "=== BUILD BACKEND ==="
                         
                         docker run   \
                             --network=host \
@@ -25,58 +28,36 @@ pipeline {
             }
         }
 
-        // stage('2. Build Docker Image') {
-        //     steps {
-        //         dir('backend1') {
-        //             sh """
-        //                 echo "=== ĐANG ĐÓNG GÓI IMAGE: sizing-test:latest ==="
-        //                 docker build -t sizing-test:latest .
-        //             """
-        //         }
-        //     }
-        // }
-
-        // stage('3. Deploy & Health Check') {
-        //     steps {
-        //         sh """
-        //             // echo "=== ĐANG KHỞI CHẠY CONTAINER ==="
-        //             // docker rm -f sizing-test-container || true
-                    
-        //             // docker run -d \
-        //             //     -p 8081:8081 \
-        //             //     --name sizing-test-container \
-        //             //     --restart unless-stopped \
-        //             //     sizing-test:latest
-                    
-        //             echo "Đợi 10s để ứng dụng khởi động..."
-        //             sleep 10
-        //             // docker ps | grep sizing-test-container
-        //         """
-        //     }
-        // }
-        // stage('3. Deploy Frontend (Nginx)') {
-        //     steps {
-        //         sh """
-        //             echo "=== DEPLOY NGINX + FRONTEND ==="
-
-        //             docker compose up -d --build --force-recreate --remove-orphans
-
-        //             echo "=== CHECK NGINX ==="
-        //             docker ps | grep nginx
-        //         """
-        //     }
-        // }
-
-        stage('3. Deploy Full Stack ') {
+        stage('2. Deploy Backend') {
+            when {
+                changeset "backend1/**"
+            }
             steps {
                 sh """
-                    echo "=== DEPLOY BACKEND + NGINX ==="
+                    echo "=== DEPLOY BACKEND ==="
 
-                    docker compose down || true
-                    docker compose up -d --build --force-recreate --remove-orphans
+                    docker compose up -d --build backend
 
-                    echo "=== CHECK CONTAINERS ==="
-                    docker ps
+                    docker ps | grep backend || true
+                """
+            }
+        }
+
+        stage('3. Deploy Frontend (Nginx)') {
+            when {
+                anyOf {
+                    changeset "frontend/**"
+                    changeset "dashboard/**"
+                    changeset "nginx/**"
+                }
+            }
+            steps {
+                sh """
+                    echo "=== DEPLOY FRONTEND ==="
+
+                    docker compose up -d --build nginx
+
+                    docker ps | grep nginx || true
                 """
             }
         }
