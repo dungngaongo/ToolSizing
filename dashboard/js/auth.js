@@ -11,10 +11,8 @@ const AUTH_CONFIG = {
     checkIntervalMs: 30 * 1000,         // Kiểm tra mỗi 30 giây
     maxLoginAttempts: 5,                 // Tối đa 5 lần thử sai
     lockoutMs: 5 * 60 * 1000,           // Khóa 5 phút
-    // loginPage: 'login.html',
-    loginPage: '/dashboard/login.html',
-    // dashboardPage: 'index.html'
-    dashboardPage: '/dashboard/index.html'
+    loginPage: 'login.html',
+    dashboardPage: 'index.html'
 };
 
 // ==================== LOGIN PAGE LOGIC ====================
