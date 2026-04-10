@@ -25,16 +25,16 @@ pipeline {
             }
         }
 
-        stage('2. Build Docker Image') {
-            steps {
-                dir('backend1') {
-                    sh """
-                        echo "=== ĐANG ĐÓNG GÓI IMAGE: sizing-test:latest ==="
-                        docker build -t sizing-test:latest .
-                    """
-                }
-            }
-        }
+        // stage('2. Build Docker Image') {
+        //     steps {
+        //         dir('backend1') {
+        //             sh """
+        //                 echo "=== ĐANG ĐÓNG GÓI IMAGE: sizing-test:latest ==="
+        //                 docker build -t sizing-test:latest .
+        //             """
+        //         }
+        //     }
+        // }
 
         // stage('3. Deploy & Health Check') {
         //     steps {
