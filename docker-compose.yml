@@ -1,10 +1,19 @@
 version: '3.8'
 
 services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8081:8081"
+    restart: always
+
   nginx:
     build:
       context: .
       dockerfile: nginx/Dockerfile
     ports:
       - "80:80"
+    depends_on:
+      - backend
     restart: always
