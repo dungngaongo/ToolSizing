@@ -36,33 +36,47 @@ pipeline {
             }
         }
 
-        stage('3. Deploy & Health Check') {
-            steps {
-                sh """
-                    echo "=== ĐANG KHỞI CHẠY CONTAINER ==="
-                    docker rm -f sizing-test-container || true
+        // stage('3. Deploy & Health Check') {
+        //     steps {
+        //         sh """
+        //             // echo "=== ĐANG KHỞI CHẠY CONTAINER ==="
+        //             // docker rm -f sizing-test-container || true
                     
-                    docker run -d \
-                        -p 8081:8081 \
-                        --name sizing-test-container \
-                        --restart unless-stopped \
-                        sizing-test:latest
+        //             // docker run -d \
+        //             //     -p 8081:8081 \
+        //             //     --name sizing-test-container \
+        //             //     --restart unless-stopped \
+        //             //     sizing-test:latest
                     
-                    echo "Đợi 10s để ứng dụng khởi động..."
-                    sleep 10
-                    docker ps | grep sizing-test-container
-                """
-            }
-        }
-        stage('4. Deploy Frontend (Nginx)') {
-            steps {
-                sh """
-                    echo "=== DEPLOY NGINX + FRONTEND ==="
+        //             echo "Đợi 10s để ứng dụng khởi động..."
+        //             sleep 10
+        //             // docker ps | grep sizing-test-container
+        //         """
+        //     }
+        // }
+        // stage('3. Deploy Frontend (Nginx)') {
+        //     steps {
+        //         sh """
+        //             echo "=== DEPLOY NGINX + FRONTEND ==="
 
+        //             docker compose up -d --build --force-recreate --remove-orphans
+
+        //             echo "=== CHECK NGINX ==="
+        //             docker ps | grep nginx
+        //         """
+        //     }
+        // }
+
+        stage('3. Deploy Full Stack ') {
+            steps {
+                sh """
+                    echo "=== DEPLOY BACKEND + NGINX ==="
+
+                    docker compose down || true
                     docker compose up -d --build --force-recreate --remove-orphans
 
-                    echo "=== CHECK NGINX ==="
-                    docker ps | grep nginx
+                    echo "=== CHECK CONTAINERS ==="
+                    docker ps
                 """
             }
         }
