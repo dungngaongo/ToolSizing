@@ -1,6 +1,5 @@
 // Cấu hình API Backend
-
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://localhost:8081/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
@@ -497,11 +496,45 @@ function initHelpTooltipSmartPositioning() {
     if (helpIcons.length === 0) return;
 
     helpIcons.forEach(icon => {
-        icon.addEventListener('mouseenter', () => positionSingleHelpTooltip(icon));
-        icon.addEventListener('focusin', () => positionSingleHelpTooltip(icon));
+        let hideTimer = null;
+        const tooltip = icon.querySelector('.help-content');
+
+        const openTooltip = () => {
+            if (hideTimer) {
+                clearTimeout(hideTimer);
+                hideTimer = null;
+            }
+            icon.classList.add('is-open');
+            positionSingleHelpTooltip(icon);
+        };
+
+        const closeTooltipWithDelay = () => {
+            if (hideTimer) clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => {
+                icon.classList.remove('is-open');
+            }, 160);
+        };
+
+        icon.addEventListener('mouseenter', openTooltip);
+        icon.addEventListener('focusin', openTooltip);
         icon.addEventListener('click', (e) => {
             e.preventDefault();
-            positionSingleHelpTooltip(icon);
+            openTooltip();
+        });
+        icon.addEventListener('mouseleave', closeTooltipWithDelay);
+        icon.addEventListener('focusout', closeTooltipWithDelay);
+
+        if (tooltip) {
+            tooltip.addEventListener('mouseenter', openTooltip);
+            tooltip.addEventListener('mouseleave', closeTooltipWithDelay);
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        helpIcons.forEach(icon => {
+            if (!icon.contains(event.target)) {
+                icon.classList.remove('is-open');
+            }
         });
     });
 
@@ -510,7 +543,7 @@ function initHelpTooltipSmartPositioning() {
             const tooltip = icon.querySelector('.help-content');
             if (!tooltip) return;
             const style = window.getComputedStyle(tooltip);
-            if (style.visibility === 'visible' || icon.matches(':hover')) {
+            if (style.visibility === 'visible' || icon.matches(':hover') || icon.classList.contains('is-open')) {
                 positionSingleHelpTooltip(icon);
             }
         });
@@ -549,6 +582,7 @@ function initFirstRowGuards() {
     const managedTables = [
         { id: 'input-table-body', add: () => addInputRow() },
         { id: 'connection-info-table-body', add: () => addConnectionRow() },
+        { id: 'logic-component-table-body', add: () => addLogicComponentRow() },
         { id: 'arch-table-body', add: () => addArchRow() },
         { id: 'baseline-table-body', add: () => addBaselineRow() },
         { id: 'input-config-table-body', add: () => addInputConfigRow() },
@@ -1524,6 +1558,13 @@ function resetAllForms() {
         archBody.appendChild(createArchTableRow(1, {}));
     }
 
+    // Clear logic component table
+    const logicBody = document.getElementById('logic-component-table-body');
+    if (logicBody) {
+        logicBody.innerHTML = '';
+        logicBody.appendChild(createLogicComponentTableRow(1, {}));
+    }
+
     // Clear connection info table
     const connBody = document.getElementById('connection-info-table-body');
     if (connBody) {
@@ -1615,6 +1656,9 @@ function resetAllForms() {
     if (document.getElementById('k8s-ram-flavor')) {
         document.getElementById('k8s-ram-flavor').value = '32';
     }
+    if (document.getElementById('mariadb-replication-model')) {
+        document.getElementById('mariadb-replication-model').value = 'asynchronous';
+    }
     onVirtualizationModeChange('app');
     onVirtualizationModeChange('k8s');
 
@@ -1652,6 +1696,9 @@ function resetAllForms() {
     if (firstPage) firstPage.classList.add("active");
 
     try { updateModuleVisibility(); } catch (e) {}
+
+    // Always restore fixed sizing rule after global reset.
+    applyFixedSizingRule();
 }
 
 // ==================== LOAD DATA FROM DATABASE ====================
@@ -1746,6 +1793,9 @@ async function loadAllDataFromDB() {
         showToast('Lỗi khi tải dữ liệu dự án: ' + error.message, 'error', 5000);
     }
 
+    // Keep fixed sizing rule visible even when project has no saved request content yet.
+    applyFixedSizingRule();
+
     // Khôi phục tab đang xem
     if (activeSectionId) {
         showSection(activeSectionId, activeMenuLink);
@@ -1764,6 +1814,18 @@ async function loadAllDataFromDB() {
 }
 
 // ==================== 1. YÊU CẦU BÀI TOÁN ====================
+
+const FIXED_SIZING_RULE = `Tính toán tăng trưởng mở rộng hệ thống trong vòng 01 năm theo yêu cầu kinh doanh 
+Đảm bảo khả năng dự phòng: Các thiết bị phần cứng phải đảm bảo hoạt động với cơ chế dự phòng active-active hoặc active-standby,
+Đảm bảo hiệu suất hoạt động (KPI): Tải CPU không quá 75%, RAM không vượt quá 90% và ổ cứng không vượt quá 80%, Datanode không vượt quá 50%,
+Hệ số dự phòng sai số tính toán: 1.1`;
+
+function applyFixedSizingRule() {
+    const sizingRuleEl = document.getElementById('sizing-rule-fixed');
+    if (!sizingRuleEl) return;
+    sizingRuleEl.value = FIXED_SIZING_RULE;
+    sizingRuleEl.readOnly = true;
+}
 
 function loadYeuCauBaiToan(data) {
     const rows = document.querySelectorAll('#request-table-body tr');
@@ -1825,8 +1887,9 @@ function loadYeuCauBaiToan(data) {
     loadRowData(4, data.sizingPurpose, data.adminReview?.row4);
     // Dòng 6: Cơ sở
     loadRowData(5, data.sizingBasis, data.adminReview?.row5);
-    // Dòng 7: Nguyên tắc
-    loadRowData(6, data.sizingRule, data.adminReview?.row6);
+    // Dòng 7: Nguyên tắc định cỡ luôn cố định, không lấy theo dữ liệu lưu cũ
+    loadRowData(6, FIXED_SIZING_RULE, data.adminReview?.row6);
+    applyFixedSizingRule();
     // Dòng 8: Mức độ
     loadRowData(7, data.importance, data.adminReview?.row7);
     // Dòng 9: Thời gian
@@ -1870,6 +1933,19 @@ function loadMoHinhHeThong(data, admin) {
                     el.innerHTML = `<img src="${img.base64 || img}" alt="flow-${idx}" onclick="openModal(this.src)" style="cursor: zoom-in; max-width:100%;">`;
                     flowContainer.appendChild(el);
                 });
+            }
+        }
+
+        const logicComponentBody = document.getElementById('logic-component-table-body');
+        if (logicComponentBody) {
+            logicComponentBody.innerHTML = '';
+            if (Array.isArray(data.logicComponentRows) && data.logicComponentRows.length > 0) {
+                data.logicComponentRows.forEach((row, index) => {
+                    const tr = createLogicComponentTableRow(index + 1, row);
+                    logicComponentBody.appendChild(tr);
+                });
+            } else {
+                logicComponentBody.appendChild(createLogicComponentTableRow(1, {}));
             }
         }
 
@@ -1972,6 +2048,7 @@ function loadMoHinhHeThong(data, admin) {
 
 function collectYeuCauBaiToan() {
     const rows = document.querySelectorAll('#request-table-body tr');
+    applyFixedSizingRule();
 
     // Helper lấy value User Input
     const getVal = (rowIndex) => {
@@ -2006,7 +2083,7 @@ function collectYeuCauBaiToan() {
         contactPerson: contactCombined,
         sizingPurpose: getVal(4), // Dòng 5 là index 4
         sizingBasis: getVal(5),
-        sizingRule: getVal(6),
+        sizingRule: FIXED_SIZING_RULE,
         importance: getVal(7),
         deploymentTime: getVal(8),
 
@@ -2743,6 +2820,46 @@ function addBaselineRow() {
     try { applyRolePermissions(); } catch (e) {}
 }
 
+function autoGrowTextarea(textarea) {
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.max(textarea.scrollHeight, 44)}px`;
+}
+
+function createLogicComponentTableRow(stt, data = {}) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="text-center">${stt}</td>
+        <td>
+            <textarea class="input-full logic-name-textarea" rows="2" oninput="autoGrowTextarea(this)" placeholder="Ví dụ: MariaDB Cluster">${escapeHtml(data.componentName || '')}</textarea>
+        </td>
+        <td>
+            <textarea class="input-full logic-task-textarea" rows="2" oninput="autoGrowTextarea(this)" placeholder="Mô tả nhiệm vụ chính của thành phần/module...">${escapeHtml(data.mainTask || '')}</textarea>
+        </td>
+        <td><button type="button" class="btn-delete" onclick="removeLogicComponentRow(this)">✖</button></td>
+    `;
+    const nameTextarea = tr.querySelector('.logic-name-textarea');
+    const taskTextarea = tr.querySelector('.logic-task-textarea');
+    autoGrowTextarea(nameTextarea);
+    autoGrowTextarea(taskTextarea);
+    return tr;
+}
+
+function addLogicComponentRow() {
+    const tbody = document.getElementById('logic-component-table-body');
+    if (!tbody) return;
+    const nextSTT = tbody.rows.length + 1;
+    const tr = createLogicComponentTableRow(nextSTT);
+    tbody.appendChild(tr);
+    try { applyRolePermissions(); } catch (e) {}
+}
+
+function removeLogicComponentRow(btn) {
+    removeRow(btn);
+    const tbody = document.getElementById('logic-component-table-body');
+    updateSTT(tbody);
+}
+
 function createArchTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -2792,6 +2909,15 @@ function createArchTableRow(stt, data = {}) {
 }
 
 function collectMoHinhHeThong() {
+    const logicComponentRows = [];
+    document.querySelectorAll('#logic-component-table-body tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        logicComponentRows.push({
+            componentName: cells[1]?.querySelector('textarea')?.value?.trim() || '',
+            mainTask: cells[2]?.querySelector('textarea')?.value || ''
+        });
+    });
+
     // Thu thập bảng Zone mạng (USER DATA ONLY - no admin fields)
     const archRows = [];
     document.querySelectorAll('#arch-table-body tr').forEach(row => {
@@ -2810,6 +2936,7 @@ function collectMoHinhHeThong() {
     return {
         physicalImages: collectImagesFromContainer('physical'),
         logicalImages: collectImagesFromContainer('logical'),
+        logicComponentRows: logicComponentRows,
         flowImages: collectImagesFromContainer('flow'),
         flowExplanation: document.getElementById('flow-explanation')?.value || '',
         archRows: archRows,
@@ -3206,6 +3333,8 @@ function updateModuleVisibility() {
         renderModuleInstances(moduleName, instancesByType[moduleName] || [], preservedSnapshots);
     });
 
+    syncMariaDBMasterRadioNames();
+
     try { populatePocSizingDropdowns(); } catch (e) {}
 
     try { refreshSizingRequiredMarkers(); } catch (e) {}
@@ -3340,6 +3469,39 @@ function aggregateSizingResults() {
                 }
             }
         });
+    } else {
+        const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
+        const mariaData = parseMariaDBSizingResult(mariaResult);
+        if (mariaData) {
+            results.push({
+                stt: stt++,
+                moduleType: 'MariaDB',
+                moduleName: 'MariaDB',
+                cauHinh: mariaData.cauHinh,
+                soLuong: mariaData.soLuong,
+                ghiChu: mariaData.ghiChu
+            });
+            if (mariaData.maxScale) {
+                results.push({
+                    stt: stt++,
+                    moduleType: 'MaxScale',
+                    moduleName: 'MariaDB',
+                    cauHinh: mariaData.maxScale.cauHinh,
+                    soLuong: mariaData.maxScale.soLuong,
+                    ghiChu: mariaData.maxScale.ghiChu
+                });
+            }
+            if (mariaData.nas) {
+                results.push({
+                    stt: stt++,
+                    moduleType: 'NAS',
+                    moduleName: 'MariaDB',
+                    cauHinh: mariaData.nas.cauHinh,
+                    soLuong: mariaData.nas.soLuong,
+                    ghiChu: mariaData.nas.ghiChu
+                });
+            }
+        }
     }
     
     // 3. Module Redis - Chỉ khi module Redis được chọn
@@ -3554,48 +3716,63 @@ function parseAppSizingResult(html) {
 // Parse kết quả Module MariaDB
 function parseMariaDBSizingResult(html) {
     if (!html || html.trim() === '') return null;
-    
-    const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i);
-    const ramMatch = html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i);
-    const diskMatch = html.match(/<strong>(\d+)\s*GB\s*DISK<\/strong>/i);
-    const soLuongMatch = html.match(/Số lượng[^<]*<\/th>[^<]*<td[^>]*[^>]*>(\d+)/i) ||
-                         html.match(/<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong><\/td>/i);
-    
-    if (!vcpuMatch && !ramMatch) return null;
-    
+
+    const getResultRowByLabel = (label) => {
+        const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const rowMatches = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+        const labelRegex = new RegExp(`<td[^>]*>\\s*<strong>${escapedLabel}<\\/strong>\\s*<\\/td>`, 'i');
+        return rowMatches.find(row => labelRegex.test(row)) || '';
+    };
+
+    const extractQuantity = (rowHtml) => {
+        if (!rowHtml) return '';
+        const qtyMatch = rowHtml.match(/<td[^>]*class="text-center"[^>]*>\s*<strong>([^<]+)<\/strong>\s*<\/td>/i);
+        return qtyMatch ? qtyMatch[1].trim() : '';
+    };
+
+    const extractListContent = (rowHtml) => {
+        if (!rowHtml) return '';
+        const listMatch = rowHtml.match(/<ul[^>]*>([\s\S]*?)<\/ul>/i);
+        return listMatch ? listMatch[1] : '';
+    };
+
+    const mariaRow = getResultRowByLabel('MariaDB');
+    const maxScaleRow = getResultRowByLabel('MaxScale');
+    const nasRow = getResultRowByLabel('NAS');
+
+    const mariaList = extractListContent(mariaRow);
+    const vcpuMatch = mariaList.match(/<strong>(\d+)\s*vCPU<\/strong>/i) || html.match(/<strong>(\d+)\s*vCPU<\/strong>/i);
+    const ramMatch = mariaList.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i) || html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i);
+    const dataMatch = mariaList.match(/\/data[:\s]*(\d+)\s*GB/i) || html.match(/\/data[:\s]*(\d+)\s*GB/i);
+    const logMatch = mariaList.match(/\/log[:\s]*(\d+)\s*GB/i) || html.match(/\/log[:\s]*(\d+)\s*GB/i);
+
+    if (!vcpuMatch && !ramMatch && !dataMatch && !logMatch) return null;
+
     let cauHinh = '';
     if (vcpuMatch) cauHinh += `- vCPU = ${vcpuMatch[1]}\n`;
     if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
-    if (diskMatch) cauHinh += `- Disk = ${diskMatch[1]}GB`;
-    
-    // Parse /data and /log from the MariaDB row in kết quả đề xuất table
-    const mariaRowMatch = html.match(/MariaDB<\/strong>[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>/i);
-    if (mariaRowMatch) {
-        const listContent = mariaRowMatch[1];
-        const dataMatch = listContent.match(/\/data[:\s]*(\d+)\s*GB/i);
-        const logMatch = listContent.match(/\/log[:\s]*(\d+)\s*GB/i);
-        cauHinh = '';
-        if (vcpuMatch) cauHinh += `- vCPU = ${vcpuMatch[1]}\n`;
-        if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
-        if (dataMatch || logMatch) {
-            cauHinh += `- Disk:\n`;
-            if (dataMatch) cauHinh += `  + /data: ${dataMatch[1]}GB\n`;
-            if (logMatch) cauHinh += `  + /log: ${logMatch[1]}GB`;
-        } else if (diskMatch) {
-            cauHinh += `- Disk = ${diskMatch[1]}GB`;
-        }
+    if (dataMatch || logMatch) {
+        cauHinh += '- Disk:\n';
+        if (dataMatch) cauHinh += `  + /data: ${dataMatch[1]}GB\n`;
+        if (logMatch) cauHinh += `  + /log: ${logMatch[1]}GB`;
     }
-    
+
+    const mariaCells = mariaRow.match(/<td[^>]*>[\s\S]*?<\/td>/gi) || [];
+    const quantityCell = mariaCells[2] || '';
+    const noteCell = mariaCells[3] || '';
+    const mariaQuantity = (quantityCell.match(/<strong>([^<]+)<\/strong>/i)?.[1] || '').trim();
+    const mariaNoteText = noteCell
+        ? noteCell.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        : '';
+
     const result = {
-        cauHinh: cauHinh.replace(/\n/g, '<br>'),
-        soLuong: soLuongMatch ? soLuongMatch[1] : '3',
-        ghiChu: 'Galera Cluster'
+        cauHinh: cauHinh.trim().replace(/\n/g, '<br>'),
+        soLuong: mariaQuantity || extractQuantity(mariaRow) || '3',
+        ghiChu: mariaNoteText
     };
-    
-    // Parse MaxScale row
-    const maxScaleMatch = html.match(/MaxScale<\/strong>[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong>/i);
-    if (maxScaleMatch) {
-        const maxScaleList = maxScaleMatch[1];
+
+    const maxScaleList = extractListContent(maxScaleRow);
+    if (maxScaleList) {
         const msVcpu = maxScaleList.match(/(\d+)\s*vCPU/i);
         const msRam = maxScaleList.match(/(\d+)\s*GB\s*RAM/i);
         const msDisk = maxScaleList.match(/\/u01[:\s]*(\d+)\s*GB/i);
@@ -3604,14 +3781,13 @@ function parseMariaDBSizingResult(html) {
         if (msRam) msCauHinh += `- RAM = ${msRam[1]}GB\n`;
         if (msDisk) msCauHinh += `- /u01: ${msDisk[1]}GB`;
         result.maxScale = {
-            cauHinh: msCauHinh.replace(/\n/g, '<br>'),
-            soLuong: maxScaleMatch[2],
+            cauHinh: msCauHinh.trim().replace(/\n/g, '<br>'),
+            soLuong: extractQuantity(maxScaleRow) || '2',
             ghiChu: 'Cấu hình tối thiểu + 1 VIP'
         };
     }
-    
-    // Parse NAS row
-    const nasMatch = html.match(/NAS<\/strong>[\s\S]*?<strong>(\d+)\s*GB<\/strong>/i);
+
+    const nasMatch = nasRow.match(/<strong>(\d+)\s*GB<\/strong>/i);
     if (nasMatch) {
         result.nas = {
             cauHinh: `${nasMatch[1]} GB`,
@@ -3619,7 +3795,7 @@ function parseMariaDBSizingResult(html) {
             ghiChu: 'Mount chung (/backup cần)'
         };
     }
-    
+
     return result;
 }
 
@@ -4141,16 +4317,18 @@ async function exportToWord() {
 
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tổng hợp và lưu dữ liệu...</span>';
-        
-        // 1. Aggregate và lưu summary data trước khi export
-        aggregateSizingResults();
-        const summaryData = collectTongHop();
-        
-        // Lưu summary data vào database
+
+        // 1. Lưu full payload (bao gồm dữ liệu định cỡ + kết quả tổng hợp)
+        // để DOCX luôn lấy đúng dữ liệu Kafka mới tính toán.
+        const payload = buildSavePayload();
+        if (!payload) {
+            throw new Error('Không thể tổng hợp dữ liệu để xuất báo cáo');
+        }
+
         await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tongHopVaDeXuatContent: JSON.stringify(summaryData) })
+            body: JSON.stringify(payload)
         });
         
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tạo file DOCX...</span>';
@@ -4200,6 +4378,7 @@ async function exportToWord() {
 
 document.addEventListener("DOMContentLoaded", async function () {
     Logger.debug('Current Project ID:', currentProjectId);
+    applyFixedSizingRule();
     
     // Kiểm tra xem người dùng đã đăng nhập chưa
     const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -4247,12 +4426,20 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (addBaselineBtn) addBaselineBtn.onclick = addBaselineRow;
     const addArchBtn = document.getElementById('addArchRowBtn');
     if (addArchBtn) addArchBtn.onclick = addArchRow;
+    const addLogicComponentBtn = document.getElementById('addLogicComponentRowBtn');
+    if (addLogicComponentBtn) addLogicComponentBtn.onclick = addLogicComponentRow;
     const addSummaryBtn = document.getElementById('addSummaryRowBtn');
     if (addSummaryBtn) addSummaryBtn.onclick = addSummaryRow;
     const exportBtn = document.getElementById('exportBtn');
     if (exportBtn) exportBtn.onclick = exportToWord;
     const addConnectionBtn = document.getElementById('addConnectionRowBtn');
     if (addConnectionBtn) addConnectionBtn.onclick = addConnectionRow;
+
+    document.addEventListener('pointerdown', (event) => {
+        if (event.target && event.target.classList && event.target.classList.contains('mariadb-master-radio')) {
+            syncMariaDBMasterRadioNames();
+        }
+    }, true);
 });
 // Hàm xóa dòng cuối cùng của bảng
 function removeLastRow(tbodyId) {
@@ -4993,7 +5180,7 @@ function collectSizingAdminReviewData() {
                 },
                 linearRowReviews: (() => {
                     const reviews = [];
-                    document.querySelectorAll('#kafka-linear-table-body tr').forEach(row => {
+                    getKafkaLinearRows().forEach(row => {
                         reviews.push({
                             eval: row.querySelector('.kafka-linear-eval')?.value || '',
                             note: row.querySelector('.kafka-linear-note')?.value || ''
@@ -5007,7 +5194,7 @@ function collectSizingAdminReviewData() {
             return {
                 baselineRowReviews: (() => {
                     const reviews = [];
-                    document.querySelectorAll('#k8s-baseline-table-body tr').forEach(row => {
+                    getK8SBaselineRows().forEach(row => {
                         reviews.push({
                             eval: row.querySelector('.k8s-baseline-eval')?.value || '',
                             note: row.querySelector('.k8s-baseline-note')?.value || ''
@@ -5017,7 +5204,7 @@ function collectSizingAdminReviewData() {
                 })(),
                 inputConfigRowReviews: (() => {
                     const reviews = [];
-                    document.querySelectorAll('#k8s-input-config-table-body tr').forEach(row => {
+                    getK8SInputConfigRows().forEach(row => {
                         reviews.push({
                             eval: row.querySelector('.k8s-input-config-eval')?.value || '',
                             note: row.querySelector('.k8s-input-config-note')?.value || ''
@@ -5591,7 +5778,7 @@ function loadSizingAdminReview(adminReview) {
             
             // Load Kafka linear row reviews
             if (adminReview.moduleKafka.linearRowReviews) {
-                const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+                const rows = getKafkaLinearRows();
                 adminReview.moduleKafka.linearRowReviews.forEach((review, index) => {
                     if (rows[index]) {
                         const adminEval = rows[index].querySelector('.kafka-linear-eval');
@@ -5611,7 +5798,7 @@ function loadSizingAdminReview(adminReview) {
         // Load module K8S admin review
         if (adminReview.moduleK8S) {
             if (adminReview.moduleK8S.baselineRowReviews) {
-                const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+                const rows = getK8SBaselineRows();
                 adminReview.moduleK8S.baselineRowReviews.forEach((review, index) => {
                     if (rows[index]) {
                         const adminEval = rows[index].querySelector('.k8s-baseline-eval');
@@ -5627,7 +5814,7 @@ function loadSizingAdminReview(adminReview) {
                 });
             }
             if (adminReview.moduleK8S.inputConfigRowReviews) {
-                const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+                const rows = getK8SInputConfigRows();
                 adminReview.moduleK8S.inputConfigRowReviews.forEach((review, index) => {
                     if (rows[index]) {
                         const adminEval = rows[index].querySelector('.k8s-input-config-eval');
@@ -5736,6 +5923,7 @@ function showSection(sectionId, linkElement, options = {}) {
 
 // Tự động thêm 1 dòng trắng khi load trang lần đầu
 document.addEventListener("DOMContentLoaded", function() {
+    applyFixedSizingRule();
     const tbody = document.getElementById('baseline-table-body');
     if(tbody && tbody.children.length === 0) {
         addBaselineRow();
@@ -5921,6 +6109,13 @@ function onVirtualizationModeChange(prefix) {
     const mode = modeSelect.value === 'vcpu' ? 'vcpu' : 'ram';
     vcpuSelect.disabled = mode !== 'vcpu';
     ramSelect.disabled = mode !== 'ram';
+
+    const vcpuContainer = vcpuSelect.closest('div');
+    const ramContainer = ramSelect.closest('div');
+    if (vcpuContainer && ramContainer) {
+        vcpuContainer.style.display = mode === 'vcpu' ? '' : 'none';
+        ramContainer.style.display = mode === 'ram' ? '' : 'none';
+    }
 }
 
 function getVirtualizationChoice(prefix) {
@@ -6120,6 +6315,18 @@ function calculateSizingRecommendations() {
 
 // ==================== MODULE K8S FUNCTIONS ====================
 
+function getK8SBaselineRows() {
+    const tbody = document.getElementById('k8s-baseline-table-body');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr'));
+}
+
+function getK8SInputConfigRows() {
+    const tbody = document.getElementById('k8s-input-config-table-body');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr'));
+}
+
 function addK8SBaselineRow() {
     const tbody = document.getElementById('k8s-baseline-table-body');
     const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
@@ -6127,18 +6334,25 @@ function addK8SBaselineRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
+    const syncIpHandler = buildInstanceAwareHandler('syncK8SIPToInputConfig(this)');
+    const baselineRamHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
+    const baselineDiskHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
+    const baselineCintHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
+    const baselineUploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const baselineUploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteBaselineHandler = buildInstanceAwareHandler('deleteK8SBaselineRow(this)');
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
-        <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" oninput="syncK8SIPToInputConfig(this)"></td>
+        <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
         <td><input type="text" class="input-full k8s-cpu-input" placeholder="Intel Xeon..."></td>
-        <td><input type="number" class="input-full text-center k8s-ram-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
-        <td><input type="number" class="input-full text-center k8s-disk-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
-        <td><input type="number" class="input-full text-center k8s-cint-input" value="0" min="0" oninput="updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-ram-input" value="0" min="0" oninput="${baselineRamHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-input" value="0" min="0" oninput="${baselineDiskHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-cint-input" value="0" min="0" oninput="${baselineCintHandler}"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="k8s-baseline-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="k8s-baseline-evidence-input" onchange="${baselineUploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${baselineUploadClickHandler}" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
@@ -6155,7 +6369,7 @@ function addK8SBaselineRow() {
             <input type="text" class="input-full admin-note k8s-baseline-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="deleteK8SBaselineRow(this)">
+            <button class="btn-delete-row-item" onclick="${deleteBaselineHandler}">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -6174,20 +6388,24 @@ function addK8SInputConfigRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
+    const calculateRowHandler = buildInstanceAwareHandler('calculateK8SInputConfigRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteHandler = buildInstanceAwareHandler('deleteK8SInputConfigRow(this)');
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         <td><input type="text" class="input-full text-center k8s-ip-config-input" placeholder="10.x.x.x"></td>
-        <td><input type="number" class="input-full text-center k8s-cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
-        <td><input type="number" class="input-full text-center k8s-ram-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
-        <td><input type="number" class="input-full text-center k8s-disk-load-input" value="0" min="0" max="100" step="0.01" oninput="calculateK8SInputConfigRow(this)"></td>
+        <td><input type="number" class="input-full text-center k8s-cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-ram-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
         <td><input type="number" class="input-full text-center k8s-cint-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td><input type="number" class="input-full text-center k8s-ram-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td><input type="number" class="input-full text-center k8s-disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="k8s-input-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="k8s-input-config-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
@@ -6204,7 +6422,7 @@ function addK8SInputConfigRow() {
             <input type="text" class="input-full admin-note k8s-input-config-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="deleteK8SInputConfigRow(this)">
+            <button class="btn-delete-row-item" onclick="${deleteHandler}">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -6222,7 +6440,7 @@ function calculateK8SInputConfigRow(input) {
     const ramUsedInput = row.querySelector('.k8s-ram-used-input');
     const diskUsedInput = row.querySelector('.k8s-disk-used-input');
 
-    const baselineRows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    const baselineRows = getK8SBaselineRows();
     const rowIndex = Array.from(row.parentNode.children).indexOf(row);
 
     if (rowIndex < baselineRows.length) {
@@ -6269,7 +6487,7 @@ function deleteK8SInputConfigRow(btn) {
 }
 
 function updateK8SRowNumbers() {
-    const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    const rows = getK8SBaselineRows();
     rows.forEach((row, index) => {
         const sttCell = row.querySelector('.stt-cell');
         if (sttCell) sttCell.innerText = index + 1;
@@ -6277,7 +6495,7 @@ function updateK8SRowNumbers() {
 }
 
 function updateK8SInputConfigRowNumbers() {
-    const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+    const rows = getK8SInputConfigRows();
     rows.forEach((row, index) => {
         const sttCell = row.querySelector('.stt-cell');
         if (sttCell) sttCell.innerText = index + 1;
@@ -6292,14 +6510,17 @@ function updateK8SBaselineTotal() {
 
     let totalRam = 0, totalCint = 0, totalDisk = 0;
 
-    document.querySelectorAll('#k8s-baseline-table-body .k8s-ram-input').forEach(input => {
-        totalRam += parseFloat(input.value) || 0;
+    getK8SBaselineRows().forEach(row => {
+        const input = row.querySelector('.k8s-ram-input');
+        totalRam += parseFloat(input?.value) || 0;
     });
-    document.querySelectorAll('#k8s-baseline-table-body .k8s-cint-input').forEach(input => {
-        totalCint += parseFloat(input.value) || 0;
+    getK8SBaselineRows().forEach(row => {
+        const input = row.querySelector('.k8s-cint-input');
+        totalCint += parseFloat(input?.value) || 0;
     });
-    document.querySelectorAll('#k8s-baseline-table-body .k8s-disk-input').forEach(input => {
-        totalDisk += parseFloat(input.value) || 0;
+    getK8SBaselineRows().forEach(row => {
+        const input = row.querySelector('.k8s-disk-input');
+        totalDisk += parseFloat(input?.value) || 0;
     });
 
     totalRamEl.innerText = totalRam;
@@ -6315,14 +6536,10 @@ function updateK8SInputConfigTotal() {
 
     let totalCintUsed = 0, totalRamUsed = 0, totalDiskUsed = 0;
 
-    document.querySelectorAll('#k8s-input-config-table-body .k8s-cint-used-input').forEach(input => {
-        totalCintUsed += parseFloat(input.value) || 0;
-    });
-    document.querySelectorAll('#k8s-input-config-table-body .k8s-ram-used-input').forEach(input => {
-        totalRamUsed += parseFloat(input.value) || 0;
-    });
-    document.querySelectorAll('#k8s-input-config-table-body .k8s-disk-used-input').forEach(input => {
-        totalDiskUsed += parseFloat(input.value) || 0;
+    getK8SInputConfigRows().forEach(row => {
+        totalCintUsed += parseFloat(row.querySelector('.k8s-cint-used-input')?.value) || 0;
+        totalRamUsed += parseFloat(row.querySelector('.k8s-ram-used-input')?.value) || 0;
+        totalDiskUsed += parseFloat(row.querySelector('.k8s-disk-used-input')?.value) || 0;
     });
 
     totalCintUsedEl.innerText = totalCintUsed.toFixed(2);
@@ -6452,9 +6669,7 @@ function calculateK8SSizing() {
 
     // Bảng 2: Phân bổ theo N
     const nValues = [
-        { label: 'Ketqua - 1', value: Math.max(1, ketqua - 1) },
         { label: 'Ketqua', value: ketqua },
-        { label: 'Ketqua + 1', value: ketqua + 1 }
     ];
 
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Bảng phân bổ theo số lượng N</h4>`;
@@ -6555,7 +6770,7 @@ function calculateK8SSizing() {
 }
 
 function collectK8SBaselineTableData() {
-    const rows = document.querySelectorAll('#k8s-baseline-table-body tr');
+    const rows = getK8SBaselineRows();
     const data = [];
     rows.forEach((row, index) => {
         const evidenceImages = collectInlineEvidenceFromScope(row);
@@ -6574,7 +6789,7 @@ function collectK8SBaselineTableData() {
 }
 
 function collectK8SInputConfigTableData() {
-    const rows = document.querySelectorAll('#k8s-input-config-table-body tr');
+    const rows = getK8SInputConfigRows();
     const data = [];
     rows.forEach((row, index) => {
         const evidenceImages = collectInlineEvidenceFromScope(row);
@@ -6981,64 +7196,69 @@ function loadLBFWData(data) {
 function parseK8SSizingResult(html) {
     if (!html || html.trim() === '') return null;
 
+    const cleanText = (raw) => (raw || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const configTableMatch = html.match(/Đề xuất cấu hình[\s\S]*?<table[^>]*>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>[\s\S]*?<\/table>/i);
+    if (!configTableMatch) return null;
+
+    const tbodyHtml = configTableMatch[1];
+    const rowMatches = Array.from(tbodyHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi));
+    if (rowMatches.length === 0) return null;
+
+    const parsedByName = {};
+    rowMatches.forEach(match => {
+        const rowHtml = match[1];
+        const tdMatches = Array.from(rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map(m => m[1]);
+        if (tdMatches.length < 4) return;
+
+        const componentName = cleanText(tdMatches[0]);
+        if (!componentName) return;
+
+        const listItems = Array.from(tdMatches[1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)).map(m => cleanText(m[1]));
+        const listContent = listItems.join('\n');
+        const quantityText = cleanText(tdMatches[2]);
+        const noteText = cleanText(tdMatches[3]);
+
+        parsedByName[componentName] = {
+            listContent,
+            quantity: (quantityText.match(/\d+/) || [quantityText])[0] || '',
+            note: noteText
+        };
+    });
+
+    const orderedComponents = ['K8S Master', 'K8S Worker', 'K8S ETCD'];
     const results = [];
+    orderedComponents.forEach(componentName => {
+        const item = parsedByName[componentName];
+        if (!item) return;
 
-    // K8S Master - fixed config
-    const masterMatch = html.match(/K8S Master[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
-    if (masterMatch) {
-        const listContent = masterMatch[1];
-        const vcpu = listContent.match(/(\d+)\s*vCPU/i);
-        const ram = listContent.match(/(\d+)\s*GB/i);
-        const disk = listContent.match(/DISK[:\s]*(\d+)\s*GB/i);
+        const vcpu = item.listContent.match(/(\d+)\s*vCPU/i);
+        const cpuCint = item.listContent.match(/CPU[:\s]*=?\s*(\d+)\s*Cint/i);
+        const ram = item.listContent.match(/RAM[:\s=]*(\d+)\s*GB/i) || item.listContent.match(/(\d+)\s*GB/i);
+        const disk = item.listContent.match(/DISK[:\s=]*(\d+)\s*GB/i);
+
         let cauHinh = '';
-        if (vcpu) cauHinh += `- vCPU = ${vcpu[1]}\n`;
+        if (componentName === 'K8S Worker' && cpuCint) {
+            cauHinh += `- CPU = ${cpuCint[1]} Cint\n`;
+        } else if (vcpu) {
+            cauHinh += `- vCPU = ${vcpu[1]}\n`;
+        }
         if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
         if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
-        results.push({
-            module: 'K8S Master',
-            cauHinh: cauHinh.replace(/\n/g, '<br>'),
-            soLuong: masterMatch[2],
-            ghiChu: 'Storage Master phải nằm ở 3 cụm storage khác nhau'
-        });
-    }
 
-    // K8S Worker - calculated
-    const workerMatch = html.match(/K8S Worker[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
-    if (workerMatch) {
-        const listContent = workerMatch[1];
-        const cpuCint = listContent.match(/CPU[:\s]*=?\s*(\d+)\s*Cint/i);
-        const ram = listContent.match(/RAM[:\s]*=?\s*(\d+)\s*GB/i);
-        const disk = listContent.match(/DISK[:\s]*=?\s*(\d+)\s*GB/i);
-        let cauHinh = '';
-        if (cpuCint) cauHinh += `- CPU = ${cpuCint[1]} Cint\n`;
-        if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
-        if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
-        results.push({
-            module: 'K8S Worker',
-            cauHinh: cauHinh.replace(/\n/g, '<br>'),
-            soLuong: workerMatch[2],
-            ghiChu: 'Dự phòng N+1'
-        });
-    }
+        const fallbackNote = componentName === 'K8S Worker'
+            ? 'Dự phòng N+1'
+            : (componentName === 'K8S Master'
+                ? 'Storage Master phải nằm ở 3 cụm storage khác nhau'
+                : 'Storage ETCD phải nằm ở 3 cụm storage khác nhau');
 
-    // K8S ETCD - fixed config
-    const etcdMatch = html.match(/K8S ETCD[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>[\s\S]*?<strong>(\d+)<\/strong>/i);
-    if (etcdMatch) {
-        const listContent = etcdMatch[1];
-        const vcpu = listContent.match(/(\d+)\s*vCPU/i);
-        const ram = listContent.match(/(\d+)\s*GB/i);
-        const disk = listContent.match(/DISK[:\s]*(\d+)\s*GB/i);
-        let cauHinh = '';
-        if (vcpu) cauHinh += `- vCPU = ${vcpu[1]}\n`;
-        if (ram) cauHinh += `- RAM = ${ram[1]}GB\n`;
-        if (disk) cauHinh += `- Disk = ${disk[1]}GB`;
         results.push({
-            module: 'K8S ETCD',
+            module: componentName,
             cauHinh: cauHinh.replace(/\n/g, '<br>'),
-            soLuong: etcdMatch[2],
-            ghiChu: 'Storage ETCD phải nằm ở 3 cụm storage khác nhau'
+            soLuong: item.quantity,
+            ghiChu: item.note || fallbackNote
         });
-    }
+    });
 
     return results.length > 0 ? results : null;
 }
@@ -7065,10 +7285,58 @@ function parseLBFWSizingResult(html) {
 
 // ==================== MODULE MARIADB FUNCTIONS ====================
 
+function resolveMariaDBMasterGroupName(tbody) {
+    let instanceKey = window.__activeInstanceKey || '';
+
+    if (!instanceKey && tbody && tbody.id) {
+        const idMatch = tbody.id.match(/__inst_(.+)$/);
+        if (idMatch && idMatch[1]) {
+            instanceKey = idMatch[1];
+        }
+    }
+
+    if (!instanceKey && tbody) {
+        instanceKey = tbody.closest('.module-instance-wrapper')?.dataset?.instanceKey || '';
+    }
+
+    if (!instanceKey) {
+        instanceKey = 'default';
+    }
+
+    return `mariadb-master-${String(instanceKey).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
+
+function syncMariaDBMasterRadioNames() {
+    const tbodies = document.querySelectorAll('tbody[id^="mariadb-ref-table-body"]');
+    tbodies.forEach(tbody => {
+        const groupName = resolveMariaDBMasterGroupName(tbody);
+        tbody.querySelectorAll('.mariadb-master-radio').forEach(radio => {
+            radio.name = groupName;
+        });
+    });
+}
+
+function enforceMariaDBMasterWithinTable(radio) {
+    if (!radio) return;
+    const tbody = radio.closest('tbody');
+    if (!tbody) return;
+
+    const groupName = resolveMariaDBMasterGroupName(tbody);
+    tbody.querySelectorAll('.mariadb-master-radio').forEach(item => {
+        item.name = groupName;
+        if (item !== radio) {
+            item.checked = false;
+        }
+    });
+
+    syncMariaDBMasterRadioNames();
+}
+
 // Thêm dòng vào bảng thông tin CPU/RAM MariaDB
 function addMariaDBRefRow(data = {}) {
     const tbody = document.getElementById('mariadb-ref-table-body');
     if (!tbody) return;
+    const masterGroupName = resolveMariaDBMasterGroupName(tbody);
     
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -7078,7 +7346,7 @@ function addMariaDBRefRow(data = {}) {
         <td><input type="number" class="input-full sizing-user-input mariadb-cpu-load" value="${data.cpuLoad || ''}" placeholder="%" min="0" max="100"></td>
         <td><input type="number" class="input-full sizing-user-input mariadb-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100"></td>
         <td class="text-center">
-            <input type="radio" name="mariadb-master" class="mariadb-master-radio" ${data.isMaster ? 'checked' : ''}>
+            <input type="radio" name="${masterGroupName}" class="mariadb-master-radio" onchange="enforceMariaDBMasterWithinTable(this)" ${data.isMaster ? 'checked' : ''}>
         </td>
         <td>
             <div class="inline-evidence-cell">
@@ -7210,6 +7478,13 @@ function calculateMariaDBSizing() {
     }
     
     const storage = getMariaDBStorage();
+    const replicationModelRaw = document.getElementById('mariadb-replication-model')?.value || 'asynchronous';
+    const replicationModel = replicationModelRaw === 'active-active' ? 'multi-master' : replicationModelRaw;
+    const isActiveActive = replicationModel === 'multi-master';
+    const modelLabel = isActiveActive
+        ? 'Active-Active (Multi-Master)'
+        : 'Master-Slave (Asynchronous)';
+
     if (!storage.dataUsed && !storage.logUsed) {
         showToast('Vui lòng nhập thông tin /data used, /log used trong bảng Storage.', 'warning');
         return;
@@ -7225,8 +7500,10 @@ function calculateMariaDBSizing() {
     // /log cần = /log used * (Định cỡ / Đầu vào) * 1.1 / 0.8
     // /backup cần = /data cần * số bản lưu backup * tỉ lệ nén (%)
     
-    const cpuNeeded = masterData.cpu * (masterData.cpuLoad / 100) * factor * 1.1 / 0.75;
-    const ramNeeded = masterData.ram * (masterData.ramLoad / 100) * factor * 1.1 / 0.9;
+    const baseCpuNeeded = masterData.cpu * (masterData.cpuLoad / 100) * factor * 1.1 / 0.75;
+    const baseRamNeeded = masterData.ram * (masterData.ramLoad / 100) * factor * 1.1 / 0.9;
+    const cpuNeeded = isActiveActive ? (baseCpuNeeded / 3) : baseCpuNeeded;
+    const ramNeeded = isActiveActive ? (baseRamNeeded / 3) : baseRamNeeded;
     const dataNeeded = storage.dataUsed * factor * 1.1 / 0.8;
     const logNeeded = storage.logUsed * factor * 1.1 / 0.8;
     const backupNeeded = dataNeeded * storage.soBanBackup * (storage.tiLeNen / 100);
@@ -7239,9 +7516,10 @@ function calculateMariaDBSizing() {
     // ==================== CÔNG THỨC TÍNH ====================
     html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Công thức tính toán (dựa trên IP Master: ${masterData.ip})</h4>
+        <p style="margin: 0 0 10px; font-size: 13px; color: #333;"><strong>Mô hình:</strong> ${modelLabel}</p>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-            <li><strong>CPU cần</strong> = CPU × Tải CPU × (Định cỡ / Đầu vào) × 1.1 / 0.75 = ${masterData.cpu} × ${(masterData.cpuLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.75 = <strong>${cpuNeeded.toFixed(2)} vCPU</strong></li>
-            <li><strong>RAM cần</strong> = RAM × Tải RAM × (Định cỡ / Đầu vào) × 1.1 / 0.9 = ${masterData.ram} × ${(masterData.ramLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>CPU cần</strong> = CPU × Tải CPU × (Định cỡ / Đầu vào) × 1.1 / 0.75${isActiveActive ? ' / 3 (chia cho 3 master)' : ''} = ${masterData.cpu} × ${(masterData.cpuLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.75${isActiveActive ? ' / 3' : ''} = <strong>${cpuNeeded.toFixed(2)} vCPU</strong></li>
+            <li><strong>RAM cần</strong> = RAM × Tải RAM × (Định cỡ / Đầu vào) × 1.1 / 0.9${isActiveActive ? ' / 3 (chia cho 3 master)' : ''} = ${masterData.ram} × ${(masterData.ramLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9${isActiveActive ? ' / 3' : ''} = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
             <li><strong>/data cần</strong> = /data used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.dataUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${dataNeeded.toFixed(2)} GB</strong></li>
             <li><strong>/log cần</strong> = /log used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.logUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${logNeeded.toFixed(2)} GB</strong></li>
             <li><strong>/backup cần</strong> = /data cần × Số bản lưu backup × Tỉ lệ nén (%) = ${dataNeeded.toFixed(2)} × ${storage.soBanBackup} × ${storage.tiLeNen}% = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
@@ -7286,13 +7564,13 @@ function calculateMariaDBSizing() {
                     </ul>
                 </td>
                 <td class="text-center"><strong>3</strong></td>
-                <td>(Giá trị MariaDB lấy giá trị tính được ở trên)</td>
+                <td>${isActiveActive ? 'Multi-Master' : 'Asynchronous'}</td>
             </tr>
             <tr style="background: #fff9e6;">
                 <td><strong>NAS</strong></td>
                 <td class="text-center"><strong>${Math.ceil(nasTotal)} GB</strong></td>
                 <td class="text-center">-</td>
-                <td>Mount chung<br>(/backup cần)</td>
+                <td>Mount chung</td>
             </tr>
         </tbody>
     </table>`;
@@ -7312,6 +7590,7 @@ function loadMariaDBData(data) {
     if (data.refTable && Array.isArray(data.refTable)) {
         data.refTable.forEach(row => addMariaDBRefRow(row));
     }
+    syncMariaDBMasterRadioNames();
     
     // Load storage (direct input values)
     if (data.storage) {
@@ -7346,6 +7625,16 @@ function loadMariaDBData(data) {
     if (noteEl && data.note) noteEl.value = data.note;
     
     // Load input values
+    const replicationModel = document.getElementById('mariadb-replication-model');
+    if (replicationModel) {
+        const modelValue = (data.replicationModel || 'asynchronous').toLowerCase();
+        if (modelValue === 'active-active' || modelValue === 'multi-master') {
+            replicationModel.value = 'multi-master';
+        } else {
+            replicationModel.value = 'asynchronous';
+        }
+    }
+
     if (data.selectedInputRow !== undefined && data.selectedInputRow !== '') {
         const select = document.getElementById('mariadb-input-row-select');
         if (select) {
@@ -7407,6 +7696,7 @@ function collectMariaDBData() {
         refTable: collectMariaDBRefTableData(),
         storage: collectMariaDBStorageData(),
         note: document.getElementById('mariadb-note')?.value || '',
+        replicationModel: document.getElementById('mariadb-replication-model')?.value || 'asynchronous',
         selectedInputRow: document.getElementById('mariadb-input-row-select')?.value || '',
         inputCCU: document.getElementById('mariadb-input-ccu')?.value || '',
         sizingCCU: document.getElementById('mariadb-sizing-ccu')?.value || '',
@@ -7946,42 +8236,6 @@ function calculateRedisKeyMethod() {
         </tbody>
     </table>`;
     
-    // Bảng tổng hợp
-    const totalVCPU = vcpu * totalServers;
-    const totalRAM = Math.ceil(ramPerServer) * totalServers;
-    const totalDisk = Math.ceil(diskPerServer) * totalServers;
-    
-    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
-        <i class="fa-solid fa-table"></i> Bảng tổng hợp tài nguyên
-    </h4>`;
-    
-    html += `<table class="sizing-table" style="margin-top: 10px;">
-        <thead>
-            <tr>
-                <th>Module</th>
-                <th>Số lượng</th>
-                <th>vCPU/server</th>
-                <th>RAM/server (GB)</th>
-                <th>Disk/server (GB)</th>
-                <th>Tổng vCPU</th>
-                <th>Tổng RAM (GB)</th>
-                <th>Tổng Disk (GB)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr style="background: #f0f9ff;">
-                <td><strong>Redis</strong></td>
-                <td class="text-center">${totalServers}</td>
-                <td class="text-center">${vcpu}</td>
-                <td class="text-center">${Math.ceil(ramPerServer)}</td>
-                <td class="text-center">${Math.ceil(diskPerServer)}</td>
-                <td class="text-center"><strong>${totalVCPU}</strong></td>
-                <td class="text-center"><strong>${totalRAM}</strong></td>
-                <td class="text-center"><strong>${totalDisk}</strong></td>
-            </tr>
-        </tbody>
-    </table>`;
-    
     const container = document.getElementById('redis-key-result-container');
     if (container) container.innerHTML = html;
 }
@@ -8100,42 +8354,6 @@ function calculateRedisConfigMethod() {
                 </td>
                 <td class="text-center"><strong>${totalServers}</strong></td>
                 <td>${masterCount} master × (1 + ${slavePerMaster} slave)</td>
-            </tr>
-        </tbody>
-    </table>`;
-    
-    // Bảng tổng hợp
-    const totalVCPU = vcpu * totalServers;
-    const totalRAM = Math.ceil(ramPerServer) * totalServers;
-    const totalDisk = Math.ceil(diskPerServer) * totalServers;
-    
-    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
-        <i class="fa-solid fa-table"></i> Bảng tổng hợp tài nguyên
-    </h4>`;
-    
-    html += `<table class="sizing-table" style="margin-top: 10px;">
-        <thead>
-            <tr>
-                <th>Module</th>
-                <th>Số lượng</th>
-                <th>vCPU/server</th>
-                <th>RAM/server (GB)</th>
-                <th>Disk/server (GB)</th>
-                <th>Tổng vCPU</th>
-                <th>Tổng RAM (GB)</th>
-                <th>Tổng Disk (GB)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr style="background: #f0f9ff;">
-                <td><strong>Redis</strong></td>
-                <td class="text-center">${totalServers}</td>
-                <td class="text-center">${vcpu}</td>
-                <td class="text-center">${Math.ceil(ramPerServer)}</td>
-                <td class="text-center">${Math.ceil(diskPerServer)}</td>
-                <td class="text-center"><strong>${totalVCPU}</strong></td>
-                <td class="text-center"><strong>${totalRAM}</strong></td>
-                <td class="text-center"><strong>${totalDisk}</strong></td>
             </tr>
         </tbody>
     </table>`;
@@ -8441,8 +8659,14 @@ function addKafkaLinearRow(data = {}) {
 }
 
 // Cập nhật tổng cho bảng Linear
+function getKafkaLinearRows() {
+    const tbody = document.getElementById('kafka-linear-table-body');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr'));
+}
+
 function updateKafkaLinearTotal() {
-    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+    const rows = getKafkaLinearRows();
     let totalCPU = 0, totalRAM = 0, totalDisk = 0;
     
     rows.forEach(row => {
@@ -8457,15 +8681,18 @@ function updateKafkaLinearTotal() {
         totalRAM += ram * (ramLoad / 100);
         totalDisk += disk * (diskLoad / 100);
     });
-    
-    document.getElementById('kafka-linear-total-cpu').innerText = totalCPU.toFixed(2);
-    document.getElementById('kafka-linear-total-ram').innerText = totalRAM.toFixed(2);
-    document.getElementById('kafka-linear-total-disk').innerText = totalDisk.toFixed(2);
+
+    const totalCpuEl = document.getElementById('kafka-linear-total-cpu');
+    const totalRamEl = document.getElementById('kafka-linear-total-ram');
+    const totalDiskEl = document.getElementById('kafka-linear-total-disk');
+    if (totalCpuEl) totalCpuEl.innerText = totalCPU.toFixed(2);
+    if (totalRamEl) totalRamEl.innerText = totalRAM.toFixed(2);
+    if (totalDiskEl) totalDiskEl.innerText = totalDisk.toFixed(2);
 }
 
 // Thu thập dữ liệu bảng Linear
 function collectKafkaLinearTableData() {
-    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
+    const rows = getKafkaLinearRows();
     const data = [];
     rows.forEach(row => {
         const evidenceImages = collectInlineEvidenceFromScope(row);
@@ -8599,22 +8826,16 @@ function calculateKafkaThroughputMethod() {
             </tr>
         </thead>
         <tbody>`;
-    
-    for (let n = 3; n <= 7; n++) {
-        const diskPerServer = D_GB / n;
-        const ramPerServer = (S * R / n) + 8;
-        const isOptimal = n === optimalN;
-        const ramStatus = ramPerServer >= 16 && ramPerServer <= 64 ? '✓' : '✗';
-        const rowStyle = isOptimal ? 'background: #e6ffed; font-weight: 600;' : '';
-        
-        html += `<tr style="${rowStyle}">
-            <td class="text-center">${n}${isOptimal ? ' ★' : ''}</td>
-            <td class="text-center">${diskPerServer >= 1024 ? (diskPerServer/1024).toFixed(2) + ' TB' : diskPerServer.toFixed(2) + ' GB'}</td>
-            <td class="text-center">${ramPerServer.toFixed(2)} GB ${ramStatus}</td>
-            <td class="text-center">${vCPU}</td>
-            <td>${isOptimal ? 'Khuyến nghị (16 < RAM < 64)' : (ramPerServer > 64 ? 'RAM quá cao' : (ramPerServer < 16 ? 'RAM thấp' : ''))}</td>
-        </tr>`;
-    }
+
+    const diskPerServerByOptimal = D_GB / optimalN;
+    const ramPerServerByOptimal = (S * R / optimalN) + 8;
+    html += `<tr style="background: #e6ffed; font-weight: 600;">
+        <td class="text-center">${optimalN} ★</td>
+        <td class="text-center">${diskPerServerByOptimal >= 1024 ? (diskPerServerByOptimal / 1024).toFixed(2) + ' TB' : diskPerServerByOptimal.toFixed(2) + ' GB'}</td>
+        <td class="text-center">${ramPerServerByOptimal.toFixed(2)} GB ✓</td>
+        <td class="text-center">${vCPU}</td>
+        <td>Khuyến nghị (16 < RAM < 64)</td>
+    </tr>`;
     
     html += `</tbody></table>`;
     
@@ -8676,10 +8897,22 @@ function calculateKafkaLinearMethod() {
         return;
     }
     
-    // Lấy tổng từ bảng
-    const totalCPU = parseFloat(document.getElementById('kafka-linear-total-cpu')?.innerText) || 0;
-    const totalRAM = parseFloat(document.getElementById('kafka-linear-total-ram')?.innerText) || 0;
-    const totalDisk = parseFloat(document.getElementById('kafka-linear-total-disk')?.innerText) || 0;
+    // Tính tổng trực tiếp từ bảng để đảm bảo đúng theo module instance đang active
+    const rows = getKafkaLinearRows();
+    let totalCPU = 0, totalRAM = 0, totalDisk = 0;
+    rows.forEach(row => {
+        const vcpu = parseFloat(row.querySelector('.kafka-linear-vcpu')?.value) || 0;
+        const ram = parseFloat(row.querySelector('.kafka-linear-ram')?.value) || 0;
+        const disk = parseFloat(row.querySelector('.kafka-linear-disk')?.value) || 0;
+        const cpuLoad = parseFloat(row.querySelector('.kafka-linear-cpu-load')?.value) || 0;
+        const ramLoad = parseFloat(row.querySelector('.kafka-linear-ram-load')?.value) || 0;
+        const diskLoad = parseFloat(row.querySelector('.kafka-linear-disk-load')?.value) || 0;
+
+        totalCPU += vcpu * (cpuLoad / 100);
+        totalRAM += ram * (ramLoad / 100);
+        totalDisk += disk * (diskLoad / 100);
+    });
+    updateKafkaLinearTotal();
     
     if (totalCPU <= 0 && totalRAM <= 0 && totalDisk <= 0) {
         showToast('Vui lòng nhập thông tin các Broker hiện tại!', 'warning');
@@ -8732,6 +8965,36 @@ function calculateKafkaLinearMethod() {
             <li><strong>Disk cần:</strong> ${totalDisk.toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${diskNeeded.toFixed(2)} GB</strong></li>
         </ul>
     </div>`;
+
+    // Bảng phân bổ theo số lượng broker để so sánh các phương án N
+    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+        <i class="fa-solid fa-table"></i> Bảng phân bổ theo số lượng Broker (N)
+    </h4>`;
+
+    html += `<table class="sizing-table" style="margin-top: 10px;">
+        <thead>
+            <tr>
+                <th style="width: 80px;">N (Broker)</th>
+                <th>CPU/Node</th>
+                <th>RAM/Node</th>
+                <th>Disk/Node</th>
+                <th>Ghi chú</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    const cpuPerNodeOptimal = cpuNeeded / optimalN;
+    const ramPerNodeOptimal = ramNeeded / optimalN;
+    const diskPerNodeOptimal = diskNeeded / optimalN;
+    html += `<tr style="background: #e6ffed; font-weight: 600;">
+        <td class="text-center">${optimalN} ★</td>
+        <td class="text-center">${Math.ceil(cpuPerNodeOptimal)}</td>
+        <td class="text-center">${ramPerNodeOptimal.toFixed(2)} GB ✓</td>
+        <td class="text-center">${diskPerNodeOptimal >= 1024 ? (diskPerNodeOptimal / 1024).toFixed(2) + ' TB' : Math.ceil(diskPerNodeOptimal) + ' GB'}</td>
+        <td>Khuyến nghị (16 <= RAM <= 64)</td>
+    </tr>`;
+
+    html += `</tbody></table>`;
     
     // Bảng kết quả
     html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
@@ -8873,21 +9136,24 @@ function loadKafkaData(data) {
         
         // Load bảng linear
         if (lm.linearTable && Array.isArray(lm.linearTable)) {
-            document.getElementById('kafka-linear-table-body').innerHTML = '';
-            lm.linearTable.forEach(row => {
-                addKafkaLinearRow(row);
-                // Restore evidence image(s) if available
-                const kafkaLinearEvidenceImages = getEvidenceImagesFromRowData(row);
-                if (kafkaLinearEvidenceImages.length > 0) {
-                    const rows = document.querySelectorAll('#kafka-linear-table-body tr');
-                    const lastRow = rows[rows.length - 1];
-                    const evidenceCell = lastRow?.querySelector('.inline-evidence-cell');
-                    if (evidenceCell) {
-                        loadInlineEvidence(evidenceCell, kafkaLinearEvidenceImages);
+            const linearTbody = document.getElementById('kafka-linear-table-body');
+            if (linearTbody) {
+                linearTbody.innerHTML = '';
+                lm.linearTable.forEach(row => {
+                    addKafkaLinearRow(row);
+                    // Restore evidence image(s) if available
+                    const kafkaLinearEvidenceImages = getEvidenceImagesFromRowData(row);
+                    if (kafkaLinearEvidenceImages.length > 0) {
+                        const rows = getKafkaLinearRows();
+                        const lastRow = rows[rows.length - 1];
+                        const evidenceCell = lastRow?.querySelector('.inline-evidence-cell');
+                        if (evidenceCell) {
+                            loadInlineEvidence(evidenceCell, kafkaLinearEvidenceImages);
+                        }
                     }
-                }
-            });
-            updateKafkaLinearTotal();
+                });
+                updateKafkaLinearTotal();
+            }
         }
         
         // Load kết quả
@@ -8953,8 +9219,21 @@ async function createRevision(changeDescription = '', forceBaseline = false) {
         });
         
         if (response.ok) {
-            const revision = await response.json();
-            Logger.debug(`✅ Đã tạo revision ${revision.revisionType}: ${revision.id}`);
+            const rawText = await response.text();
+            if (!rawText || !rawText.trim()) {
+                Logger.debug('ℹ️ Tạo revision thành công nhưng response body rỗng');
+                return { revisionType: 'UNKNOWN', id: null };
+            }
+
+            let revision = null;
+            try {
+                revision = JSON.parse(rawText);
+            } catch (parseError) {
+                Logger.warn('Tạo revision thành công nhưng response không phải JSON hợp lệ:', parseError);
+                return { revisionType: 'UNKNOWN', id: null };
+            }
+
+            Logger.debug(`✅ Đã tạo revision ${revision.revisionType || 'UNKNOWN'}: ${revision.id || 'N/A'}`);
             return revision;
         } else if (response.status === 204) {
             // Không có thay đổi nào

@@ -1,10 +1,10 @@
-package com.example.sizing.service;
+package com.example.demo.service;
 
-import com.example.sizing.exception.ResourceNotFoundException;
-import com.example.sizing.model.Project;
-import com.example.sizing.model.ProjectData;
-import com.example.sizing.repository.ProjectDataRepository;
-import com.example.sizing.repository.ProjectRepository;
+import com.example.demo.exception.ResourceNotFoundException;
+import com.example.demo.model.Project;
+import com.example.demo.model.ProjectData;
+import com.example.demo.repository.ProjectDataRepository;
+import com.example.demo.repository.ProjectRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.util.Units;
@@ -18,7 +18,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ExportService {
@@ -31,6 +35,35 @@ public class ExportService {
     private final ProjectRepository projectRepository;
     private final ProjectDataRepository projectDataRepository;
     private final ObjectMapper objectMapper;
+
+    private static class ModuleInstanceData {
+        private final String moduleName;
+        private final String instanceKey;
+        private final JsonNode data;
+
+        private ModuleInstanceData(String moduleName, String instanceKey, JsonNode data) {
+            this.moduleName = moduleName;
+            this.instanceKey = instanceKey;
+            this.data = data;
+        }
+    }
+
+    private static class AppendixImage {
+        private final String ref;
+        private final String title;
+        private final String base64;
+
+        private AppendixImage(String ref, String title, String base64) {
+            this.ref = ref;
+            this.title = title;
+            this.base64 = base64;
+        }
+    }
+
+    private static class ExportContext {
+        private final List<AppendixImage> appendixImages = new ArrayList<>();
+        private int nextImageIndex = 1;
+    }
 
     public ExportService(ProjectRepository projectRepository,
                          ProjectDataRepository projectDataRepository,
@@ -50,6 +83,7 @@ public class ExportService {
         log.info("=== Export for projectId: {} ===", projectId);
 
         XWPFDocument doc = new XWPFDocument();
+        ExportContext context = new ExportContext();
 
         // ===== TITLE =====
         addTitle(doc, project.getName());
@@ -61,25 +95,27 @@ public class ExportService {
 
         // ===== II. THONG TIN DAU VAO =====
         if (pd.getThongTinDauVaoContent() != null) {
-            writeThongTinDauVao(doc, objectMapper.readTree(pd.getThongTinDauVaoContent()));
+            writeThongTinDauVao(doc, objectMapper.readTree(pd.getThongTinDauVaoContent()), context);
         }
 
         // ===== III. MO HINH HE THONG =====
         JsonNode moHinhNode = null;
         if (pd.getMoHinhHeThongContent() != null) {
             moHinhNode = objectMapper.readTree(pd.getMoHinhHeThongContent());
-            writeMoHinhHeThong(doc, moHinhNode);
+            writeMoHinhHeThong(doc, moHinhNode, context);
         }
 
         // ===== IV. DINH CO HE THONG =====
         if (pd.getDinhCoHeThongContent() != null) {
-            writeDinhCoHeThong(doc, objectMapper.readTree(pd.getDinhCoHeThongContent()), moHinhNode);
+            writeDinhCoHeThong(doc, objectMapper.readTree(pd.getDinhCoHeThongContent()), moHinhNode, context);
         }
 
         // ===== V. TONG HOP VA DE XUAT =====
         if (pd.getTongHopVaDeXuatContent() != null) {
             writeTongHop(doc, objectMapper.readTree(pd.getTongHopVaDeXuatContent()), moHinhNode);
         }
+
+        writeAppendix(doc, context);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         doc.write(out);
@@ -131,7 +167,7 @@ public class ExportService {
     }
 
     // ======================== II. THONG TIN DAU VAO ========================
-    private void writeThongTinDauVao(XWPFDocument doc, JsonNode root) {
+    private void writeThongTinDauVao(XWPFDocument doc, JsonNode root, ExportContext context) {
         addSectionHeading(doc, "II. TH\u00d4NG TIN \u0110\u1ea6U V\u00c0O");
 
         JsonNode inputRows = root.path("inputRows");
@@ -171,6 +207,7 @@ public class ExportService {
 
             // POC evidence images
             boolean hasPocEvidence = false;
+            List<String> pocRefs = new ArrayList<>();
             for (int i = 0; i < inputRows.size(); i++) {
                 JsonNode pocNode = inputRows.get(i).path("taiHeThongPOC");
                 if (pocNode.isObject()) {
@@ -180,13 +217,17 @@ public class ExportService {
                             addSubHeading(doc, "S\u1edf c\u1ee9 t\u1ea3i h\u1ec7 th\u1ed1ng POC:");
                             hasPocEvidence = true;
                         }
-                        addImagesFromArray(doc, imgs);
+                        String rowName = txt(inputRows.get(i), "dauVao").trim();
+                        String detail = "D\u00f2ng " + (i + 1) + (rowName.isEmpty() ? "" : (" - " + rowName));
+                        pocRefs.addAll(collectImageRefs(imgs, buildCaption("S\u1edf c\u1ee9 t\u1ea3i h\u1ec7 th\u1ed1ng POC", detail), context));
                     }
                 }
             }
+            addAppendixNote(doc, pocRefs);
 
             // Sizing evidence images
             boolean hasSizingEvidence = false;
+            List<String> sizingRefs = new ArrayList<>();
             for (int i = 0; i < inputRows.size(); i++) {
                 JsonNode dinhCoNode = inputRows.get(i).path("dinhCo");
                 if (dinhCoNode.isObject()) {
@@ -196,22 +237,54 @@ public class ExportService {
                             addSubHeading(doc, "S\u1edf c\u1ee9 \u0111\u1ecbnh c\u1ee1:");
                             hasSizingEvidence = true;
                         }
-                        addImagesFromArray(doc, imgs);
+                        String rowName = txt(inputRows.get(i), "dauVao").trim();
+                        String detail = "D\u00f2ng " + (i + 1) + (rowName.isEmpty() ? "" : (" - " + rowName));
+                        sizingRefs.addAll(collectImageRefs(imgs, buildCaption("S\u1edf c\u1ee9 \u0111\u1ecbnh c\u1ee1", detail), context));
                     }
                 }
             }
+            addAppendixNote(doc, sizingRefs);
         }
     }
 
     // ======================== III. MO HINH HE THONG ========================
-    private void writeMoHinhHeThong(XWPFDocument doc, JsonNode root) {
+    private void writeMoHinhHeThong(XWPFDocument doc, JsonNode root, ExportContext context) {
         addSectionHeading(doc, "III. M\u00d4 H\u00ccNH H\u1ec6 TH\u1ed0NG");
 
         addSubHeading(doc, "1. M\u00f4 h\u00ecnh v\u1eadt l\u00fd");
-        addImagesFromArray(doc, root.path("physicalImages"));
+        addAppendixNote(doc, collectImageRefs(root.path("physicalImages"), buildCaption("M\u00f4 h\u00ecnh v\u1eadt l\u00fd", null), context));
 
         addSubHeading(doc, "2. M\u00f4 h\u00ecnh logic");
-        addImagesFromArray(doc, root.path("logicalImages"));
+        addAppendixNote(doc, collectImageRefs(root.path("logicalImages"), buildCaption("M\u00f4 h\u00ecnh logic", null), context));
+
+        JsonNode logicComponentRows = root.path("logicComponentRows");
+        List<JsonNode> nonEmptyLogicRows = new ArrayList<>();
+        if (logicComponentRows.isArray()) {
+            for (JsonNode row : logicComponentRows) {
+                String componentName = txt(row, "componentName").trim();
+                String mainTask = txt(row, "mainTask").trim();
+                if (!componentName.isEmpty() || !mainTask.isEmpty()) {
+                    nonEmptyLogicRows.add(row);
+                }
+            }
+        }
+        if (!nonEmptyLogicRows.isEmpty()) {
+            addSubHeading2(doc, "Th\u00e0nh ph\u1ea7n m\u00f4 h\u00ecnh Logic");
+            XWPFTable logicTable = doc.createTable(nonEmptyLogicRows.size() + 1, 3);
+            styleTable(logicTable);
+
+            setCell(logicTable, 0, 0, "STT", true, "D9E2F3");
+            setCell(logicTable, 0, 1, "T\u00ean th\u00e0nh ph\u1ea7n/Module", true, "D9E2F3");
+            setCell(logicTable, 0, 2, "Nhi\u1ec7m v\u1ee5 ch\u00ednh", true, "D9E2F3");
+
+            for (int i = 0; i < nonEmptyLogicRows.size(); i++) {
+                JsonNode row = nonEmptyLogicRows.get(i);
+                setCell(logicTable, i + 1, 0, String.valueOf(i + 1), false, null);
+                setCell(logicTable, i + 1, 1, txt(row, "componentName"), false, null);
+                setCell(logicTable, i + 1, 2, txt(row, "mainTask"), false, null);
+            }
+            doc.createParagraph();
+        }
 
         // B2. Thông tin kết nối (đặt sau mô hình logic)
         JsonNode connectionRows = root.path("connectionRows");
@@ -239,11 +312,11 @@ public class ExportService {
             doc.createParagraph();
 
             // Connection evidence images
-            addImagesFromArray(doc, root.path("connectionImages"));
+            addAppendixNote(doc, collectImageRefs(root.path("connectionImages"), buildCaption("S\u01a1 \u0111\u1ed3 k\u1ebft n\u1ed1i", null), context));
         }
 
         addSubHeading(doc, "4. Lu\u1ed3ng nghi\u1ec7p v\u1ee5");
-        addImagesFromArray(doc, root.path("flowImages"));
+        addAppendixNote(doc, collectImageRefs(root.path("flowImages"), buildCaption("S\u01a1 \u0111\u1ed3 lu\u1ed3ng nghi\u1ec7p v\u1ee5", null), context));
 
         String flowExplanation = txt(root, "flowExplanation");
         if (!flowExplanation.isEmpty()) {
@@ -278,7 +351,7 @@ public class ExportService {
     }
 
     // ======================== IV. DINH CO HE THONG ========================
-    private void writeDinhCoHeThong(XWPFDocument doc, JsonNode root, JsonNode moHinhNode) {
+    private void writeDinhCoHeThong(XWPFDocument doc, JsonNode root, JsonNode moHinhNode, ExportContext context) {
         addSectionHeading(doc, "IV. ĐỊNH C\u1ee0 H\u1ec6 TH\u1ed0NG");
         
         // Get selected modules from moHinhHeThong archRows
@@ -299,29 +372,127 @@ public class ExportService {
         boolean exportAll = selectedModules.isEmpty();
         
         if (exportAll || selectedModules.contains("App")) {
-            writeModuleApp(doc, root.path("moduleApp"));
+            List<ModuleInstanceData> appInstances = extractModuleInstances(root, "App", "moduleApp");
+            if (appInstances.isEmpty()) {
+                writeModuleApp(doc, root.path("moduleApp"), "1. Module App", context);
+            } else {
+                for (int i = 0; i < appInstances.size(); i++) {
+                    String heading = "1. Module App";
+                    if (appInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(appInstances.get(i), i + 1, "App");
+                    }
+                    writeModuleApp(doc, appInstances.get(i).data, heading, context);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("MariaDB")) {
-            writeModuleMariaDB(doc, root.path("moduleMariaDB"));
+            List<ModuleInstanceData> mariaInstances = extractModuleInstances(root, "MariaDB", "moduleMariaDB");
+            if (mariaInstances.isEmpty()) {
+                writeModuleMariaDB(doc, root.path("moduleMariaDB"), "2. Module MariaDB", context);
+            } else {
+                for (int i = 0; i < mariaInstances.size(); i++) {
+                    String heading = "2. Module MariaDB";
+                    if (mariaInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(mariaInstances.get(i), i + 1, "MariaDB");
+                    }
+                    writeModuleMariaDB(doc, mariaInstances.get(i).data, heading, context);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("Redis")) {
-            writeModuleRedis(doc, root.path("moduleRedis"));
+            List<ModuleInstanceData> redisInstances = extractModuleInstances(root, "Redis", "moduleRedis");
+            if (redisInstances.isEmpty()) {
+                writeModuleRedis(doc, root.path("moduleRedis"), "3. Module Redis", context);
+            } else {
+                for (int i = 0; i < redisInstances.size(); i++) {
+                    String heading = "3. Module Redis";
+                    if (redisInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(redisInstances.get(i), i + 1, "Redis");
+                    }
+                    writeModuleRedis(doc, redisInstances.get(i).data, heading, context);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("Kafka")) {
-            writeModuleKafka(doc, root.path("moduleKafka"));
+            List<ModuleInstanceData> kafkaInstances = extractModuleInstances(root, "Kafka", "moduleKafka");
+            if (kafkaInstances.isEmpty()) {
+                writeModuleKafka(doc, root.path("moduleKafka"), "4. Module Kafka", context);
+            } else {
+                for (int i = 0; i < kafkaInstances.size(); i++) {
+                    String heading = "4. Module Kafka";
+                    if (kafkaInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(kafkaInstances.get(i), i + 1, "Kafka");
+                    }
+                    writeModuleKafka(doc, kafkaInstances.get(i).data, heading, context);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("K8S")) {
-            writeModuleK8S(doc, root.path("moduleK8S"));
+            List<ModuleInstanceData> k8sInstances = extractModuleInstances(root, "K8S", "moduleK8S");
+            if (k8sInstances.isEmpty()) {
+                writeModuleK8S(doc, root.path("moduleK8S"), "5. Module K8S", context);
+            } else {
+                for (int i = 0; i < k8sInstances.size(); i++) {
+                    String heading = "5. Module K8S";
+                    if (k8sInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(k8sInstances.get(i), i + 1, "K8S");
+                    }
+                    writeModuleK8S(doc, k8sInstances.get(i).data, heading, context);
+                }
+            }
         }
         if (exportAll || selectedModules.contains("LB/FW")) {
-            writeModuleLBFW(doc, root.path("moduleLBFW"));
+            List<ModuleInstanceData> lbfwInstances = extractModuleInstances(root, "LB/FW", "moduleLBFW");
+            if (lbfwInstances.isEmpty()) {
+                writeModuleLBFW(doc, root.path("moduleLBFW"), "6. Module LB/FW", context);
+            } else {
+                for (int i = 0; i < lbfwInstances.size(); i++) {
+                    String heading = "6. Module LB/FW";
+                    if (lbfwInstances.size() > 1) {
+                        heading = heading + " - " + resolveInstanceLabel(lbfwInstances.get(i), i + 1, "LB/FW");
+                    }
+                    writeModuleLBFW(doc, lbfwInstances.get(i).data, heading, context);
+                }
+            }
         }
     }
 
+    private List<ModuleInstanceData> extractModuleInstances(JsonNode root, String moduleType, String legacyField) {
+        List<ModuleInstanceData> instances = new ArrayList<>();
+
+        JsonNode moduleInstances = root.path("moduleInstances");
+        if (moduleInstances.isArray()) {
+            for (JsonNode item : moduleInstances) {
+                if (!moduleType.equalsIgnoreCase(txt(item, "moduleType").trim())) {
+                    continue;
+                }
+                JsonNode data = item.path("data");
+                if (!data.isMissingNode() && !data.isNull()) {
+                    instances.add(new ModuleInstanceData(txt(item, "moduleName"), txt(item, "instanceKey"), data));
+                }
+            }
+        }
+
+        if (instances.isEmpty()) {
+            JsonNode legacyNode = root.path(legacyField);
+            if (!legacyNode.isMissingNode() && !legacyNode.isNull()) {
+                instances.add(new ModuleInstanceData("", "", legacyNode));
+            }
+        }
+
+        return instances;
+    }
+
+    private String resolveInstanceLabel(ModuleInstanceData instance, int index, String defaultPrefix) {
+        if (!instance.moduleName.isBlank()) return instance.moduleName;
+        if (!instance.instanceKey.isBlank()) return instance.instanceKey;
+        return defaultPrefix + " #" + index;
+    }
+
     // ---------- Module App ----------
-    private void writeModuleApp(XWPFDocument doc, JsonNode moduleApp) {
+    private void writeModuleApp(XWPFDocument doc, JsonNode moduleApp, String heading, ExportContext context) {
         if (moduleApp.isMissingNode()) return;
-        addSubHeading(doc, "1. Module App");
+        addSubHeading(doc, heading);
 
         // Baseline table
         JsonNode baselineTable = moduleApp.path("baselineTable");
@@ -360,9 +531,34 @@ public class ExportService {
             setCell(table, rows + 1, 4, formatNum(totalDisk), true, "E2EFDA");
             setCell(table, rows + 1, 5, formatNum(totalCint), true, "E2EFDA");
             doc.createParagraph();
+
+            boolean hasBaselineEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = baselineTable.get(i);
+                JsonNode evidenceImages = row.path("evidenceImages");
+                String evidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = evidenceImages.isArray() && evidenceImages.size() > 0;
+                if (!hasCurrentEvidence && evidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasBaselineEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu:");
+                    hasBaselineEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                String detail = "D\u00f2ng " + (i + 1) + (ip.isEmpty() ? "" : (" - " + ip));
+                if (hasCurrentEvidence) {
+                    addAppendixNote(doc, collectImageRefs(evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu", detail), context));
+                } else {
+                    addAppendixNote(doc, collectSingleImageRef(evidenceImage, buildCaption(heading + " - S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu", detail), context));
+                }
+            }
         }
 
-        addImagesFromArray(doc, moduleApp.path("baselineEvidence"));
+        addAppendixNote(doc, collectImageRefs(moduleApp.path("baselineEvidence"), buildCaption(heading + " - S\u1edf c\u1ee9 h\u1ec7 th\u1ed1ng tham chi\u1ebfu", null), context));
 
         // Input config table
         JsonNode inputConfig = moduleApp.path("inputConfigTable");
@@ -406,16 +602,45 @@ public class ExportService {
             setCell(table, rows + 1, 6, formatNum(totalRamUsed), true, "E2EFDA");
             setCell(table, rows + 1, 7, formatNum(totalDiskUsed), true, "E2EFDA");
             doc.createParagraph();
+
+            boolean hasInputEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = inputConfig.get(i);
+                JsonNode evidenceImages = row.path("evidenceImages");
+                String evidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = evidenceImages.isArray() && evidenceImages.size() > 0;
+                if (!hasCurrentEvidence && evidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasInputEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o:");
+                    hasInputEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                String detail = "D\u00f2ng " + (i + 1) + (ip.isEmpty() ? "" : (" - " + ip));
+                if (hasCurrentEvidence) {
+                    addAppendixNote(doc, collectImageRefs(evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o", detail), context));
+                } else {
+                    addAppendixNote(doc, collectSingleImageRef(evidenceImage, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o", detail), context));
+                }
+            }
         }
 
         // Evidence images
         JsonNode evidenceImages = moduleApp.path("evidenceImages");
         if (evidenceImages.isArray() && evidenceImages.size() > 0) {
             addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o:");
-            addImagesFromArray(doc, evidenceImages);
+            addAppendixNote(doc, collectImageRefs(evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o", null), context));
         }
 
-        // Sizing result
+        String selectedInputRow = txt(moduleApp, "selectedInputRow");
+        if (!selectedInputRow.isEmpty()) {
+            addLabelValue(doc, "D\u00f2ng \u0111\u1ea7u v\u00e0o \u0111\u00e3 ch\u1ecdn:", selectedInputRow);
+        }
+
         String pocValue = txt(moduleApp, "pocValue");
         String sizingValue = txt(moduleApp, "sizingValue");
         if (!pocValue.isEmpty() || !sizingValue.isEmpty()) {
@@ -423,71 +648,113 @@ public class ExportService {
             addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingValue);
         }
 
+        String virtualizationMode = txt(moduleApp, "virtualizationMode");
+        String normalizedMode = virtualizationMode.trim().toLowerCase();
+        String vcpuFlavor = txt(moduleApp, "vcpuFlavor");
+        String ramFlavor = txt(moduleApp, "ramFlavor");
+        if (!virtualizationMode.isEmpty() || !vcpuFlavor.isEmpty() || !ramFlavor.isEmpty()) {
+            String modeDisplay = virtualizationMode;
+            if ("vcpu".equalsIgnoreCase(virtualizationMode)) {
+                modeDisplay = "Theo vCPU";
+            } else if ("ram".equalsIgnoreCase(virtualizationMode)) {
+                modeDisplay = "Theo RAM";
+            }
+            if (!modeDisplay.isEmpty()) {
+                addLabelValue(doc, "Ch\u1ebf \u0111\u1ed9 \u1ea3o h\u00f3a:", modeDisplay);
+            }
+            if ((normalizedMode.equals("vcpu") || normalizedMode.isEmpty()) && !vcpuFlavor.isEmpty()) {
+                addLabelValue(doc, "Flavor vCPU \u0111\u00e3 ch\u1ecdn:", vcpuFlavor + " Cint");
+            }
+            if ((normalizedMode.equals("ram") || normalizedMode.isEmpty()) && !ramFlavor.isEmpty()) {
+                addLabelValue(doc, "Flavor RAM \u0111\u00e3 ch\u1ecdn:", ramFlavor + " GB");
+            }
+        }
+
+        String flavorEval = txt(moduleApp, "flavorEval");
+        String flavorNote = txt(moduleApp, "flavorNote");
+        if (!flavorEval.isEmpty() || !flavorNote.isEmpty()) {
+            addLabelValue(doc, "\u0110\u00e1nh gi\u00e1 flavor:", flavorEval);
+            addLabelValue(doc, "Ghi ch\u00fa flavor:", flavorNote);
+        }
+
         String sizingResult = txt(moduleApp, "sizingResult");
         if (!sizingResult.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
             parseAndWriteAppSizingResult(doc, sizingResult);
         }
+
+        doc.createParagraph();
     }
 
     // Parse Module App sizing result HTML and write to DOC with proper formatting
     private void parseAndWriteAppSizingResult(XWPFDocument doc, String html) {
         try {
-            // Extract data from HTML using regex patterns
-            // Bảng 1: Thông số Máy chủ Tiến trình
-            java.util.regex.Pattern rowPattern = java.util.regex.Pattern.compile(
-                "<tr>\\s*<td[^>]*>\\s*(\\d+)\\s*</td>\\s*<td>([^<]+)</td>\\s*<td[^>]*>([\\d.]+)</td>",
-                java.util.regex.Pattern.DOTALL
+            Pattern machineTablePattern = Pattern.compile(
+                    "B\u1ea3ng t\u00ednh to\u00e1n M\u00e1y ch\u1ee7 Ti\u1ebfn tr\u00ecnh.*?<tbody>(.*?)</tbody>",
+                    Pattern.DOTALL | Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher rowMatcher = rowPattern.matcher(html);
-            
-            java.util.List<String[]> tableData = new java.util.ArrayList<>();
-            while (rowMatcher.find()) {
-                tableData.add(new String[]{
-                    rowMatcher.group(1).trim(),
-                    rowMatcher.group(2).trim(),
-                    rowMatcher.group(3).trim()
-                });
+            Matcher machineTableMatcher = machineTablePattern.matcher(html);
+
+            List<String[]> tableData = new ArrayList<>();
+            if (machineTableMatcher.find()) {
+                String machineBody = machineTableMatcher.group(1);
+                Pattern trPattern = Pattern.compile("<tr[^>]*>(.*?)</tr>", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
+                Pattern tdPattern = Pattern.compile("<td[^>]*>(.*?)</td>", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
+
+                Matcher trMatcher = trPattern.matcher(machineBody);
+                while (trMatcher.find()) {
+                    String tr = trMatcher.group(1);
+                    Matcher tdMatcher = tdPattern.matcher(tr);
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(stripHtml(tdMatcher.group(1)));
+                    }
+
+                    if (cols.size() >= 4) {
+                        String stt = cols.get(0);
+                        if (stt.matches("\\d+")) {
+                            tableData.add(new String[]{
+                                    stt,
+                                    cols.get(1),
+                                    cols.get(2),
+                                    cols.get(3)
+                            });
+                        }
+                    }
+                }
             }
-            
+
             if (!tableData.isEmpty()) {
                 addSubHeading2(doc, "B\u1ea3ng t\u00ednh to\u00e1n M\u00e1y ch\u1ee7 Ti\u1ebfn tr\u00ecnh");
                 XWPFTable table = doc.createTable(tableData.size() + 1, 4);
                 styleTable(table);
-                
+
                 setCell(table, 0, 0, "STT", true, "D9E2F3");
                 setCell(table, 0, 1, "Th\u00f4ng s\u1ed1", true, "D9E2F3");
                 setCell(table, 0, 2, "M\u00e1y ch\u1ee7 Ti\u1ebfn tr\u00ecnh", true, "D9E2F3");
                 setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
-                
-                String[] notes = {
-                    "", "", "",
-                    "KPI 75%. Sai s\u1ed1 1.1",
-                    "KPI 90%. Sai s\u1ed1 1.1",
-                    "KPI 80%. Sai s\u1ed1 1.1"
-                };
-                
+
                 for (int i = 0; i < tableData.size(); i++) {
                     String[] row = tableData.get(i);
                     setCell(table, i + 1, 0, row[0], false, null);
                     setCell(table, i + 1, 1, row[1], false, null);
                     setCell(table, i + 1, 2, row[2], false, null);
-                    setCell(table, i + 1, 3, i < notes.length ? notes[i] : "", false, null);
+                    setCell(table, i + 1, 3, row[3], false, null);
                 }
                 doc.createParagraph();
             }
-            
-            // Extract Đề xuất section
-            java.util.regex.Pattern deXuatPattern = java.util.regex.Pattern.compile(
-                "N\\s*=\\s*([\\d.]+)\\s*/\\s*32\\s*[≈~=]\\s*<strong>([\\d]+)</strong>",
-                java.util.regex.Pattern.DOTALL
+
+            Pattern recommendationPattern = Pattern.compile(
+                    "<strong>\\s*\u0110\u1ec1 xu\u1ea5t:\\s*</strong>(.*?)</div>",
+                    Pattern.DOTALL | Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher deXuatMatcher = deXuatPattern.matcher(html);
-            if (deXuatMatcher.find()) {
-                String ramValue = deXuatMatcher.group(1);
-                String nValue = deXuatMatcher.group(2);
-                addNormalText(doc, "\u0110\u1ec1 xu\u1ea5t: L\u1ef1a ch\u1ecdn c\u1ea5u h\u00ecnh \u1ea3o h\u00f3a \u2248 32 GB RAM, l\u1ef1a ch\u1ecdn s\u1ed1 N theo RAM: N = " + ramValue + " / 32 \u2248 " + nValue);
-                doc.createParagraph();
+            Matcher recommendationMatcher = recommendationPattern.matcher(html);
+            if (recommendationMatcher.find()) {
+                String recommendationText = stripHtml(recommendationMatcher.group(1));
+                if (!recommendationText.isEmpty()) {
+                    addNormalText(doc, "\u0110\u1ec1 xu\u1ea5t: " + recommendationText);
+                    doc.createParagraph();
+                }
             }
             
             // Extract Bảng phân bổ theo số lượng N
@@ -564,9 +831,9 @@ public class ExportService {
     }
 
     // ---------- Module MariaDB ----------
-    private void writeModuleMariaDB(XWPFDocument doc, JsonNode moduleMariaDB) {
+    private void writeModuleMariaDB(XWPFDocument doc, JsonNode moduleMariaDB, String heading, ExportContext context) {
         if (moduleMariaDB.isMissingNode()) return;
-        addSubHeading(doc, "2. Module MariaDB");
+        addSubHeading(doc, heading);
 
         // Ref table
         JsonNode refTable = moduleMariaDB.path("refTable");
@@ -597,6 +864,31 @@ public class ExportService {
                 setCell(table, i + 1, 6, isMaster ? "\u2713" : "", false, null);
             }
             doc.createParagraph();
+
+            boolean hasRefEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode r = refTable.get(i);
+                JsonNode evidenceImages = r.path("evidenceImages");
+                String legacyEvidence = txt(r, "evidenceImage");
+                boolean hasCurrentEvidence = evidenceImages.isArray() && evidenceImages.size() > 0;
+                if (!hasCurrentEvidence && legacyEvidence.isBlank()) {
+                    continue;
+                }
+
+                if (!hasRefEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 b\u1ea3ng tham chi\u1ebfu MariaDB:");
+                    hasRefEvidence = true;
+                }
+
+                String ip = txt(r, "ip").trim();
+                addSubHeading2(doc, ip.isEmpty() ? ("D\u00f2ng " + (i + 1)) : ("D\u00f2ng " + (i + 1) + " - " + ip));
+                String detail = "D\u00f2ng " + (i + 1) + (ip.isEmpty() ? "" : (" - " + ip));
+                if (hasCurrentEvidence) {
+                    addAppendixNote(doc, collectImageRefs(evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 b\u1ea3ng tham chi\u1ebfu MariaDB", detail), context));
+                } else {
+                    addAppendixNote(doc, collectSingleImageRef(legacyEvidence, buildCaption(heading + " - S\u1edf c\u1ee9 b\u1ea3ng tham chi\u1ebfu MariaDB", detail), context));
+                }
+            }
         }
 
         // Storage
@@ -626,18 +918,28 @@ public class ExportService {
             JsonNode storageEvidenceImages = storage.path("evidenceImages");
             if (storageEvidenceImages.isArray() && storageEvidenceImages.size() > 0) {
                 addSubHeading2(doc, "S\u1edf c\u1ee9 Storage:");
+                List<String> storageRefs = new ArrayList<>();
+                int storageImageIndex = 1;
                 for (JsonNode imgNode : storageEvidenceImages) {
                     String imgData = imgNode.asText("");
                     if (!imgData.isEmpty()) {
-                        addBase64Image(doc, imgData);
+                        storageRefs.addAll(collectSingleImageRef(imgData, buildCaption(heading + " - S\u1edf c\u1ee9 storage MariaDB", "\u1ea2nh " + storageImageIndex), context));
+                        storageImageIndex++;
                     }
+                }
+                addAppendixNote(doc, storageRefs);
+            } else {
+                String storageLegacyEvidence = txt(storage, "evidenceImage");
+                if (!storageLegacyEvidence.isEmpty()) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 Storage:");
+                    addAppendixNote(doc, collectSingleImageRef(storageLegacyEvidence, buildCaption(heading + " - S\u1edf c\u1ee9 storage MariaDB", null), context));
                 }
             }
         }
 
         // Evidence
-        addImagesFromArray(doc, moduleMariaDB.path("evidence"));
-        addImagesFromArray(doc, moduleMariaDB.path("refEvidence"));
+        addAppendixNote(doc, collectImageRefs(moduleMariaDB.path("evidence"), buildCaption(heading + " - S\u1edf c\u1ee9 MariaDB", null), context));
+        addAppendixNote(doc, collectImageRefs(moduleMariaDB.path("refEvidence"), buildCaption(heading + " - S\u1edf c\u1ee9 tham chi\u1ebfu MariaDB", null), context));
 
         // Note
         String note = txt(moduleMariaDB, "note");
@@ -645,9 +947,25 @@ public class ExportService {
             addLabelValue(doc, "Ghi ch\u00fa:", note);
         }
 
+        String replicationModel = txt(moduleMariaDB, "replicationModel");
+        if (!replicationModel.isEmpty()) {
+            String normalized = replicationModel.trim().toLowerCase();
+            String displayModel;
+            if ("multi-master".equals(normalized) || "active-active".equals(normalized)) {
+                displayModel = "Active-Active (Multi-Master)";
+            } else if ("asynchronous".equals(normalized)) {
+                displayModel = "Master-Slave (Asynchronous)";
+            } else {
+                displayModel = replicationModel;
+            }
+            addLabelValue(doc, "M\u00f4 h\u00ecnh replication:", displayModel);
+        }
+
         // CCU
+        String selectedInputRow = txt(moduleMariaDB, "selectedInputRow");
         String inputCCU = txt(moduleMariaDB, "inputCCU");
         String sizingCCU = txt(moduleMariaDB, "sizingCCU");
+
         if (!inputCCU.isEmpty() || !sizingCCU.isEmpty()) {
             addLabelValue(doc, "CCU \u0111\u1ea7u v\u00e0o:", inputCCU);
             addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingCCU);
@@ -666,70 +984,240 @@ public class ExportService {
     // Parse Module MariaDB result HTML and write to DOC with proper formatting
     private void parseAndWriteMariaDBResult(XWPFDocument doc, String html) {
         try {
-            // Extract thông tin tính toán
-            java.util.regex.Pattern infoPattern = java.util.regex.Pattern.compile(
-                "Th\u00f4ng tin t\u00ednh to\u00e1n.*?</ul>",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher infoMatcher = infoPattern.matcher(html);
+            Pattern infoPattern = Pattern.compile("(Th\\u00f4ng tin t\\u00ednh to\\u00e1n|C\\u00f4ng th\\u1ee9c t\\u00ednh to\\u00e1n).*?</ul>", Pattern.DOTALL);
+            Matcher infoMatcher = infoPattern.matcher(html);
             if (infoMatcher.find()) {
                 String infoContent = infoMatcher.group(0);
-                java.util.regex.Pattern liPattern = java.util.regex.Pattern.compile("<li>([^<]+)</li>");
-                java.util.regex.Matcher liMatcher = liPattern.matcher(infoContent);
+                Pattern liPattern = Pattern.compile("<li>([\\s\\S]*?)</li>", Pattern.CASE_INSENSITIVE);
+                Matcher liMatcher = liPattern.matcher(infoContent);
                 while (liMatcher.find()) {
-                    String text = liMatcher.group(1).replaceAll("<[^>]*>", "").trim();
-                    addNormalText(doc, "\u2022 " + text);
+                    String text = stripHtml(liMatcher.group(1));
+                    if (!text.isEmpty()) {
+                        addNormalText(doc, "\u2022 " + text);
+                    }
                 }
             }
-            
-            // Extract bảng kết quả đề xuất
-            java.util.regex.Pattern configPattern = java.util.regex.Pattern.compile(
-                "(\\d+)\\s*vCPU.*?(\\d+)\\s*GB\\s*RAM.*?/data:\\s*(\\d+)\\s*GB.*?/log:\\s*(\\d+)\\s*GB",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher configMatcher = configPattern.matcher(html);
-            if (configMatcher.find()) {
+
+            String mariaRow = extractRowByLabel(html, "MariaDB");
+            String maxScaleRow = extractRowByLabel(html, "MaxScale");
+            String nasRow = extractRowByLabel(html, "NAS");
+
+            List<String[]> resultRows = new ArrayList<>();
+
+            if (!mariaRow.isEmpty()) {
+                String mariaList = extractListContent(mariaRow);
+                String vcpu = firstGroup(mariaList, "(\\d+)\\s*vCPU");
+                String ram = firstGroup(mariaList, "(\\d+)\\s*GB\\s*RAM");
+                String data = firstGroup(mariaList, "/data[:\\s]*(\\d+)\\s*GB");
+                String logDisk = firstGroup(mariaList, "/log[:\\s]*(\\d+)\\s*GB");
+
+                StringBuilder configBuilder = new StringBuilder();
+                if (!vcpu.isEmpty()) configBuilder.append(vcpu).append(" vCPU\n");
+                if (!ram.isEmpty()) configBuilder.append(ram).append(" GB RAM\n");
+                if (!data.isEmpty()) configBuilder.append("/data: ").append(data).append(" GB\n");
+                if (!logDisk.isEmpty()) configBuilder.append("/log: ").append(logDisk).append(" GB");
+
+                String config = configBuilder.toString().trim();
+                if (config.isEmpty()) {
+                    config = stripHtml(extractListContent(mariaRow));
+                }
+                if (!config.isEmpty()) {
+                    resultRows.add(new String[]{
+                            "MariaDB",
+                            config,
+                            extractQuantity(mariaRow, "3"),
+                            extractNoteCell(mariaRow)
+                    });
+                }
+            }
+
+            if (!maxScaleRow.isEmpty()) {
+                String maxScaleList = extractListContent(maxScaleRow);
+                String msVcpu = firstGroup(maxScaleList, "(\\d+)\\s*vCPU");
+                String msRam = firstGroup(maxScaleList, "(\\d+)\\s*GB\\s*RAM");
+                String msDisk = firstGroup(maxScaleList, "/u01[:\\s]*(\\d+)\\s*GB");
+
+                StringBuilder configBuilder = new StringBuilder();
+                if (!msVcpu.isEmpty()) configBuilder.append(msVcpu).append(" vCPU\n");
+                if (!msRam.isEmpty()) configBuilder.append(msRam).append(" GB RAM\n");
+                if (!msDisk.isEmpty()) configBuilder.append("/u01: ").append(msDisk).append(" GB");
+
+                String config = configBuilder.toString().trim();
+                if (config.isEmpty()) {
+                    config = stripHtml(maxScaleList);
+                }
+                if (!config.isEmpty()) {
+                    String note = extractNoteCell(maxScaleRow);
+                    if (note.isEmpty()) note = "C\u1ea5u h\u00ecnh t\u1ed1i thi\u1ec3u + 1 VIP";
+                    resultRows.add(new String[]{
+                            "MaxScale",
+                            config,
+                            extractQuantity(maxScaleRow, "2"),
+                            note
+                    });
+                }
+            }
+
+            if (!nasRow.isEmpty()) {
+                String nasSize = firstGroup(nasRow, "<strong>(\\d+)\\s*GB</strong>");
+                String nasConfig = !nasSize.isEmpty() ? nasSize + " GB" : stripHtml(extractListContent(nasRow));
+                if (!nasConfig.isEmpty()) {
+                    String note = extractNoteCell(nasRow);
+                    if (note.isEmpty()) note = "Mount chung (/backup c\u1ea7n)";
+                    resultRows.add(new String[]{
+                            "NAS",
+                            nasConfig,
+                            extractQuantity(nasRow, "-"),
+                            note
+                    });
+                }
+            }
+
+            if (!resultRows.isEmpty()) {
                 doc.createParagraph();
                 addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                XWPFTable table = doc.createTable(3, 4);
+                XWPFTable table = doc.createTable(resultRows.size() + 1, 4);
                 styleTable(table);
-                
+
                 setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
                 setCell(table, 0, 1, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
                 setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
                 setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
-                
-                String config = configMatcher.group(1) + " vCPU\n" + configMatcher.group(2) + " GB RAM\n/data: " + configMatcher.group(3) + " GB\n/log: " + configMatcher.group(4) + " GB";
-                setCell(table, 1, 0, "MariaDB", true, "E6FFED");
-                setCell(table, 1, 1, config, false, "E6FFED");
-                setCell(table, 1, 2, "3", true, "E6FFED");
-                setCell(table, 1, 3, "Gi\u00e1 tr\u1ecb MariaDB l\u1ea5y gi\u00e1 tr\u1ecb t\u00ednh \u0111\u01b0\u1ee3c \u1edf tr\u00ean", false, "E6FFED");
-                
-                // Extract NAS
-                java.util.regex.Pattern nasPattern = java.util.regex.Pattern.compile(
-                    "NAS.*?<strong>(\\d+)\\s*GB</strong>",
-                    java.util.regex.Pattern.DOTALL
-                );
-                java.util.regex.Matcher nasMatcher = nasPattern.matcher(html);
-                if (nasMatcher.find()) {
-                    setCell(table, 2, 0, "NAS", true, "FFF9E6");
-                    setCell(table, 2, 1, nasMatcher.group(1) + " GB", false, "FFF9E6");
-                    setCell(table, 2, 2, "-", true, "FFF9E6");
-                    setCell(table, 2, 3, "Mount chung (/data + /log + /backup)", false, "FFF9E6");
+
+                for (int i = 0; i < resultRows.size(); i++) {
+                    String[] row = resultRows.get(i);
+                    String bgColor = "E6FFED";
+                    if ("NAS".equalsIgnoreCase(row[0])) {
+                        bgColor = "FFF9E6";
+                    } else if ("MaxScale".equalsIgnoreCase(row[0])) {
+                        bgColor = "F0F9FF";
+                    }
+
+                    setCell(table, i + 1, 0, row[0], true, bgColor);
+                    setCell(table, i + 1, 1, row[1], false, bgColor);
+                    setCell(table, i + 1, 2, row[2], true, bgColor);
+                    setCell(table, i + 1, 3, row[3], false, bgColor);
                 }
                 doc.createParagraph();
+            } else {
+                String plainText = stripHtml(html);
+                if (!plainText.isEmpty()) {
+                    addNormalText(doc, plainText);
+                }
             }
         } catch (Exception e) {
+            log.warn("Failed to parse MariaDB result HTML: {}", e.getMessage());
             // Fallback to plain text if parsing fails
             String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
             if (!plainText.isEmpty()) addNormalText(doc, plainText);
         }
     }
 
+    private String extractRowByLabel(String html, String label) {
+        Pattern rowPattern = Pattern.compile("<tr[^>]*>[\\s\\S]*?</tr>", Pattern.CASE_INSENSITIVE);
+        Matcher rowMatcher = rowPattern.matcher(html);
+        String escapedLabel = Pattern.quote(label);
+        Pattern labelPattern = Pattern.compile("<td[^>]*>\\s*<strong>\\s*" + escapedLabel + "\\s*</strong>\\s*</td>", Pattern.CASE_INSENSITIVE);
+        while (rowMatcher.find()) {
+            String row = rowMatcher.group();
+            if (labelPattern.matcher(row).find()) {
+                return row;
+            }
+        }
+        return "";
+    }
+
+    private String extractListContent(String html) {
+        Matcher listMatcher = Pattern.compile("<ul[^>]*>([\\s\\S]*?)</ul>", Pattern.CASE_INSENSITIVE).matcher(html);
+        if (listMatcher.find()) {
+            return listMatcher.group(1);
+        }
+        return "";
+    }
+
+    private String extractQuantity(String rowHtml, String defaultValue) {
+        Matcher quantityMatcher = Pattern.compile("<td[^>]*class=\"text-center\"[^>]*>\\s*<strong>([^<]+)</strong>\\s*</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
+        if (quantityMatcher.find()) {
+            return stripHtml(quantityMatcher.group(1));
+        }
+
+        Matcher fallbackStrongMatcher = Pattern.compile("<td[^>]*>\\s*<strong>([^<]+)</strong>\\s*</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
+        int strongIndex = 0;
+        while (fallbackStrongMatcher.find()) {
+            strongIndex++;
+            if (strongIndex >= 2) {
+                String value = stripHtml(fallbackStrongMatcher.group(1));
+                if (!value.isEmpty()) return value;
+            }
+        }
+        return defaultValue;
+    }
+
+    private String extractNoteCell(String rowHtml) {
+        Matcher cellMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
+        List<String> cells = new ArrayList<>();
+        while (cellMatcher.find()) {
+            cells.add(cellMatcher.group(1));
+        }
+        if (cells.size() >= 4) {
+            return stripHtml(cells.get(3));
+        }
+        return "";
+    }
+
+    private String firstGroup(String input, String regex) {
+        if (input == null || input.isBlank()) return "";
+        Matcher matcher = Pattern.compile(regex, Pattern.CASE_INSENSITIVE).matcher(input);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "";
+    }
+
+    private String stripHtml(String html) {
+        if (html == null || html.isBlank()) return "";
+        String plain = html.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+        return decodeHtmlEntities(plain);
+    }
+
+    private String stripHtmlKeepLineBreaks(String html) {
+        if (html == null || html.isBlank()) return "";
+        String withBreaks = html
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</li>", "\n")
+                .replaceAll("(?i)</p>", "\n");
+
+        String noTags = withBreaks.replaceAll("<[^>]+>", " ");
+        noTags = decodeHtmlEntities(noTags);
+
+        String[] rawLines = noTags.split("\\R+");
+        List<String> lines = new ArrayList<>();
+        for (String raw : rawLines) {
+            String cleaned = raw.replaceAll("\\s+", " ").trim();
+            if (!cleaned.isEmpty()) {
+                lines.add(cleaned);
+            }
+        }
+        return String.join("\n", lines);
+    }
+
+    private String decodeHtmlEntities(String text) {
+        if (text == null || text.isBlank()) return "";
+        return text
+                .replace("&nbsp;", " ")
+                .replace("&gt;", ">")
+                .replace("&lt;", "<")
+                .replace("&amp;", "&")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&times;", "×")
+                .replace("&approx;", "≈");
+    }
+
     // ---------- Module Redis ----------
-    private void writeModuleRedis(XWPFDocument doc, JsonNode moduleRedis) {
+    private void writeModuleRedis(XWPFDocument doc, JsonNode moduleRedis, String heading, ExportContext context) {
         if (moduleRedis.isMissingNode()) return;
-        addSubHeading(doc, "3. Module Redis");
+        addSubHeading(doc, heading);
 
         String selectedMethod = txt(moduleRedis, "selectedMethod");
         if (!selectedMethod.isEmpty()) {
@@ -750,7 +1238,7 @@ public class ExportService {
                     addLabelValue(doc, "T\u1ed5ng l\u01b0\u1ee3ng Key d\u1ef1 ki\u1ebfn:", keyCount);
                     addLabelValue(doc, "K\u00edch th\u01b0\u1edbc trung b\u00ecnh 1 b\u1ea3n ghi (KB):", recordSize);
                     if (!importance.isEmpty()) addLabelValue(doc, "M\u1ee9c \u0111\u1ed9 quan tr\u1ecdng:", importance);
-                    addImagesFromArray(doc, keyMethod.path("evidenceImages"));
+                    addAppendixNote(doc, collectImageRefs(keyMethod.path("evidenceImages"), buildCaption(heading + " - S\u1edf c\u1ee9 ph\u01b0\u01a1ng ph\u00e1p Key", null), context));
 
                     String resultHTML = txt(keyMethod, "resultHTML");
                     if (!resultHTML.isEmpty()) {
@@ -816,67 +1304,81 @@ public class ExportService {
     // Parse Redis result HTML and write to DOC with proper formatting
     private void parseAndWriteRedisResult(XWPFDocument doc, String html) {
         try {
-            // Extract thông tin tính toán
-            java.util.regex.Pattern infoPattern = java.util.regex.Pattern.compile(
-                "Th\u00f4ng tin t\u00ednh to\u00e1n.*?</ul>",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher infoMatcher = infoPattern.matcher(html);
+            Pattern infoPattern = Pattern.compile("Th\u00f4ng tin t\u00ednh to\u00e1n[\\s\\S]*?<ul[^>]*>([\\s\\S]*?)</ul>", Pattern.CASE_INSENSITIVE);
+            Matcher infoMatcher = infoPattern.matcher(html);
             if (infoMatcher.find()) {
-                String infoContent = infoMatcher.group(0);
-                java.util.regex.Pattern liPattern = java.util.regex.Pattern.compile("<li>([^<]*(?:<[^>]*>[^<]*)*)</li>");
-                java.util.regex.Matcher liMatcher = liPattern.matcher(infoContent);
+                addSubHeading2(doc, "Th\u00f4ng tin t\u00ednh to\u00e1n");
+                Matcher liMatcher = Pattern.compile("<li[^>]*>([\\s\\S]*?)</li>", Pattern.CASE_INSENSITIVE).matcher(infoMatcher.group(1));
                 while (liMatcher.find()) {
-                    String text = liMatcher.group(1).replaceAll("<[^>]*>", "").trim();
-                    addNormalText(doc, "\u2022 " + text);
+                    String text = stripHtml(liMatcher.group(1));
+                    if (!text.isEmpty()) {
+                        addNormalText(doc, "\u2022 " + text);
+                    }
                 }
             }
-            
-            // Extract đề xuất mô hình
-            java.util.regex.Pattern modelPattern = java.util.regex.Pattern.compile(
-                "\u0110\u1ec1 xu\u1ea5t m\u00f4 h\u00ecnh.*?<strong>([^<]+)</strong>",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher modelMatcher = modelPattern.matcher(html);
+
+            Pattern modelPattern = Pattern.compile("\u0110\u1ec1 xu\u1ea5t m\u00f4 h\u00ecnh[\\s\\S]*?<p[^>]*>([\\s\\S]*?)</p>", Pattern.CASE_INSENSITIVE);
+            Matcher modelMatcher = modelPattern.matcher(html);
             if (modelMatcher.find()) {
-                doc.createParagraph();
-                addNormalText(doc, "\u0110\u1ec1 xu\u1ea5t m\u00f4 h\u00ecnh: " + modelMatcher.group(1));
+                String modelText = stripHtml(modelMatcher.group(1));
+                if (!modelText.isEmpty()) {
+                    doc.createParagraph();
+                    addNormalText(doc, "\u0110\u1ec1 xu\u1ea5t m\u00f4 h\u00ecnh: " + modelText);
+                }
             }
-            
-            // Extract bảng kết quả đề xuất cấu hình
-            java.util.regex.Pattern configPattern = java.util.regex.Pattern.compile(
-                "(\\d+)\\s*vCPU.*?(\\d+)\\s*GB\\s*RAM.*?(\\d+)\\s*GB\\s*DISK.*?<strong>(\\d+)</strong>",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher configMatcher = configPattern.matcher(html);
-            if (configMatcher.find()) {
-                doc.createParagraph();
-                addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                XWPFTable table = doc.createTable(2, 4);
-                styleTable(table);
-                
-                setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
-                setCell(table, 0, 1, "C\u1ea5u h\u00ecnh \u0111\u1ec1 xu\u1ea5t", true, "D9E2F3");
-                setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-                setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
-                
-                String config = configMatcher.group(1) + " vCPU\n" + configMatcher.group(2) + " GB RAM\n" + configMatcher.group(3) + " GB DISK";
-                setCell(table, 1, 0, "Redis", true, "E6FFED");
-                setCell(table, 1, 1, config, false, "E6FFED");
-                setCell(table, 1, 2, configMatcher.group(4), true, "E6FFED");
-                setCell(table, 1, 3, "", false, "E6FFED");
+
+            Pattern formulaPattern = Pattern.compile("C\u00f4ng th\u1ee9c t\u00ednh to\u00e1n[\\s\\S]*?<ul[^>]*>([\\s\\S]*?)</ul>", Pattern.CASE_INSENSITIVE);
+            Matcher formulaMatcher = formulaPattern.matcher(html);
+            if (formulaMatcher.find()) {
+                addSubHeading2(doc, "C\u00f4ng th\u1ee9c t\u00ednh to\u00e1n");
+                Matcher liMatcher = Pattern.compile("<li[^>]*>([\\s\\S]*?)</li>", Pattern.CASE_INSENSITIVE).matcher(formulaMatcher.group(1));
+                while (liMatcher.find()) {
+                    String text = stripHtml(liMatcher.group(1));
+                    if (!text.isEmpty()) {
+                        addNormalText(doc, "\u2022 " + text);
+                    }
+                }
                 doc.createParagraph();
             }
-            
-            // Extract bảng tổng hợp tài nguyên
-            java.util.regex.Pattern summaryPattern = java.util.regex.Pattern.compile(
-                "T\u1ed5ng vCPU.*?<strong>(\\d+)</strong>.*?T\u1ed5ng RAM.*?<strong>(\\d+)</strong>.*?T\u1ed5ng Disk.*?<strong>(\\d+)</strong>",
-                java.util.regex.Pattern.DOTALL
+
+            Pattern resultTablePattern = Pattern.compile(
+                    "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                    Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher summaryMatcher = summaryPattern.matcher(html);
-            if (summaryMatcher.find()) {
-                addSubHeading2(doc, "B\u1ea3ng t\u1ed5ng h\u1ee3p t\u00e0i nguy\u00ean");
-                addNormalText(doc, "T\u1ed5ng vCPU: " + summaryMatcher.group(1) + ", T\u1ed5ng RAM: " + summaryMatcher.group(2) + " GB, T\u1ed5ng Disk: " + summaryMatcher.group(3) + " GB");
+            Matcher resultTableMatcher = resultTablePattern.matcher(html);
+            if (resultTableMatcher.find()) {
+                String tbody = resultTableMatcher.group(1);
+                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                if (trMatcher.find()) {
+                    String rowHtml = trMatcher.group(1);
+                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(tdMatcher.group(1));
+                    }
+
+                    if (cols.size() >= 4) {
+                        String component = stripHtml(cols.get(0));
+                        String config = stripHtmlKeepLineBreaks(cols.get(1));
+                        String quantity = stripHtml(cols.get(2));
+                        String note = stripHtml(cols.get(3));
+
+                        addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                        XWPFTable table = doc.createTable(2, 4);
+                        styleTable(table);
+
+                        setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                        setCell(table, 0, 1, "C\u1ea5u h\u00ecnh \u0111\u1ec1 xu\u1ea5t", true, "D9E2F3");
+                        setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                        setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+
+                        setCell(table, 1, 0, component.isEmpty() ? "Redis" : component, true, "E6FFED");
+                        setCell(table, 1, 1, config, false, "E6FFED");
+                        setCell(table, 1, 2, quantity, true, "E6FFED");
+                        setCell(table, 1, 3, note, false, "E6FFED");
+                        doc.createParagraph();
+                    }
+                }
             }
         } catch (Exception e) {
             // Fallback to plain text if parsing fails
@@ -886,9 +1388,9 @@ public class ExportService {
     }
 
     // ---------- Module Kafka ----------
-    private void writeModuleKafka(XWPFDocument doc, JsonNode moduleKafka) {
+    private void writeModuleKafka(XWPFDocument doc, JsonNode moduleKafka, String heading, ExportContext context) {
         if (moduleKafka.isMissingNode()) return;
-        addSubHeading(doc, "4. Module Kafka");
+        addSubHeading(doc, heading);
 
         String selectedMethod = txt(moduleKafka, "selectedMethod");
         if (!selectedMethod.isEmpty()) {
@@ -908,8 +1410,8 @@ public class ExportService {
                     addLabelValue(doc, "Retention Time (h):", txt(throughputMethod, "retentionTime"));
                     addLabelValue(doc, "Replication Factor:", txt(throughputMethod, "replicationFactor"));
                     addLabelValue(doc, "Compression:", txt(throughputMethod, "compression"));
-                    addImagesFromArray(doc, throughputMethod.path("throughputEvidence"));
-                    addImagesFromArray(doc, throughputMethod.path("compressionEvidence"));
+                    addAppendixNote(doc, collectImageRefs(throughputMethod.path("throughputEvidence"), buildCaption(heading + " - S\u1edf c\u1ee9 throughput Kafka", null), context));
+                    addAppendixNote(doc, collectImageRefs(throughputMethod.path("compressionEvidence"), buildCaption(heading + " - S\u1edf c\u1ee9 compression Kafka", null), context));
 
                     String resultHTML = txt(throughputMethod, "resultHTML");
                     if (!resultHTML.isEmpty()) {
@@ -974,74 +1476,159 @@ public class ExportService {
     // Parse Kafka result HTML and write to DOC with proper formatting
     private void parseAndWriteKafkaResult(XWPFDocument doc, String html) {
         try {
-            // Extract thông tin tính toán
-            java.util.regex.Pattern infoPattern = java.util.regex.Pattern.compile(
-                "Th\u00f4ng tin t\u00ednh to\u00e1n.*?</ul>",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher infoMatcher = infoPattern.matcher(html);
+            Pattern infoPattern = Pattern.compile("(Th\u00f4ng tin \u0111\u1ea7u v\u00e0o|Th\u00f4ng tin t\u00ednh to\u00e1n)[\\s\\S]*?<ul[^>]*>([\\s\\S]*?)</ul>", Pattern.CASE_INSENSITIVE);
+            Matcher infoMatcher = infoPattern.matcher(html);
             if (infoMatcher.find()) {
-                String infoContent = infoMatcher.group(0);
-                java.util.regex.Pattern liPattern = java.util.regex.Pattern.compile("<li>([^<]*(?:<[^>]*>[^<]*)*)</li>");
-                java.util.regex.Matcher liMatcher = liPattern.matcher(infoContent);
+                addSubHeading2(doc, stripHtml(infoMatcher.group(1)));
+                Matcher liMatcher = Pattern.compile("<li[^>]*>([\\s\\S]*?)</li>", Pattern.CASE_INSENSITIVE).matcher(infoMatcher.group(2));
                 while (liMatcher.find()) {
-                    String text = liMatcher.group(1).replaceAll("<[^>]*>", "").trim();
-                    addNormalText(doc, "\u2022 " + text);
+                    String text = stripHtml(liMatcher.group(1));
+                    if (!text.isEmpty()) {
+                        addNormalText(doc, "\u2022 " + text);
+                    }
+                }
+                doc.createParagraph();
+            }
+
+            Pattern resourceNeedPattern = Pattern.compile("T\u00e0i nguy\u00ean c\u1ea7n cho h\u1ec7 th\u1ed1ng m\u1edbi[\\s\\S]*?<ul[^>]*>([\\s\\S]*?)</ul>", Pattern.CASE_INSENSITIVE);
+            Matcher resourceNeedMatcher = resourceNeedPattern.matcher(html);
+            if (resourceNeedMatcher.find()) {
+                addSubHeading2(doc, "T\u00e0i nguy\u00ean c\u1ea7n cho h\u1ec7 th\u1ed1ng m\u1edbi");
+                Matcher liMatcher = Pattern.compile("<li[^>]*>([\\s\\S]*?)</li>", Pattern.CASE_INSENSITIVE).matcher(resourceNeedMatcher.group(1));
+                while (liMatcher.find()) {
+                    String text = stripHtml(liMatcher.group(1));
+                    if (!text.isEmpty()) {
+                        addNormalText(doc, "\u2022 " + text);
+                    }
+                }
+                doc.createParagraph();
+            }
+
+            Pattern diskPattern = Pattern.compile("T\u1ed5ng\\s*Disk\\s*Cluster[\\s\\S]*?<p[^>]*>([\\s\\S]*?)</p>", Pattern.CASE_INSENSITIVE);
+            Matcher diskMatcher = diskPattern.matcher(html);
+            if (diskMatcher.find()) {
+                addSubHeading2(doc, "T\u1ed5ng Disk Cluster");
+                String diskText = stripHtmlKeepLineBreaks(diskMatcher.group(1));
+                if (!diskText.isEmpty()) {
+                    for (String line : diskText.split("\\n")) {
+                        if (!line.isBlank()) addNormalText(doc, line.trim());
+                    }
+                }
+                doc.createParagraph();
+            }
+
+            Pattern distributionPattern = Pattern.compile(
+                    "B\u1ea3ng ph\u00e2n b\u1ed5 theo s\u1ed1 l\u01b0\u1ee3ng Broker \\(N\\)[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                    Pattern.CASE_INSENSITIVE
+            );
+            Matcher distributionMatcher = distributionPattern.matcher(html);
+            if (distributionMatcher.find()) {
+                String tbody = distributionMatcher.group(1);
+                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                List<List<String>> rows = new ArrayList<>();
+                while (trMatcher.find()) {
+                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(trMatcher.group(1));
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(stripHtml(tdMatcher.group(1)));
+                    }
+                    if (cols.size() >= 5) {
+                        rows.add(cols);
+                    }
+                }
+
+                if (!rows.isEmpty()) {
+                    addSubHeading2(doc, "B\u1ea3ng ph\u00e2n b\u1ed5 theo s\u1ed1 l\u01b0\u1ee3ng Broker (N)");
+                    XWPFTable table = doc.createTable(rows.size() + 1, 5);
+                    styleTable(table);
+
+                    String col2Header = "CPU/Node";
+                    String col3Header = "Disk/Node";
+                    if (!rows.get(0).isEmpty() && rows.get(0).size() >= 4) {
+                        String sampleValue = rows.get(0).get(1).toUpperCase();
+                        if (sampleValue.contains("GB") || sampleValue.contains("TB")) {
+                            col2Header = "Disk/Server";
+                            col3Header = "vCPU/Server";
+                        }
+                    }
+
+                    setCell(table, 0, 0, "N (Broker)", true, "D9E2F3");
+                    setCell(table, 0, 1, col2Header, true, "D9E2F3");
+                    setCell(table, 0, 2, "RAM/Node", true, "D9E2F3");
+                    setCell(table, 0, 3, col3Header, true, "D9E2F3");
+                    setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
+
+                    for (int i = 0; i < rows.size(); i++) {
+                        List<String> row = rows.get(i);
+                        for (int c = 0; c < 5; c++) {
+                            setCell(table, i + 1, c, row.get(c), false, "E6FFED");
+                        }
+                    }
+                    doc.createParagraph();
                 }
             }
-            
-            // Extract bảng kết quả đề xuất cấu hình
-            java.util.regex.Pattern brokerPattern = java.util.regex.Pattern.compile(
-                "Kafka Broker.*?<strong>(\\d+)</strong>.*?<strong>(\\d+)</strong>.*?<strong>(\\d+)\\s*GB</strong>.*?<strong>([^<]+)</strong>",
-                java.util.regex.Pattern.DOTALL
+
+            Pattern resultTablePattern = Pattern.compile(
+                    "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                    Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher brokerMatcher = brokerPattern.matcher(html);
-            if (brokerMatcher.find()) {
-                doc.createParagraph();
-                addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                XWPFTable table = doc.createTable(3, 5);
-                styleTable(table);
-                
-                setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
-                setCell(table, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng Node", true, "D9E2F3");
-                setCell(table, 0, 2, "vCPU/Node", true, "D9E2F3");
-                setCell(table, 0, 3, "RAM/Node", true, "D9E2F3");
-                setCell(table, 0, 4, "Disk/Node", true, "D9E2F3");
-                
-                setCell(table, 1, 0, "Kafka Broker", true, "E6FFED");
-                setCell(table, 1, 1, brokerMatcher.group(1), false, "E6FFED");
-                setCell(table, 1, 2, brokerMatcher.group(2), false, "E6FFED");
-                setCell(table, 1, 3, brokerMatcher.group(3) + " GB", false, "E6FFED");
-                setCell(table, 1, 4, brokerMatcher.group(4), false, "E6FFED");
-                
-                setCell(table, 2, 0, "Zookeeper/KRaft", true, "FFF9E6");
-                setCell(table, 2, 1, "3", false, "FFF9E6");
-                setCell(table, 2, 2, "2", false, "FFF9E6");
-                setCell(table, 2, 3, "4 GB", false, "FFF9E6");
-                setCell(table, 2, 4, "100 GB", false, "FFF9E6");
-                doc.createParagraph();
+            Matcher resultTableMatcher = resultTablePattern.matcher(html);
+            if (resultTableMatcher.find()) {
+                String tbody = resultTableMatcher.group(1);
+                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                List<List<String>> rows = new ArrayList<>();
+                while (trMatcher.find()) {
+                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(trMatcher.group(1));
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(stripHtml(tdMatcher.group(1)));
+                    }
+                    if (cols.size() >= 5) {
+                        rows.add(cols);
+                    }
+                }
+
+                if (!rows.isEmpty()) {
+                    addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                    XWPFTable table = doc.createTable(rows.size() + 1, 5);
+                    styleTable(table);
+
+                    setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                    setCell(table, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng Node", true, "D9E2F3");
+                    setCell(table, 0, 2, "vCPU/Node", true, "D9E2F3");
+                    setCell(table, 0, 3, "RAM/Node", true, "D9E2F3");
+                    setCell(table, 0, 4, "Disk/Node", true, "D9E2F3");
+
+                    for (int i = 0; i < rows.size(); i++) {
+                        List<String> row = rows.get(i);
+                        String rowColor = row.get(0).toLowerCase().contains("zookeeper") ? "FFF9E6" : "E6FFED";
+                        for (int c = 0; c < 5; c++) {
+                            setCell(table, i + 1, c, row.get(c), false, rowColor);
+                        }
+                    }
+                    doc.createParagraph();
+                }
             }
-            
-            // Extract khuyến nghị
-            java.util.regex.Pattern recPattern = java.util.regex.Pattern.compile(
-                "Khuy\u1ebfn ngh\u1ecb.*?<p[^>]*>([^<]+)</p>",
-                java.util.regex.Pattern.DOTALL
-            );
-            java.util.regex.Matcher recMatcher = recPattern.matcher(html);
+
+            Pattern recPattern = Pattern.compile("Khuy\u1ebfn ngh\u1ecb[\\s\\S]*?<p[^>]*>([\\s\\S]*?)</p>", Pattern.CASE_INSENSITIVE);
+            Matcher recMatcher = recPattern.matcher(html);
             if (recMatcher.find()) {
-                addNormalText(doc, "Khuy\u1ebfn ngh\u1ecb: " + recMatcher.group(1).trim());
+                String recommendation = stripHtml(recMatcher.group(1));
+                if (!recommendation.isEmpty()) {
+                    addNormalText(doc, "Khuy\u1ebfn ngh\u1ecb: " + recommendation);
+                }
             }
         } catch (Exception e) {
             // Fallback to plain text if parsing fails
-            String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+            String plainText = stripHtml(html);
             if (!plainText.isEmpty()) addNormalText(doc, plainText);
         }
     }
 
     // ---------- Module K8S ----------
-    private void writeModuleK8S(XWPFDocument doc, JsonNode moduleK8S) {
+    private void writeModuleK8S(XWPFDocument doc, JsonNode moduleK8S, String heading, ExportContext context) {
         if (moduleK8S.isMissingNode()) return;
-        addSubHeading(doc, "5. Module K8S");
+        addSubHeading(doc, heading);
 
         // Baseline table
         JsonNode baselineTable = moduleK8S.path("baselineTable");
@@ -1133,6 +1720,28 @@ public class ExportService {
             addLabelValue(doc, "\u0110\u1ecbnh c\u1ee1:", sizingValue);
         }
 
+        String virtualizationMode = txt(moduleK8S, "virtualizationMode");
+        String normalizedMode = virtualizationMode.trim().toLowerCase();
+        String vcpuFlavor = txt(moduleK8S, "vcpuFlavor");
+        String ramFlavor = txt(moduleK8S, "ramFlavor");
+        if (!virtualizationMode.isEmpty() || !vcpuFlavor.isEmpty() || !ramFlavor.isEmpty()) {
+            String modeDisplay = virtualizationMode;
+            if ("vcpu".equalsIgnoreCase(virtualizationMode)) {
+                modeDisplay = "Theo vCPU";
+            } else if ("ram".equalsIgnoreCase(virtualizationMode)) {
+                modeDisplay = "Theo RAM";
+            }
+            if (!modeDisplay.isEmpty()) {
+                addLabelValue(doc, "Ch\u1ebf \u0111\u1ed9 \u1ea3o h\u00f3a:", modeDisplay);
+            }
+            if ((normalizedMode.equals("vcpu") || normalizedMode.isEmpty()) && !vcpuFlavor.isEmpty()) {
+                addLabelValue(doc, "Flavor vCPU \u0111\u00e3 ch\u1ecdn:", vcpuFlavor + " Cint");
+            }
+            if ((normalizedMode.equals("ram") || normalizedMode.isEmpty()) && !ramFlavor.isEmpty()) {
+                addLabelValue(doc, "Flavor RAM \u0111\u00e3 ch\u1ecdn:", ramFlavor + " GB");
+            }
+        }
+
         // Sizing result
         String sizingResult = txt(moduleK8S, "sizingResult");
         if (!sizingResult.isEmpty()) {
@@ -1146,108 +1755,168 @@ public class ExportService {
     // Parse K8S result HTML and write to DOC
     private void parseAndWriteK8SResult(XWPFDocument doc, String html) {
         try {
-            // Extract computation table rows
-            java.util.regex.Pattern rowPattern = java.util.regex.Pattern.compile(
-                "<tr>\\s*<td[^>]*>\\s*(\\d+)\\s*</td>\\s*<td>([^<]+)</td>\\s*<td[^>]*>([\\d.]+)</td>",
-                java.util.regex.Pattern.DOTALL
+            Pattern workerTablePattern = Pattern.compile(
+                    "B\u1ea3ng t\u00ednh to\u00e1n K8S Worker[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                    Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher rowMatcher = rowPattern.matcher(html);
+            Matcher workerTableMatcher = workerTablePattern.matcher(html);
+            if (workerTableMatcher.find()) {
+                String tbody = workerTableMatcher.group(1);
+                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                List<String[]> tableData = new ArrayList<>();
 
-            java.util.List<String[]> tableData = new java.util.ArrayList<>();
-            while (rowMatcher.find()) {
-                tableData.add(new String[]{
-                    rowMatcher.group(1).trim(),
-                    rowMatcher.group(2).trim(),
-                    rowMatcher.group(3).trim()
-                });
-            }
-
-            if (!tableData.isEmpty()) {
-                addSubHeading2(doc, "B\u1ea3ng t\u00ednh to\u00e1n K8S Worker");
-                XWPFTable table = doc.createTable(tableData.size() + 1, 4);
-                styleTable(table);
-
-                setCell(table, 0, 0, "STT", true, "D9E2F3");
-                setCell(table, 0, 1, "Th\u00f4ng s\u1ed1", true, "D9E2F3");
-                setCell(table, 0, 2, "K8S Worker", true, "D9E2F3");
-                setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
-
-                String[] notes = {
-                    "", "", "",
-                    "KPI 75%. Sai s\u1ed1 1.1",
-                    "KPI 90%. Sai s\u1ed1 1.1",
-                    "KPI 80%. Sai s\u1ed1 1.1"
-                };
-
-                for (int i = 0; i < tableData.size(); i++) {
-                    String[] row = tableData.get(i);
-                    setCell(table, i + 1, 0, row[0], false, null);
-                    setCell(table, i + 1, 1, row[1], false, null);
-                    setCell(table, i + 1, 2, row[2], false, null);
-                    setCell(table, i + 1, 3, i < notes.length ? notes[i] : "", false, null);
+                while (trMatcher.find()) {
+                    String tr = trMatcher.group(1);
+                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(tr);
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(tdMatcher.group(1));
+                    }
+                    if (cols.size() >= 4) {
+                        String stt = stripHtml(cols.get(0));
+                        if (stt.matches("\\d+")) {
+                            tableData.add(new String[]{
+                                    stt,
+                                    stripHtml(cols.get(1)),
+                                    stripHtml(cols.get(2)),
+                                    stripHtmlKeepLineBreaks(cols.get(3))
+                            });
+                        }
+                    }
                 }
-                doc.createParagraph();
+
+                if (!tableData.isEmpty()) {
+                    addSubHeading2(doc, "B\u1ea3ng t\u00ednh to\u00e1n K8S Worker");
+                    XWPFTable table = doc.createTable(tableData.size() + 1, 4);
+                    styleTable(table);
+
+                    setCell(table, 0, 0, "STT", true, "D9E2F3");
+                    setCell(table, 0, 1, "Th\u00f4ng s\u1ed1", true, "D9E2F3");
+                    setCell(table, 0, 2, "K8S Worker", true, "D9E2F3");
+                    setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+
+                    for (int i = 0; i < tableData.size(); i++) {
+                        String[] row = tableData.get(i);
+                        setCell(table, i + 1, 0, row[0], false, null);
+                        setCell(table, i + 1, 1, row[1], false, null);
+                        setCell(table, i + 1, 2, row[2], false, null);
+                        setCell(table, i + 1, 3, row[3], false, null);
+                    }
+                    doc.createParagraph();
+                }
             }
 
-            // Extract K8S config table (K8S Master, K8S Worker, K8S ETCD)
-            java.util.regex.Pattern componentPattern = java.util.regex.Pattern.compile(
-                "<strong>(K8S (?:Master|Worker|ETCD))</strong>.*?<ul[^>]*>(.*?)</ul>.*?<strong>(\\d+)</strong>",
-                java.util.regex.Pattern.DOTALL
+            Pattern recommendationPattern = Pattern.compile("<strong>\\s*\u0110\u1ec1 xu\u1ea5t:\\s*</strong>(.*?)</div>", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
+            Matcher recommendationMatcher = recommendationPattern.matcher(html);
+            if (recommendationMatcher.find()) {
+                String recommendation = stripHtml(recommendationMatcher.group(1));
+                if (!recommendation.isEmpty()) {
+                    addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t");
+                    addNormalText(doc, recommendation);
+                    doc.createParagraph();
+                }
+            }
+
+            Pattern distributionPattern = Pattern.compile(
+                    "B\u1ea3ng ph\u00e2n b\u1ed5 theo s\u1ed1 l\u01b0\u1ee3ng N[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                    Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher componentMatcher = componentPattern.matcher(html);
-
-            java.util.List<String[]> components = new java.util.ArrayList<>();
-            while (componentMatcher.find()) {
-                String name = componentMatcher.group(1);
-                String listContent = componentMatcher.group(2);
-                String qty = componentMatcher.group(3);
-
-                // Extract config from <li> elements
-                StringBuilder config = new StringBuilder();
-                java.util.regex.Pattern liPattern = java.util.regex.Pattern.compile("<li>([^<]+)</li>");
-                java.util.regex.Matcher liMatcher = liPattern.matcher(listContent);
-                while (liMatcher.find()) {
-                    if (config.length() > 0) config.append("\n");
-                    config.append(liMatcher.group(1).trim());
+            Matcher distributionMatcher = distributionPattern.matcher(html);
+            if (distributionMatcher.find()) {
+                String tbody = distributionMatcher.group(1);
+                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                List<List<String>> rows = new ArrayList<>();
+                while (trMatcher.find()) {
+                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(trMatcher.group(1));
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(stripHtml(tdMatcher.group(1)));
+                    }
+                    if (cols.size() >= 4) {
+                        rows.add(cols);
+                    }
                 }
 
-                String note = name.equals("K8S Worker") ? "D\u1ef1 ph\u00f2ng N+1" : "Storage ph\u1ea3i n\u1eb1m \u1edf 3 c\u1ee5m storage kh\u00e1c nhau";
-                components.add(new String[]{name, config.toString(), qty, note});
+                if (!rows.isEmpty()) {
+                    addSubHeading2(doc, "B\u1ea3ng ph\u00e2n b\u1ed5 theo s\u1ed1 l\u01b0\u1ee3ng N");
+                    XWPFTable table = doc.createTable(rows.size() + 1, 4);
+                    styleTable(table);
+
+                    setCell(table, 0, 0, "Gi\u00e1 tr\u1ecb N", true, "D9E2F3");
+                    setCell(table, 0, 1, "Cint CPU y\u00eau c\u1ea7u", true, "D9E2F3");
+                    setCell(table, 0, 2, "RAM y\u00eau c\u1ea7u", true, "D9E2F3");
+                    setCell(table, 0, 3, "Disk y\u00eau c\u1ea7u", true, "D9E2F3");
+
+                    for (int i = 0; i < rows.size(); i++) {
+                        List<String> row = rows.get(i);
+                        String bg = i == rows.size() - 1 ? "E6FFED" : null;
+                        for (int c = 0; c < 4; c++) {
+                            setCell(table, i + 1, c, row.get(c), false, bg);
+                        }
+                    }
+                    doc.createParagraph();
+                }
             }
 
-            if (!components.isEmpty()) {
-                addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                XWPFTable configTable = doc.createTable(components.size() + 1, 4);
-                styleTable(configTable);
+            Pattern configPattern = Pattern.compile(
+                    "\u0110\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                    Pattern.CASE_INSENSITIVE
+            );
+            Matcher configMatcher = configPattern.matcher(html);
+            if (configMatcher.find()) {
+                String tbody = configMatcher.group(1);
+                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                List<String[]> components = new ArrayList<>();
 
-                setCell(configTable, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
-                setCell(configTable, 0, 1, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
-                setCell(configTable, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-                setCell(configTable, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
-
-                for (int i = 0; i < components.size(); i++) {
-                    String[] comp = components.get(i);
-                    String bgColor = comp[0].equals("K8S Worker") ? "E6FFED" : "FFF9E6";
-                    setCell(configTable, i + 1, 0, comp[0], true, bgColor);
-                    setCell(configTable, i + 1, 1, comp[1], false, bgColor);
-                    setCell(configTable, i + 1, 2, comp[2], true, bgColor);
-                    setCell(configTable, i + 1, 3, comp[3], false, bgColor);
+                while (trMatcher.find()) {
+                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(trMatcher.group(1));
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(tdMatcher.group(1));
+                    }
+                    if (cols.size() >= 4) {
+                        String name = stripHtml(cols.get(0));
+                        String config = stripHtmlKeepLineBreaks(cols.get(1));
+                        String qty = stripHtml(cols.get(2));
+                        String note = stripHtmlKeepLineBreaks(cols.get(3));
+                        components.add(new String[]{name, config, qty, note});
+                    }
                 }
-                doc.createParagraph();
+
+                if (!components.isEmpty()) {
+                    addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                    XWPFTable configTable = doc.createTable(components.size() + 1, 4);
+                    styleTable(configTable);
+
+                    setCell(configTable, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                    setCell(configTable, 0, 1, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                    setCell(configTable, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                    setCell(configTable, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+
+                    for (int i = 0; i < components.size(); i++) {
+                        String[] comp = components.get(i);
+                        String bgColor = comp[0].equals("K8S Worker") ? "E6FFED" : null;
+                        setCell(configTable, i + 1, 0, comp[0], true, bgColor);
+                        setCell(configTable, i + 1, 1, comp[1], false, bgColor);
+                        setCell(configTable, i + 1, 2, comp[2], true, bgColor);
+                        setCell(configTable, i + 1, 3, comp[3], false, bgColor);
+                    }
+                    doc.createParagraph();
+                }
             }
         } catch (Exception e) {
-            String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+            String plainText = stripHtml(html);
             if (!plainText.isEmpty()) addNormalText(doc, plainText);
         }
     }
 
     // ---------- Module LB/FW ----------
-    private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW) {
+    private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW, String heading, ExportContext context) {
         if (moduleLBFW.isMissingNode()) return;
-        addSubHeading(doc, "6. Module LB/FW");
+        addSubHeading(doc, heading);
 
         // Evidence images
-        addImagesFromArray(doc, moduleLBFW.path("evidenceImages"));
+        addAppendixNote(doc, collectImageRefs(moduleLBFW.path("evidenceImages"), buildCaption(heading + " - S\u1edf c\u1ee9 LB/FW", null), context));
 
         // Peak values
         String peakUpload = txt(moduleLBFW, "peakUpload");
@@ -1279,50 +1948,90 @@ public class ExportService {
     // Parse LB/FW result HTML and write to DOC
     private void parseAndWriteLBFWResult(XWPFDocument doc, String html) {
         try {
-            // Extract bandwidth table
-            java.util.regex.Pattern rowPattern = java.util.regex.Pattern.compile(
-                "<tr[^>]*>\\s*<td[^>]*>\\s*(\\d+)\\s*</td>\\s*<td>([^<]+)</td>\\s*<td[^>]*>([\\d.]+)</td>",
-                java.util.regex.Pattern.DOTALL
+            // Extract bandwidth calculation table under heading "Bảng tính toán băng thông"
+            Pattern bandwidthTablePattern = Pattern.compile(
+                    "B\u1ea3ng t\u00ednh to\u00e1n b\u0103ng th\u00f4ng[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                    Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher rowMatcher = rowPattern.matcher(html);
+            Matcher bandwidthTableMatcher = bandwidthTablePattern.matcher(html);
+            List<String[]> bandwidthRows = new ArrayList<>();
 
-            java.util.List<String[]> tableData = new java.util.ArrayList<>();
-            while (rowMatcher.find()) {
-                tableData.add(new String[]{
-                    rowMatcher.group(1).trim(),
-                    rowMatcher.group(2).trim(),
-                    rowMatcher.group(3).trim()
-                });
+            if (bandwidthTableMatcher.find()) {
+                String tbody = bandwidthTableMatcher.group(1);
+                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                while (trMatcher.find()) {
+                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(trMatcher.group(1));
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(stripHtmlKeepLineBreaks(tdMatcher.group(1)));
+                    }
+
+                    if (cols.size() >= 4) {
+                        String stt = cols.get(0).trim();
+                        if (stt.matches("\\d+")) {
+                            bandwidthRows.add(new String[]{
+                                    stt,
+                                    cols.get(1),
+                                    cols.get(2),
+                                    cols.get(3)
+                            });
+                        }
+                    }
+                }
             }
 
-            if (!tableData.isEmpty()) {
+            if (!bandwidthRows.isEmpty()) {
                 addSubHeading2(doc, "B\u1ea3ng t\u00ednh to\u00e1n b\u0103ng th\u00f4ng");
-                XWPFTable table = doc.createTable(tableData.size() + 1, 3);
+                XWPFTable table = doc.createTable(bandwidthRows.size() + 1, 4);
                 styleTable(table);
 
                 setCell(table, 0, 0, "STT", true, "D9E2F3");
                 setCell(table, 0, 1, "Th\u00f4ng s\u1ed1", true, "D9E2F3");
                 setCell(table, 0, 2, "Gi\u00e1 tr\u1ecb (Mbps)", true, "D9E2F3");
+                setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
 
-                for (int i = 0; i < tableData.size(); i++) {
-                    String[] row = tableData.get(i);
-                    String bgColor = (i == tableData.size() - 1) ? "E6FFED" : null;
+                for (int i = 0; i < bandwidthRows.size(); i++) {
+                    String[] row = bandwidthRows.get(i);
+                    String bgColor = (i == bandwidthRows.size() - 1) ? "E6FFED" : null;
                     setCell(table, i + 1, 0, row[0], false, bgColor);
                     setCell(table, i + 1, 1, row[1], false, bgColor);
                     setCell(table, i + 1, 2, row[2], false, bgColor);
+                    setCell(table, i + 1, 3, row[3], false, bgColor);
                 }
                 doc.createParagraph();
             }
 
-            // Extract FW/LB config
-            java.util.regex.Pattern fwlbPattern = java.util.regex.Pattern.compile(
-                "FW/LB.*?Th\u00f4ng l\u01b0\u1ee3ng\\s*<\\s*([\\d.]+)\\s*Gbps",
-                java.util.regex.Pattern.DOTALL
+            // Extract config proposal table under heading "Đề xuất cấu hình"
+            Pattern configTablePattern = Pattern.compile(
+                    "\u0110\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                    Pattern.CASE_INSENSITIVE
             );
-            java.util.regex.Matcher fwlbMatcher = fwlbPattern.matcher(html);
-            if (fwlbMatcher.find()) {
+            Matcher configTableMatcher = configTablePattern.matcher(html);
+            List<String[]> configRows = new ArrayList<>();
+            if (configTableMatcher.find()) {
+                String tbody = configTableMatcher.group(1);
+                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                while (trMatcher.find()) {
+                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(trMatcher.group(1));
+                    List<String> cols = new ArrayList<>();
+                    while (tdMatcher.find()) {
+                        cols.add(stripHtmlKeepLineBreaks(tdMatcher.group(1)));
+                    }
+
+                    if (cols.size() >= 4) {
+                        configRows.add(new String[]{
+                                cols.get(0),
+                                cols.get(1),
+                                cols.get(2),
+                                cols.get(3)
+                        });
+                    }
+                }
+            }
+
+            if (!configRows.isEmpty()) {
                 addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                XWPFTable configTable = doc.createTable(2, 4);
+                XWPFTable configTable = doc.createTable(configRows.size() + 1, 4);
                 styleTable(configTable);
 
                 setCell(configTable, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
@@ -1330,10 +2039,13 @@ public class ExportService {
                 setCell(configTable, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
                 setCell(configTable, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
 
-                setCell(configTable, 1, 0, "FW/LB", true, "E6FFED");
-                setCell(configTable, 1, 1, "Th\u00f4ng l\u01b0\u1ee3ng < " + fwlbMatcher.group(1) + " Gbps", false, "E6FFED");
-                setCell(configTable, 1, 2, "", false, "E6FFED");
-                setCell(configTable, 1, 3, "", false, "E6FFED");
+                for (int i = 0; i < configRows.size(); i++) {
+                    String[] row = configRows.get(i);
+                    setCell(configTable, i + 1, 0, row[0], true, "E6FFED");
+                    setCell(configTable, i + 1, 1, row[1], false, "E6FFED");
+                    setCell(configTable, i + 1, 2, row[2], false, "E6FFED");
+                    setCell(configTable, i + 1, 3, row[3], false, "E6FFED");
+                }
                 doc.createParagraph();
             }
         } catch (Exception e) {
@@ -1471,6 +2183,21 @@ public class ExportService {
         return String.format("%.2f", val);
     }
 
+    private String buildCaption(String baseTitle, String detail) {
+        String base = baseTitle == null ? "" : baseTitle.trim();
+        String extra = detail == null ? "" : detail.trim();
+
+        String caption = extra.isEmpty() ? base : (base + " (" + extra + ")");
+        if (caption.isEmpty()) {
+            return "H\u00ecnh \u1ea3nh s\u1edf c\u1ee9.";
+        }
+
+        if (!caption.endsWith(".") && !caption.endsWith("!") && !caption.endsWith("?")) {
+            caption = caption + ".";
+        }
+        return caption;
+    }
+
     private void addSectionHeading(XWPFDocument doc, String text) {
         XWPFParagraph p = doc.createParagraph();
         p.setSpacingBefore(200);
@@ -1587,13 +2314,49 @@ public class ExportService {
         }
     }
 
-    private void addImagesFromArray(XWPFDocument doc, JsonNode imagesNode) {
-        if (imagesNode == null || !imagesNode.isArray()) return;
+    private List<String> collectImageRefs(JsonNode imagesNode, String title, ExportContext context) {
+        List<String> refs = new ArrayList<>();
+        if (imagesNode == null || !imagesNode.isArray()) return refs;
+
         for (JsonNode img : imagesNode) {
             String base64 = "";
-            if (img.has("base64")) base64 = img.get("base64").asText("");
-            else if (img.has("dataUrl")) base64 = img.get("dataUrl").asText("");
-            if (!base64.isEmpty()) addBase64Image(doc, base64);
+            if (img.isObject()) {
+                if (img.has("base64")) base64 = img.get("base64").asText("");
+                else if (img.has("dataUrl")) base64 = img.get("dataUrl").asText("");
+            } else if (img.isTextual()) {
+                base64 = img.asText("");
+            }
+
+            if (base64 != null && !base64.isBlank()) {
+                refs.addAll(collectSingleImageRef(base64, title, context));
+            }
+        }
+        return refs;
+    }
+
+    private List<String> collectSingleImageRef(String base64, String title, ExportContext context) {
+        List<String> refs = new ArrayList<>();
+        if (base64 == null || base64.isBlank()) return refs;
+
+        String ref = "H\u00ecnh PL-" + context.nextImageIndex++;
+        context.appendixImages.add(new AppendixImage(ref, title, base64));
+        refs.add(ref);
+        return refs;
+    }
+
+    private void addAppendixNote(XWPFDocument doc, List<String> refs) {
+        if (refs == null || refs.isEmpty()) return;
+        addNormalText(doc, "Ghi ch\u00fa: Xem " + String.join(", ", refs) + " t\u1ea1i Ph\u1ee5 l\u1ee5c.");
+    }
+
+    private void writeAppendix(XWPFDocument doc, ExportContext context) {
+        if (context.appendixImages.isEmpty()) return;
+
+        addSectionHeading(doc, "PH\u1ee4 L\u1ee4C - H\u00ccNH \u1ea2NH S\u1ede C\u1ee8");
+        for (AppendixImage image : context.appendixImages) {
+            addSubHeading2(doc, image.ref + ": " + image.title);
+            addBase64Image(doc, image.base64);
+            doc.createParagraph();
         }
     }
 

@@ -67,7 +67,8 @@ public class ProjectService {
 
         // Tự động tạo ProjectData rỗng cho project mới
         ProjectData projectData = new ProjectData();
-        projectData.setProjectId(savedProject.getId());
+        // Link trực tiếp entity Project đã được persist để tránh lỗi transient reference
+        projectData.setProject(savedProject);
         projectDataRepository.save(projectData);
 
         log.info("Project created successfully with id: {}", savedProject.getId());
