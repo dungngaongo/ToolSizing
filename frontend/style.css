@@ -1418,8 +1418,8 @@ tbody tr:first-child .btn-delete-row-item {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     background-color: #fff;
     color: #ee0033; /* Màu đỏ Viettel */
     border: 1px solid #ee0033;
@@ -1448,7 +1448,7 @@ tbody tr:first-child .btn-delete-row-item {
     top: auto;
     bottom: auto;
     left: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
     
     width: 280px;
     max-width: 80vw;
@@ -1460,7 +1460,7 @@ tbody tr:first-child .btn-delete-row-item {
     box-shadow: 0 10px 30px rgba(0,0,0,0.2); /* Bóng đổ đậm tạo chiều sâu */
     
     z-index: var(--z-help-popover);
-    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55); /* Hiệu ứng nảy */
+    transition: all 0.2s ease;
     pointer-events: none; /* Tránh chuột che mất */
 }
 
@@ -1473,11 +1473,21 @@ tbody tr:first-child .btn-delete-row-item {
 }
 
 /* Khi hover vào icon thì hiện khung */
-.help-icon:hover .help-content {
+.help-icon:hover .help-content,
+.help-icon.is-open .help-content {
     visibility: visible;
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto; /* Cho phép click vào ảnh bên trong nếu cần */
+}
+
+.help-icon::after {
+    content: "";
+    position: absolute;
+    left: -18px;
+    right: -18px;
+    top: -10px;
+    bottom: -14px;
 }
 
 /* Tooltip bung lên trên icon */
@@ -1545,6 +1555,27 @@ tbody tr:first-child .btn-delete-row-item {
     line-height: 1.4;
     font-style: italic;
 }
+
+#logic-component-table td {
+    vertical-align: top;
+}
+
+.logic-task-textarea {
+    resize: none;
+    overflow: hidden;
+    min-height: 44px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.logic-name-textarea {
+    resize: none;
+    overflow: hidden;
+    min-height: 44px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
 .model-wrapper:hover {
     z-index: 8;
 }
