@@ -1,10 +1,10 @@
-package com.example.demo.service;
+package com.example.sizing.service;
 
-import com.example.demo.exception.ResourceNotFoundException;
-import com.example.demo.model.Project;
-import com.example.demo.model.ProjectData;
-import com.example.demo.repository.ProjectDataRepository;
-import com.example.demo.repository.ProjectRepository;
+import com.example.sizing.exception.ResourceNotFoundException;
+import com.example.sizing.model.Project;
+import com.example.sizing.model.ProjectData;
+import com.example.sizing.repository.ProjectDataRepository;
+import com.example.sizing.repository.ProjectRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.util.Units;
