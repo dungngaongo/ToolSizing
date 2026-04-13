@@ -1,5 +1,6 @@
 // Cấu hình API Backend
-const API_BASE_URL = 'http://localhost:8081/api';
+const API_BASE_URL = '/api';
+//const API_BASE_URL = 'http://localhost:8081/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
