@@ -2,15 +2,15 @@
 const API_BASE_URL = 'http://localhost:8081/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
-let currentProjectId = localStorage.getItem('currentProjectId') || null;
-let currentProjectDataId = localStorage.getItem('currentProjectDataId') || null;
+let currentProjectId = (window.SizingState && window.SizingState.get('currentProjectId')) || localStorage.getItem('currentProjectId') || null;
+let currentProjectDataId = (window.SizingState && window.SizingState.get('currentProjectDataId')) || localStorage.getItem('currentProjectDataId') || null;
 
 // Biến lưu trạng thái dự án hiện tại
-let currentProjectStatus = null;
-let currentProjectStatusRound = 1;
+let currentProjectStatus = (window.SizingState && window.SizingState.get('currentProjectStatus')) || null;
+let currentProjectStatusRound = (window.SizingState && window.SizingState.get('currentProjectStatusRound')) || 1;
 
 // Biến lưu danh sách dự án
-let allProjects = [];
+let allProjects = (window.SizingState && window.SizingState.get('allProjects')) || [];
 
 // ==================== HISTORY API / URL ROUTING ====================
 // Map sectionId <-> URL slug
@@ -25,6 +25,10 @@ const SLUG_TAB_MAP = Object.fromEntries(
     Object.entries(TAB_SLUG_MAP).map(([k, v]) => [v, k])
 );
 const TAB_FLOW_ORDER = ['page-request', 'page-input', 'page-model', 'page-sizing', 'page-summary'];
+
+function getSelectorId(group, key, fallbackId) {
+    return window.SizingSelectors?.[group]?.[key] || fallbackId;
+}
 
 /**
  * Tạo hash URL từ trạng thái hiện tại
@@ -129,7 +133,7 @@ function showToast(message, type = 'info', duration = 3500) {
         warning: 'fa-exclamation-triangle',
         info: 'fa-info-circle'
     };
-    toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span><button class="toast-close" onclick="this.parentElement.remove()">✕</button>`;
+    toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span><button type="button" class="toast-close" data-action="close-toast">✕</button>`;
     container.appendChild(toast);
     // Trigger animation
     requestAnimationFrame(() => toast.classList.add('show'));
@@ -188,34 +192,22 @@ function showConfirm(title, message, options = {}) {
             </div>
         `;
         document.body.appendChild(overlay);
-        overlay.querySelector('.btn-confirm-cancel').onclick = () => { overlay.remove(); resolve(false); };
-        overlay.querySelector('.btn-confirm-ok').onclick = () => { overlay.remove(); resolve(true); };
+        const cancelBtn = overlay.querySelector('.btn-confirm-cancel');
+        const okBtn = overlay.querySelector('.btn-confirm-ok');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                overlay.remove();
+                resolve(false);
+            }, { once: true });
+        }
+        if (okBtn) {
+            okBtn.addEventListener('click', () => {
+                overlay.remove();
+                resolve(true);
+            }, { once: true });
+        }
         overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
     });
-}
-
-// ==================== INPUT VALIDATION ====================
-/**
- * Validate một input field và hiển thị lỗi nếu có
- * @param {HTMLElement} input - Element cần validate
- * @param {string} errorMessage - Thông báo lỗi
- * @param {Function} validatorFn - Hàm kiểm tra, trả về true nếu hợp lệ
- * @returns {boolean} true nếu hợp lệ
- */
-function validateField(input, errorMessage, validatorFn) {
-    // Xóa lỗi cũ
-    clearFieldError(input);
-    
-    if (!validatorFn(input.value)) {
-        input.classList.add('field-error');
-        const errDiv = document.createElement('div');
-        errDiv.className = 'field-error-message';
-        errDiv.innerHTML = `<i class="fa-solid fa-exclamation-circle"></i> ${errorMessage}`;
-        input.parentElement.appendChild(errDiv);
-        input.focus();
-        return false;
-    }
-    return true;
 }
 
 function clearStrictValidationErrors(container) {
@@ -427,7 +419,7 @@ function getNextSectionId(currentSectionId) {
 
 function getSectionMenuLink(sectionId) {
     return Array.from(document.querySelectorAll('.side-menu a'))
-        .find(link => (link.getAttribute('onclick') || '').includes(`'${sectionId}'`)) || null;
+        .find(link => link.dataset.section === sectionId) || null;
 }
 
 function getStickyTopBoundary() {
@@ -608,28 +600,15 @@ function initFirstRowGuards() {
 }
 
 /**
- * Xóa trạng thái lỗi của một field
- */
-function clearFieldError(input) {
-    input.classList.remove('field-error');
-    const existing = input.parentElement?.querySelector('.field-error-message');
-    if (existing) existing.remove();
-}
-
-/**
- * Xóa tất cả lỗi validation trên form
- */
-function clearAllFieldErrors(container) {
-    (container || document).querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
-    (container || document).querySelectorAll('.field-error-message').forEach(el => el.remove());
-}
-
-/**
  * Parse error response từ backend (ErrorResponse DTO)
  * @param {Response} response - fetch Response object
  * @returns {Promise<string>} - Error message đã format
  */
 async function parseApiError(response) {
+    if (window.SizingCoreApi && typeof window.SizingCoreApi.parseApiError === 'function') {
+        return window.SizingCoreApi.parseApiError(response);
+    }
+
     try {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
@@ -660,6 +639,10 @@ async function parseApiError(response) {
  * @returns {Promise<Response>}
  */
 async function fetchAPI(url, options = {}, config = {}) {
+    if (window.SizingCoreApi && typeof window.SizingCoreApi.fetchAPI === 'function') {
+        return window.SizingCoreApi.fetchAPI(url, options, config);
+    }
+
     const { showError = false, showLoadingOverlay = false, loadingMessage = 'Đang xử lý...' } = config;
     
     if (showLoadingOverlay) showLoading(true, loadingMessage);
@@ -707,16 +690,6 @@ function updateColor(selectElement) {
     }
 }
 
-// Format ngày tháng cho API
-function formatDateForAPI(dateStr) {
-    if (!dateStr) return null;
-    if (dateStr.includes('-')) {
-        const parts = dateStr.split('-');
-        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-    return dateStr;
-}
-
 // Format ngày tháng hiển thị
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
@@ -732,6 +705,10 @@ function formatDate(dateString) {
 // ==================== AUTHENTICATION ====================
 
 function checkAuthStatus() {
+    if (window.SizingCoreAuth && typeof window.SizingCoreAuth.checkAuthStatus === 'function') {
+        return window.SizingCoreAuth.checkAuthStatus();
+    }
+
     const isLoggedIn = localStorage.getItem('isLoggedIn');
     const displayName = localStorage.getItem('displayName');
     
@@ -750,6 +727,10 @@ function checkAuthStatus() {
 }
 
 async function logout() {
+    if (window.SizingCoreAuth && typeof window.SizingCoreAuth.logout === 'function') {
+        return window.SizingCoreAuth.logout();
+    }
+
     const confirmed = await showConfirm(
         'Đăng xuất',
         'Bạn có chắc muốn đăng xuất khỏi hệ thống?',
@@ -769,6 +750,10 @@ async function logout() {
 }
 
 function getCurrentUser() {
+    if (window.SizingCoreAuth && typeof window.SizingCoreAuth.getCurrentUser === 'function') {
+        return window.SizingCoreAuth.getCurrentUser();
+    }
+
     return {
         userId: localStorage.getItem('userId'),
         username: localStorage.getItem('username'),
@@ -779,6 +764,10 @@ function getCurrentUser() {
 }
 
 function getAuthHeaders() {
+    if (window.SizingCoreAuth && typeof window.SizingCoreAuth.getAuthHeaders === 'function') {
+        return window.SizingCoreAuth.getAuthHeaders();
+    }
+
     const token = localStorage.getItem('authToken');
     const headers = {};
     if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -787,6 +776,10 @@ function getAuthHeaders() {
 
 // Xử lý lỗi 401 - chuyển hướng đến trang đăng nhập
 function handleUnauthorized(response) {
+    if (window.SizingCoreAuth && typeof window.SizingCoreAuth.handleUnauthorized === 'function') {
+        return window.SizingCoreAuth.handleUnauthorized(response);
+    }
+
     if (response.status === 401) {
         showToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'warning', 4000);
         // Xóa toàn bộ auth data
@@ -993,10 +986,7 @@ function applyReadOnlyMode() {
                              btn.id === 'exportBtn' ||
                              btn.classList.contains('btn-close-panel') ||
                              btn.classList.contains('btn-close-modal') ||
-                             btn.classList.contains('btn-view-evidence') ||
-                             btn.onclick?.toString().includes('openModal') ||
-                             btn.onclick?.toString().includes('openModalFromElement') ||
-                             btn.onclick?.toString().includes('openImageModal');
+                             btn.classList.contains('btn-view-evidence');
         if (!isNavOrLogout) {
             btn.disabled = true;
             btn.style.opacity = '0.5';
@@ -1012,8 +1002,8 @@ function applyReadOnlyMode() {
         btn.style.pointerEvents = 'auto';
     });
     
-    // Ensure images with onclick for modal are clickable
-    document.querySelectorAll('img[onclick]').forEach(img => {
+    // Ensure modal-view images remain clickable in read-only mode
+    document.querySelectorAll('img[data-action="open-modal-image"]').forEach(img => {
         img.style.pointerEvents = 'auto';
         img.style.cursor = 'zoom-in';
     });
@@ -1033,26 +1023,964 @@ function applyReadOnlyMode() {
 // ==================== PROJECT MANAGEMENT ====================
 
 function saveProjectIdToStorage(id) {
-    currentProjectId = id;
-    localStorage.setItem('currentProjectId', id);
+    if (window.SizingState && typeof window.SizingState.setProjectId === 'function') {
+        currentProjectId = window.SizingState.setProjectId(id);
+    } else {
+        currentProjectId = id;
+        localStorage.setItem('currentProjectId', id);
+    }
     Logger.debug('Saved Project ID to localStorage:', id);
 }
 
 function saveProjectDataIdToStorage(id) {
-    currentProjectDataId = id;
-    localStorage.setItem('currentProjectDataId', id);
+    if (window.SizingState && typeof window.SizingState.setProjectDataId === 'function') {
+        currentProjectDataId = window.SizingState.setProjectDataId(id);
+    } else {
+        currentProjectDataId = id || null;
+        if (id) {
+            localStorage.setItem('currentProjectDataId', id);
+        } else {
+            localStorage.removeItem('currentProjectDataId');
+        }
+    }
     Logger.debug('Saved ProjectData ID to localStorage:', id);
 }
 
 function clearProjectIds() {
+    if (window.SizingState && typeof window.SizingState.clearProjectSelection === 'function') {
+        window.SizingState.clearProjectSelection();
+    } else {
+        localStorage.removeItem('currentProjectId');
+        localStorage.removeItem('currentProjectDataId');
+    }
+
     currentProjectId = null;
     currentProjectDataId = null;
-    localStorage.removeItem('currentProjectId');
-    localStorage.removeItem('currentProjectDataId');
     Logger.debug('Cleared Project IDs');
 }
 
 // ==================== PROJECT LIST ====================
+
+function initProjectListEventDelegation() {
+    if (window.__projectListDelegationInited) return;
+    window.__projectListDelegationInited = true;
+
+    const searchInput = document.getElementById('search-project');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterProjects);
+    }
+
+    const statusFilter = document.getElementById('filter-status');
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterProjects);
+    }
+
+    document.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        if (target.matches('.admin-eval')) {
+            updateColor(target);
+            return;
+        }
+
+        if (target.matches('.admin-eval-select')) {
+            styleAdminSelect(target);
+            return;
+        }
+
+        if (target.matches('.redis-config-ram, .redis-config-ram-load, .redis-master-checkbox')) {
+            updateRedisTotalMasterRAM();
+            return;
+        }
+
+        if (target.matches('.kafka-linear-vcpu, .kafka-linear-ram, .kafka-linear-disk, .kafka-linear-cpu-load, .kafka-linear-ram-load, .kafka-linear-disk-load')) {
+            updateKafkaLinearTotal();
+            return;
+        }
+
+        if (target.matches('.mariadb-master-radio')) {
+            enforceMariaDBMasterWithinTable(target);
+            return;
+        }
+
+        if (target.matches('.module-arch-type-select')) {
+            updateModuleVisibility();
+            return;
+        }
+
+        const actionEl = target.closest('[data-change-action]');
+        if (!actionEl || actionEl !== target) return;
+
+        const action = actionEl.dataset.changeAction;
+        const runScoped = (callback) => runActionInInstance(actionEl, callback);
+
+        if (action === 'row-evidence-upload') {
+            const evidenceKind = actionEl.dataset.evidenceKind || 'poc';
+            runScoped(() => handleRowEvidenceUpload(actionEl, evidenceKind));
+            return;
+        }
+
+        if (action === 'inline-evidence-upload') {
+            runScoped(() => handleInlineEvidenceUpload(actionEl));
+            return;
+        }
+
+        if (action === 'preview-model-image') {
+            const boxId = actionEl.dataset.boxId;
+            if (boxId) {
+                runScoped(() => previewModelImage(actionEl, boxId));
+            }
+            return;
+        }
+
+        if (action === 'preview-evidence-image') {
+            const boxId = actionEl.dataset.boxId;
+            if (boxId) {
+                runScoped(() => previewEvidenceImage(actionEl, boxId));
+            }
+            return;
+        }
+
+        if (action === 'preview-evidence-sizing-image') {
+            const boxId = actionEl.dataset.boxId;
+            if (boxId) {
+                runScoped(() => previewEvidenceSizingImage(actionEl, boxId));
+            }
+            return;
+        }
+
+        if (action === 'baseline-evidence-upload') {
+            runScoped(() => handleBaselineEvidenceUpload(actionEl));
+            return;
+        }
+
+        if (action === 'lbfw-evidence-upload') {
+            runScoped(() => handleLBFWEvidenceUpload(actionEl));
+            return;
+        }
+
+        if (action === 'mariadb-ref-evidence-upload') {
+            runScoped(() => handleMariaDBRefEvidenceUpload(actionEl));
+            return;
+        }
+
+        if (action === 'mariadb-evidence-upload') {
+            runScoped(() => handleMariaDBEvidenceUpload(actionEl));
+            return;
+        }
+
+        if (action === 'mariadb-storage-evidence-upload') {
+            runScoped(() => handleMariaDBStorageEvidenceUpload(actionEl));
+            return;
+        }
+
+        if (action === 'redis-key-image-upload') {
+            runScoped(() => handleRedisKeyImageUpload(actionEl));
+            return;
+        }
+
+        if (action === 'invoke-upload-handler') {
+            const handlerName = actionEl.dataset.handlerName;
+            const handler = handlerName ? window[handlerName] : null;
+            if (typeof handler === 'function') {
+                runScoped(() => handler(actionEl));
+            }
+            return;
+        }
+
+        if (action === 'sync-input-row') {
+            const pocTarget = actionEl.dataset.pocTarget;
+            const sizingTarget = actionEl.dataset.sizingTarget;
+            if (pocTarget && sizingTarget) {
+                runScoped(() => onInputRowSelect(actionEl, pocTarget, sizingTarget));
+            }
+
+            if (actionEl.dataset.afterChangeAction === 'update-redis-key-calculated') {
+                runScoped(() => updateRedisKeyCalculated());
+            }
+            return;
+        }
+
+        if (action === 'virtualization-mode-change') {
+            const prefix = actionEl.dataset.prefix;
+            if (prefix) {
+                runScoped(() => onVirtualizationModeChange(prefix));
+            }
+            return;
+        }
+
+        if (action === 'update-redis-key-calculated') {
+            runScoped(() => updateRedisKeyCalculated());
+        }
+    });
+
+    document.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        const actionEl = target.closest('[data-input-action]');
+        if (actionEl && actionEl === target) {
+            const action = actionEl.dataset.inputAction;
+            const runScoped = (callback) => runActionInInstance(actionEl, callback);
+
+            if (action === 'sync-ip-to-input-config') {
+                runScoped(() => syncIPToInputConfig(actionEl));
+                return;
+            }
+
+            if (action === 'recalculate-baseline-row') {
+                runScoped(() => {
+                    updateBaselineTotal();
+                    recalculateInputConfigForRow(actionEl);
+                });
+                return;
+            }
+
+            if (action === 'calculate-input-config-row') {
+                runScoped(() => calculateInputConfigRow(actionEl));
+                return;
+            }
+
+            if (action === 'sync-k8s-ip-to-input-config') {
+                runScoped(() => syncK8SIPToInputConfig(actionEl));
+                return;
+            }
+
+            if (action === 'recalculate-k8s-baseline-row') {
+                runScoped(() => {
+                    updateK8SBaselineTotal();
+                    recalculateK8SInputConfigForRow(actionEl);
+                });
+                return;
+            }
+
+            if (action === 'calculate-k8s-input-config-row') {
+                runScoped(() => calculateK8SInputConfigRow(actionEl));
+                return;
+            }
+        }
+
+        if (target.matches('.ram-val, .cint-val')) {
+            calculateBaselineTotal();
+            return;
+        }
+
+        if (target.matches('.logic-name-textarea, .logic-task-textarea')) {
+            autoGrowTextarea(target);
+            return;
+        }
+
+        if (target.matches('.module-arch-name-input')) {
+            updateModuleVisibility();
+        }
+    });
+
+    document.addEventListener('mouseover', (event) => {
+        const hoverEl = event.target.closest('[data-hover-bg-active]');
+        if (!(hoverEl instanceof HTMLElement)) return;
+
+        const activeColor = hoverEl.dataset.hoverBgActive;
+        if (activeColor) {
+            hoverEl.style.background = activeColor;
+        }
+    });
+
+    document.addEventListener('mouseout', (event) => {
+        const hoverEl = event.target.closest('[data-hover-bg]');
+        if (!(hoverEl instanceof HTMLElement)) return;
+
+        const baseColor = hoverEl.dataset.hoverBg;
+        if (baseColor) {
+            hoverEl.style.background = baseColor;
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        const actionEl = event.target.closest('[data-action]');
+        if (!actionEl) return;
+
+        const action = actionEl.dataset.action;
+        const runScoped = (callback) => runActionInInstance(actionEl, callback);
+
+        if (action === 'show-project-list') {
+            event.preventDefault();
+            showProjectList();
+            return;
+        }
+
+        if (action === 'start-new-project') {
+            event.preventDefault();
+            startNewProject();
+            return;
+        }
+
+        if (action === 'approve-project-header') {
+            event.preventDefault();
+            approveProject();
+            return;
+        }
+
+        if (action === 'open-version-history') {
+            event.preventDefault();
+            if (typeof openVersionHistory === 'function') {
+                openVersionHistory();
+            }
+            return;
+        }
+
+        if (action === 'close-version-history') {
+            event.preventDefault();
+            if (typeof closeVersionHistory === 'function') {
+                closeVersionHistory();
+            }
+            return;
+        }
+
+        if (action === 'close-version-preview') {
+            event.preventDefault();
+            if (typeof closeVersionPreview === 'function') {
+                closeVersionPreview();
+            }
+            return;
+        }
+
+        if (action === 'switch-preview-tab') {
+            event.preventDefault();
+            const tabName = actionEl.dataset.tab;
+            if (tabName && typeof switchPreviewTab === 'function') {
+                switchPreviewTab(tabName);
+            }
+            return;
+        }
+
+        if (action === 'restore-preview-version') {
+            event.preventDefault();
+            if (typeof restoreCurrentPreviewVersion === 'function') {
+                restoreCurrentPreviewVersion();
+            }
+            return;
+        }
+
+        if (action === 'preview-version') {
+            event.preventDefault();
+            event.stopPropagation();
+            const versionId = actionEl.dataset.versionId;
+            if (versionId && typeof previewVersion === 'function') {
+                previewVersion(versionId);
+            }
+            return;
+        }
+
+        if (action === 'restore-version') {
+            event.preventDefault();
+            event.stopPropagation();
+            const versionId = actionEl.dataset.versionId;
+            if (versionId && typeof restoreVersion === 'function') {
+                restoreVersion(versionId);
+            }
+            return;
+        }
+
+        if (action === 'close-evidence-modal') {
+            event.preventDefault();
+            if (typeof closeModal === 'function') {
+                closeModal();
+            }
+            return;
+        }
+
+        if (action === 'logout') {
+            event.preventDefault();
+            logout();
+            return;
+        }
+
+        if (action === 'show-section') {
+            event.preventDefault();
+            const sectionId = actionEl.dataset.section;
+            if (sectionId) {
+                showSection(sectionId, actionEl);
+            }
+            return;
+        }
+
+        if (action === 'clear-project-search') {
+            event.preventDefault();
+            clearProjectSearch();
+            return;
+        }
+
+        if (action === 'refresh-project-list') {
+            event.preventDefault();
+            loadProjectList();
+            return;
+        }
+
+        if (action === 'open-modal-image') {
+            event.preventDefault();
+            const imageSrc = actionEl.getAttribute('src');
+            if (imageSrc && typeof openModal === 'function') {
+                openModal(imageSrc);
+            }
+            return;
+        }
+
+        if (action === 'open-parent-image-modal') {
+            event.preventDefault();
+            const imageSrc = actionEl.parentElement?.querySelector('img')?.src;
+            if (imageSrc && typeof openModal === 'function') {
+                openModal(imageSrc);
+            }
+            return;
+        }
+
+        if (action === 'open-previous-image-modal') {
+            event.preventDefault();
+            const imageSrc = actionEl.previousElementSibling?.src;
+            if (imageSrc && typeof openModal === 'function') {
+                openModal(imageSrc);
+            }
+            return;
+        }
+
+        if (action === 'click-near-file-input') {
+            event.preventDefault();
+            runScoped(() => {
+                const scope = actionEl.closest('.inline-evidence-cell, .upload-box, .mariadb-storage-evidence-slot, .upload-placeholder, .upload-controls') || actionEl.parentElement;
+                const fileInput = scope?.querySelector('input[type=file]');
+                if (fileInput) {
+                    fileInput.click();
+                }
+            });
+            return;
+        }
+
+        if (action === 'open-previous-file-input') {
+            event.preventDefault();
+            runScoped(() => {
+                const previousInput = actionEl.previousElementSibling;
+                if (previousInput && previousInput.matches('input[type=file]')) {
+                    previousInput.click();
+                }
+            });
+            return;
+        }
+
+        if (action === 'remove-upload-box') {
+            event.preventDefault();
+            const uploadBox = actionEl.closest('.upload-box');
+            if (uploadBox) {
+                uploadBox.remove();
+            }
+            return;
+        }
+
+        if (action === 'remove-closest-row') {
+            event.preventDefault();
+            runScoped(() => {
+                const row = actionEl.closest('tr');
+                if (row) {
+                    row.remove();
+                }
+                const afterActionName = actionEl.dataset.afterAction;
+                if (afterActionName && typeof window[afterActionName] === 'function') {
+                    window[afterActionName]();
+                }
+            });
+            return;
+        }
+
+        if (action === 'open-row-evidence-modal') {
+            event.preventDefault();
+            if (typeof openModalFromElement === 'function') {
+                openModalFromElement(actionEl);
+            }
+            return;
+        }
+
+        if (action === 'remove-row-evidence') {
+            event.preventDefault();
+            if (typeof removeRowEvidence === 'function') {
+                removeRowEvidence(actionEl);
+            }
+            return;
+        }
+
+        if (action === 'remove-inline-evidence') {
+            event.preventDefault();
+            if (typeof removeInlineEvidence === 'function') {
+                removeInlineEvidence(actionEl);
+            }
+            return;
+        }
+
+        if (action === 'delete-baseline-evidence-slot') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteBaselineEvidenceSlot === 'function') {
+                    deleteBaselineEvidenceSlot(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'delete-evidence-sizing-slot') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteEvidenceSizingSlot === 'function') {
+                    deleteEvidenceSizingSlot(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'delete-lbfw-evidence-slot') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteLBFWEvidenceSlot === 'function') {
+                    deleteLBFWEvidenceSlot(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'delete-mariadb-evidence-slot') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteMariaDBEvidenceSlot === 'function') {
+                    deleteMariaDBEvidenceSlot(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'delete-mariadb-ref-evidence-slot') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteMariaDBRefEvidenceSlot === 'function') {
+                    deleteMariaDBRefEvidenceSlot(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'remove-mariadb-storage-evidence-slot') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof removeMariaDBStorageEvidenceSlot === 'function') {
+                    removeMariaDBStorageEvidenceSlot(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'delete-baseline-row') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteBaselineRow === 'function') {
+                    deleteBaselineRow(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'delete-input-config-row') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteInputConfigRow === 'function') {
+                    deleteInputConfigRow(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'delete-k8s-baseline-row') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteK8SBaselineRow === 'function') {
+                    deleteK8SBaselineRow(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'delete-k8s-input-config-row') {
+            event.preventDefault();
+            runScoped(() => {
+                if (typeof deleteK8SInputConfigRow === 'function') {
+                    deleteK8SInputConfigRow(actionEl);
+                }
+            });
+            return;
+        }
+
+        if (action === 'remove-logic-component-row') {
+            event.preventDefault();
+            if (typeof removeLogicComponentRow === 'function') {
+                removeLogicComponentRow(actionEl);
+            }
+            return;
+        }
+
+        if (action === 'remove-arch-row') {
+            event.preventDefault();
+            if (typeof removeArchRow === 'function') {
+                removeArchRow(actionEl);
+            }
+            return;
+        }
+
+        if (action === 'remove-connection-row') {
+            event.preventDefault();
+            if (typeof removeConnectionRow === 'function') {
+                removeConnectionRow(actionEl);
+            }
+            return;
+        }
+
+        if (action === 'close-image-modal') {
+            event.preventDefault();
+            if (typeof closeImageModal === 'function') {
+                closeImageModal();
+            }
+            return;
+        }
+
+        if (action === 'close-toast') {
+            event.preventDefault();
+            const toast = actionEl.closest('.toast');
+            if (toast) {
+                toast.remove();
+            }
+            return;
+        }
+
+        if (action === 'create-upload-box') {
+            event.preventDefault();
+            const uploadType = actionEl.dataset.uploadType;
+            if (uploadType && typeof createUploadBox === 'function') {
+                createUploadBox(uploadType);
+            }
+            return;
+        }
+
+        if (action === 'add-input-row') {
+            event.preventDefault();
+            if (typeof addInputRow === 'function') {
+                addInputRow();
+            }
+            return;
+        }
+
+        if (action === 'add-logic-component-row') {
+            event.preventDefault();
+            if (typeof addLogicComponentRow === 'function') {
+                addLogicComponentRow();
+            }
+            return;
+        }
+
+        if (action === 'add-connection-row') {
+            event.preventDefault();
+            if (typeof addConnectionRow === 'function') {
+                addConnectionRow();
+            }
+            return;
+        }
+
+        if (action === 'add-arch-row') {
+            event.preventDefault();
+            if (typeof addArchRow === 'function') {
+                addArchRow();
+            }
+            return;
+        }
+
+        if (action === 'export-to-word') {
+            event.preventDefault();
+            if (typeof exportToWord === 'function') {
+                exportToWord();
+            }
+            return;
+        }
+
+        if (action === 'delete-input-row') {
+            event.preventDefault();
+            if (typeof deleteRow === 'function') {
+                deleteRow(actionEl);
+            }
+            return;
+        }
+
+        if (action === 'perform-manual-save') {
+            event.preventDefault();
+            if (typeof performManualSave === 'function') {
+                performManualSave();
+            }
+            return;
+        }
+
+        if (action === 'toggle-module-collapsible') {
+            event.preventDefault();
+            const contentId = actionEl.dataset.target;
+            if (contentId && typeof toggleModuleCollapsible === 'function') {
+                toggleModuleCollapsible(contentId);
+            }
+            return;
+        }
+
+        if (action === 'add-baseline-row') {
+            event.preventDefault();
+            if (typeof addBaselineRow === 'function') {
+                addBaselineRow();
+            }
+            return;
+        }
+
+        if (action === 'calculate-sizing-recommendations') {
+            event.preventDefault();
+            if (typeof calculateSizingRecommendations === 'function') {
+                calculateSizingRecommendations();
+            }
+            return;
+        }
+
+        if (action === 'add-mariadb-ref-row') {
+            event.preventDefault();
+            if (typeof addMariaDBRefRow === 'function') {
+                addMariaDBRefRow();
+            }
+            return;
+        }
+
+        if (action === 'add-mariadb-storage-evidence-slot') {
+            event.preventDefault();
+            if (typeof addMariaDBStorageEvidenceSlot === 'function') {
+                addMariaDBStorageEvidenceSlot();
+            }
+            return;
+        }
+
+        if (action === 'calculate-mariadb-sizing') {
+            event.preventDefault();
+            if (typeof calculateMariaDBSizing === 'function') {
+                calculateMariaDBSizing();
+            }
+            return;
+        }
+
+        if (action === 'select-redis-method') {
+            event.preventDefault();
+            const method = actionEl.dataset.method;
+            if (method && typeof selectRedisMethod === 'function') {
+                selectRedisMethod(method);
+            }
+            return;
+        }
+
+        if (action === 'add-redis-key-evidence-slot') {
+            event.preventDefault();
+            if (typeof addRedisKeyEvidenceSlot === 'function') {
+                addRedisKeyEvidenceSlot();
+            }
+            return;
+        }
+
+        if (action === 'calculate-redis-key-method') {
+            event.preventDefault();
+            if (typeof calculateRedisKeyMethod === 'function') {
+                calculateRedisKeyMethod();
+            }
+            return;
+        }
+
+        if (action === 'add-redis-config-row') {
+            event.preventDefault();
+            if (typeof addRedisConfigRow === 'function') {
+                addRedisConfigRow();
+            }
+            return;
+        }
+
+        if (action === 'calculate-redis-config-method') {
+            event.preventDefault();
+            if (typeof calculateRedisConfigMethod === 'function') {
+                calculateRedisConfigMethod();
+            }
+            return;
+        }
+
+        if (action === 'select-kafka-method') {
+            event.preventDefault();
+            const method = actionEl.dataset.method;
+            if (method && typeof selectKafkaMethod === 'function') {
+                selectKafkaMethod(method);
+            }
+            return;
+        }
+
+        if (action === 'open-kafka-helper-tool') {
+            event.preventDefault();
+            if (typeof openKafkaHelperTool === 'function') {
+                openKafkaHelperTool();
+            }
+            return;
+        }
+
+        if (action === 'close-kafka-helper-tool') {
+            event.preventDefault();
+            if (typeof closeKafkaHelperTool === 'function') {
+                closeKafkaHelperTool();
+            }
+            return;
+        }
+
+        if (action === 'add-kafka-throughput-evidence-slot') {
+            event.preventDefault();
+            if (typeof addKafkaThroughputEvidenceSlot === 'function') {
+                addKafkaThroughputEvidenceSlot();
+            }
+            return;
+        }
+
+        if (action === 'add-kafka-compression-evidence-slot') {
+            event.preventDefault();
+            if (typeof addKafkaCompressionEvidenceSlot === 'function') {
+                addKafkaCompressionEvidenceSlot();
+            }
+            return;
+        }
+
+        if (action === 'calculate-kafka-throughput-method') {
+            event.preventDefault();
+            if (typeof calculateKafkaThroughputMethod === 'function') {
+                calculateKafkaThroughputMethod();
+            }
+            return;
+        }
+
+        if (action === 'add-kafka-linear-row') {
+            event.preventDefault();
+            if (typeof addKafkaLinearRow === 'function') {
+                addKafkaLinearRow();
+            }
+            return;
+        }
+
+        if (action === 'calculate-kafka-linear-method') {
+            event.preventDefault();
+            if (typeof calculateKafkaLinearMethod === 'function') {
+                calculateKafkaLinearMethod();
+            }
+            return;
+        }
+
+        if (action === 'add-kafka-helper-msg-evidence-slot') {
+            event.preventDefault();
+            if (typeof addKafkaHelperMsgEvidenceSlot === 'function') {
+                addKafkaHelperMsgEvidenceSlot();
+            }
+            return;
+        }
+
+        if (action === 'add-kafka-helper-size-evidence-slot') {
+            event.preventDefault();
+            if (typeof addKafkaHelperSizeEvidenceSlot === 'function') {
+                addKafkaHelperSizeEvidenceSlot();
+            }
+            return;
+        }
+
+        if (action === 'calculate-kafka-helper-throughput') {
+            event.preventDefault();
+            if (typeof calculateKafkaHelperThroughput === 'function') {
+                calculateKafkaHelperThroughput();
+            }
+            return;
+        }
+
+        if (action === 'apply-kafka-helper-result') {
+            event.preventDefault();
+            if (typeof applyKafkaHelperResult === 'function') {
+                applyKafkaHelperResult();
+            }
+            return;
+        }
+
+        if (action === 'add-k8s-baseline-row') {
+            event.preventDefault();
+            if (typeof addK8SBaselineRow === 'function') {
+                addK8SBaselineRow();
+            }
+            return;
+        }
+
+        if (action === 'calculate-k8s-sizing') {
+            event.preventDefault();
+            if (typeof calculateK8SSizing === 'function') {
+                calculateK8SSizing();
+            }
+            return;
+        }
+
+        if (action === 'add-lbfw-evidence-slot') {
+            event.preventDefault();
+            if (typeof addLBFWEvidenceSlot === 'function') {
+                addLBFWEvidenceSlot();
+            }
+            return;
+        }
+
+        if (action === 'calculate-lbfw-sizing') {
+            event.preventDefault();
+            if (typeof calculateLBFWSizing === 'function') {
+                calculateLBFWSizing();
+            }
+            return;
+        }
+
+        if (action === 'clear-result-container') {
+            event.preventDefault();
+            const targetId = actionEl.dataset.target;
+            if (targetId) {
+                const container = document.getElementById(targetId);
+                if (container) {
+                    container.innerHTML = '';
+                }
+            }
+            return;
+        }
+
+        if (action === 'open-project') {
+            event.preventDefault();
+            event.stopPropagation();
+            const projectId = actionEl.dataset.projectId;
+            if (projectId) openProject(projectId);
+            return;
+        }
+
+        if (action === 'delete-project') {
+            event.preventDefault();
+            event.stopPropagation();
+            const projectId = actionEl.dataset.projectId;
+            const projectName = actionEl.dataset.projectName || 'Du an';
+            if (projectId) deleteProject(projectId, projectName);
+            return;
+        }
+    });
+
+    const projectListBody = document.getElementById('project-list-body');
+    if (projectListBody) {
+        projectListBody.addEventListener('click', (event) => {
+            if (event.target.closest('[data-action]')) return;
+            const row = event.target.closest('tr[data-project-id]');
+            if (!row) return;
+            const projectId = row.dataset.projectId;
+            if (projectId) openProject(projectId);
+        });
+    }
+}
 
 async function loadProjectList() {
     const tbody = document.getElementById('project-list-body');
@@ -1081,6 +2009,9 @@ async function loadProjectList() {
         const response = await fetchAPI(`${API_BASE_URL}/projects/my-projects`, {}, { showError: true });
         if (response.ok) {
             allProjects = await response.json();
+            if (window.SizingState && typeof window.SizingState.setProjects === 'function') {
+                window.SizingState.setProjects(allProjects);
+            }
             
             if (loadingEl) loadingEl.style.display = 'none';
             
@@ -1104,12 +2035,20 @@ async function loadProjectList() {
         if (tableWrapper) tableWrapper.style.display = 'none';
         if (emptyEl) {
             emptyEl.style.display = 'block';
-            emptyEl.innerHTML = `<i class="fa-solid fa-exclamation-triangle" style="color: #dc3545;"></i><p style="color: #dc3545;">Lỗi tải dữ liệu: ${error.message}</p><button onclick="loadProjectList()" style="margin-top: 12px; padding: 8px 20px; background: #ee0033; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;"><i class="fa-solid fa-rotate"></i> Thử lại</button>`;
+            emptyEl.innerHTML = `<i class="fa-solid fa-exclamation-triangle" style="color: #dc3545;"></i><p style="color: #dc3545;">Lỗi tải dữ liệu: ${error.message}</p><button type="button" data-action="refresh-project-list" style="margin-top: 12px; padding: 8px 20px; background: #ee0033; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;"><i class="fa-solid fa-rotate"></i> Thử lại</button>`;
         }
     }
 }
 
 function renderProjectList(projects) {
+    if (window.SizingProjectListView && typeof window.SizingProjectListView.renderProjectList === 'function') {
+        return window.SizingProjectListView.renderProjectList(projects, {
+            formatDate,
+            getStatusClass,
+            getStatusText
+        });
+    }
+
     const tbody = document.getElementById('project-list-body');
     if (!tbody) return;
     
@@ -1117,7 +2056,9 @@ function renderProjectList(projects) {
     
     projects.forEach((project, index) => {
         const tr = document.createElement('tr');
-        tr.onclick = () => openProject(project.id);
+        const safeProjectId = String(project.id || '').replace(/"/g, '&quot;');
+        const safeProjectNameAttr = String(project.name || '').replace(/"/g, '&quot;');
+        tr.setAttribute('data-project-id', safeProjectId);
         
         const createdDate = project.createdAt ? formatDate(project.createdAt) : 'N/A';
         const modifiedDate = project.updatedAt ? formatDate(project.updatedAt) : 'N/A';
@@ -1126,18 +2067,18 @@ function renderProjectList(projects) {
         
         tr.innerHTML = `
             <td>${index + 1}</td>
-            <td class="project-name-cell">${project.name || 'Chưa có tên'}</td>
-            <td>${project.devUnit || 'N/A'}</td>
-            <td>${project.ownerName || 'Chưa xác định'}</td>
+            <td class="project-name-cell">${escapeHtml(project.name || 'Chưa có tên')}</td>
+            <td>${escapeHtml(project.devUnit || 'N/A')}</td>
+            <td>${escapeHtml(project.ownerName || 'Chưa xác định')}</td>
             <td><span class="status-badge ${statusClass}">${statusText}</span></td>
             <td class="date-cell">${createdDate}</td>
             <td class="date-cell">${modifiedDate}</td>
             <td>
                 <div class="project-actions">
-                    <button class="btn-action view" title="Xem chi tiết" onclick="event.stopPropagation(); openProject('${project.id}')">
+                    <button class="btn-action view" type="button" title="Xem chi tiết" data-action="open-project" data-project-id="${safeProjectId}">
                         <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button class="btn-action delete" title="Xóa dự án" onclick="event.stopPropagation(); deleteProject('${(project.id || '').toString().replace(/'/g, "\\'")}', '${(project.name || '').replace(/'/g, "\\'")}')">
+                    <button class="btn-action delete" type="button" title="Xóa dự án" data-action="delete-project" data-project-id="${safeProjectId}" data-project-name="${safeProjectNameAttr}">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
@@ -1306,6 +2247,9 @@ async function updateProjectStatus(actionType) {
         if (response.ok) {
             currentProjectStatus = newStatus;
             currentProjectStatusRound = newRound;
+            if (window.SizingState && typeof window.SizingState.setStatus === 'function') {
+                window.SizingState.setStatus(currentProjectStatus, currentProjectStatusRound);
+            }
             updateProjectStatusDisplay();
             Logger.debug(`✅ Đã cập nhật trạng thái: ${newStatus} lần ${newRound}`);
         }
@@ -1374,14 +2318,14 @@ async function openProject(projectId, options = {}) {
 
     // Hiển thị tab được chỉ định hoặc page-request mặc định
     const targetTab = options.tab || 'page-request';
-    showSection(targetTab, document.querySelector(`.side-menu a[onclick*="${targetTab}"]`), { skipPushState: true });
+    showSection(targetTab, document.querySelector(`.side-menu a[data-section="${targetTab}"]`), { skipPushState: true });
     
     // Hiện nút Lịch sử phiên bản
     const btnVersionHistory = document.getElementById('btn-version-history');
     if (btnVersionHistory) btnVersionHistory.style.display = 'inline-block';
     
     currentProjectDataId = null;
-    localStorage.removeItem('currentProjectDataId');
+    saveProjectDataIdToStorage(null);
     revisionCheckedForSession = false; // Reset revision check cho project mới
     
     // Reset toàn bộ form trước khi load dữ liệu mới để tránh hiển thị dữ liệu cũ từ dự án trước
@@ -1492,6 +2436,9 @@ async function startNewProject() {
             // Cập nhật trạng thái dự án
             currentProjectStatus = 'SIZING';
             currentProjectStatusRound = 1;
+            if (window.SizingState && typeof window.SizingState.setStatus === 'function') {
+                window.SizingState.setStatus(currentProjectStatus, currentProjectStatusRound);
+            }
             updateProjectStatusDisplay();
             
             document.getElementById('project-list-page').style.display = 'none';
@@ -1912,7 +2859,7 @@ function loadMoHinhHeThong(data, admin) {
                 (data.physicalImages || []).forEach((img, idx) => {
                     const el = document.createElement('div');
                     el.className = 'model-image-item';
-                    el.innerHTML = `<img src="${img.base64 || img}" alt="physical-${idx}" onclick="openModal(this.src)" style="cursor: zoom-in; max-width:100%;">`;
+                    el.innerHTML = `<img src="${img.base64 || img}" alt="physical-${idx}" data-action="open-modal-image" style="cursor: zoom-in; max-width:100%;">`;
                     physicalContainer.appendChild(el);
                 });
             }
@@ -1921,7 +2868,7 @@ function loadMoHinhHeThong(data, admin) {
                 (data.logicalImages || []).forEach((img, idx) => {
                     const el = document.createElement('div');
                     el.className = 'model-image-item';
-                    el.innerHTML = `<img src="${img.base64 || img}" alt="logical-${idx}" onclick="openModal(this.src)" style="cursor: zoom-in; max-width:100%;">`;
+                    el.innerHTML = `<img src="${img.base64 || img}" alt="logical-${idx}" data-action="open-modal-image" style="cursor: zoom-in; max-width:100%;">`;
                     logicalContainer.appendChild(el);
                 });
             }
@@ -1930,7 +2877,7 @@ function loadMoHinhHeThong(data, admin) {
                 (data.flowImages || []).forEach((img, idx) => {
                     const el = document.createElement('div');
                     el.className = 'model-image-item';
-                    el.innerHTML = `<img src="${img.base64 || img}" alt="flow-${idx}" onclick="openModal(this.src)" style="cursor: zoom-in; max-width:100%;">`;
+                    el.innerHTML = `<img src="${img.base64 || img}" alt="flow-${idx}" data-action="open-modal-image" style="cursor: zoom-in; max-width:100%;">`;
                     flowContainer.appendChild(el);
                 });
             }
@@ -2252,16 +3199,6 @@ try { applyRolePermissions(); } catch (e) {}
 // 2. Hàm xử lý khi chọn ảnh từ icon dấu hỏi (?)
 // Hàm xử lý khi chọn file ảnh
 // 1. Hàm xử lý khi chọn ảnh
-// Clear all evidence images in the same cell-wrapper (used by legacy clear buttons in markup)
-function clearRowImages(btn) {
-    const wrapper = btn.parentElement;
-    const container = wrapper.querySelector('.row-evidence-container');
-    if (container) container.innerHTML = '';
-    const label = wrapper.querySelector('.upload-icon-btn');
-    const input = wrapper.querySelector('input[type="file"]');
-    if (input) input.value = '';
-    if (label) label.classList.remove('has-file');
-}
 function createInputTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
 
@@ -2286,12 +3223,11 @@ function createInputTableRow(stt, data = {}) {
                     <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                            <input type="file" accept="image/*" class="hidden-file-input" 
-                               onclick="event.stopPropagation()" 
-                               onchange="handleRowEvidenceUpload(this, 'poc')">
+                               data-change-action="row-evidence-upload" data-evidence-kind="poc">
                     </label>
                 </div>
                 <div class="row-evidence-container">
-                    ${pocImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-base64="${img.base64}" onclick="openModalFromElement(this)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh">✖</button></div>`).join('')}
+                    ${pocImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-action="open-row-evidence-modal" data-base64="${img.base64}" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" data-action="remove-row-evidence" title="Xóa ảnh">✖</button></div>`).join('')}
                 </div>
             </div>
         </td>
@@ -2303,12 +3239,11 @@ function createInputTableRow(stt, data = {}) {
                     <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                            <input type="file" accept="image/*" class="hidden-file-input" 
-                               onclick="event.stopPropagation()" 
-                               onchange="handleRowEvidenceUpload(this, 'sizing')">
+                               data-change-action="row-evidence-upload" data-evidence-kind="sizing">
                     </label>
                 </div>
                 <div class="row-evidence-container">
-                    ${sizingImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-base64="${img.base64}" onclick="openModalFromElement(this)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh">✖</button></div>`).join('')}
+                    ${sizingImages.map(img => `<div class="row-evidence-item"><button type="button" class="btn-view-evidence" data-action="open-row-evidence-modal" data-base64="${img.base64}" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" data-action="remove-row-evidence" title="Xóa ảnh">✖</button></div>`).join('')}
                 </div>
             </div>
         </td>
@@ -2318,7 +3253,7 @@ function createInputTableRow(stt, data = {}) {
         <td><textarea rows="2" class="input-full" placeholder="Ghi chú...">${data.ghiChu || ''}</textarea></td>
         
         <td>
-            <select class="admin-eval" onchange="updateColor(this)">
+            <select class="admin-eval">
                 <option value="">--</option>
                 <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
                 <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
@@ -2331,7 +3266,7 @@ function createInputTableRow(stt, data = {}) {
         </td>
         
         <td style="text-align: center;">
-            <button class="btn-delete-row-item" onclick="deleteRow(this)" title="Xóa dòng này">
+            <button type="button" class="btn-delete-row-item" data-action="delete-input-row" title="Xóa dòng này">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -2406,16 +3341,6 @@ function addInputRow() {
     try { applyRolePermissions(); } catch (e) { /* ignore */ }
     // Update POC/Sizing dropdowns in case new row data matters
     populatePocSizingDropdowns();
-}
-
-// 3. Hàm Xóa Dòng Cuối
-function removeLastRow(tbodyId) {
-    const tbody = document.getElementById(tbodyId);
-    if (tbody && tbody.rows.length > 1) { // Giữ lại ít nhất 1 dòng
-        tbody.deleteRow(tbody.rows.length - 1);
-    } else {
-        showToast("Phải giữ lại ít nhất một dòng!", 'warning');
-    }
 }
 
 
@@ -2579,13 +3504,13 @@ function onInputRowSelect(selectEl, pocInputId, sizingInputId) {
             return activeEl;
         }
 
-        const selectorCandidates = Array.from(document.querySelectorAll('select[onchange*="onInputRowSelect"]'));
+        const selectorCandidates = Array.from(document.querySelectorAll('select[data-change-action="sync-input-row"]'));
         const matched = selectorCandidates.find(el => {
-            const raw = el.getAttribute('onchange') || '';
-            return raw.includes(`'${pocInputId}'`) && raw.includes(`'${sizingInputId}'`) && el.value !== '';
+            const sameDatasetTargets = el.dataset?.pocTarget === pocInputId && el.dataset?.sizingTarget === sizingInputId;
+            return sameDatasetTargets && el.value !== '';
         }) || selectorCandidates.find(el => {
-            const raw = el.getAttribute('onchange') || '';
-            return raw.includes(`'${pocInputId}'`) && raw.includes(`'${sizingInputId}'`);
+            const sameDatasetTargets = el.dataset?.pocTarget === pocInputId && el.dataset?.sizingTarget === sizingInputId;
+            return sameDatasetTargets;
         });
         if (matched) return matched;
 
@@ -2766,40 +3691,6 @@ async function saveThongTinDauVao() {
     }
 }
 
-function addInputRow() {
-    const tbody = document.getElementById('input-table-body');
-    const nextSTT = tbody.rows.length + 1;
-    const tr = createInputTableRow(nextSTT);
-    tbody.appendChild(tr);
-    try { applyRolePermissions(); } catch (e) {}
-}
-
-// 7. Hàm thêm dòng Baseline (Giữ nguyên)
-function createBaselineTableRow(data = {}) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-        <td>
-            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
-                <option value="APP" ${data.module === 'APP' ? 'selected' : ''}>APP</option>
-                <option value="DB" ${data.module === 'DB' ? 'selected' : ''}>DB</option>
-            </select>
-        </td>
-        <td><input type="text" placeholder="10.240.x.x" value="${data.ip || ''}"></td>
-        <td><input type="text" placeholder="Intel Xeon..." value="${data.cpu || ''}"></td>
-        <td><input type="number" class="ram-val" placeholder="0" value="${data.ram || ''}" oninput="calculateBaselineTotal()"></td>
-        <td><input type="number" class="cint-val" placeholder="0" value="${data.cintRate2017 || ''}" oninput="calculateBaselineTotal()"></td>
-        <td><button type="button" class="btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();">✖</button></td>
-    `;
-    return tr;
-}
-
-function addBaselineRow() {
-    const tbody = document.getElementById('baseline-specs-body');
-    const tr = createBaselineTableRow();
-    tbody.appendChild(tr);
-    try { applyRolePermissions(); } catch (e) {}
-}
-
 function autoGrowTextarea(textarea) {
     if (!textarea) return;
     textarea.style.height = 'auto';
@@ -2811,12 +3702,12 @@ function createLogicComponentTableRow(stt, data = {}) {
     tr.innerHTML = `
         <td class="text-center">${stt}</td>
         <td>
-            <textarea class="input-full logic-name-textarea" rows="2" oninput="autoGrowTextarea(this)" placeholder="Ví dụ: MariaDB Cluster">${escapeHtml(data.componentName || '')}</textarea>
+            <textarea class="input-full logic-name-textarea" rows="2" placeholder="Ví dụ: MariaDB Cluster">${escapeHtml(data.componentName || '')}</textarea>
         </td>
         <td>
-            <textarea class="input-full logic-task-textarea" rows="2" oninput="autoGrowTextarea(this)" placeholder="Mô tả nhiệm vụ chính của thành phần/module...">${escapeHtml(data.mainTask || '')}</textarea>
+            <textarea class="input-full logic-task-textarea" rows="2" placeholder="Mô tả nhiệm vụ chính của thành phần/module...">${escapeHtml(data.mainTask || '')}</textarea>
         </td>
-        <td><button type="button" class="btn-delete" onclick="removeLogicComponentRow(this)">✖</button></td>
+        <td><button type="button" class="btn-delete" data-action="remove-logic-component-row">✖</button></td>
     `;
     const nameTextarea = tr.querySelector('.logic-name-textarea');
     const taskTextarea = tr.querySelector('.logic-task-textarea');
@@ -2844,9 +3735,9 @@ function createArchTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td>${stt}</td>
-        <td><input type="text" placeholder="Tên module" value="${data.moduleName || ''}" oninput="updateModuleVisibility()"></td>
+        <td><input type="text" class="module-arch-name-input" placeholder="Tên module" value="${data.moduleName || ''}"></td>
         <td>
-            <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;" onchange="updateModuleVisibility()">
+            <select class="module-arch-type-select" style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
                 <option value="">-- Chọn --</option>
                 <option value="App" ${data.loaiModule === 'App' ? 'selected' : ''}>App</option>
                 <option value="Redis" ${data.loaiModule === 'Redis' ? 'selected' : ''}>Redis</option>
@@ -2874,7 +3765,7 @@ function createArchTableRow(stt, data = {}) {
         </td>
         <td><textarea rows="1" placeholder="Ví dụ: 02 VIP">${data.soLuongVIP || ''}</textarea></td>
         <td class="admin-cell">
-            <select class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+            <select class="admin-eval admin-eval-select">
                 <option value="">--</option>
                 <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
                 <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
@@ -2883,7 +3774,7 @@ function createArchTableRow(stt, data = {}) {
         <td class="admin-cell">
             <input type="text" class="input-full admin-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
         </td>
-        <td><button type="button" class="btn-delete" onclick="removeArchRow(this)">✖</button></td>
+        <td><button type="button" class="btn-delete" data-action="remove-arch-row">✖</button></td>
     `;
     return tr;
 }
@@ -3051,10 +3942,6 @@ function getModuleInstancesByType() {
     return grouped;
 }
 
-function getSelectedModules() {
-    return Object.keys(getModuleInstancesByType());
-}
-
 function getModuleInstanceDisplayName(instance) {
     if (instance.moduleName) return instance.moduleName;
     return `${instance.moduleType} #${instance.sequence}`;
@@ -3133,15 +4020,31 @@ function runInInstanceContext(instanceKey, callback, thisArg) {
     }
 }
 
-function buildInstanceAwareHandler(handlerCode) {
-    if (window.__activeInstanceKey) {
-        return `return runInInstanceContext('${window.__activeInstanceKey}', function(){ ${handlerCode} }, this);`;
+function runActionInInstance(actionEl, callback) {
+    if (typeof callback !== 'function') return;
+
+    const instanceWrapper = actionEl?.closest('.module-instance-wrapper[data-instance-key]');
+    const instanceKey = instanceWrapper?.dataset?.instanceKey;
+
+    if (instanceKey && typeof runInInstanceContext === 'function') {
+        return runInInstanceContext(instanceKey, callback, actionEl);
     }
-    return handlerCode;
+
+    return callback.call(actionEl);
 }
 
 function rewriteInlineHandlersForInstance(root, instanceKey) {
-    const candidates = root.querySelectorAll('*');
+    if (!root) return;
+
+    const candidates = [];
+    if (typeof root.matches === 'function' && root.matches('[onclick],[onchange],[oninput]')) {
+        candidates.push(root);
+    }
+
+    root.querySelectorAll('[onclick],[onchange],[oninput]').forEach(el => {
+        candidates.push(el);
+    });
+
     candidates.forEach(el => {
         ['onclick', 'onchange', 'oninput'].forEach(attr => {
             const raw = el.getAttribute(attr);
@@ -3934,7 +4837,6 @@ function removeRow(btn) {
     updateSTT(tbody);
 }
 
-function removeSummaryRow(btn) { removeRow(btn); }
 function removeArchRow(btn) { 
     removeRow(btn); 
     updateModuleVisibility();
@@ -3997,15 +4899,15 @@ function loadImagesToContainer(type, images) {
         div.id = boxId;
         div.innerHTML = `
             <div class="upload-controls">
-                <input type="file" accept="image/*" onchange="previewModelImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
+                <input type="file" accept="image/*" data-change-action="preview-model-image" data-box-id="${boxId}" style="display: none;" id="input-${boxId}">
                 <label for="input-${boxId}" class="upload-label">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                     <span>Đổi ảnh</span>
                 </label>
-                <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
+                <button type="button" class="btn-remove-img" data-action="remove-upload-box">✖</button>
             </div>
             <div class="preview-area" id="preview-${boxId}">
-                <img src="${imgData.base64}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">
+                <img src="${imgData.base64}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" data-action="open-modal-image">
             </div>
         `;
         container.appendChild(div);
@@ -4023,12 +4925,12 @@ function createUploadBox(type) {
     div.id = boxId;
     div.innerHTML = `
         <div class="upload-controls">
-            <input type="file" accept="image/*" onchange="previewModelImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
+            <input type="file" accept="image/*" data-change-action="preview-model-image" data-box-id="${boxId}" style="display: none;" id="input-${boxId}">
             <label for="input-${boxId}" class="upload-label">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
                 <span>Chọn ảnh</span>
             </label>
-            <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
+            <button type="button" class="btn-remove-img" data-action="remove-upload-box">✖</button>
         </div>
         <div class="preview-area" id="preview-${boxId}"></div>
     `;
@@ -4046,12 +4948,12 @@ function addEvidenceSlot() {
     div.id = boxId;
     div.innerHTML = `
         <div class="upload-controls">
-            <input type="file" accept="image/*" onchange="previewEvidenceImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
+            <input type="file" accept="image/*" data-change-action="preview-evidence-image" data-box-id="${boxId}" style="display: none;" id="input-${boxId}">
             <label for="input-${boxId}" class="upload-label">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
                 <span>Chọn ảnh</span>
             </label>
-            <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
+            <button type="button" class="btn-remove-img" data-action="remove-upload-box">✖</button>
         </div>
         <div class="preview-area" id="preview-${boxId}"></div>
     `;
@@ -4063,7 +4965,7 @@ function previewModelImage(input, boxId) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
+            previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" data-action="open-modal-image">`;
         };
         reader.readAsDataURL(input.files[0]);
     }
@@ -4074,7 +4976,7 @@ function previewEvidenceImage(input, boxId) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
+            previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" data-action="open-previous-image-modal" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
         };
         reader.readAsDataURL(input.files[0]);
     }
@@ -4088,9 +4990,9 @@ function addEvidenceSizingSlot() {
     div.className = 'upload-box';
     div.id = boxId;
     div.innerHTML = `
-        <input type="file" accept="image/*" onchange="previewEvidenceSizingImage(this, '${boxId}')" style="display: none;" id="input-${boxId}">
+        <input type="file" accept="image/*" data-change-action="preview-evidence-sizing-image" data-box-id="${boxId}" style="display: none;" id="input-${boxId}">
         <div class="preview-area" id="preview-${boxId}"></div>
-        <div class="upload-placeholder" onclick="document.getElementById('input-${boxId}').click()">
+        <div class="upload-placeholder" data-action="click-near-file-input">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             <span>Click để upload</span>
         </div>
@@ -4108,10 +5010,10 @@ function previewEvidenceSizingImage(input, boxId) {
             previewArea.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                     <img src="${e.target.result}" alt="Evidence" style="display:none;">
-                    <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                    <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh">
                         <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button type="button" class="btn-remove-evidence" onclick="deleteEvidenceSizingSlot(this)" title="Xóa ảnh">
+                    <button type="button" class="btn-remove-evidence" data-action="delete-evidence-sizing-slot" title="Xóa ảnh">
                         ✖
                     </button>
                 </div>
@@ -4143,7 +5045,7 @@ function handleRowEvidenceUpload(input, kind) {
         const div = document.createElement('div');
         div.className = 'row-evidence-item';
         const safeBase64 = e.target.result.replace(/"/g, '&quot;');
-        div.innerHTML = `<button type="button" class="btn-view-evidence" data-base64="${safeBase64}" onclick="openModalFromElement(this)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh">✖</button>`;
+        div.innerHTML = `<button type="button" class="btn-view-evidence" data-action="open-row-evidence-modal" data-base64="${safeBase64}" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" data-action="remove-row-evidence" title="Xóa ảnh">✖</button>`;
         // append and then hide upload icon to prevent uploading more
         container.appendChild(div);
         const label = cellWrapper.querySelector('.upload-icon-btn');
@@ -4356,9 +5258,38 @@ async function exportToWord() {
     }
 }
 
+function initializePageDefaultsOnce() {
+    if (window.__sizingPageDefaultsInitialized) return;
+    window.__sizingPageDefaultsInitialized = true;
+
+    applyFixedSizingRule();
+
+    const baselineBody = document.getElementById(getSelectorId('tables', 'baselineBody', 'baseline-table-body'));
+    if (baselineBody && baselineBody.children.length === 0) {
+        addBaselineRow();
+    }
+
+    const connectionBody = document.getElementById(getSelectorId('tables', 'connectionBody', 'connection-info-table-body'));
+    if (connectionBody && connectionBody.children.length === 0) {
+        connectionBody.appendChild(createConnectionTableRow(1, {}));
+    }
+
+    const archBody = document.getElementById(getSelectorId('tables', 'archBody', 'arch-table-body'));
+    if (archBody && archBody.children.length === 0) {
+        archBody.appendChild(createArchTableRow(1, {}));
+    }
+
+    updateBaselineTotal();
+    updateInputConfigTotal();
+    attachInputTableChangeListeners();
+    initHelpTooltipSmartPositioning();
+    initFirstRowGuards();
+}
+
 document.addEventListener("DOMContentLoaded", async function () {
     Logger.debug('Current Project ID:', currentProjectId);
-    applyFixedSizingRule();
+    initializePageDefaultsOnce();
+    initProjectListEventDelegation();
     
     // Kiểm tra xem người dùng đã đăng nhập chưa
     const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -4371,8 +5302,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     
     checkAuthStatus();
     applyRolePermissions();
-    initHelpTooltipSmartPositioning();
-    initFirstRowGuards();
     onVirtualizationModeChange('app');
     onVirtualizationModeChange('k8s');
 
@@ -4385,35 +5314,23 @@ document.addEventListener("DOMContentLoaded", async function () {
     } else {
         // Mặc định: hiển thị danh sách dự án
         clearProjectIds();
-        document.getElementById('project-list-page').style.display = 'block';
-        document.getElementById('project-detail-page').style.display = 'none';
-        document.getElementById('btn-back-to-list').style.display = 'none';
+        const listPage = document.getElementById(getSelectorId('pages', 'list', 'project-list-page'));
+        const detailPage = document.getElementById(getSelectorId('pages', 'detail', 'project-detail-page'));
+        const backBtn = document.getElementById(getSelectorId('buttons', 'backToList', 'btn-back-to-list'));
+        if (listPage) listPage.style.display = 'block';
+        if (detailPage) detailPage.style.display = 'none';
+        if (backBtn) backBtn.style.display = 'none';
         
         // Ẩn nút Lịch sử phiên bản khi ở trang danh sách
-        const btnVersionHistory = document.getElementById('btn-version-history');
+        const btnVersionHistory = document.getElementById(getSelectorId('buttons', 'versionHistory', 'btn-version-history'));
         if (btnVersionHistory) btnVersionHistory.style.display = 'none';
         
         await loadProjectList();
         replaceAppState('projects', null, null);
     }
 
-    // Menu click đã được xử lý qua onclick="showSection(...)" trong HTML.
+    // Menu click đã được xử lý qua delegated action handling trong HTML.
     // showSection() sẽ tự động pushState khi chuyển tab.
-
-    const addRowBtn = document.getElementById('addRowBtn');
-    if (addRowBtn) addRowBtn.onclick = addInputRow;
-    const addBaselineBtn = document.getElementById('addBaselineRowBtn');
-    if (addBaselineBtn) addBaselineBtn.onclick = addBaselineRow;
-    const addArchBtn = document.getElementById('addArchRowBtn');
-    if (addArchBtn) addArchBtn.onclick = addArchRow;
-    const addLogicComponentBtn = document.getElementById('addLogicComponentRowBtn');
-    if (addLogicComponentBtn) addLogicComponentBtn.onclick = addLogicComponentRow;
-    const addSummaryBtn = document.getElementById('addSummaryRowBtn');
-    if (addSummaryBtn) addSummaryBtn.onclick = addSummaryRow;
-    const exportBtn = document.getElementById('exportBtn');
-    if (exportBtn) exportBtn.onclick = exportToWord;
-    const addConnectionBtn = document.getElementById('addConnectionRowBtn');
-    if (addConnectionBtn) addConnectionBtn.onclick = addConnectionRow;
 
     document.addEventListener('pointerdown', (event) => {
         if (event.target && event.target.classList && event.target.classList.contains('mariadb-master-radio')) {
@@ -4421,16 +5338,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
     }, true);
 });
-// Hàm xóa dòng cuối cùng của bảng
-function removeLastRow(tbodyId) {
-    const tbody = document.getElementById(tbodyId);
-    // Chỉ xóa nếu có nhiều hơn 1 dòng (để lại dòng đầu tiên)
-    if (tbody && tbody.rows.length > 1) {
-        tbody.deleteRow(tbody.rows.length - 1);
-    } else {
-        showToast("Không thể xóa dòng duy nhất!", 'warning');
-    }
-}
 // --- CÁC HÀM XỬ LÝ MODAL ---
 
 // Hàm mở Modal xem ảnh to
@@ -4486,36 +5393,30 @@ function addBaselineRow() {
     // Tính số thứ tự (STT)
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
-    const rowId = 'baseline-row-' + Date.now() + '-' + rowCount;
-    const syncIpHandler = buildInstanceAwareHandler('syncIPToInputConfig(this)');
-    const recalcHandler = buildInstanceAwareHandler('updateBaselineTotal(); recalculateInputConfigForRow(this)');
-    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
-    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
-    const deleteRowHandler = buildInstanceAwareHandler('deleteBaselineRow(this)');
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         
-        <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
+        <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" data-input-action="sync-ip-to-input-config"></td>
         
         <td><input type="text" class="input-full cpu-input" placeholder="Intel Xeon..."></td>
         
         <td>
-            <input type="number" class="input-full text-center ram-input" value="0" min="0" oninput="${recalcHandler}">
+            <input type="number" class="input-full text-center ram-input" value="0" min="0" data-input-action="recalculate-baseline-row">
         </td>
 
         <td>
-            <input type="number" class="input-full text-center disk-input" value="0" min="0" oninput="${recalcHandler}">
+            <input type="number" class="input-full text-center disk-input" value="0" min="0" data-input-action="recalculate-baseline-row">
         </td>
         
         <td>
-            <input type="number" class="input-full text-center cint-input" value="0" min="0" oninput="${recalcHandler}">
+            <input type="number" class="input-full text-center cint-input" value="0" min="0" data-input-action="recalculate-baseline-row">
         </td>
 
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="baseline-evidence-input" onchange="${uploadHandler}" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="baseline-evidence-input" data-change-action="inline-evidence-upload" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="click-near-file-input" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
@@ -4523,7 +5424,7 @@ function addBaselineRow() {
         </td>
         
         <td class="admin-cell">
-            <select class="admin-eval-select" onchange="styleAdminSelect(this)">
+            <select class="admin-eval-select">
                 <option value="">--</option>
                 <option value="OK">OK</option>
                 <option value="NOK">NOK</option>
@@ -4535,7 +5436,7 @@ function addBaselineRow() {
         </td>
         
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="${deleteRowHandler}">
+            <button type="button" class="btn-delete-row-item" data-action="delete-baseline-row">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -4578,10 +5479,10 @@ function createInlineEvidenceItemMarkup(dataUrl) {
     return `
         <span class="row-evidence-item">
             <img src="${dataUrl}" alt="Evidence" style="display:none;" class="inline-evidence-img">
-            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+            <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh">
                 <i class="fa-solid fa-eye"></i>
             </button>
-            <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
+            <button type="button" class="btn-remove-evidence sizing-user-btn" data-action="remove-inline-evidence" title="Xóa ảnh">
                 ✖
             </button>
         </span>
@@ -4655,9 +5556,9 @@ function addBaselineEvidenceSlot() {
     const slot = document.createElement('div');
     slot.className = 'upload-box';
     slot.innerHTML = `
-        <input type="file" accept="image/*" onchange="handleBaselineEvidenceUpload(this)" style="display:none">
+        <input type="file" accept="image/*" data-change-action="baseline-evidence-upload" style="display:none">
         <div class="preview-area"></div>
-        <div class="upload-placeholder" onclick="this.parentElement.querySelector('input[type=file]').click()">
+        <div class="upload-placeholder" data-action="click-near-file-input">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             <span>Click để upload</span>
         </div>
@@ -4676,10 +5577,10 @@ function handleBaselineEvidenceUpload(input) {
             previewArea.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                     <img src="${e.target.result}" alt="Evidence" style="display:none;">
-                    <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                    <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh">
                         <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button type="button" class="btn-remove-evidence" onclick="deleteBaselineEvidenceSlot(this)" title="Xóa ảnh">
+                    <button type="button" class="btn-remove-evidence" data-action="delete-baseline-evidence-slot" title="Xóa ảnh">
                         ✖
                     </button>
                 </div>
@@ -4721,11 +5622,11 @@ function openImageModal(src) {
         modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 10000; cursor: pointer;';
         modal.innerHTML = `
             <img id="modal-image" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px;">
-            <button onclick="closeImageModal()" style="position: absolute; top: 20px; right: 30px; background: none; border: none; color: white; font-size: 40px; cursor: pointer;">&times;</button>
+            <button data-action="close-image-modal" style="position: absolute; top: 20px; right: 30px; background: none; border: none; color: white; font-size: 40px; cursor: pointer;">&times;</button>
         `;
-        modal.onclick = function(e) {
+        modal.addEventListener('click', function(e) {
             if (e.target === modal) closeImageModal();
-        };
+        });
         document.body.appendChild(modal);
     }
     
@@ -4831,68 +5732,6 @@ function recalculateInputConfigForRow(baselineInput) {
             calculateInputConfigRow(cpuLoadInput);
         }
     }
-}
-
-// 7. HÀM LƯU DỮ LIỆU (VALIDATE NGHIÊM NGẶT)
-function saveBaselineData() {
-    const rows = document.querySelectorAll('#baseline-table-body tr');
-    
-    // Check 1: Phải có ít nhất 1 dòng
-    if(rows.length === 0) {
-        showToast("Vui lòng thêm ít nhất một Server tham chiếu!", 'warning');
-        return;
-    }
-
-    let isValid = true;
-    let firstError = null;
-    const dataToSave = [];
-
-    // Xóa lỗi cũ
-    document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
-
-    rows.forEach((row, index) => {
-        const moduleSel = row.querySelector('.module-select');
-        const adminEval = row.querySelector('.admin-eval-select');
-        const inputs = row.querySelectorAll('input');
-
-        // Rule 1: User bắt buộc chọn Module
-        if(!moduleSel.value) {
-            moduleSel.classList.add('input-error');
-            isValid = false;
-            if(!firstError) firstError = moduleSel;
-        }
-
-        // Rule 2: Admin bắt buộc phải đánh giá (OK/NOK)
-        if(!adminEval.value) {
-            adminEval.classList.add('input-error');
-            isValid = false;
-            if(!firstError) firstError = adminEval;
-        }
-
-        if(isValid) {
-            dataToSave.push({
-                stt: index + 1,
-                module: moduleSel.value,
-                ip: inputs[0].value, // IP
-                cpu: inputs[1].value, // CPU
-                ram: inputs[2].value, // RAM
-                cint: inputs[3].value, // Cint
-                adminRating: adminEval.value,
-                adminNote: inputs[4].value // Ghi chú Admin
-            });
-        }
-    });
-
-    if(!isValid) {
-        showToast("KHÔNG THỂ LƯU!\nVui lòng điền các ô bị báo đỏ:\n1. Chọn tên Module.\n2. Admin phải Đánh giá từng dòng.", 'warning');
-        if(firstError) firstError.focus();
-        return;
-    }
-
-    Logger.debug("Dữ liệu chuẩn bị lưu:", dataToSave);
-    showToast("✓ Đã lưu cấu hình tham chiếu thành công!", 'success');
-    
-    // TODO: Viết code gọi API lưu vào DB ở đây
 }
 
 // ==================== MODULE COLLAPSIBLE FUNCTIONS ====================
@@ -5901,29 +6740,6 @@ function showSection(sectionId, linkElement, options = {}) {
     }
 }
 
-// Tự động thêm 1 dòng trắng khi load trang lần đầu
-document.addEventListener("DOMContentLoaded", function() {
-    applyFixedSizingRule();
-    const tbody = document.getElementById('baseline-table-body');
-    if(tbody && tbody.children.length === 0) {
-        addBaselineRow();
-    }
-    const connectionBody = document.getElementById('connection-info-table-body');
-    if (connectionBody && connectionBody.children.length === 0) {
-        connectionBody.appendChild(createConnectionTableRow(1, {}));
-    }
-    const archBody = document.getElementById('arch-table-body');
-    if (archBody && archBody.children.length === 0) {
-        archBody.appendChild(createArchTableRow(1, {}));
-    }
-    // Tính tổng khi trang load
-    updateBaselineTotal();
-    updateInputConfigTotal();
-    // Attach listeners to update POC/Sizing dropdowns when input table changes
-    attachInputTableChangeListeners();
-    initHelpTooltipSmartPositioning();
-    initFirstRowGuards();
-});
 // ==================== XỬ LÝ BẢNG TÍNH TOÁN (INPUT CONFIG) ====================
 
 function addInputConfigRow() {
@@ -5932,10 +6748,6 @@ function addInputConfigRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
-    const calcHandler = buildInstanceAwareHandler('calculateInputConfigRow(this)');
-    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
-    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
-    const deleteRowHandler = buildInstanceAwareHandler('deleteInputConfigRow(this)');
     
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
@@ -5943,15 +6755,15 @@ function addInputConfigRow() {
         <td><input type="text" class="input-full text-center ip-config-input" placeholder="10.x.x.x"></td>
         
         <td>
-            <input type="number" class="input-full text-center cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}">
+            <input type="number" class="input-full text-center cpu-load-input" value="0" min="0" max="100" step="0.01" data-input-action="calculate-input-config-row">
         </td>
 
         <td>
-            <input type="number" class="input-full text-center ram-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}">
+            <input type="number" class="input-full text-center ram-load-input" value="0" min="0" max="100" step="0.01" data-input-action="calculate-input-config-row">
         </td>
 
         <td>
-            <input type="number" class="input-full text-center disk-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}">
+            <input type="number" class="input-full text-center disk-load-input" value="0" min="0" max="100" step="0.01" data-input-action="calculate-input-config-row">
         </td>
         
         <td>
@@ -5968,8 +6780,8 @@ function addInputConfigRow() {
 
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="input-config-evidence-input" onchange="${uploadHandler}" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="input-config-evidence-input" data-change-action="inline-evidence-upload" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="click-near-file-input" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
@@ -5977,7 +6789,7 @@ function addInputConfigRow() {
         </td>
 
         <td class="admin-cell">
-            <select class="admin-eval-select input-config-eval" onchange="styleAdminSelect(this)">
+            <select class="admin-eval-select input-config-eval">
                 <option value="">--</option>
                 <option value="OK">OK</option>
                 <option value="NOK">NOK</option>
@@ -5988,7 +6800,7 @@ function addInputConfigRow() {
         </td>
         
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="${deleteRowHandler}">
+            <button type="button" class="btn-delete-row-item" data-action="delete-input-config-row">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -6314,32 +7126,25 @@ function addK8SBaselineRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
-    const syncIpHandler = buildInstanceAwareHandler('syncK8SIPToInputConfig(this)');
-    const baselineRamHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
-    const baselineDiskHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
-    const baselineCintHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
-    const baselineUploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
-    const baselineUploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
-    const deleteBaselineHandler = buildInstanceAwareHandler('deleteK8SBaselineRow(this)');
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
-        <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
+        <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" data-input-action="sync-k8s-ip-to-input-config"></td>
         <td><input type="text" class="input-full k8s-cpu-input" placeholder="Intel Xeon..."></td>
-        <td><input type="number" class="input-full text-center k8s-ram-input" value="0" min="0" oninput="${baselineRamHandler}"></td>
-        <td><input type="number" class="input-full text-center k8s-disk-input" value="0" min="0" oninput="${baselineDiskHandler}"></td>
-        <td><input type="number" class="input-full text-center k8s-cint-input" value="0" min="0" oninput="${baselineCintHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-ram-input" value="0" min="0" data-input-action="recalculate-k8s-baseline-row"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-input" value="0" min="0" data-input-action="recalculate-k8s-baseline-row"></td>
+        <td><input type="number" class="input-full text-center k8s-cint-input" value="0" min="0" data-input-action="recalculate-k8s-baseline-row"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="k8s-baseline-evidence-input" onchange="${baselineUploadHandler}" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${baselineUploadClickHandler}" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="k8s-baseline-evidence-input" data-change-action="inline-evidence-upload" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="click-near-file-input" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
             </div>
         </td>
         <td class="admin-cell">
-            <select class="admin-eval-select k8s-baseline-eval" onchange="styleAdminSelect(this)">
+            <select class="admin-eval-select k8s-baseline-eval">
                 <option value="">--</option>
                 <option value="OK">OK</option>
                 <option value="NOK">NOK</option>
@@ -6349,7 +7154,7 @@ function addK8SBaselineRow() {
             <input type="text" class="input-full admin-note k8s-baseline-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="${deleteBaselineHandler}">
+            <button type="button" class="btn-delete-row-item" data-action="delete-k8s-baseline-row">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -6368,31 +7173,27 @@ function addK8SInputConfigRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
-    const calculateRowHandler = buildInstanceAwareHandler('calculateK8SInputConfigRow(this)');
-    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
-    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
-    const deleteHandler = buildInstanceAwareHandler('deleteK8SInputConfigRow(this)');
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         <td><input type="text" class="input-full text-center k8s-ip-config-input" placeholder="10.x.x.x"></td>
-        <td><input type="number" class="input-full text-center k8s-cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
-        <td><input type="number" class="input-full text-center k8s-ram-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
-        <td><input type="number" class="input-full text-center k8s-disk-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
+        <td><input type="number" class="input-full text-center k8s-cpu-load-input" value="0" min="0" max="100" step="0.01" data-input-action="calculate-k8s-input-config-row"></td>
+        <td><input type="number" class="input-full text-center k8s-ram-load-input" value="0" min="0" max="100" step="0.01" data-input-action="calculate-k8s-input-config-row"></td>
+        <td><input type="number" class="input-full text-center k8s-disk-load-input" value="0" min="0" max="100" step="0.01" data-input-action="calculate-k8s-input-config-row"></td>
         <td><input type="number" class="input-full text-center k8s-cint-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td><input type="number" class="input-full text-center k8s-ram-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td><input type="number" class="input-full text-center k8s-disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="k8s-input-config-evidence-input" onchange="${uploadHandler}" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="k8s-input-config-evidence-input" data-change-action="inline-evidence-upload" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="click-near-file-input" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
             </div>
         </td>
         <td class="admin-cell">
-            <select class="admin-eval-select k8s-input-config-eval" onchange="styleAdminSelect(this)">
+            <select class="admin-eval-select k8s-input-config-eval">
                 <option value="">--</option>
                 <option value="OK">OK</option>
                 <option value="NOK">NOK</option>
@@ -6402,7 +7203,7 @@ function addK8SInputConfigRow() {
             <input type="text" class="input-full admin-note k8s-input-config-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button class="btn-delete-row-item" onclick="${deleteHandler}">
+            <button type="button" class="btn-delete-row-item" data-action="delete-k8s-input-config-row">
                 <i class="fa-solid fa-trash"></i>
             </button>
         </td>
@@ -6949,9 +7750,9 @@ function addLBFWEvidenceSlot() {
     const slot = document.createElement('div');
     slot.className = 'upload-box';
     slot.innerHTML = `
-        <input type="file" accept="image/*" onchange="handleLBFWEvidenceUpload(this)" style="display:none">
+        <input type="file" accept="image/*" data-change-action="lbfw-evidence-upload" style="display:none">
         <div class="preview-area"></div>
-        <div class="upload-placeholder" onclick="this.parentElement.querySelector('input[type=file]').click()">
+        <div class="upload-placeholder" data-action="click-near-file-input">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             <span>Click để upload</span>
         </div>
@@ -6970,10 +7771,10 @@ function handleLBFWEvidenceUpload(input) {
             previewArea.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                     <img src="${e.target.result}" alt="Evidence" style="display:none;">
-                    <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                    <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh">
                         <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button type="button" class="btn-remove-evidence" onclick="deleteLBFWEvidenceSlot(this)" title="Xóa ảnh">
+                    <button type="button" class="btn-remove-evidence" data-action="delete-lbfw-evidence-slot" title="Xóa ảnh">
                         ✖
                     </button>
                 </div>
@@ -7121,10 +7922,10 @@ function loadLBFWData(data) {
                     previewArea.innerHTML = `
                         <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                             <img src="${imgData.dataUrl}" alt="Evidence" style="display:none;">
-                            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                            <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh">
                                 <i class="fa-solid fa-eye"></i>
                             </button>
-                            <button type="button" class="btn-remove-evidence" onclick="deleteLBFWEvidenceSlot(this)" title="Xóa ảnh">
+                            <button type="button" class="btn-remove-evidence" data-action="delete-lbfw-evidence-slot" title="Xóa ảnh">
                                 ✖
                             </button>
                         </div>
@@ -7326,19 +8127,19 @@ function addMariaDBRefRow(data = {}) {
         <td><input type="number" class="input-full sizing-user-input mariadb-cpu-load" value="${data.cpuLoad || ''}" placeholder="%" min="0" max="100"></td>
         <td><input type="number" class="input-full sizing-user-input mariadb-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100"></td>
         <td class="text-center">
-            <input type="radio" name="${masterGroupName}" class="mariadb-master-radio" onchange="enforceMariaDBMasterWithinTable(this)" ${data.isMaster ? 'checked' : ''}>
+            <input type="radio" name="${masterGroupName}" class="mariadb-master-radio" ${data.isMaster ? 'checked' : ''}>
         </td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="mariadb-ref-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="mariadb-ref-evidence-input" data-change-action="inline-evidence-upload" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="click-near-file-input" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
             </div>
         </td>
         <td class="admin-cell">
-            <select class="admin-eval-select mariadb-ref-eval" onchange="styleAdminSelect(this)">
+            <select class="admin-eval-select mariadb-ref-eval">
                 <option value="">--</option>
                 <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
                 <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
@@ -7348,7 +8149,7 @@ function addMariaDBRefRow(data = {}) {
             <input type="text" class="input-full admin-note mariadb-ref-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
         </td>
         <td class="text-center">
-            <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove()">
+            <button type="button" class="btn-delete sizing-user-btn" data-action="remove-closest-row">
                 <i class="fa-solid fa-times"></i>
             </button>
         </td>
@@ -7637,39 +8438,6 @@ function loadMariaDBData(data) {
     applyRolePermissions();
 }
 
-// Load ảnh sở cứ bảng tham chiếu MariaDB
-function loadMariaDBRefEvidence(data) {
-    if (!data || !data.refEvidence || !Array.isArray(data.refEvidence)) return;
-    
-    const grid = document.getElementById('mariadb-ref-evidence-grid');
-    if (!grid) return;
-    
-    grid.innerHTML = '';
-    data.refEvidence.forEach(img => {
-        const slot = document.createElement('div');
-        slot.className = 'upload-box';
-        slot.innerHTML = `
-            <input type="file" accept="image/*" onchange="handleMariaDBRefEvidenceUpload(this)" style="display:none;">
-            <div class="preview-area">
-                <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
-                    <img src="${img.dataUrl}" alt="Evidence" style="display:none;">
-                    <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
-                        <i class="fa-solid fa-eye"></i>
-                    </button>
-                    <button type="button" class="btn-remove-evidence" onclick="deleteMariaDBRefEvidenceSlot(this)" title="Xóa ảnh">
-                        ✖
-                    </button>
-                </div>
-            </div>
-            <div class="upload-placeholder" style="display: none;">
-                <i class="fa-solid fa-cloud-arrow-up"></i>
-                <span>Click để upload</span>
-            </div>
-        `;
-        grid.appendChild(slot);
-    });
-}
-
 // Thu thập dữ liệu MariaDB để lưu (user data only)
 function collectMariaDBData() {
     return {
@@ -7692,9 +8460,9 @@ function addMariaDBEvidenceSlot() {
     const slot = document.createElement('div');
     slot.className = 'upload-box';
     slot.innerHTML = `
-        <input type="file" accept="image/*" onchange="handleMariaDBEvidenceUpload(this)" style="display:none;">
+        <input type="file" accept="image/*" data-change-action="mariadb-evidence-upload" style="display:none;">
         <div class="preview-area"></div>
-        <div class="upload-placeholder" onclick="this.parentElement.querySelector('input[type=file]').click()">
+        <div class="upload-placeholder" data-action="click-near-file-input">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             <span>Click để upload</span>
         </div>
@@ -7716,10 +8484,10 @@ function handleMariaDBEvidenceUpload(input) {
         previewArea.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                 <img src="${e.target.result}" alt="Evidence" style="display:none;">
-                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh">
                     <i class="fa-solid fa-eye"></i>
                 </button>
-                <button type="button" class="btn-remove-evidence" onclick="deleteMariaDBEvidenceSlot(this)" title="Xóa ảnh">
+                <button type="button" class="btn-remove-evidence" data-action="delete-mariadb-evidence-slot" title="Xóa ảnh">
                     ✖
                 </button>
             </div>
@@ -7748,9 +8516,9 @@ function addMariaDBStorageEvidenceSlot() {
     slot.className = 'mariadb-storage-evidence-slot';
     slot.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: #f0f9ff; border-radius: 4px; border: 1px solid #d0e0f0;';
     slot.innerHTML = `
-        <input type="file" accept="image/*" onchange="handleMariaDBStorageEvidenceUpload(this)" style="display:none">
+        <input type="file" accept="image/*" data-change-action="mariadb-storage-evidence-upload" style="display:none">
         <span class="storage-evidence-preview" style="font-size: 11px; color: #666;">Chưa có ảnh</span>
-        <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh" style="font-size: 10px; padding: 1px 5px;">
+        <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="click-near-file-input" title="Upload ảnh" style="font-size: 10px; padding: 1px 5px;">
             <i class="fa-solid fa-cloud-arrow-up"></i>
         </button>
     `;
@@ -7769,10 +8537,10 @@ function handleMariaDBStorageEvidenceUpload(input) {
         reader.onload = function(e) {
             previewSpan.innerHTML = `
                 <img src="${e.target.result}" alt="Evidence" style="display:none;">
-                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh" style="font-size: 10px; padding: 1px 4px;">
+                <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh" style="font-size: 10px; padding: 1px 4px;">
                     <i class="fa-solid fa-eye"></i>
                 </button>
-                <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeMariaDBStorageEvidenceSlot(this)" title="Xóa ảnh" style="font-size: 10px; padding: 1px 4px;">
+                <button type="button" class="btn-remove-evidence sizing-user-btn" data-action="remove-mariadb-storage-evidence-slot" title="Xóa ảnh" style="font-size: 10px; padding: 1px 4px;">
                     ✖
                 </button>
             `;
@@ -7803,13 +8571,13 @@ function loadMariaDBStorageEvidence(images) {
         slot.className = 'mariadb-storage-evidence-slot';
         slot.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: #f0f9ff; border-radius: 4px; border: 1px solid #d0e0f0;';
         slot.innerHTML = `
-            <input type="file" accept="image/*" onchange="handleMariaDBStorageEvidenceUpload(this)" style="display:none">
+            <input type="file" accept="image/*" data-change-action="mariadb-storage-evidence-upload" style="display:none">
             <span class="storage-evidence-preview">
                 <img src="${imgSrc}" alt="Evidence" style="display:none;">
-                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh" style="font-size: 10px; padding: 1px 4px;">
+                <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh" style="font-size: 10px; padding: 1px 4px;">
                     <i class="fa-solid fa-eye"></i>
                 </button>
-                <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeMariaDBStorageEvidenceSlot(this)" title="Xóa ảnh" style="font-size: 10px; padding: 1px 4px;">
+                <button type="button" class="btn-remove-evidence sizing-user-btn" data-action="remove-mariadb-storage-evidence-slot" title="Xóa ảnh" style="font-size: 10px; padding: 1px 4px;">
                     ✖
                 </button>
             </span>
@@ -7841,9 +8609,9 @@ function addMariaDBRefEvidenceSlot() {
     const slot = document.createElement('div');
     slot.className = 'upload-box';
     slot.innerHTML = `
-        <input type="file" accept="image/*" onchange="handleMariaDBRefEvidenceUpload(this)" style="display:none;">
+        <input type="file" accept="image/*" data-change-action="mariadb-ref-evidence-upload" style="display:none;">
         <div class="preview-area"></div>
-        <div class="upload-placeholder" onclick="this.parentElement.querySelector('input[type=file]').click()">
+        <div class="upload-placeholder" data-action="click-near-file-input">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             <span>Click để upload</span>
         </div>
@@ -7865,10 +8633,10 @@ function handleMariaDBRefEvidenceUpload(input) {
         previewArea.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                 <img src="${e.target.result}" alt="Evidence" style="display:none;">
-                <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+                <button type="button" class="btn-view-evidence" data-action="open-parent-image-modal" title="Xem ảnh">
                     <i class="fa-solid fa-eye"></i>
                 </button>
-                <button type="button" class="btn-remove-evidence" onclick="deleteMariaDBRefEvidenceSlot(this)" title="Xóa ảnh">
+                <button type="button" class="btn-remove-evidence" data-action="delete-mariadb-ref-evidence-slot" title="Xóa ảnh">
                     ✖
                 </button>
             </div>
@@ -7940,11 +8708,11 @@ function addRedisKeyEvidenceSlot() {
     slot.className = 'upload-box';
     slot.innerHTML = `
         <div class="preview-area"></div>
-        <input type="file" accept="image/*" onchange="handleRedisKeyImageUpload(this)" style="display:none;">
-        <button type="button" class="btn-upload sizing-user-btn" onclick="this.previousElementSibling.click()">
+        <input type="file" accept="image/*" data-change-action="redis-key-image-upload" style="display:none;">
+        <button type="button" class="btn-upload sizing-user-btn" data-action="open-previous-file-input">
             <i class="fa-solid fa-upload"></i> Chọn ảnh
         </button>
-        <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('.upload-box').remove()" style="margin-left: 5px;">
+        <button type="button" class="btn-delete sizing-user-btn" data-action="remove-upload-box" style="margin-left: 5px;">
             <i class="fa-solid fa-times"></i>
         </button>
     `;
@@ -7959,7 +8727,7 @@ function handleRedisKeyImageUpload(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const previewArea = input.closest('.upload-box').querySelector('.preview-area');
-        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
+        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" data-action="open-previous-image-modal" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
     };
     reader.readAsDataURL(file);
 }
@@ -7972,22 +8740,22 @@ function addRedisConfigRow(data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" class="input-full sizing-user-input redis-config-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
-        <td><input type="number" class="input-full sizing-user-input redis-config-ram" value="${data.ram || ''}" placeholder="RAM (GB)" min="0" onchange="updateRedisTotalMasterRAM()"></td>
-        <td><input type="number" class="input-full sizing-user-input redis-config-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100" onchange="updateRedisTotalMasterRAM()"></td>
+        <td><input type="number" class="input-full sizing-user-input redis-config-ram" value="${data.ram || ''}" placeholder="RAM (GB)" min="0"></td>
+        <td><input type="number" class="input-full sizing-user-input redis-config-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100"></td>
         <td class="text-center">
-            <input type="checkbox" class="redis-master-checkbox" ${data.isMaster ? 'checked' : ''} onchange="updateRedisTotalMasterRAM()">
+            <input type="checkbox" class="redis-master-checkbox" ${data.isMaster ? 'checked' : ''}>
         </td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="redis-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="redis-config-evidence-input" data-change-action="inline-evidence-upload" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="click-near-file-input" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
             </div>
         </td>
         <td class="admin-cell">
-            <select class="admin-eval-select redis-config-eval" onchange="styleAdminSelect(this)">
+            <select class="admin-eval-select redis-config-eval">
                 <option value="">--</option>
                 <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
                 <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
@@ -7997,7 +8765,7 @@ function addRedisConfigRow(data = {}) {
             <input type="text" class="input-full admin-note redis-config-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
         </td>
         <td class="text-center">
-            <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove(); updateRedisTotalMasterRAM();">
+            <button type="button" class="btn-delete sizing-user-btn" data-action="remove-closest-row" data-after-action="updateRedisTotalMasterRAM">
                 <i class="fa-solid fa-times"></i>
             </button>
         </td>
@@ -8412,7 +9180,7 @@ function loadRedisData(data) {
                     if (lastSlot && img.dataUrl) {
                         const previewArea = lastSlot.querySelector('.preview-area');
                         if (previewArea) {
-                            previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
+                            previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" data-action="open-previous-image-modal" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
                         }
                     }
                 });
@@ -8518,11 +9286,11 @@ function addImageUploadSlot(grid, handlerName) {
     slot.className = 'upload-box';
     slot.innerHTML = `
         <div class="preview-area"></div>
-        <input type="file" accept="image/*" onchange="${handlerName}(this)" style="display:none;">
-        <button type="button" class="btn-upload sizing-user-btn" onclick="this.previousElementSibling.click()">
+        <input type="file" accept="image/*" data-change-action="invoke-upload-handler" data-handler-name="${handlerName}" style="display:none;">
+        <button type="button" class="btn-upload sizing-user-btn" data-action="open-previous-file-input">
             <i class="fa-solid fa-upload"></i> Chọn ảnh
         </button>
-        <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('.upload-box').remove()" style="margin-left: 5px;">
+        <button type="button" class="btn-delete sizing-user-btn" data-action="remove-upload-box" style="margin-left: 5px;">
             <i class="fa-solid fa-times"></i>
         </button>
     `;
@@ -8537,7 +9305,7 @@ function handleKafkaImageUpload(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const previewArea = input.closest('.upload-box').querySelector('.preview-area');
-        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
+        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" data-action="open-previous-image-modal" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
     };
     reader.readAsDataURL(file);
 }
@@ -8601,23 +9369,23 @@ function addKafkaLinearRow(data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" class="input-full sizing-user-input kafka-linear-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
-        <td><input type="number" class="input-full sizing-user-input kafka-linear-vcpu" value="${data.vcpu || ''}" placeholder="vCPU" min="0" onchange="updateKafkaLinearTotal()"></td>
-        <td><input type="number" class="input-full sizing-user-input kafka-linear-ram" value="${data.ram || ''}" placeholder="RAM" min="0" onchange="updateKafkaLinearTotal()"></td>
-        <td><input type="number" class="input-full sizing-user-input kafka-linear-disk" value="${data.disk || ''}" placeholder="Disk" min="0" onchange="updateKafkaLinearTotal()"></td>
-        <td><input type="number" class="input-full sizing-user-input kafka-linear-cpu-load" value="${data.cpuLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
-        <td><input type="number" class="input-full sizing-user-input kafka-linear-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
-        <td><input type="number" class="input-full sizing-user-input kafka-linear-disk-load" value="${data.diskLoad || ''}" placeholder="%" min="0" max="100" onchange="updateKafkaLinearTotal()"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-vcpu" value="${data.vcpu || ''}" placeholder="vCPU" min="0"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-ram" value="${data.ram || ''}" placeholder="RAM" min="0"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-disk" value="${data.disk || ''}" placeholder="Disk" min="0"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-cpu-load" value="${data.cpuLoad || ''}" placeholder="%" min="0" max="100"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100"></td>
+        <td><input type="number" class="input-full sizing-user-input kafka-linear-disk-load" value="${data.diskLoad || ''}" placeholder="%" min="0" max="100"></td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="kafka-linear-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
-                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
+                <input type="file" accept="image/*" multiple class="kafka-linear-evidence-input" data-change-action="inline-evidence-upload" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="click-near-file-input" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
                 <span class="inline-evidence-preview"></span>
             </div>
         </td>
         <td class="admin-cell">
-            <select class="admin-eval-select kafka-linear-eval" onchange="styleAdminSelect(this)">
+            <select class="admin-eval-select kafka-linear-eval">
                 <option value="">--</option>
                 <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
                 <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
@@ -8627,7 +9395,7 @@ function addKafkaLinearRow(data = {}) {
             <input type="text" class="input-full admin-note kafka-linear-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
         </td>
         <td class="text-center">
-            <button type="button" class="btn-delete sizing-user-btn" onclick="this.closest('tr').remove(); updateKafkaLinearTotal();">
+            <button type="button" class="btn-delete sizing-user-btn" data-action="remove-closest-row" data-after-action="updateKafkaLinearTotal">
                 <i class="fa-solid fa-times"></i>
             </button>
         </td>
@@ -9158,7 +9926,7 @@ function loadKafkaEvidenceImages(gridId, images, addSlotFn) {
         if (lastSlot && img.dataUrl) {
             const previewArea = lastSlot.querySelector('.preview-area');
             if (previewArea) {
-                previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
+                previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" data-action="open-previous-image-modal" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
             }
         }
     });
@@ -9311,11 +10079,11 @@ async function loadVersionHistoryList() {
                             ${rev.changeLog || 'Không có mô tả'}
                         </div>
                         <div class="version-actions">
-                            <button class="btn-preview-version" onclick="event.stopPropagation(); previewVersion('${rev.id}')">
+                            <button type="button" class="btn-preview-version" data-action="preview-version" data-version-id="${rev.id}">
                                 <i class="fa-solid fa-eye"></i> Xem trước
                             </button>
                             ${!isFirst ? `
-                                <button class="btn-restore-mini" onclick="event.stopPropagation(); restoreVersion('${rev.id}')">
+                                <button type="button" class="btn-restore-mini" data-action="restore-version" data-version-id="${rev.id}">
                                     <i class="fa-solid fa-rotate-left"></i> Khôi phục
                                 </button>
                             ` : ''}
@@ -9492,19 +10260,6 @@ function renderDiffValue(newVal, oldVal) {
         html += `<span class="diff-added">${newStr}</span>`;
     }
     return html || null;
-}
-
-/**
- * Kiểm tra xem có sự thay đổi giữa 2 object không
- */
-function hasChanges(newObj, oldObj, keys) {
-    if (!oldObj) return true; // Phiên bản đầu tiên, hiển thị tất cả
-    for (const key of keys) {
-        const newVal = (newObj[key] || '').toString().trim();
-        const oldVal = (oldObj[key] || '').toString().trim();
-        if (newVal !== oldVal) return true;
-    }
-    return false;
 }
 
 /**
@@ -9972,7 +10727,7 @@ function renderModelDiff(snapshot, prevSnapshot) {
         if (!images || images.length === 0) return '';
         const thumbs = images.map((img, i) => {
             const src = img.base64 || img.dataUrl || img;
-            return `<img src="${src}" alt="${title}-${i}" onclick="openModal(this.src)" style="cursor:zoom-in; max-width:180px; max-height:120px; border-radius:6px; border:1px solid #e2e8f0; margin:4px;">`;
+            return `<img src="${src}" alt="${title}-${i}" data-action="open-modal-image" style="cursor:zoom-in; max-width:180px; max-height:120px; border-radius:6px; border:1px solid #e2e8f0; margin:4px;">`;
         }).join('');
         const evalHtml = adminData && adminData.eval ? renderEvalDiff(adminData.eval, null) : '';
         const noteHtml = adminData && adminData.note ? `<span style="color:#6366f1; font-style:italic; margin-left:8px;">${adminData.note}</span>` : '';
@@ -10216,7 +10971,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
     if (evidenceImgs.length > 0) {
         const thumbs = evidenceImgs.map((img, i) => {
             const src = img.dataUrl || img.base64 || img;
-            return `<img src="${src}" alt="evidence-${i}" onclick="openModal(this.src)" style="cursor:zoom-in; max-width:150px; max-height:100px; border-radius:4px; border:1px solid #e2e8f0; margin:3px;">`;
+            return `<img src="${src}" alt="evidence-${i}" data-action="open-modal-image" style="cursor:zoom-in; max-width:150px; max-height:100px; border-radius:4px; border:1px solid #e2e8f0; margin:3px;">`;
         }).join('');
         appHtml += `<div class="diff-item"><strong>Ảnh sở cứ Module App</strong> (${evidenceImgs.length} ảnh)<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">${thumbs}</div></div>`;
     }
@@ -10956,7 +11711,7 @@ function createConnectionTableRow(stt, data = {}) {
         </td>
         <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="Mô tả kết nối...">${escapeHtml(data.description || '')}</textarea></td>
         <td class="admin-cell">
-            <select class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+            <select class="admin-eval admin-eval-select">
                 <option value="">--</option>
                 <option value="OK" ${data.adminEval === 'OK' ? 'selected' : ''}>OK</option>
                 <option value="NOK" ${data.adminEval === 'NOK' ? 'selected' : ''}>NOK</option>
@@ -10966,7 +11721,7 @@ function createConnectionTableRow(stt, data = {}) {
             <textarea rows="1" class="input-full admin-note" placeholder="Nhận xét..." style="resize: vertical; min-height: 34px;">${data.adminNote || ''}</textarea>
         </td>
         <td class="text-center">
-            <button class="btn-delete" onclick="removeConnectionRow(this)">✖</button>
+            <button class="btn-delete" data-action="remove-connection-row">✖</button>
         </td>
     `;
     return tr;
@@ -11032,4 +11787,7 @@ function loadConnectionInfo(data) {
         tbody.appendChild(createConnectionTableRow(1, {}));
     }
 }
+
+
+
 

@@ -31,20 +31,20 @@
             </div>
 
             <nav class="nav-right">
-                <button id="btn-back-to-list" onclick="showProjectList()" style="background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px; display: none;">
+                <button id="btn-back-to-list" data-action="show-project-list" style="background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px; display: none;">
                     <i class="fa-solid fa-arrow-left"></i> Quay về danh sách
                 </button>
                 
                 <!-- Nút Phê duyệt trên header (luôn hiển thị, chỉ admin2 mới bấm được) -->
-                <button type="button" class="btn-approve" id="btn-approve-header" onclick="approveProject()" style="display: none; padding: 8px 18px; font-size: 13px;">
+                <button type="button" class="btn-approve" id="btn-approve-header" data-action="approve-project-header" style="display: none; padding: 8px 18px; font-size: 13px;">
                     <i class="fa-solid fa-check-circle"></i> PHÊ DUYỆT
                 </button>
                 
                 <span class="separator">|</span>
-                <button id="btn-version-history" onclick="openVersionHistory()" class="btn-version-history" style="display: none;">
+                <button id="btn-version-history" data-action="open-version-history" class="btn-version-history" style="display: none;">
                     <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử
                 </button>
-                <button onclick="startNewProject()" style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+                <button id="btn-start-new-project" data-action="start-new-project" style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
                     <i class="fa-solid fa-plus"></i> Tạo dự án mới
                 </button>
                 
@@ -52,7 +52,7 @@
                 <div id="user-info" class="user-info" style="display: none;">
                     <span class="user-avatar"><i class="fa-solid fa-user-circle"></i></span>
                     <span id="user-display-name" class="user-name">User</span>
-                    <button onclick="logout()" class="btn-logout" title="Đăng xuất">
+                    <button data-action="logout" class="btn-logout" title="Đăng xuất">
                         <i class="fa-solid fa-right-from-bracket"></i> Đăng xuất
                     </button>
                 </div>
@@ -71,15 +71,15 @@
         <div class="project-list-toolbar">
             <div class="toolbar-search">
                 <i class="fa-solid fa-magnifying-glass toolbar-search-icon"></i>
-                <input type="text" id="search-project" placeholder="Tìm kiếm theo tên dự án, đơn vị, người tạo..." oninput="filterProjects()">
-                <button class="toolbar-search-clear" id="btn-clear-search" onclick="clearProjectSearch()" title="Xóa tìm kiếm" style="display:none;">
+                <input type="text" id="search-project" placeholder="Tìm kiếm theo tên dự án, đơn vị, người tạo...">
+                <button class="toolbar-search-clear" id="btn-clear-search" data-action="clear-project-search" title="Xóa tìm kiếm" style="display:none;">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
             <div class="toolbar-filters">
                 <div class="toolbar-filter-group">
                     <label class="toolbar-filter-label"><i class="fa-solid fa-filter"></i> Trạng thái</label>
-                    <select id="filter-status" onchange="filterProjects()">
+                    <select id="filter-status">
                         <option value="">Tất cả</option>
                         <option value="SIZING">Sizing</option>
                         <option value="THAM_DINH">Thẩm định</option>
@@ -87,7 +87,7 @@
                         <option value="HOAN_THANH">Hoàn thành</option>
                     </select>
                 </div>
-                <button onclick="loadProjectList()" class="btn-refresh" title="Tải lại danh sách">
+                <button data-action="refresh-project-list" class="btn-refresh" title="Tải lại danh sách">
                     <i class="fa-solid fa-rotate"></i> Làm mới
                 </button>
             </div>
@@ -125,27 +125,27 @@
         <nav class="horizontal-tabs">
             <ul class="side-menu">
                 <li>
-                    <a href="#" class="active" onclick="showSection('page-request', this); return false;">
+                    <a href="#" class="active" data-action="show-section" data-section="page-request">
                         <i class="fa-solid fa-file-invoice"></i> Yêu cầu bài toán
                     </a>
                 </li>
                 <li>
-                    <a href="#" onclick="showSection('page-input', this); return false;">
+                    <a href="#" data-action="show-section" data-section="page-input">
                         <i class="fa-solid fa-file-import"></i> Thông tin đầu vào
                     </a>
                 </li>
                 <li>
-                    <a href="#" onclick="showSection('page-model', this); return false;">
+                    <a href="#" data-action="show-section" data-section="page-model">
                         <i class="fa-solid fa-sitemap"></i> Mô hình hệ thống
                     </a>
                 </li>
                 <li>
-                    <a href="#" onclick="showSection('page-sizing', this); return false;">
+                    <a href="#" data-action="show-section" data-section="page-sizing">
                         <i class="fa-solid fa-microchip"></i> Định cỡ hệ thống
                     </a>
                 </li>
                 <li>
-                    <a href="#" onclick="showSection('page-summary', this); return false;">
+                    <a href="#" data-action="show-section" data-section="page-summary">
                         <i class="fa-solid fa-chart-line"></i> Tổng hợp và đề xuất
                     </a>
                 </li>
@@ -176,19 +176,19 @@
                                 <tr>
                                     <td><strong>1. Đơn vị phát triển</strong> <span class="info-icon" title="Ghi tên đơn vị phát triển ứng dụng">?</span></td>
                                     <td><input type="text" class="input-full" placeholder="Nhập tên đơn vị..."></td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                                 <tr>
                                     <td><strong>2. Tên dự án</strong> <span class="info-icon" title="Tên đầy đủ của dự án">?</span></td>
                                     <td><input type="text" class="input-full" placeholder="Nhập tên dự án..."></td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                                 <tr>
                                     <td><strong>3. Chức năng hệ thống</strong> <span class="info-icon" title="Mô tả ngắn gọn chức năng">?</span></td>
                                     <td><textarea class="input-full" rows="2" placeholder="Mô tả chức năng..." style="resize: vertical; min-height: 36px;"></textarea></td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                                 <tr>
@@ -200,7 +200,7 @@
                                             <input type="text" id="contact-phone" placeholder="SĐT" style="flex: 1; min-width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                         </div>
                                     </td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                                 <tr>
@@ -213,7 +213,7 @@
                                             <option value="Đánh giá tải để bàn giao VHKT">Đánh giá tải để bàn giao VHKT</option>
                                         </select>
                                     </td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                                 <tr>
@@ -226,7 +226,7 @@
                                             <option value="Dựa trên hệ thống đang chạy">Dựa trên hệ thống đang chạy</option>
                                         </select>
                                     </td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                                 <tr>
@@ -236,7 +236,7 @@
                                         cứng phải đảm bảo hoạt động với cơ chế dự phòng active-active hoặc active-standby, Đảm bảo hiệu suất hoạt động (KPI): Tải CPU 
                                         không quá 75%, RAM không vượt quá 90% và ổ cứng không vượt quá 80%, Datanode không vượt quá 50%, 
                                         Hệ số dự phòng sai số tính toán: 1.1</textarea></td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                                 <tr>
@@ -250,13 +250,13 @@
                                             <option value="Bình thường">Bình thường</option>
                                         </select>
                                     </td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                                 <tr>
                                     <td><strong>9. Thời gian triển khai</strong> <span class="info-icon" title="Mốc thời gian thực hiện">?</span></td>
                                     <td><input type="date" class="input-full"></td>
-                                    <td><select class="admin-eval" onchange="updateColor(this)"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
+                                    <td><select class="admin-eval"><option value="">--</option><option value="OK">OK</option><option value="NOK">NOK</option></select></td>
                                     <td><textarea class="input-full admin-note" rows="2" placeholder="Note..." style="resize: vertical; min-height: 36px;"></textarea></td>
                                 </tr>
                             </tbody>
@@ -264,7 +264,7 @@
                     </div>
 
                     <div style="text-align: center; margin-top: 20px;">
-                        <button type="button" class="btn-save-section" onclick="performManualSave()">
+                        <button type="button" class="btn-save-section" data-action="perform-manual-save">
                             <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
                         </button>
                         <div id="save-status" style="margin-top: 10px;"></div>
@@ -280,7 +280,7 @@
                         <div class="help-content">
                             <img src="hinhanh.img/logic.png"
                                 alt="Mẫu thông tin đầu vào"
-                                onclick="openModal(this.src)"
+                                data-action="open-modal-image"
                                 style="cursor: zoom-in;"
                                 title="Bấm để phóng to">
                             <p class="help-text">Ví dụ dữ liệu đầu vào gồm CCU, tải POC và dữ liệu định cỡ tương ứng.</p>
@@ -328,8 +328,7 @@
                                             <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                                                 <i class="fa-solid fa-cloud-arrow-up"></i>
                                                 <input type="file" accept="image/*" class="hidden-file-input" 
-                                                    onclick="event.stopPropagation()" 
-                                                    onchange="handleRowEvidenceUpload(this, 'poc')">
+                                                    data-change-action="row-evidence-upload" data-evidence-kind="poc">
                                             </label>
                                         </div>
                                         <div class="row-evidence-container"></div>
@@ -343,8 +342,7 @@
                                             <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                                                 <i class="fa-solid fa-cloud-arrow-up"></i>
                                                 <input type="file" accept="image/*" class="hidden-file-input" 
-                                                    onclick="event.stopPropagation()" 
-                                                    onchange="handleRowEvidenceUpload(this, 'sizing')">
+                                                    data-change-action="row-evidence-upload" data-evidence-kind="sizing">
                                             </label>
                                         </div>
                                         <div class="row-evidence-container"></div>
@@ -355,7 +353,7 @@
                                 <td><textarea rows="2" class="input-full" placeholder="Ghi chú..."></textarea></td>
                                 
                                 <td>
-                                    <select class="admin-eval" onchange="updateColor(this)">
+                                    <select class="admin-eval">
                                         <option value="">--</option>
                                         <option value="OK">OK</option>
                                         <option value="NOK">NOK</option>
@@ -367,7 +365,7 @@
                                 </td>
                                 
                                 <td style="text-align: center;">
-                                    <button class="btn-delete-row-item" onclick="deleteRow(this)" title="Xóa dòng này">
+                                    <button class="btn-delete-row-item" type="button" data-action="delete-input-row" title="Xóa dòng này">
                                         <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </td>
@@ -377,7 +375,7 @@
                 </div>
                 
                 <div style="margin-top: 15px;">
-                    <button type="button" class="btn-add" onclick="addInputRow()">
+                    <button type="button" class="btn-add" data-action="add-input-row">
                         <i class="fa-solid fa-plus"></i> Thêm dòng
                     </button>
                 </div>
@@ -387,7 +385,7 @@
                     </div>
 
                 <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; text-align: center;">
-                    <button type="button" class="btn-save-section" onclick="performManualSave()">
+                    <button type="button" class="btn-save-section" data-action="perform-manual-save">
                         <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
                     </button>
                     <div id="input-save-status" style="margin-top: 10px;"></div>
@@ -409,7 +407,7 @@
                                     <div class="help-content">
                                         <img src="hinhanh.img/vatly.png"
                                             alt="Mẫu Vật lý" 
-                                            onclick="openModal(this.src)" 
+                                            data-action="open-modal-image" 
                                             style="cursor: zoom-in;" 
                                             title="Bấm để phóng to">
                                         <p class="help-text">Sơ đồ đấu nối vật lý giữa các Server, Switch, Firewall...</p>
@@ -418,7 +416,7 @@
                             </h3>
                             
                             <div id="container-physical" class="image-upload-grid"></div>
-                            <button type="button" class="btn-add-img" onclick="createUploadBox('physical')">
+                            <button type="button" class="btn-add-img" data-action="create-upload-box" data-upload-type="physical">
                                 <i class="fa-solid fa-plus"></i> Thêm ảnh
                             </button>
                         </div>
@@ -451,7 +449,7 @@
                                     <div class="help-content">
                                         <img src="hinhanh.img/logic.png"
                                             alt="Mẫu Logic" 
-                                            onclick="openModal(this.src)" 
+                                            data-action="open-modal-image" 
                                             style="cursor: zoom-in;"
                                             title="Bấm để phóng to">
                                         <p class="help-text">Sơ đồ logic thể hiện IP, Port, Vlan và luồng kết nối.</p>
@@ -460,7 +458,7 @@
                             </h3>
                             
                             <div id="container-logical" class="image-upload-grid"></div>
-                            <button type="button" class="btn-add-img" onclick="createUploadBox('logical')">
+                            <button type="button" class="btn-add-img" data-action="create-upload-box" data-upload-type="logical">
                                 <i class="fa-solid fa-plus"></i> Thêm ảnh
                             </button>
 
@@ -481,7 +479,7 @@
                                         <tbody id="logic-component-table-body"></tbody>
                                     </table>
                                 </div>
-                                <button type="button" class="btn-add" id="addLogicComponentRowBtn" style="margin-top: 12px;">
+                                <button type="button" class="btn-add" id="addLogicComponentRowBtn" data-action="add-logic-component-row" style="margin-top: 12px;">
                                     <i class="fa-solid fa-plus"></i> Thêm thành phần Logic
                                 </button>
                             </div>
@@ -515,7 +513,7 @@
                                     <div class="help-content">
                                         <img src="hinhanh.img/logic.png"
                                             alt="Mẫu thông tin kết nối"
-                                            onclick="openModal(this.src)"
+                                            data-action="open-modal-image"
                                             style="cursor: zoom-in;"
                                             title="Bấm để phóng to">
                                         <p class="help-text">Ví dụ thể hiện IP nguồn, IP đích, port và giao thức kết nối.</p>
@@ -545,7 +543,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <button type="button" class="btn-add" id="addConnectionRowBtn" style="margin-top: 15px;">
+                            <button type="button" class="btn-add" id="addConnectionRowBtn" data-action="add-connection-row" style="margin-top: 15px;">
                                 <i class="fa-solid fa-plus"></i> Thêm kết nối
                             </button>
                         </div>
@@ -562,7 +560,7 @@
                                     <div class="help-content">
                                         <img src="https://placehold.co/600x300/png?text=Mau+Luong+Nghiep+Vu" 
                                             alt="Mẫu Luồng" 
-                                            onclick="openModal(this.src)" 
+                                            data-action="open-modal-image" 
                                             style="cursor: zoom-in;">
                                         <p class="help-text">Sơ đồ Sequence Diagram hoặc Flowchart mô tả nghiệp vụ.</p>
                                     </div>
@@ -571,7 +569,7 @@
                             
                             <div style="margin-bottom: 20px;">
                                 <div id="container-flow" class="image-upload-grid"></div>
-                                <button type="button" class="btn-add-img" onclick="createUploadBox('flow')">
+                                <button type="button" class="btn-add-img" data-action="create-upload-box" data-upload-type="flow">
                                     <i class="fa-solid fa-plus"></i> Thêm ảnh luồng
                                 </button>
                             </div>
@@ -613,7 +611,7 @@
                                     <div class="help-content">
                                         <img src="hinhanh.img/vatly.png"
                                             alt="Mẫu chi tiết thành phần"
-                                            onclick="openModal(this.src)"
+                                            data-action="open-modal-image"
                                             style="cursor: zoom-in;"
                                             title="Bấm để phóng to">
                                         <p class="help-text">Ví dụ khai báo chi tiết module, zone mạng, hệ điều hành và số lượng VIP.</p>
@@ -643,14 +641,14 @@
                                         </tbody>
                                 </table>
                             </div>
-                            <button type="button" class="btn-add" id="addArchRowBtn" style="margin-top: 15px;">
+                            <button type="button" class="btn-add" id="addArchRowBtn" data-action="add-arch-row" style="margin-top: 15px;">
                                 <i class="fa-solid fa-plus"></i> Thêm thành phần
                             </button>
                         </div>
                     </div>
 
                     <div style="text-align: center; margin-top: 30px;">
-                        <button type="button" class="btn-save-section" onclick="performManualSave()">
+                        <button type="button" class="btn-save-section" data-action="perform-manual-save">
                             <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
                         </button>
                         <div id="model-save-status" style="margin-top: 10px;"></div>
@@ -664,7 +662,7 @@
 
                     <!-- Module App Collapsible Section -->
                     <div class="module-collapsible">
-                        <div class="module-collapsible-header active" onclick="toggleModuleCollapsible('module-app-content')">
+                        <div class="module-collapsible-header active" data-action="toggle-module-collapsible" data-target="module-app-content">
                             <span><i class="fa-solid fa-cube"></i> Module App</span>
                             <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-app-icon"></i>
                         </div>
@@ -713,7 +711,7 @@
                                     </table>
                                 </div>
 
-                                <button type="button" class="btn-add sizing-user-btn" onclick="addBaselineRow()">
+                                <button type="button" class="btn-add sizing-user-btn" data-action="add-baseline-row">
                                     <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
                                 </button>
 
@@ -769,7 +767,7 @@
                                         <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
                                             <div style="min-width:280px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
-                                                <select id="app-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'poc-value', 'sizing-value')">
+                                                <select id="app-input-row-select" class="input-full sizing-user-input" data-change-action="sync-input-row" data-poc-target="poc-value" data-sizing-target="sizing-value">
                                                     <option value="">-- Chọn từ bảng đầu vào --</option>
                                                 </select>
                                             </div>
@@ -784,7 +782,7 @@
 
                                             <div style="min-width:220px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Mode cấu hình ảo hóa</label>
-                                                <select id="app-virtualization-mode" class="input-full sizing-user-input" onchange="onVirtualizationModeChange('app')">
+                                                <select id="app-virtualization-mode" class="input-full sizing-user-input" data-change-action="virtualization-mode-change" data-prefix="app">
                                                     <option value="ram" selected>Theo RAM</option>
                                                     <option value="vcpu">Theo vCPU</option>
                                                 </select>
@@ -809,7 +807,7 @@
 
                                             <div class="admin-cell" style="min-width:120px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Đánh giá</label>
-                                                <select id="app-flavor-eval" class="input-full admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <select id="app-flavor-eval" class="input-full admin-eval-select">
                                                     <option value="">--</option>
                                                     <option value="OK">OK</option>
                                                     <option value="NOK">NOK</option>
@@ -821,8 +819,8 @@
                                             </div>
 
                                             <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
-                                                <button type="button" class="btn-submit sizing-user-btn" onclick="calculateSizingRecommendations()">Tính toán</button>
-                                                <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('sizing-result-container').innerHTML='';">Xóa kết quả</button>
+                                                <button type="button" class="btn-submit sizing-user-btn" data-action="calculate-sizing-recommendations">Tính toán</button>
+                                                <button type="button" class="btn-outline sizing-user-btn" data-action="clear-result-container" data-target="sizing-result-container">Xóa kết quả</button>
                                             </div>
                                         </div>
                                         
@@ -838,7 +836,7 @@
 
                     <!-- Module MariaDB Collapsible Section -->
                     <div class="module-collapsible">
-                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-mariadb-content')">
+                        <div class="module-collapsible-header" data-action="toggle-module-collapsible" data-target="module-mariadb-content">
                             <span><i class="fa-solid fa-database"></i> Module MariaDB</span>
                             <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-mariadb-icon"></i>
                         </div>
@@ -873,7 +871,7 @@
                                         <tbody id="mariadb-ref-table-body"></tbody>
                                     </table>
                                 </div>
-                                <button type="button" class="btn-add sizing-user-btn" onclick="addMariaDBRefRow()">
+                                <button type="button" class="btn-add sizing-user-btn" data-action="add-mariadb-ref-row">
                                     <i class="fa-solid fa-plus"></i> Thêm dòng
                                 </button>
 
@@ -908,13 +906,13 @@
                                                     <td>
                                                         <div class="mariadb-storage-evidence-container">
                                                             <div id="mariadb-storage-evidence-grid" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;"></div>
-                                                            <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="addMariaDBStorageEvidenceSlot()" title="Thêm ảnh sở cứ" style="font-size: 11px; padding: 2px 8px;">
+                                                            <button type="button" class="btn-inline-evidence sizing-user-btn" data-action="add-mariadb-storage-evidence-slot" title="Thêm ảnh sở cứ" style="font-size: 11px; padding: 2px 8px;">
                                                                 <i class="fa-solid fa-plus"></i>
                                                             </button>
                                                         </div>
                                                     </td>
                                                     <td class="admin-cell">
-                                                        <select id="eval-mariadb-storage" class="admin-eval-select" onchange="styleAdminSelect(this)">
+                                                        <select id="eval-mariadb-storage" class="admin-eval-select">
                                                             <option value="">--</option>
                                                             <option value="OK">OK</option>
                                                             <option value="NOK">NOK</option>
@@ -944,7 +942,7 @@
                                         </div>
                                         <div style="min-width:280px;">
                                             <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
-                                            <select id="mariadb-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'mariadb-input-ccu', 'mariadb-sizing-ccu')">
+                                            <select id="mariadb-input-row-select" class="input-full sizing-user-input" data-change-action="sync-input-row" data-poc-target="mariadb-input-ccu" data-sizing-target="mariadb-sizing-ccu">
                                                 <option value="">-- Chọn từ bảng đầu vào --</option>
                                             </select>
                                         </div>
@@ -957,10 +955,10 @@
                                             <input id="mariadb-sizing-ccu" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                         </div>
                                         <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
-                                            <button type="button" class="btn-submit sizing-user-btn" onclick="calculateMariaDBSizing()">
+                                            <button type="button" class="btn-submit sizing-user-btn" data-action="calculate-mariadb-sizing">
                                                 <i class="fa-solid fa-calculator"></i> Tính toán
                                             </button>
-                                            <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('mariadb-result-container').innerHTML='';">
+                                            <button type="button" class="btn-outline sizing-user-btn" data-action="clear-result-container" data-target="mariadb-result-container">
                                                 Xóa kết quả
                                             </button>
                                         </div>
@@ -976,7 +974,7 @@
 
                     <!-- Module Redis Collapsible Section -->
                     <div class="module-collapsible">
-                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-redis-content')">
+                        <div class="module-collapsible-header" data-action="toggle-module-collapsible" data-target="module-redis-content">
                             <span><i class="fa-solid fa-memory"></i> Module Redis</span>
                             <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-redis-icon"></i>
                         </div>
@@ -988,10 +986,10 @@
                                     <i class="fa-solid fa-route" style="color: #ee0033;"></i>CHỌN PHƯƠNG PHÁP TÍNH TOÁN
                                 </h3>
                                 <div style="display: flex; gap: 15px; margin-bottom: 25px;">
-                                    <button type="button" class="btn-method sizing-user-btn active" id="redis-method-key" onclick="selectRedisMethod('key')" style="flex: 1; padding: 15px; border: 2px solid #0066cc; background: #e6f3ff; font-weight: 600;">
+                                    <button type="button" class="btn-method sizing-user-btn active" id="redis-method-key" data-action="select-redis-method" data-method="key" style="flex: 1; padding: 15px; border: 2px solid #0066cc; background: #e6f3ff; font-weight: 600;">
                                         <i class="fa-solid fa-key"></i> Tính theo Key dự kiến <span style="color: #28a745; font-size: 12px;">(recommend)</span>
                                     </button>
-                                    <button type="button" class="btn-method sizing-user-btn" id="redis-method-config" onclick="selectRedisMethod('config')" style="flex: 1; padding: 15px; border: 2px solid #ccc; background: #f8f9fa;">
+                                    <button type="button" class="btn-method sizing-user-btn" id="redis-method-config" data-action="select-redis-method" data-method="config" style="flex: 1; padding: 15px; border: 2px solid #ccc; background: #f8f9fa;">
                                         <i class="fa-solid fa-server"></i> Tính theo cấu hình hiện có <span style="color: #dc3545; font-size: 12px;">(không khuyến khích)</span>
                                     </button>
                                 </div>
@@ -1008,7 +1006,7 @@
                                             <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
                                                 Chọn dòng đầu vào (POC & Định cỡ)
                                             </label>
-                                            <select id="redis-key-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'redis-key-poc', 'redis-key-sizing'); updateRedisKeyCalculated()">
+                                            <select id="redis-key-input-row-select" class="input-full sizing-user-input" data-change-action="sync-input-row" data-poc-target="redis-key-poc" data-sizing-target="redis-key-sizing" data-after-change-action="update-redis-key-calculated">
                                                 <option value="">-- Chọn từ bảng đầu vào --</option>
                                             </select>
                                         </div>
@@ -1034,7 +1032,7 @@
                                                     Tổng lượng Key của hệ thống POC là:
                                                     <span class="tooltip-icon" title="Hướng dẫn sử dụng lấy Key: Dùng môi trường test đã cài redis-cli, dùng lệnh dbsize hoặc info keyspace">?</span>
                                                 </label>
-                                                <input id="redis-key-count-poc" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 500000" onchange="updateRedisKeyCalculated()">
+                                                <input id="redis-key-count-poc" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 500000" data-change-action="update-redis-key-calculated">
                                             </div>
                                             <div style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">
@@ -1067,7 +1065,7 @@
                                                 <i class="fa-solid fa-image"></i> Hình ảnh sở cứ
                                             </label>
                                             <div id="redis-key-evidence-grid" class="image-upload-grid"></div>
-                                            <button type="button" class="btn-add-img sizing-user-btn" onclick="addRedisKeyEvidenceSlot()" style="margin-top: 10px;">
+                                            <button type="button" class="btn-add-img sizing-user-btn" data-action="add-redis-key-evidence-slot" style="margin-top: 10px;">
                                                 <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
                                             </button>
                                         </div>
@@ -1078,7 +1076,7 @@
                                         <div class="admin-grid-layout">
                                             <div>
                                                 <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                                <select id="eval-module-redis" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <select id="eval-module-redis" class="admin-eval admin-eval-select">
                                                     <option value="">-- Chọn --</option>
                                                     <option value="OK">OK</option>
                                                     <option value="NOK">NOK</option>
@@ -1092,10 +1090,10 @@
                                     </div>
 
                                     <div style="margin-top: 20px; text-align: center;">
-                                        <button type="button" class="btn-submit sizing-user-btn" onclick="calculateRedisKeyMethod()">
+                                        <button type="button" class="btn-submit sizing-user-btn" data-action="calculate-redis-key-method">
                                             <i class="fa-solid fa-calculator"></i> Tính toán
                                         </button>
-                                        <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('redis-key-result-container').innerHTML='';" style="margin-left: 10px;">
+                                        <button type="button" class="btn-outline sizing-user-btn" data-action="clear-result-container" data-target="redis-key-result-container" style="margin-left: 10px;">
                                             Xóa kết quả
                                         </button>
                                     </div>
@@ -1152,7 +1150,7 @@
                                             </tfoot>
                                         </table>
                                     </div>
-                                    <button type="button" class="btn-add sizing-user-btn" onclick="addRedisConfigRow()">
+                                    <button type="button" class="btn-add sizing-user-btn" data-action="add-redis-config-row">
                                         <i class="fa-solid fa-plus"></i> Thêm dòng
                                     </button>
 
@@ -1164,7 +1162,7 @@
                                         <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
                                             <div style="min-width: 160px;">
                                                 <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
-                                                <select id="redis-config-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'redis-config-input-ccu', 'redis-config-sizing-ccu')">
+                                                <select id="redis-config-input-row-select" class="input-full sizing-user-input" data-change-action="sync-input-row" data-poc-target="redis-config-input-ccu" data-sizing-target="redis-config-sizing-ccu">
                                                     <option value="">-- Chọn từ bảng đầu vào --</option>
                                                 </select>
                                             </div>
@@ -1187,10 +1185,10 @@
                                     </div>
 
                                     <div style="margin-top: 20px; text-align: center;">
-                                        <button type="button" class="btn-submit sizing-user-btn" onclick="calculateRedisConfigMethod()">
+                                        <button type="button" class="btn-submit sizing-user-btn" data-action="calculate-redis-config-method">
                                             <i class="fa-solid fa-calculator"></i> Tính toán
                                         </button>
-                                        <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('redis-config-result-container').innerHTML='';" style="margin-left: 10px;">
+                                        <button type="button" class="btn-outline sizing-user-btn" data-action="clear-result-container" data-target="redis-config-result-container" style="margin-left: 10px;">
                                             Xóa kết quả
                                         </button>
                                     </div>
@@ -1204,7 +1202,7 @@
 
                     <!-- Module Kafka Collapsible Section -->
                     <div class="module-collapsible">
-                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-kafka-content')">
+                        <div class="module-collapsible-header" data-action="toggle-module-collapsible" data-target="module-kafka-content">
                             <span><i class="fa-solid fa-diagram-project"></i> Module Kafka</span>
                             <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-kafka-icon"></i>
                         </div>
@@ -1216,10 +1214,10 @@
                                     <i class="fa-solid fa-route" style="color: #ee0033;"></i>CHỌN PHƯƠNG PHÁP TÍNH TOÁN
                                 </h3>
                                 <div style="display: flex; gap: 15px; margin-bottom: 25px;">
-                                    <button type="button" class="btn-method sizing-user-btn active" id="kafka-method-throughput" onclick="selectKafkaMethod('throughput')" style="flex: 1; padding: 15px; border: 2px solid #0066cc; background: #e6f3ff; font-weight: 600;">
+                                    <button type="button" class="btn-method sizing-user-btn active" id="kafka-method-throughput" data-action="select-kafka-method" data-method="throughput" style="flex: 1; padding: 15px; border: 2px solid #0066cc; background: #e6f3ff; font-weight: 600;">
                                         <i class="fa-solid fa-gauge-high"></i> Phương án A: Tính theo lưu lượng <span style="color: #28a745; font-size: 12px;">(Recommended)</span>
                                     </button>
-                                    <button type="button" class="btn-method sizing-user-btn" id="kafka-method-linear" onclick="selectKafkaMethod('linear')" style="flex: 1; padding: 15px; border: 2px solid #ccc; background: #f8f9fa;">
+                                    <button type="button" class="btn-method sizing-user-btn" id="kafka-method-linear" data-action="select-kafka-method" data-method="linear" style="flex: 1; padding: 15px; border: 2px solid #ccc; background: #f8f9fa;">
                                         <i class="fa-solid fa-server"></i> Phương án B: Tính tuyến tính <span style="color: #666; font-size: 12px;">(Existing System)</span>
                                     </button>
                                 </div>
@@ -1239,7 +1237,7 @@
                                                     <label style="font-weight: 600; font-size: 13px;">
                                                         Lưu lượng vào Write - A (MB/s)
                                                     </label>
-                                                    <button type="button" class="btn-helper sizing-user-btn" onclick="openKafkaHelperTool()" style="padding: 4px 10px; font-size: 11px; background: #17a2b8; color: white; border-radius: 4px;">
+                                                    <button type="button" class="btn-helper sizing-user-btn" data-action="open-kafka-helper-tool" style="padding: 4px 10px; font-size: 11px; background: #17a2b8; color: white; border-radius: 4px;">
                                                         <i class="fa-solid fa-calculator"></i> Helper Tool
                                                     </button>
                                                 </div>
@@ -1248,7 +1246,7 @@
                                                     <i class="fa-solid fa-info-circle"></i> Kiểm tra Monitor (Grafana/JMX) thông số BytesInPerSec
                                                 </p>
                                                 <div id="kafka-throughput-evidence-grid" class="image-upload-grid" style="margin-top: 10px;"></div>
-                                                <button type="button" class="btn-add-img sizing-user-btn" onclick="addKafkaThroughputEvidenceSlot()" style="margin-top: 8px; font-size: 11px;">
+                                                <button type="button" class="btn-add-img sizing-user-btn" data-action="add-kafka-throughput-evidence-slot" style="margin-top: 8px; font-size: 11px;">
                                                     <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
                                                 </button>
                                             </div>
@@ -1286,7 +1284,7 @@
                                                     <option value="1.0">Không nén (1.0)</option>
                                                 </select>
                                                 <div id="kafka-compression-evidence-grid" class="image-upload-grid" style="margin-top: 10px;"></div>
-                                                <button type="button" class="btn-add-img sizing-user-btn" onclick="addKafkaCompressionEvidenceSlot()" style="margin-top: 8px; font-size: 11px;">
+                                                <button type="button" class="btn-add-img sizing-user-btn" data-action="add-kafka-compression-evidence-slot" style="margin-top: 8px; font-size: 11px;">
                                                     <i class="fa-solid fa-cloud-arrow-up"></i> Ảnh sở cứ hệ số nén
                                                 </button>
                                             </div>
@@ -1320,7 +1318,7 @@
                                         <div class="admin-grid-layout">
                                             <div>
                                                 <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                                <select id="eval-module-kafka" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <select id="eval-module-kafka" class="admin-eval admin-eval-select">
                                                     <option value="">-- Chọn --</option>
                                                     <option value="OK">OK</option>
                                                     <option value="NOK">NOK</option>
@@ -1338,7 +1336,7 @@
                                         <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
                                             <div style="min-width:280px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
-                                                <select id="kafka-throughput-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'kafka-throughput-input-ccu', 'kafka-throughput-sizing-ccu')">
+                                                <select id="kafka-throughput-input-row-select" class="input-full sizing-user-input" data-change-action="sync-input-row" data-poc-target="kafka-throughput-input-ccu" data-sizing-target="kafka-throughput-sizing-ccu">
                                                     <option value="">-- Chọn từ bảng đầu vào --</option>
                                                 </select>
                                             </div>
@@ -1352,10 +1350,10 @@
                                             </div>
 
                                             <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
-                                                <button type="button" class="btn-submit sizing-user-btn" onclick="calculateKafkaThroughputMethod()">
+                                                <button type="button" class="btn-submit sizing-user-btn" data-action="calculate-kafka-throughput-method">
                                                     <i class="fa-solid fa-calculator"></i> Tính toán
                                                 </button>
-                                                <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('kafka-throughput-result-container').innerHTML='';">
+                                                <button type="button" class="btn-outline sizing-user-btn" data-action="clear-result-container" data-target="kafka-throughput-result-container">
                                                     Xóa kết quả
                                                 </button>
                                             </div>
@@ -1409,7 +1407,7 @@
                                             </tfoot>
                                         </table>
                                     </div>
-                                    <button type="button" class="btn-add sizing-user-btn" onclick="addKafkaLinearRow()">
+                                    <button type="button" class="btn-add sizing-user-btn" data-action="add-kafka-linear-row">
                                         <i class="fa-solid fa-plus"></i> Thêm Broker
                                     </button>
 
@@ -1421,7 +1419,7 @@
                                         <div style="display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
                                             <div style="min-width: 160px;">
                                                 <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
-                                                <select id="kafka-linear-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'kafka-linear-input-ccu', 'kafka-linear-sizing-ccu')">
+                                                <select id="kafka-linear-input-row-select" class="input-full sizing-user-input" data-change-action="sync-input-row" data-poc-target="kafka-linear-input-ccu" data-sizing-target="kafka-linear-sizing-ccu">
                                                     <option value="">-- Chọn từ bảng đầu vào --</option>
                                                 </select>
                                             </div>
@@ -1437,10 +1435,10 @@
                                     </div>
 
                                     <div style="margin-top: 20px; text-align: center;">
-                                        <button type="button" class="btn-submit sizing-user-btn" onclick="calculateKafkaLinearMethod()">
+                                        <button type="button" class="btn-submit sizing-user-btn" data-action="calculate-kafka-linear-method">
                                             <i class="fa-solid fa-calculator"></i> Tính toán
                                         </button>
-                                        <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('kafka-linear-result-container').innerHTML='';" style="margin-left: 10px;">
+                                        <button type="button" class="btn-outline sizing-user-btn" data-action="clear-result-container" data-target="kafka-linear-result-container" style="margin-left: 10px;">
                                             Xóa kết quả
                                         </button>
                                     </div>
@@ -1457,7 +1455,7 @@
                         <div class="modal-content" style="max-width: 700px; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-height: 90vh;">
                             <!-- Header -->
                             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 24px 28px; position: relative; flex-shrink: 0;">
-                                <button onclick="closeKafkaHelperTool()" style="position: absolute; top: 14px; right: 18px; background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">&times;</button>
+                                <button type="button" data-action="close-kafka-helper-tool" style="position: absolute; top: 14px; right: 18px; background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" data-hover-bg="rgba(255,255,255,0.2)" data-hover-bg-active="rgba(255,255,255,0.35)">&times;</button>
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <div style="background: rgba(255,255,255,0.2); width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                                         <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 20px; color: white;"></i>
@@ -1485,7 +1483,7 @@
                                         </div>
                                         <input id="kafka-helper-msg-count" type="number" min="0" step="1" class="input-full sizing-user-input" placeholder="VD: 10000" style="border-radius: 8px; border: 1px solid #d1d5db; padding: 10px 12px; font-size: 14px; width: 100%; box-sizing: border-box; margin-bottom: 10px;">
                                         <div id="kafka-helper-msg-evidence-grid" class="image-upload-grid" style="margin-bottom: 8px; min-height: 20px;"></div>
-                                        <button type="button" class="btn-add-img sizing-user-btn" onclick="addKafkaHelperMsgEvidenceSlot()" style="font-size: 11px; border-radius: 6px; width: 100%; background: #f3f4f6; border: 1px dashed #d1d5db; color: #374151; padding: 7px 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">
+                                        <button type="button" class="btn-add-img sizing-user-btn" data-action="add-kafka-helper-msg-evidence-slot" style="font-size: 11px; border-radius: 6px; width: 100%; background: #f3f4f6; border: 1px dashed #d1d5db; color: #374151; padding: 7px 12px; cursor: pointer; transition: all 0.2s;" data-hover-bg="#f3f4f6" data-hover-bg-active="#e5e7eb">
                                             <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
                                         </button>
                                     </div>
@@ -1498,7 +1496,7 @@
                                         </div>
                                         <input id="kafka-helper-msg-size" type="number" min="0" step="0.01" class="input-full sizing-user-input" placeholder="VD: 1.5" style="border-radius: 8px; border: 1px solid #d1d5db; padding: 10px 12px; font-size: 14px; width: 100%; box-sizing: border-box; margin-bottom: 10px;">
                                         <div id="kafka-helper-size-evidence-grid" class="image-upload-grid" style="margin-bottom: 8px; min-height: 20px;"></div>
-                                        <button type="button" class="btn-add-img sizing-user-btn" onclick="addKafkaHelperSizeEvidenceSlot()" style="font-size: 11px; border-radius: 6px; width: 100%; background: #f3f4f6; border: 1px dashed #d1d5db; color: #374151; padding: 7px 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">
+                                        <button type="button" class="btn-add-img sizing-user-btn" data-action="add-kafka-helper-size-evidence-slot" style="font-size: 11px; border-radius: 6px; width: 100%; background: #f3f4f6; border: 1px dashed #d1d5db; color: #374151; padding: 7px 12px; cursor: pointer; transition: all 0.2s;" data-hover-bg="#f3f4f6" data-hover-bg-active="#e5e7eb">
                                             <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
                                         </button>
                                     </div>
@@ -1519,10 +1517,10 @@
                             
                             <!-- Footer (sticky buttons) -->
                             <div style="padding: 20px 28px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; gap: 12px; justify-content: center; flex-shrink: 0;">
-                                <button type="button" class="sizing-user-btn" onclick="calculateKafkaHelperThroughput()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(102,126,234,0.3);">
+                                <button type="button" class="sizing-user-btn" data-action="calculate-kafka-helper-throughput" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(102,126,234,0.3);">
                                     <i class="fa-solid fa-calculator"></i> Tính toán
                                 </button>
-                                <button type="button" class="sizing-user-btn" onclick="applyKafkaHelperResult()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">
+                                <button type="button" class="sizing-user-btn" data-action="apply-kafka-helper-result" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">
                                     <i class="fa-solid fa-check"></i> Áp dụng kết quả
                                 </button>
                             </div>
@@ -1531,7 +1529,7 @@
 
                     <!-- Module K8S Collapsible Section -->
                     <div class="module-collapsible">
-                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-k8s-content')">
+                        <div class="module-collapsible-header" data-action="toggle-module-collapsible" data-target="module-k8s-content">
                             <span><i class="fa-solid fa-dharmachakra"></i> Module K8S</span>
                             <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-k8s-icon"></i>
                         </div>
@@ -1575,7 +1573,7 @@
                                     </table>
                                 </div>
 
-                                <button type="button" class="btn-add sizing-user-btn" onclick="addK8SBaselineRow()">
+                                <button type="button" class="btn-add sizing-user-btn" data-action="add-k8s-baseline-row">
                                     <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
                                 </button>
 
@@ -1622,7 +1620,7 @@
                                         <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
                                             <div style="min-width:280px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
-                                                <select id="k8s-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'k8s-poc-value', 'k8s-sizing-value')">
+                                                <select id="k8s-input-row-select" class="input-full sizing-user-input" data-change-action="sync-input-row" data-poc-target="k8s-poc-value" data-sizing-target="k8s-sizing-value">
                                                     <option value="">-- Chọn từ bảng đầu vào --</option>
                                                 </select>
                                             </div>
@@ -1636,7 +1634,7 @@
                                             </div>
                                             <div style="min-width:220px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Mode cấu hình ảo hóa</label>
-                                                <select id="k8s-virtualization-mode" class="input-full sizing-user-input" onchange="onVirtualizationModeChange('k8s')">
+                                                <select id="k8s-virtualization-mode" class="input-full sizing-user-input" data-change-action="virtualization-mode-change" data-prefix="k8s">
                                                     <option value="ram" selected>Theo RAM</option>
                                                     <option value="vcpu">Theo vCPU</option>
                                                 </select>
@@ -1660,7 +1658,7 @@
                                             </div>
                                             <div class="admin-cell" style="min-width:120px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Đánh giá</label>
-                                                <select id="k8s-flavor-eval" class="input-full admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <select id="k8s-flavor-eval" class="input-full admin-eval-select">
                                                     <option value="">--</option>
                                                     <option value="OK">OK</option>
                                                     <option value="NOK">NOK</option>
@@ -1671,8 +1669,8 @@
                                                 <input id="k8s-flavor-note" type="text" class="input-full admin-note" placeholder="Nhận xét cấu hình...">
                                             </div>
                                             <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
-                                                <button type="button" class="btn-submit sizing-user-btn" onclick="calculateK8SSizing()">Tính toán</button>
-                                                <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('k8s-result-container').innerHTML='';">Xóa kết quả</button>
+                                                <button type="button" class="btn-submit sizing-user-btn" data-action="calculate-k8s-sizing">Tính toán</button>
+                                                <button type="button" class="btn-outline sizing-user-btn" data-action="clear-result-container" data-target="k8s-result-container">Xóa kết quả</button>
                                             </div>
                                         </div>
                                         <div id="k8s-result-container" style="margin-top:12px;"></div>
@@ -1684,7 +1682,7 @@
 
                     <!-- Module LB/FW Collapsible Section -->
                     <div class="module-collapsible">
-                        <div class="module-collapsible-header" onclick="toggleModuleCollapsible('module-lbfw-content')">
+                        <div class="module-collapsible-header" data-action="toggle-module-collapsible" data-target="module-lbfw-content">
                             <span><i class="fa-solid fa-shield-halved"></i> Module LB/FW</span>
                             <i class="fa-solid fa-chevron-down module-toggle-icon" id="module-lbfw-icon"></i>
                         </div>
@@ -1694,7 +1692,7 @@
                                     <i class="fa-solid fa-image" style="color: #ee0033;"></i>ẢNH SỞ CỨ
                                 </h3>
                                 <div id="lbfw-evidence-grid" class="image-upload-grid" style="margin-top: 10px;"></div>
-                                <button type="button" class="btn-add-img sizing-user-btn" onclick="addLBFWEvidenceSlot()" style="margin-top: 8px; font-size: 11px;">
+                                <button type="button" class="btn-add-img sizing-user-btn" data-action="add-lbfw-evidence-slot" style="margin-top: 8px; font-size: 11px;">
                                     <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
                                 </button>
 
@@ -1719,7 +1717,7 @@
                                     <div class="admin-grid-layout">
                                         <div>
                                             <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                            <select id="eval-module-lbfw" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                            <select id="eval-module-lbfw" class="admin-eval admin-eval-select">
                                                 <option value="">-- Chọn --</option>
                                                 <option value="OK">OK</option>
                                                 <option value="NOK">NOK</option>
@@ -1737,7 +1735,7 @@
                                         <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
                                             <div style="min-width:280px;">
                                                 <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn dòng đầu vào (POC & Định cỡ)</label>
-                                                <select id="lbfw-input-row-select" class="input-full sizing-user-input" onchange="onInputRowSelect(this, 'lbfw-poc-value', 'lbfw-sizing-value')">
+                                                <select id="lbfw-input-row-select" class="input-full sizing-user-input" data-change-action="sync-input-row" data-poc-target="lbfw-poc-value" data-sizing-target="lbfw-sizing-value">
                                                     <option value="">-- Chọn từ bảng đầu vào --</option>
                                                 </select>
                                             </div>
@@ -1750,10 +1748,10 @@
                                                 <input id="lbfw-sizing-value" type="text" class="input-full" readonly style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                             </div>
                                             <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
-                                                <button type="button" class="btn-submit sizing-user-btn" onclick="calculateLBFWSizing()">
+                                                <button type="button" class="btn-submit sizing-user-btn" data-action="calculate-lbfw-sizing">
                                                     <i class="fa-solid fa-calculator"></i> Tính toán
                                                 </button>
-                                                <button type="button" class="btn-outline sizing-user-btn" onclick="document.getElementById('lbfw-result-container').innerHTML='';">Xóa kết quả</button>
+                                                <button type="button" class="btn-outline sizing-user-btn" data-action="clear-result-container" data-target="lbfw-result-container">Xóa kết quả</button>
                                             </div>
                                         </div>
                                         <div id="lbfw-result-container" style="margin-top:12px;"></div>
@@ -1765,7 +1763,7 @@
                     </div>
 
                     <div style="text-align: center; margin-top: 20px;">
-                        <button type="button" class="btn-save-section" onclick="performManualSave()">
+                        <button type="button" class="btn-save-section" data-action="perform-manual-save">
                             <i class="fa-solid fa-floppy-disk"></i> Lưu dữ liệu
                         </button>
                         <div id="sizing-save-status" style="margin-top: 10px;"></div>
@@ -1803,7 +1801,7 @@
                     </div>
             
                     <div style="margin-top: 30px; text-align: center;">
-                        <button type="button" class="btn-submit" id="exportBtn">
+                        <button type="button" class="btn-submit" id="exportBtn" data-action="export-to-word">
                             <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
                         </button>
                         <div id="summary-save-status" style="margin-top: 10px;"></div>
@@ -1814,13 +1812,19 @@
         </section>
     </main>
 
+    <script src="js/core/selectors.js"></script>
+    <script src="js/core/state.js"></script>
+    <script src="js/core/auth.js"></script>
+    <script src="js/core/api-client.js"></script>
+    <script src="js/features/project-list/project-list-view.js"></script>
     <script src="script.js"></script>
+    <script src="js/bootstrap/sizing-facade.js"></script>
 
 <!-- VERSION HISTORY PANEL (Slide từ phải) -->
 <div id="version-history-panel" class="version-history-panel">
     <div class="vh-panel-header">
         <h3><i class="fa-solid fa-clock-rotate-left"></i> Lịch sử phiên bản</h3>
-        <button onclick="closeVersionHistory()" class="btn-close-panel">&times;</button>
+        <button type="button" data-action="close-version-history" class="btn-close-panel">&times;</button>
     </div>
     <div class="vh-panel-info">
         <p><i class="fa-solid fa-info-circle"></i> Mỗi lần bấm nút "Lưu dữ liệu", một phiên bản mới sẽ được tạo. Bạn có thể xem và khôi phục bất kỳ phiên bản nào.</p>
@@ -1842,35 +1846,35 @@
     <div class="vp-modal-content">
         <div class="vp-modal-header">
             <h3><i class="fa-solid fa-eye"></i> Xem trước phiên bản</h3>
-            <button onclick="closeVersionPreview()" class="btn-close-modal">&times;</button>
+            <button type="button" data-action="close-version-preview" class="btn-close-modal">&times;</button>
         </div>
         <div class="vp-modal-meta" id="vp-meta-info">
             <!-- Thông tin phiên bản -->
         </div>
         <div class="vp-modal-body">
             <div class="vp-tabs">
-                <button class="vp-tab active" data-tab="request" onclick="switchPreviewTab('request')">Yêu cầu bài toán</button>
-                <button class="vp-tab" data-tab="input" onclick="switchPreviewTab('input')">Thông tin đầu vào</button>
-                <button class="vp-tab" data-tab="model" onclick="switchPreviewTab('model')">Mô hình hệ thống</button>
-                <button class="vp-tab" data-tab="sizing" onclick="switchPreviewTab('sizing')">Định cỡ hệ thống</button>
-                <button class="vp-tab" data-tab="summary" onclick="switchPreviewTab('summary')">Tổng hợp</button>
+                <button type="button" class="vp-tab active" data-action="switch-preview-tab" data-tab="request">Yêu cầu bài toán</button>
+                <button type="button" class="vp-tab" data-action="switch-preview-tab" data-tab="input">Thông tin đầu vào</button>
+                <button type="button" class="vp-tab" data-action="switch-preview-tab" data-tab="model">Mô hình hệ thống</button>
+                <button type="button" class="vp-tab" data-action="switch-preview-tab" data-tab="sizing">Định cỡ hệ thống</button>
+                <button type="button" class="vp-tab" data-action="switch-preview-tab" data-tab="summary">Tổng hợp</button>
             </div>
             <div class="vp-content" id="vp-content-area">
                 <!-- Nội dung preview sẽ được load bằng JavaScript -->
             </div>
         </div>
         <div class="vp-modal-footer">
-            <button onclick="closeVersionPreview()" class="btn-cancel">
+            <button type="button" data-action="close-version-preview" class="btn-cancel">
                 <i class="fa-solid fa-xmark"></i> Đóng
             </button>
-            <button id="btn-restore-version" onclick="restoreCurrentPreviewVersion()" class="btn-restore">
+            <button type="button" id="btn-restore-version" data-action="restore-preview-version" class="btn-restore">
                 <i class="fa-solid fa-rotate-left"></i> Khôi phục phiên bản này
             </button>
         </div>
     </div>
 </div>
 
-<div id="evidence-modal" class="modal-overlay" onclick="closeModal()" style="display: none;">
+<div id="evidence-modal" class="modal-overlay" data-action="close-evidence-modal" style="display: none;">
     <span class="close-btn">&times;</span>
     <img id="modal-img" src="" alt="Full Evidence">
     <div id="modal-caption">Ảnh sở cứ</div>

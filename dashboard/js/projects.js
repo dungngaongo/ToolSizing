@@ -7,11 +7,106 @@ let allProjects = [];
 let filteredProjects = [];
 let admin1UsersList = []; // Cache danh sách admin1 users
 
+function getProjectStore() {
+    return window.DashboardProjectStore || null;
+}
+
+function setAllProjectsState(projects) {
+    const safeProjects = Array.isArray(projects) ? projects : [];
+    allProjects = safeProjects;
+    filteredProjects = [...safeProjects];
+
+    const store = getProjectStore();
+    if (store && typeof store.setAllProjects === 'function') {
+        store.setAllProjects(safeProjects);
+    }
+
+    return filteredProjects;
+}
+
+function setFilteredProjectsState(projects) {
+    const safeProjects = Array.isArray(projects) ? projects : [];
+    filteredProjects = safeProjects;
+
+    const store = getProjectStore();
+    if (store && typeof store.setFilteredProjects === 'function') {
+        store.setFilteredProjects(safeProjects);
+    }
+
+    return filteredProjects;
+}
+
+function getAllProjectsState() {
+    const store = getProjectStore();
+    if (store && typeof store.getAllProjects === 'function') {
+        const projects = store.getAllProjects();
+        if (Array.isArray(projects)) {
+            allProjects = projects;
+            return projects;
+        }
+    }
+    return allProjects;
+}
+
+function getFilteredProjectsState() {
+    const store = getProjectStore();
+    if (store && typeof store.getFilteredProjects === 'function') {
+        const projects = store.getFilteredProjects();
+        if (Array.isArray(projects)) {
+            filteredProjects = projects;
+            return projects;
+        }
+    }
+    return filteredProjects;
+}
+
+function setAdmin1UsersState(users) {
+    const safeUsers = Array.isArray(users) ? users : [];
+    admin1UsersList = safeUsers;
+
+    const store = getProjectStore();
+    if (store && typeof store.setAdmin1Users === 'function') {
+        store.setAdmin1Users(safeUsers);
+    }
+
+    return admin1UsersList;
+}
+
+function getAdmin1UsersState() {
+    const store = getProjectStore();
+    if (store && typeof store.getAdmin1Users === 'function') {
+        const users = store.getAdmin1Users();
+        if (Array.isArray(users)) {
+            admin1UsersList = users;
+            return users;
+        }
+    }
+    return admin1UsersList;
+}
+
+function findProjectByIdState(projectId) {
+    const store = getProjectStore();
+    if (store && typeof store.findProjectById === 'function') {
+        const project = store.findProjectById(projectId);
+        if (project) return project;
+    }
+    return getAllProjectsState().find(p => p.id === projectId || String(p.id) === String(projectId));
+}
+
+function findAdmin1ByIdState(admin1Id) {
+    const store = getProjectStore();
+    if (store && typeof store.findAdmin1ById === 'function') {
+        const user = store.findAdmin1ById(admin1Id);
+        if (user) return user;
+    }
+    return getAdmin1UsersState().find(u => u.id === admin1Id);
+}
+
 // Paginator instance
 const projectsPaginator = new Paginator({
     containerId: 'pagination-projects',
     pageSize: 10,
-    onPageChange: () => renderProjectsTable(filteredProjects)
+    onPageChange: () => renderProjectsTable(getFilteredProjectsState())
 });
 
 async function loadProjects() {
@@ -19,15 +114,15 @@ async function loadProjects() {
         const currentUser = getCurrentUser();
         
         // Nếu là admin2, load danh sách admin1 users trước để hiện tên
-        if (currentUser.role === 'admin2' && admin1UsersList.length === 0) {
+        if (currentUser.role === 'admin2' && getAdmin1UsersState().length === 0) {
             await loadAdmin1Users();
         }
 
         // Sử dụng API /my-projects để lấy danh sách theo quyền
-        allProjects = await fetchAPI('/projects/my-projects');
-        filteredProjects = [...allProjects];
+        const projects = await fetchAPI('/projects/my-projects');
+        setAllProjectsState(projects);
         projectsPaginator.reset();
-        renderProjectsTable(filteredProjects);
+        renderProjectsTable(getFilteredProjectsState());
     } catch (error) {
         showToast('Lỗi tải danh sách dự án: ' + error.message, 'error');
     }
@@ -38,10 +133,11 @@ async function loadProjects() {
  */
 async function loadAdmin1Users() {
     try {
-        admin1UsersList = await fetchAPI('/projects/admin1-users');
+        const users = await fetchAPI('/projects/admin1-users');
+        setAdmin1UsersState(users);
     } catch (error) {
         console.error('Error loading admin1 users:', error);
-        admin1UsersList = [];
+        setAdmin1UsersState([]);
     }
 }
 
@@ -50,14 +146,23 @@ async function loadAdmin1Users() {
  */
 function getAssignedAdmin1Name(admin1Id) {
     if (!admin1Id) return null;
-    const admin1 = admin1UsersList.find(u => u.id === admin1Id);
+    const admin1 = findAdmin1ByIdState(admin1Id);
     return admin1 ? admin1.username : 'ID: ' + admin1Id.substring(0, 8);
 }
 
 function renderProjectsTable(projects) {
-    const tbody = document.getElementById('tbody-projects');
     const currentUser = getCurrentUser();
     const isAdmin2 = currentUser.role === 'admin2';
+
+    if (window.DashboardProjectView && typeof window.DashboardProjectView.renderProjectsTable === 'function') {
+        return window.DashboardProjectView.renderProjectsTable(projects, projectsPaginator, {
+            isAdmin2,
+            getAssignedAdmin1Name,
+            updateProjectTableHeader
+        });
+    }
+
+    const tbody = document.getElementById('tbody-projects');
 
     if (!projects || projects.length === 0) {
         const colspan = isAdmin2 ? 8 : 7;
@@ -151,20 +256,22 @@ function filterProjects() {
     const search = (document.getElementById('search-projects').value || '').toLowerCase();
     const statusFilter = document.getElementById('filter-project-status').value;
 
-    filteredProjects = allProjects;
+    let nextProjects = getAllProjectsState();
     if (search) {
-        filteredProjects = filteredProjects.filter(p =>
+        nextProjects = nextProjects.filter(p =>
             (p.name || '').toLowerCase().includes(search) ||
             (p.devUnit || '').toLowerCase().includes(search) ||
             (p.ownerName || '').toLowerCase().includes(search)
         );
     }
     if (statusFilter) {
-        filteredProjects = filteredProjects.filter(p => p.status === statusFilter);
+        nextProjects = nextProjects.filter(p => p.status === statusFilter);
     }
 
+    setFilteredProjectsState(nextProjects);
+
     projectsPaginator.reset();
-    renderProjectsTable(filteredProjects);
+    renderProjectsTable(getFilteredProjectsState());
 }
 
 async function refreshProjects() {
@@ -202,7 +309,7 @@ async function quickApproveProject(id, name) {
     if (!confirmed) return;
 
     try {
-        const project = allProjects.find(p => p.id === id || String(p.id) === String(id));
+        const project = findProjectByIdState(id);
         if (!project) throw new Error('Không tìm thấy dự án');
 
         await fetchAPI(`/projects/${id}`, {
@@ -240,7 +347,7 @@ function openAssignModal(projectId, projectName, currentAssigned) {
     const select = document.getElementById('assign-admin1-select');
     select.innerHTML = '<option value="">-- Không chỉ định --</option>';
     
-    admin1UsersList.forEach(u => {
+    getAdmin1UsersState().forEach(u => {
         const opt = document.createElement('option');
         opt.value = u.id;
         opt.textContent = `${u.username} (${u.email || ''})`;
@@ -274,7 +381,7 @@ async function saveAssignAdmin1() {
         closeAssignModal();
 
         if (admin1Id) {
-            const admin1Name = admin1UsersList.find(u => u.id === admin1Id)?.username || admin1Id;
+            const admin1Name = findAdmin1ByIdState(admin1Id)?.username || admin1Id;
             showToast(`Đã chỉ định "${admin1Name}" thẩm định dự án "${projectName}"`, 'success');
             if (typeof logAudit === 'function') logAudit('ASSIGN', 'PROJECT', projectName, `Chỉ định admin1 "${admin1Name}" thẩm định`);
         } else {

@@ -4,13 +4,133 @@
  *           sidebar outside-click, keyboard shortcuts, event delegation
  */
 
+function getAdminSelectorId(group, key, fallbackId) {
+    return window.AdminSelectors?.[group]?.[key] || fallbackId;
+}
+
+function initDashboardActionDelegation() {
+    if (window.__dashboardActionDelegationInited) return;
+    window.__dashboardActionDelegationInited = true;
+
+    document.addEventListener('click', (event) => {
+        const actionEl = event.target.closest('[data-action]');
+        if (!actionEl) return;
+
+        const action = actionEl.dataset.action;
+
+        if (action === 'toggle-sidebar') {
+            event.preventDefault();
+            toggleSidebar();
+            return;
+        }
+
+        if (action === 'navigate-page') {
+            event.preventDefault();
+            const pageId = actionEl.dataset.page;
+            if (!pageId) return;
+            navigateTo(pageId, actionEl.closest('.nav-item') || actionEl);
+            return;
+        }
+
+        if (action === 'logout') {
+            event.preventDefault();
+            logout();
+            return;
+        }
+
+        if (action === 'dismiss-session-warning') {
+            event.preventDefault();
+            if (typeof dismissSessionWarning === 'function') dismissSessionWarning();
+            return;
+        }
+
+        if (action === 'open-user-modal') {
+            event.preventDefault();
+            if (typeof openUserModal === 'function') openUserModal();
+            return;
+        }
+
+        if (action === 'close-user-modal') {
+            event.preventDefault();
+            if (typeof closeUserModal === 'function') closeUserModal();
+            return;
+        }
+
+        if (action === 'save-user') {
+            event.preventDefault();
+            if (typeof saveUser === 'function') saveUser();
+            return;
+        }
+
+        if (action === 'close-confirm') {
+            event.preventDefault();
+            const confirmResult = actionEl.dataset.confirmResult === 'true';
+            if (typeof closeConfirm === 'function') closeConfirm(confirmResult);
+            return;
+        }
+
+        if (action === 'close-assign-modal') {
+            event.preventDefault();
+            if (typeof closeAssignModal === 'function') closeAssignModal();
+            return;
+        }
+
+        if (action === 'save-assign-admin1') {
+            event.preventDefault();
+            if (typeof saveAssignAdmin1 === 'function') saveAssignAdmin1();
+            return;
+        }
+
+        if (action === 'refresh-projects') {
+            event.preventDefault();
+            if (typeof refreshProjects === 'function') refreshProjects();
+            return;
+        }
+
+        if (action === 'export-audit-log') {
+            event.preventDefault();
+            if (typeof exportAuditLog === 'function') exportAuditLog();
+            return;
+        }
+
+        if (action === 'clear-audit-log') {
+            event.preventDefault();
+            if (typeof clearAuditLog === 'function') clearAuditLog();
+            return;
+        }
+
+        if (action === 'export-report') {
+            event.preventDefault();
+            if (typeof exportReport === 'function') exportReport();
+            return;
+        }
+
+        if (action === 'load-report-data') {
+            event.preventDefault();
+            if (typeof loadReportData === 'function') loadReportData();
+            return;
+        }
+
+        if (action === 'close-toast') {
+            event.preventDefault();
+            const toast = actionEl.closest('.toast');
+            if (toast) {
+                toast.remove();
+            }
+            return;
+        }
+    });
+}
+
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', () => {
-    if (!document.getElementById('sidebar')) return; // login page
+    if (!document.getElementById(getAdminSelectorId('layout', 'sidebar', 'sidebar'))) return; // login page
     initDashboard();
 });
 
 async function initDashboard() {
+    initDashboardActionDelegation();
+
     updateClock();
     setInterval(updateClock, 60000);
 
@@ -189,7 +309,8 @@ function navigateTo(pageId, el) {
         'page-audit-log': 'Lịch sử hoạt động',
         'page-reports': 'Báo cáo & Thống kê'
     };
-    document.getElementById('page-title').textContent = titles[pageId] || '';
+    const titleEl = document.getElementById(getAdminSelectorId('layout', 'pageTitle', 'page-title'));
+    if (titleEl) titleEl.textContent = titles[pageId] || '';
 
     // Load data for lazy-loaded pages
     if (pageId === 'page-audit-log' && typeof loadAuditLog === 'function') loadAuditLog();
@@ -225,8 +346,9 @@ window.addEventListener('hashchange', () => {
 
 // ==================== SIDEBAR ====================
 function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const main = document.getElementById('main-content');
+    const sidebar = document.getElementById(getAdminSelectorId('layout', 'sidebar', 'sidebar'));
+    const main = document.getElementById(getAdminSelectorId('layout', 'mainContent', 'main-content'));
+    if (!sidebar || !main) return;
 
     if (window.innerWidth < 768) {
         sidebar.classList.toggle('open');
@@ -239,7 +361,7 @@ function toggleSidebar() {
 // Close sidebar khi click bên ngoài (mobile)
 document.addEventListener('click', (e) => {
     if (window.innerWidth < 768) {
-        const sidebar = document.getElementById('sidebar');
+        const sidebar = document.getElementById(getAdminSelectorId('layout', 'sidebar', 'sidebar'));
         if (sidebar && sidebar.classList.contains('open') &&
             !sidebar.contains(e.target) &&
             !e.target.classList.contains('btn-menu-mobile')) {
@@ -251,7 +373,7 @@ document.addEventListener('click', (e) => {
 // ==================== CLOCK ====================
 function updateClock() {
     const now = new Date();
-    const el = document.getElementById('header-time');
+    const el = document.getElementById(getAdminSelectorId('layout', 'headerTime', 'header-time'));
     if (el) {
         el.textContent = now.toLocaleDateString('vi-VN', {
             weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'
@@ -261,66 +383,28 @@ function updateClock() {
 
 // ==================== TOAST (Enhanced) ====================
 function showToast(message, type = 'info', duration = 4000) {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const icons = {
-        success: '✓', error: '✕', warning: '⚠', info: 'ℹ'
-    };
-
-    // Giới hạn tối đa 5 toast cùng lúc
-    while (container.children.length >= 5) {
-        container.firstChild.remove();
+    if (window.AdminUiFeedback && typeof window.AdminUiFeedback.showToast === 'function') {
+        return window.AdminUiFeedback.showToast(message, type, duration);
     }
-
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.setAttribute('role', 'alert');
-    toast.innerHTML = `
-        <span class="toast-icon">${icons[type] || icons.info}</span>
-        <span class="toast-message">${escapeHtml(message)}</span>
-        <button class="toast-close" onclick="this.parentElement.remove()" aria-label="Đóng">&times;</button>
-    `;
-    container.appendChild(toast);
-
-    // Trigger animation
-    requestAnimationFrame(() => toast.classList.add('show'));
-
-    // Auto remove
-    let autoTimer = setTimeout(() => removeToast(toast), duration);
-
-    // Pause on hover
-    toast.addEventListener('mouseenter', () => clearTimeout(autoTimer));
-    toast.addEventListener('mouseleave', () => {
-        autoTimer = setTimeout(() => removeToast(toast), 1500);
-    });
 }
 
 function removeToast(toast) {
-    toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
+    if (window.AdminUiFeedback && typeof window.AdminUiFeedback.removeToast === 'function') {
+        return window.AdminUiFeedback.removeToast(toast);
+    }
 }
 
 // ==================== CONFIRM DIALOG ====================
-let confirmResolve = null;
-
 function showConfirm(title, message) {
-    return new Promise(resolve => {
-        confirmResolve = resolve;
-        document.getElementById('confirm-title').textContent = title;
-        document.getElementById('confirm-message').innerHTML = message;
-        const modal = document.getElementById('modal-confirm');
-        modal.style.display = 'flex';
-        // Focus confirm button cho accessibility
-        setTimeout(() => document.getElementById('btn-confirm-ok').focus(), 100);
-    });
+    if (window.AdminUiFeedback && typeof window.AdminUiFeedback.showConfirm === 'function') {
+        return window.AdminUiFeedback.showConfirm(title, message);
+    }
+    return Promise.resolve(confirm(message));
 }
 
 function closeConfirm(result) {
-    document.getElementById('modal-confirm').style.display = 'none';
-    if (confirmResolve) {
-        confirmResolve(result);
-        confirmResolve = null;
+    if (window.AdminUiFeedback && typeof window.AdminUiFeedback.closeConfirm === 'function') {
+        return window.AdminUiFeedback.closeConfirm(result);
     }
 }
 
@@ -339,13 +423,8 @@ document.addEventListener('keydown', (e) => {
 
 // ==================== LOADING ====================
 function showLoading(show, text) {
-    const overlay = document.getElementById('loading-overlay');
-    if (!overlay) return;
-    if (show) {
-        if (text) document.getElementById('loading-text').textContent = text;
-        overlay.style.display = 'flex';
-    } else {
-        overlay.style.display = 'none';
+    if (window.AdminUiFeedback && typeof window.AdminUiFeedback.showLoading === 'function') {
+        return window.AdminUiFeedback.showLoading(show, text);
     }
 }
 
@@ -353,15 +432,7 @@ function showLoading(show, text) {
  * Inline loading cho từng section cụ thể
  */
 function showInlineLoading(containerId, show = true) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const existing = container.querySelector('.inline-loader');
-    if (show && !existing) {
-        const loader = document.createElement('div');
-        loader.className = 'inline-loader';
-        loader.innerHTML = '<div class="spinner"></div>';
-        container.appendChild(loader);
-    } else if (!show && existing) {
-        existing.remove();
+    if (window.AdminUiFeedback && typeof window.AdminUiFeedback.showInlineLoading === 'function') {
+        return window.AdminUiFeedback.showInlineLoading(containerId, show);
     }
 }

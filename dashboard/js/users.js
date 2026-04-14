@@ -6,25 +6,92 @@
 let allUsers = [];
 let filteredUsers = [];
 
+function getUserStore() {
+    return window.DashboardUserStore || null;
+}
+
+function setAllUsersState(users) {
+    const safeUsers = Array.isArray(users) ? users : [];
+    allUsers = safeUsers;
+    filteredUsers = [...safeUsers];
+
+    const store = getUserStore();
+    if (store && typeof store.setAll === 'function') {
+        store.setAll(safeUsers);
+    }
+
+    return filteredUsers;
+}
+
+function setFilteredUsersState(users) {
+    const safeUsers = Array.isArray(users) ? users : [];
+    filteredUsers = safeUsers;
+
+    const store = getUserStore();
+    if (store && typeof store.setFiltered === 'function') {
+        store.setFiltered(safeUsers);
+    }
+
+    return filteredUsers;
+}
+
+function getAllUsersState() {
+    const store = getUserStore();
+    if (store && typeof store.getAll === 'function') {
+        const users = store.getAll();
+        if (Array.isArray(users)) {
+            allUsers = users;
+            return users;
+        }
+    }
+    return allUsers;
+}
+
+function getFilteredUsersState() {
+    const store = getUserStore();
+    if (store && typeof store.getFiltered === 'function') {
+        const users = store.getFiltered();
+        if (Array.isArray(users)) {
+            filteredUsers = users;
+            return users;
+        }
+    }
+    return filteredUsers;
+}
+
+function findUserById(userId) {
+    const store = getUserStore();
+    if (store && typeof store.findById === 'function') {
+        const user = store.findById(userId);
+        if (user) return user;
+    }
+
+    return getAllUsersState().find(u => u.id === userId || String(u.id) === String(userId));
+}
+
 // Paginator instance
 const usersPaginator = new Paginator({
     containerId: 'pagination-users',
     pageSize: 10,
-    onPageChange: () => renderUsersTable(filteredUsers)
+    onPageChange: () => renderUsersTable(getFilteredUsersState())
 });
 
 async function loadUsers() {
     try {
-        allUsers = await fetchAPI('/users');
-        filteredUsers = [...allUsers];
+        const users = await fetchAPI('/users');
+        setAllUsersState(users);
         usersPaginator.reset();
-        renderUsersTable(filteredUsers);
+        renderUsersTable(getFilteredUsersState());
     } catch (error) {
         showToast('Lỗi tải danh sách user: ' + error.message, 'error');
     }
 }
 
 function renderUsersTable(users) {
+    if (window.DashboardUserView && typeof window.DashboardUserView.renderUsersTable === 'function') {
+        return window.DashboardUserView.renderUsersTable(users, usersPaginator);
+    }
+
     const tbody = document.getElementById('tbody-users');
     if (!users || users.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" class="empty-row"><div class="empty-state"><span class="empty-icon">👤</span><span>Không có user nào</span></div></td></tr>';
@@ -81,19 +148,21 @@ function filterUsers() {
     const search = (document.getElementById('search-users').value || '').toLowerCase();
     const roleFilter = document.getElementById('filter-user-role').value;
 
-    filteredUsers = allUsers;
+    let nextUsers = getAllUsersState();
     if (search) {
-        filteredUsers = filteredUsers.filter(u =>
+        nextUsers = nextUsers.filter(u =>
             (u.username || '').toLowerCase().includes(search) ||
             (u.email || '').toLowerCase().includes(search)
         );
     }
     if (roleFilter) {
-        filteredUsers = filteredUsers.filter(u => (u.role || 'user').toLowerCase() === roleFilter);
+        nextUsers = nextUsers.filter(u => (u.role || 'user').toLowerCase() === roleFilter);
     }
 
+    setFilteredUsersState(nextUsers);
+
     usersPaginator.reset();
-    renderUsersTable(filteredUsers);
+    renderUsersTable(getFilteredUsersState());
 }
 
 // ==================== Modal User ====================
@@ -110,7 +179,7 @@ function openUserModal(userId) {
 
     if (userId) {
         // Edit mode
-        const user = allUsers.find(u => u.id === userId || String(u.id) === String(userId));
+        const user = findUserById(userId);
         if (!user) return;
         title.textContent = 'Chỉnh sửa User';
         document.getElementById('form-user-id').value = user.id;

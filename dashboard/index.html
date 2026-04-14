@@ -15,8 +15,8 @@
     <!-- Session Warning Banner -->
     <div class="session-warning" id="session-warning" style="display:none">
         <span>⚠ Phiên đăng nhập sẽ hết hạn trong <strong id="session-warning-time">5</strong> phút</span>
-        <button onclick="dismissSessionWarning()">Đã hiểu</button>
-        <button onclick="logout()">Đăng xuất ngay</button>
+        <button data-action="dismiss-session-warning">Đã hiểu</button>
+        <button data-action="logout">Đăng xuất ngay</button>
     </div>
 
     <!-- Sidebar -->
@@ -24,24 +24,24 @@
         <div class="sidebar-header">
             <div class="sidebar-logo">A</div>
             <h2>Admin</h2>
-            <button class="sidebar-toggle" id="btn-sidebar-toggle" onclick="toggleSidebar()">
+            <button class="sidebar-toggle" id="btn-sidebar-toggle" data-action="toggle-sidebar">
                 «
             </button>
         </div>
         <nav class="sidebar-nav">
-            <a href="#" class="nav-item active" data-page="page-dashboard" onclick="navigateTo('page-dashboard', this)">
+            <a href="#" class="nav-item active" data-action="navigate-page" data-page="page-dashboard">
                 <span>Tổng quan</span>
             </a>
-            <a href="#" class="nav-item" data-page="page-users" onclick="navigateTo('page-users', this)">
+            <a href="#" class="nav-item" data-action="navigate-page" data-page="page-users">
                 <span>Quản lý User</span>
             </a>
-            <a href="#" class="nav-item" data-page="page-projects" onclick="navigateTo('page-projects', this)">
+            <a href="#" class="nav-item" data-action="navigate-page" data-page="page-projects">
                 <span>Quản lý Dự án</span>
             </a>
-            <a href="#" class="nav-item" data-page="page-audit-log" onclick="navigateTo('page-audit-log', this)">
+            <a href="#" class="nav-item" data-action="navigate-page" data-page="page-audit-log">
                 <span>Lịch sử hoạt động</span>
             </a>
-            <a href="#" class="nav-item" data-page="page-reports" onclick="navigateTo('page-reports', this)">
+            <a href="#" class="nav-item" data-action="navigate-page" data-page="page-reports">
                 <span>Báo cáo & Thống kê</span>
             </a>
         </nav>
@@ -53,7 +53,7 @@
                     <span class="user-role">Quản trị viên</span>
                 </div>
             </div>
-            <button class="btn-logout" onclick="logout()">
+            <button class="btn-logout" data-action="logout">
                 <span>Đăng xuất</span>
             </button>
         </div>
@@ -64,7 +64,7 @@
         <!-- Header -->
         <header class="top-header">
             <div class="header-left">
-                <button class="btn-menu-mobile" onclick="toggleSidebar()">
+                <button class="btn-menu-mobile" data-action="toggle-sidebar">
                     ☰
                 </button>
                 <h1 id="page-title">Tổng quan</h1>
@@ -153,7 +153,7 @@
                     </select>
                 </div>
                 <div class="toolbar-right">
-                    <button class="btn btn-primary" onclick="openUserModal()">Tạo User</button>
+                    <button class="btn btn-primary" data-action="open-user-modal">Tạo User</button>
                 </div>
             </div>
             <div class="card">
@@ -192,7 +192,7 @@
                     </select>
                 </div>
                 <div class="toolbar-right">
-                    <button class="btn btn-success" onclick="refreshProjects()">Làm mới</button>
+                    <button class="btn btn-success" data-action="refresh-projects">Làm mới</button>
                 </div>
             </div>
             <div class="card">
@@ -244,8 +244,8 @@
                     <input type="date" id="filter-audit-to" title="Đến ngày">
                 </div>
                 <div class="toolbar-right">
-                    <button class="btn btn-outline" onclick="exportAuditLog()" title="Xuất CSV">📥 Xuất CSV</button>
-                    <button class="btn btn-danger btn-sm" onclick="clearAuditLog()" title="Xóa lịch sử">🗑 Xóa</button>
+                    <button class="btn btn-outline" data-action="export-audit-log" title="Xuất CSV">📥 Xuất CSV</button>
+                    <button class="btn btn-danger btn-sm" data-action="clear-audit-log" title="Xóa lịch sử">🗑 Xóa</button>
                 </div>
             </div>
             <div class="card">
@@ -282,8 +282,8 @@
                     <button class="report-range-btn" data-range="year">1 năm</button>
                 </div>
                 <div class="toolbar-right">
-                    <button class="btn btn-outline" onclick="exportReport()">📥 Xuất báo cáo</button>
-                    <button class="btn btn-primary" onclick="loadReportData()">🔄 Làm mới</button>
+                    <button class="btn btn-outline" data-action="export-report">📥 Xuất báo cáo</button>
+                    <button class="btn btn-primary" data-action="load-report-data">🔄 Làm mới</button>
                 </div>
             </div>
 
@@ -331,7 +331,7 @@
         <div class="modal">
             <div class="modal-header">
                 <h3 id="modal-user-title">Tạo User mới</h3>
-                <button class="modal-close" onclick="closeUserModal()">&times;</button>
+                <button class="modal-close" data-action="close-user-modal">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="form-user" autocomplete="off">
@@ -363,8 +363,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeUserModal()">Hủy</button>
-                <button class="btn btn-primary" id="btn-save-user" onclick="saveUser()">Lưu</button>
+                <button class="btn btn-secondary" data-action="close-user-modal">Hủy</button>
+                <button class="btn btn-primary" id="btn-save-user" data-action="save-user">Lưu</button>
             </div>
         </div>
     </div>
@@ -374,14 +374,14 @@
         <div class="modal modal-sm">
             <div class="modal-header modal-header-danger">
                 <h3 id="confirm-title">Xác nhận</h3>
-                <button class="modal-close" onclick="closeConfirm(false)">&times;</button>
+                <button class="modal-close" data-action="close-confirm" data-confirm-result="false">&times;</button>
             </div>
             <div class="modal-body">
                 <p id="confirm-message"></p>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeConfirm(false)">Hủy</button>
-                <button class="btn btn-danger" id="btn-confirm-ok" onclick="closeConfirm(true)">Xác nhận</button>
+                <button class="btn btn-secondary" data-action="close-confirm" data-confirm-result="false">Hủy</button>
+                <button class="btn btn-danger" id="btn-confirm-ok" data-action="close-confirm" data-confirm-result="true">Xác nhận</button>
             </div>
         </div>
     </div>
@@ -391,7 +391,7 @@
         <div class="modal modal-sm">
             <div class="modal-header">
                 <h3>Chỉ định người thẩm định</h3>
-                <button class="modal-close" onclick="closeAssignModal()">&times;</button>
+                <button class="modal-close" data-action="close-assign-modal">&times;</button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="assign-project-id">
@@ -408,8 +408,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeAssignModal()">Hủy</button>
-                <button class="btn btn-primary" onclick="saveAssignAdmin1()">Lưu chỉ định</button>
+                <button class="btn btn-secondary" data-action="close-assign-modal">Hủy</button>
+                <button class="btn btn-primary" data-action="save-assign-admin1">Lưu chỉ định</button>
             </div>
         </div>
     </div>
@@ -429,9 +429,16 @@
     <script src="js/api.js"></script>
     <script src="js/audit-log.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/core/selectors.js"></script>
+    <script src="js/components/ui-feedback.js"></script>
     <script src="js/dashboard.js"></script>
+    <script src="js/features/users/user-store.js"></script>
+    <script src="js/features/users/user-view.js"></script>
+    <script src="js/features/projects/project-store.js"></script>
+    <script src="js/features/projects/project-view.js"></script>
     <script src="js/users.js"></script>
     <script src="js/projects.js"></script>
     <script src="js/reports.js"></script>
+    <script src="js/bootstrap/admin-facade.js"></script>
 </body>
 </html>
