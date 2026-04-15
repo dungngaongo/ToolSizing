@@ -4,65 +4,50 @@ pipeline {
     }
 
     stages {
-        // stage('1. Build Backend (Maven)') {
-        //     when {
-        //         changeset "backend1/**"
-        //     }
-        //     steps {
-        //         dir('backend1') {
-        //             sh """
-        //                 echo "=== BUILD BACKEND ==="
-                        
-        //                 docker run   \
-        //                     --network=host \
-        //                     -v /home/jenkins/settings.xml:/tmp/settings.xml \
-        //                     -v /var/lib/jenkins/.m2:/root/.m2 \
-        //                     -v \$(pwd):/app \
-        //                     -w /app \
-        //                     maven:3.9-eclipse-temurin-21-alpine \
-        //                     mvn -s /tmp/settings.xml clean install -DskipTests=true -U
-                        
-        //                 ls -l target/
-        //             """
-        //         }
-        //     }
-        // }
         stage('1. Build Backend (Maven)') {
-            when { changeset "backend1/**" }
+            when {
+                changeset "backend1/**"
+            }
             steps {
                 dir('backend1') {
                     sh """
                         echo "=== BUILD BACKEND ==="
-                        docker run --network=host \
+                        
+                        docker run   \
+                            --network=host \
                             -v /home/jenkins/settings.xml:/tmp/settings.xml \
                             -v /var/lib/jenkins/.m2:/root/.m2 \
-                            -v \$(pwd):/app -w /app \
+                            -v \$(pwd):/app \
+                            -w /app \
                             maven:3.9-eclipse-temurin-21-alpine \
                             mvn -s /tmp/settings.xml clean install -DskipTests=true -U
+                        
+                        ls -l target/
                     """
                 }
             }
         }
+    
 
-        stage('1.1 SonarQube Analysis') {
-            when { changeset "backend1/**" }
-            steps {
-                dir('backend1') {
-                    sh """
-                        echo "=== RUNNING SONAR SCANNER ==="
-                        docker run --network=host \
-                            -v /home/jenkins/settings.xml:/tmp/settings.xml \
-                            -v /var/lib/jenkins/.m2:/root/.m2 \
-                            -v \$(pwd):/app -w /app \
-                            maven:3.9-eclipse-temurin-21-alpine \
-                            mvn -s /tmp/settings.xml org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
-                            -Dsonar.host.url=https://sonarqube.kcntt.net \
-                            -Dsonar.login=YOUR_SONAR_TOKEN \
-                            -Dsonar.projectKey=sizing-backend
-                    """
-                }
-            }
-        }
+        // stage('1.1 SonarQube Analysis') {
+        //     when { changeset "backend1/**" }
+        //     steps {
+        //         dir('backend1') {
+        //             sh """
+        //                 echo "=== RUNNING SONAR SCANNER ==="
+        //                 docker run --network=host \
+        //                     -v /home/jenkins/settings.xml:/tmp/settings.xml \
+        //                     -v /var/lib/jenkins/.m2:/root/.m2 \
+        //                     -v \$(pwd):/app -w /app \
+        //                     maven:3.9-eclipse-temurin-21-alpine \
+        //                     mvn -s /tmp/settings.xml org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
+        //                     -Dsonar.host.url=https://sonarqube.kcntt.net \
+        //                     -Dsonar.login=YOUR_SONAR_TOKEN \
+        //                     -Dsonar.projectKey=sizing-backend
+        //             """
+        //         }
+        //     }
+        // }
 
         stage('2. Deploy Backend') {
             when {
