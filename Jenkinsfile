@@ -63,7 +63,7 @@ pipeline {
                 }
             }
         }
-z`
+
         stage('2. Deploy Backend') {
             when {
                 changeset "backend1/**"
