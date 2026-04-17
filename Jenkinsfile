@@ -33,22 +33,26 @@ pipeline {
             when { changeset "backend1/**" }
             steps {
                 dir('backend1') {
-                    // 1. Gửi code đi quét
-                    // 'SonarQubeServer' là tên bạn đã đặt ở Bước 2
+                    // Gọi cấu hình SonarQube từ Jenkins System
                     withSonarQubeEnv('SonarQubeServer') {
                         sh """
                             echo "=== RUNNING SONAR SCANNER ==="
+                            
+                            # Truyền biến môi trường SONAR_HOST_URL và SONAR_AUTH_TOKEN vào Docker
                             docker run --network=host \
+                                -e SONAR_HOST_URL=\${SONAR_HOST_URL} \
+                                -e SONAR_TOKEN=\${SONAR_AUTH_TOKEN} \
                                 -v /home/jenkins/settings.xml:/tmp/settings.xml \
                                 -v /var/lib/jenkins/.m2:/root/.m2 \
                                 -v \$(pwd):/app -w /app \
                                 maven:3.9-eclipse-temurin-21-alpine \
                                 mvn -s /tmp/settings.xml org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
-                                -Dsonar.projectKey=sizing-backend
+                                -Dsonar.projectKey=sizing-backend \
+                                -Dsonar.scanner.skipJreProvisioning=true
                         """
                     }
                     
-                    // 2. Chờ kết quả từ Webhook
+                    // Chờ kết quả từ Webhook
                     timeout(time: 5, unit: 'MINUTES') {
                         script {
                             def qg = waitForQualityGate()
