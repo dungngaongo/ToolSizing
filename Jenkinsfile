@@ -33,8 +33,9 @@ pipeline {
             when { changeset "backend1/**" }
             steps {
                 dir('backend1') {
-                    // Gọi Credentials đã tạo trên Jenkins
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    // 1. Gửi code đi quét
+                    // 'SonarQubeServer' là tên bạn đã đặt ở Bước 2
+                    withSonarQubeEnv('SonarQubeServer') {
                         sh """
                             echo "=== RUNNING SONAR SCANNER ==="
                             docker run --network=host \
@@ -43,10 +44,20 @@ pipeline {
                                 -v \$(pwd):/app -w /app \
                                 maven:3.9-eclipse-temurin-21-alpine \
                                 mvn -s /tmp/settings.xml org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
-                                -Dsonar.host.url=http://10.207.222.193:9000 \
-                                -Dsonar.token=\${SONAR_TOKEN} \
                                 -Dsonar.projectKey=sizing-backend
                         """
+                    }
+                    
+                    // 2. Chờ kết quả từ Webhook
+                    timeout(time: 5, unit: 'MINUTES') {
+                        script {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                error "Pipeline bị dừng do không vượt qua Quality Gate: ${qg.status}"
+                            } else {
+                                echo "Chúc mừng! Quality Gate đã PASS."
+                            }
+                        }
                     }
                 }
             }
