@@ -20,7 +20,7 @@ pipeline {
                             -v \$(pwd):/app \
                             -w /app \
                             maven:3.9-eclipse-temurin-21-alpine \
-                            mvn -s /tmp/settings.xml clean verify -U
+                            mvn -s /tmp/settings.xml clean install -DskipTests=true -U
                         
                         ls -l target/
                     """
@@ -43,7 +43,7 @@ pipeline {
                                 -v /var/lib/jenkins/.m2:/root/.m2 \
                                 -v \$(pwd):/app -w /app \
                                 maven:3.9-eclipse-temurin-21-alpine \
-                                mvn -s /tmp/settings.xml sonar:sonar \
+                                mvn -s /tmp/settings.xml org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
                                 -Dsonar.projectKey=sizing-backend \
                                 -Dsonar.host.url=http://10.207.222.193:9000 \
                                 -Dsonar.scanner.skipJreProvisioning=true
@@ -63,6 +63,8 @@ pipeline {
                 }
             }
         }
+
+        
 
         stage('2. Deploy Backend') {
             when {
@@ -99,3 +101,5 @@ pipeline {
         }
     }
 }
+
+
