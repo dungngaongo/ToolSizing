@@ -45,7 +45,7 @@ pipeline {
                                 maven:3.9-eclipse-temurin-21-alpine \
                                 mvn -s /tmp/settings.xml org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
                                 -Dsonar.projectKey=sizing-backend \
-                                -Dsonar.host.url=${SONAR_HOST_URL} \
+                                -Dsonar.host.url=\${SONAR_HOST_URL} \
                                 -Dsonar.scanner.skipJreProvisioning=true
                         """
                     }
