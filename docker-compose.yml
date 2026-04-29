@@ -17,22 +17,30 @@
 
 services:
   backend:
+    build:
+      context: ./backend1
+    restart: always
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 30s
+    networks:
+      - app-net
 
   nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "80:80"
     depends_on:
       backend:
         condition: service_healthy
+    restart: always
+    networks:
+      - app-net
 
 networks:
   app-net:
-    driver: bridge
-
-# Thêm vào mỗi service:
-    networks:
-      - app-net
