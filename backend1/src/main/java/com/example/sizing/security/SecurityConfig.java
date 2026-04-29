@@ -45,13 +45,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                // allow preflight requests and public endpoints
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/", "/index.html", "/frontend/**", "/static/**").permitAll()
+                        .requestMatchers("/actuator/health").permitAll() // ← thêm dòng này
                         .requestMatchers(HttpMethod.GET, "/api/projects/admin1-users").hasRole("ADMIN2")
                         .requestMatchers(HttpMethod.PUT, "/api/projects/*/assign-reviewer").hasRole("ADMIN2")
                         .requestMatchers("/api/projects/**").authenticated()
-                        // User management: only admin2 can create/update/delete
                         .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN2")
                         .requestMatchers(HttpMethod.PUT, "/api/users/**").hasRole("ADMIN2")
                         .requestMatchers(HttpMethod.DELETE, "/api/users/**").hasRole("ADMIN2")
