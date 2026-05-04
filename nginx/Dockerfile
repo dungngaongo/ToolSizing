@@ -1,4 +1,4 @@
-FROM nginx:1.25-alpine
+FROM nexus-lab.kcntt.net/nginx:1.25-alpine
 
 # copy config
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
