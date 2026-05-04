@@ -9,7 +9,8 @@ COPY dashboard /usr/share/nginx/html/dashboard
 
 # fix permission (chỉ cần read)
 RUN chmod -R 755 /usr/share/nginx/html \
-    && chown -R nginx:nginx /usr/share/nginx/html
+    && chown -R nginx:nginx /usr/share/nginx/html \
+    && chown nginx:nginx /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 USER nginx
