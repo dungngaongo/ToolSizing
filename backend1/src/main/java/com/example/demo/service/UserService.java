@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,12 +24,15 @@ public class UserService {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, ActivityLogService activityLogService) {
         this.userRepository = userRepository;
+        this.activityLogService = activityLogService;
     }
 
+    @Transactional
     public User create(CreateUserRequest request) {
         log.info("Creating user with username: {}", request.getUsername());
         if (userRepository.existsByUsername(request.getUsername())) {
@@ -56,7 +60,15 @@ public class UserService {
         user.setEmail(request.getEmail());
         user.setPasswordHash(hashPassword(request.getPassword()));
         user.setRole(requestedRole);
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        activityLogService.record(
+            "CREATE",
+            "USER",
+            saved.getId(),
+            saved.getUsername(),
+            "Tạo user mới: role=" + saved.getRole() + ", email=" + saved.getEmail()
+        );
+        return saved;
     }
 
     public List<User> getAll() {
@@ -91,6 +103,7 @@ public class UserService {
         return Optional.empty();
     }
 
+    @Transactional
     public User update(String id, CreateUserRequest request) {
         log.info("Updating user id: {}", id);
         User user = userRepository.findById(id)
@@ -113,12 +126,30 @@ public class UserService {
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPasswordHash(hashPassword(request.getPassword()));
         }
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        activityLogService.record(
+                "UPDATE",
+                "USER",
+                saved.getId(),
+                saved.getUsername(),
+                "Cập nhật user: role=" + saved.getRole() + ", email=" + saved.getEmail()
+        );
+        return saved;
     }
 
+    @Transactional
     public void delete(String id) {
         log.info("Deleting user id: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
         userRepository.deleteById(id);
+        activityLogService.record(
+                "DELETE",
+                "USER",
+                user.getId(),
+                user.getUsername(),
+                "Xóa user ID=" + id
+        );
     }
 
     /**

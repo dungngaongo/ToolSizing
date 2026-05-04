@@ -30,15 +30,18 @@ public class ProjectService {
     private final ProjectDataRepository projectDataRepository;
     private final ProjectRevisionRepository projectRevisionRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
 
     public ProjectService(ProjectRepository projectRepository,
                           ProjectDataRepository projectDataRepository,
                           ProjectRevisionRepository projectRevisionRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          ActivityLogService activityLogService) {
         this.projectRepository = projectRepository;
         this.projectDataRepository = projectDataRepository;
         this.projectRevisionRepository = projectRevisionRepository;
         this.userRepository = userRepository;
+        this.activityLogService = activityLogService;
     }
 
     @Transactional
@@ -71,6 +74,14 @@ public class ProjectService {
         projectData.setProject(savedProject);
         projectDataRepository.save(projectData);
 
+        activityLogService.record(
+            "CREATE",
+            "PROJECT",
+            savedProject.getId(),
+            savedProject.getName(),
+            "Tạo dự án " + savedProject.getName()
+        );
+
         log.info("Project created successfully with id: {}", savedProject.getId());
         return savedProject;
     }
@@ -99,6 +110,7 @@ public class ProjectService {
         return projectRepository.findByUserIdAndStatus(userId, status);
     }
 
+    @Transactional
     public Project update(String id, CreateProjectRequest request) {
         log.info("Updating project id: {}", id);
         // Kiểm tra quyền truy cập
@@ -126,16 +138,33 @@ public class ProjectService {
         if (request.getOwnerName() != null) {
             project.setOwnerName(request.getOwnerName());
         }
-        return projectRepository.save(project);
+        Project saved = projectRepository.save(project);
+        activityLogService.record(
+            "UPDATE",
+            "PROJECT",
+            saved.getId(),
+            saved.getName(),
+            "Cập nhật thông tin dự án"
+        );
+        return saved;
     }
 
     @Transactional
     public void delete(String id) {
         log.info("Deleting project id: {}", id);
+        Project project = projectRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
         // Backward compatible cleanup for environments where FK cascade is not yet active.
         projectDataRepository.deleteByProjectId(id);
         projectRevisionRepository.deleteByProjectId(id);
         projectRepository.deleteById(id);
+        activityLogService.record(
+            "DELETE",
+            "PROJECT",
+            project.getId(),
+            project.getName(),
+            "Xóa dự án"
+        );
         log.info("Project deleted successfully: {}", id);
     }
 
@@ -199,7 +228,17 @@ public class ProjectService {
             project.setAssignedAdmin1(admin1);
         }
 
-        return projectRepository.save(project);
+        Project saved = projectRepository.save(project);
+        activityLogService.record(
+            "UPDATE",
+            "PROJECT",
+            saved.getId(),
+            saved.getName(),
+            admin1Id == null || admin1Id.isBlank()
+                ? "Bỏ chỉ định người thẩm định"
+                : "Chỉ định người thẩm định"
+        );
+        return saved;
     }
 
     /**

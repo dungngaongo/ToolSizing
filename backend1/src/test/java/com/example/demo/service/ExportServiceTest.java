@@ -335,6 +335,70 @@ class ExportServiceTest {
     }
 
     @Test
+    void exportIncludesK8sEvidenceImagesInAppendix() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+
+        Map<String, Object> moHinh = Map.of(
+                "logicalImages", List.of(),
+                "physicalImages", List.of(),
+                "flowImages", List.of(),
+                "logicComponentRows", List.of(),
+                "connectionRows", List.of(),
+                "archRows", List.of(Map.of("moduleName", "K8S Cluster", "loaiModule", "K8S"))
+        );
+
+        String tinyPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO0L4e0AAAAASUVORK5CYII=";
+
+        Map<String, Object> dinhCo = Map.of(
+                "moduleInstances", List.of(
+                        Map.of(
+                                "moduleType", "K8S",
+                                "moduleName", "K8S Cluster",
+                                "instanceKey", "K8S-1",
+                                "data", Map.of(
+                                        "baselineTable", List.of(
+                                                Map.of(
+                                                        "ip", "10.0.0.11",
+                                                        "cpu", "8",
+                                                        "ram", "16",
+                                                        "disk", "120",
+                                                        "cintRate", "100",
+                                                        "evidenceImages", List.of(Map.of("base64", tinyPng))
+                                                )
+                                        ),
+                                        "inputConfigTable", List.of(
+                                                Map.of(
+                                                        "ip", "10.0.0.21",
+                                                        "cpuLoad", "70",
+                                                        "ramLoad", "80",
+                                                        "diskLoad", "60",
+                                                        "cintUsed", "80",
+                                                        "ramUsed", "12",
+                                                        "diskUsed", "90",
+                                                        "evidenceImages", List.of(Map.of("base64", tinyPng))
+                                                )
+                                        )
+                                )
+                        )
+                )
+        );
+
+        byte[] docx = exportWithData(
+                mapper,
+                mapper.writeValueAsString(moHinh),
+                mapper.writeValueAsString(dinhCo),
+                null,
+                null
+        );
+
+        String text = extractText(docx);
+        assertTrue(text.contains("Sở cứ hệ thống tham chiếu"));
+        assertTrue(text.contains("Sở cứ thông tin tải đầu vào"));
+        assertTrue(text.contains("Hình PL-1"));
+        assertTrue(text.contains("Hình PL-2"));
+    }
+
+    @Test
     void exportAppOnlyIncludesSelectedFlavorMode() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
 
