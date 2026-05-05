@@ -1,13 +1,13 @@
 package com.example.sizing.service;
 
-import com.example.demo.dto.CreateProjectDataRequest;
-import com.example.demo.dto.UpdateProjectDataRequest;
-import com.example.demo.exception.BadRequestException;
-import com.example.demo.exception.ResourceNotFoundException;
-import com.example.demo.model.Project;
-import com.example.demo.model.ProjectData;
-import com.example.demo.repository.ProjectRepository;
-import com.example.demo.repository.ProjectDataRepository;
+import com.example.sizing.dto.CreateProjectDataRequest;
+import com.example.sizing.dto.UpdateProjectDataRequest;
+import com.example.sizing.exception.BadRequestException;
+import com.example.sizing.exception.ResourceNotFoundException;
+import com.example.sizing.model.Project;
+import com.example.sizing.model.ProjectData;
+import com.example.sizing.repository.ProjectRepository;
+import com.example.sizing.repository.ProjectDataRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
