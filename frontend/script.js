@@ -1,6 +1,4 @@
-// Cấu hình API Backend
 const API_BASE_URL = '/api';
-//const API_BASE_URL = 'http://localhost:8081/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
@@ -82,7 +80,7 @@ let _historyNavigation = false;
  * Khi người dùng bấm Back/Forward, trình duyệt fire event 'popstate'
  * Ta đọc state đã lưu để khôi phục giao diện tương ứng
  */
-window.addEventListener('popstate', async function(event) {
+window.addEventListener('popstate', async function (event) {
     const state = event.state || parseAppHash(location.hash);
     _historyNavigation = true;
     try {
@@ -100,10 +98,10 @@ window.addEventListener('popstate', async function(event) {
 // Bật DEBUG_MODE = true để hiển thị log debug trên console
 const Logger = {
     DEBUG_MODE: false,
-    debug: function(...args) { if (this.DEBUG_MODE) console.log('[DEBUG]', ...args); },
-    info: function(...args) { console.log('[INFO]', ...args); },
-    warn: function(...args) { console.warn('[WARN]', ...args); },
-    error: function(...args) { console.error('[ERROR]', ...args); }
+    debug: function (...args) { if (this.DEBUG_MODE) console.log('[DEBUG]', ...args); },
+    info: function (...args) { console.log('[INFO]', ...args); },
+    warn: function (...args) { console.warn('[WARN]', ...args); },
+    error: function (...args) { console.error('[ERROR]', ...args); }
 };
 
 // ==================== TOAST NOTIFICATION SYSTEM ====================
@@ -206,7 +204,7 @@ function showConfirm(title, message, options = {}) {
 function validateField(input, errorMessage, validatorFn) {
     // Xóa lỗi cũ
     clearFieldError(input);
-    
+
     if (!validatorFn(input.value)) {
         input.classList.add('field-error');
         const errDiv = document.createElement('div');
@@ -662,30 +660,30 @@ async function parseApiError(response) {
  */
 async function fetchAPI(url, options = {}, config = {}) {
     const { showError = false, showLoadingOverlay = false, loadingMessage = 'Đang xử lý...' } = config;
-    
+
     if (showLoadingOverlay) showLoading(true, loadingMessage);
-    
+
     options.headers = Object.assign({}, getAuthHeaders(), options.headers || {});
-    
+
     try {
         const response = await fetch(url, options);
-        
+
         if (showLoadingOverlay) showLoading(false);
-        
+
         if (handleUnauthorized(response)) {
             throw new Error('Unauthorized');
         }
-        
+
         // Tự động hiển thị toast lỗi cho non-ok response nếu showError = true
         if (!response.ok && showError) {
             const errorMsg = await parseApiError(response.clone());
             showToast(errorMsg, 'error', 5000);
         }
-        
+
         return response;
     } catch (error) {
         if (showLoadingOverlay) showLoading(false);
-        
+
         // Network error (mất kết nối, timeout, ...)
         if (error.message !== 'Unauthorized') {
             if (showError) {
@@ -735,11 +733,11 @@ function formatDate(dateString) {
 function checkAuthStatus() {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
     const displayName = localStorage.getItem('displayName');
-    
+
     const userInfo = document.getElementById('user-info');
     const loginLink = document.getElementById('login-link');
     const userDisplayName = document.getElementById('user-display-name');
-    
+
     if (isLoggedIn === 'true' && displayName) {
         if (userInfo) userInfo.style.display = 'flex';
         if (loginLink) loginLink.style.display = 'none';
@@ -810,7 +808,7 @@ function handleUnauthorized(response) {
 function applyRolePermissions() {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
-    
+
     // Check if project is completed (read-only for everyone)
     if (currentProjectStatus === 'HOAN_THANH') {
         applyReadOnlyMode();
@@ -841,19 +839,19 @@ function applyRolePermissions() {
                 el.disabled = false;
             }
         });
-        
+
         // SIZING PAGE: Disable ALL user inputs (baseline table, input config table, etc.)
         document.querySelectorAll('#page-sizing input, #page-sizing textarea, #page-sizing select').forEach(el => {
             // Only enable admin fields
-            if (!el.classList.contains('admin-eval') && 
-                !el.classList.contains('admin-note') && 
+            if (!el.classList.contains('admin-eval') &&
+                !el.classList.contains('admin-note') &&
                 !el.classList.contains('admin-eval-select') &&
-                !el.id?.startsWith('eval-') && 
+                !el.id?.startsWith('eval-') &&
                 !el.id?.startsWith('note-')) {
                 el.disabled = true;
             }
         });
-        
+
         // Disable user buttons on sizing page
         document.querySelectorAll('#page-sizing button.sizing-user-btn, #page-sizing button.btn-add, #page-sizing button.btn-add-img').forEach(btn => {
             // Allow method toggle buttons and save buttons to remain clickable for admin
@@ -867,14 +865,14 @@ function applyRolePermissions() {
                 btn.style.cursor = 'not-allowed';
             }
         });
-        
+
         // Disable delete buttons in sizing tables
         document.querySelectorAll('#page-sizing .btn-delete-row-item, #page-sizing .btn-delete').forEach(btn => {
             btn.disabled = true;
             btn.style.opacity = '0.5';
             btn.style.cursor = 'not-allowed';
         });
-        
+
         // Enable admin fields on sizing page
         document.querySelectorAll('#page-sizing .admin-eval, #page-sizing .admin-note, #page-sizing .admin-eval-select').forEach(el => {
             el.disabled = false;
@@ -891,13 +889,13 @@ function applyRolePermissions() {
         // Disable action buttons that manipulate user content but keep evaluate & save buttons enabled
         document.querySelectorAll('#page-request button, #page-input button, #page-model button').forEach(btn => {
             // Admin được bấm nút Đánh giá, Lưu dữ liệu, btn-view-evidence, btn-logout
-            const allow = btn.classList.contains('btn-evaluate') || 
-                         btn.classList.contains('btn-logout') || 
-                         btn.classList.contains('btn-view-evidence') ||
-                         btn.classList.contains('btn-save-section');
+            const allow = btn.classList.contains('btn-evaluate') ||
+                btn.classList.contains('btn-logout') ||
+                btn.classList.contains('btn-view-evidence') ||
+                btn.classList.contains('btn-save-section');
             if (!allow) btn.disabled = true;
         });
-        
+
         // Enable nút Lưu dữ liệu cho admin (btn-save-section)
         document.querySelectorAll('.btn-save-section').forEach(btn => {
             btn.disabled = false;
@@ -916,7 +914,7 @@ function applyRolePermissions() {
         });
         document.querySelectorAll('#page-request input, #page-request textarea, #page-request select').forEach(el => el.disabled = false);
         document.querySelectorAll('#page-input input, #page-input textarea, #page-input select').forEach(el => el.disabled = false);
-        
+
         // MODEL PAGE: Enable user fields, disable admin fields
         document.querySelectorAll('#page-model input, #page-model textarea, #page-model select').forEach(el => {
             if (el.classList.contains('admin-eval') || el.classList.contains('admin-note') || el.classList.contains('admin-eval-select')) {
@@ -926,13 +924,13 @@ function applyRolePermissions() {
                 el.disabled = false;
             }
         });
-        
+
         // SIZING PAGE: Enable user inputs, disable admin inputs
         document.querySelectorAll('#page-sizing input, #page-sizing textarea, #page-sizing select').forEach(el => {
             // Enable by default for user
             el.disabled = false;
         });
-        
+
         // Re-disable admin fields on sizing page for regular users
         document.querySelectorAll('#page-sizing .admin-eval, #page-sizing .admin-note, #page-sizing .admin-eval-select').forEach(el => {
             el.disabled = true;
@@ -943,14 +941,14 @@ function applyRolePermissions() {
             el.disabled = true;
             el.classList.add('readonly-admin');
         });
-        
+
         // Enable user buttons on sizing page
         document.querySelectorAll('#page-sizing button.sizing-user-btn, #page-sizing button.btn-add, #page-sizing button.btn-add-img').forEach(btn => {
             btn.disabled = false;
             btn.style.opacity = '1';
             btn.style.cursor = 'pointer';
         });
-        
+
         // Disable admin evaluate button for users
         document.querySelectorAll('#page-sizing button.sizing-admin-btn, #page-sizing button.btn-evaluate').forEach(btn => {
             btn.disabled = true;
@@ -958,11 +956,11 @@ function applyRolePermissions() {
             btn.style.cursor = 'not-allowed';
             btn.title = 'Chỉ admin mới có quyền đánh giá';
         });
-        
+
         // Re-enable file inputs and buttons for regular users
         document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"], #page-sizing input[type="file"]').forEach(fi => fi.disabled = false);
         document.querySelectorAll('#page-request button, #page-input button, #page-model button').forEach(btn => btn.disabled = false);
-        
+
         // DISABLE nút Đánh giá cho user (chỉ admin mới được đánh giá)
         document.querySelectorAll('.btn-evaluate').forEach(btn => {
             btn.disabled = true;
@@ -971,7 +969,7 @@ function applyRolePermissions() {
             btn.style.cursor = 'not-allowed';
         });
     }
-    
+
     // Update project status display after applying permissions
     updateProjectStatusDisplay();
 }
@@ -980,31 +978,31 @@ function applyRolePermissions() {
 function applyReadOnlyMode() {
     document.body.classList.add('role-readonly');
     document.body.classList.remove('role-user', 'role-admin1');
-    
+
     // Disable ALL inputs, textareas, selects across all pages
     document.querySelectorAll('input, textarea, select').forEach(el => {
         el.disabled = true;
     });
-    
+
     // Disable ALL buttons except navigation, logout, and image viewing
     document.querySelectorAll('button').forEach(btn => {
-        const isNavOrLogout = btn.classList.contains('btn-logout') || 
-                             btn.closest('.side-menu') || 
-                             btn.closest('.header') ||
-                             btn.id === 'exportBtn' ||
-                             btn.classList.contains('btn-close-panel') ||
-                             btn.classList.contains('btn-close-modal') ||
-                             btn.classList.contains('btn-view-evidence') ||
-                             btn.onclick?.toString().includes('openModal') ||
-                             btn.onclick?.toString().includes('openModalFromElement') ||
-                             btn.onclick?.toString().includes('openImageModal');
+        const isNavOrLogout = btn.classList.contains('btn-logout') ||
+            btn.closest('.side-menu') ||
+            btn.closest('.header') ||
+            btn.id === 'exportBtn' ||
+            btn.classList.contains('btn-close-panel') ||
+            btn.classList.contains('btn-close-modal') ||
+            btn.classList.contains('btn-view-evidence') ||
+            btn.onclick?.toString().includes('openModal') ||
+            btn.onclick?.toString().includes('openModalFromElement') ||
+            btn.onclick?.toString().includes('openImageModal');
         if (!isNavOrLogout) {
             btn.disabled = true;
             btn.style.opacity = '0.5';
             btn.style.cursor = 'not-allowed';
         }
     });
-    
+
     // Ensure all image view buttons are explicitly enabled
     document.querySelectorAll('.btn-view-evidence').forEach(btn => {
         btn.disabled = false;
@@ -1012,17 +1010,17 @@ function applyReadOnlyMode() {
         btn.style.cursor = 'pointer';
         btn.style.pointerEvents = 'auto';
     });
-    
+
     // Ensure images with onclick for modal are clickable
     document.querySelectorAll('img[onclick]').forEach(img => {
         img.style.pointerEvents = 'auto';
         img.style.cursor = 'zoom-in';
     });
-    
+
     // Hide approve button
     const approveBtn = document.getElementById('btn-approve-project');
     if (approveBtn) approveBtn.style.display = 'none';
-    
+
     // Show completed notification
     const notif = document.createElement('div');
     notif.style.cssText = 'position:fixed;top:20px;right:20px;background:#28a745;color:#fff;padding:12px 24px;border-radius:8px;z-index:99999;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.2);';
@@ -1060,11 +1058,11 @@ async function loadProjectList() {
     const loadingEl = document.getElementById('project-list-loading');
     const emptyEl = document.getElementById('project-list-empty');
     const tableWrapper = document.querySelector('.project-list-table-wrapper');
-    
+
     if (loadingEl) loadingEl.style.display = 'block';
     if (tableWrapper) tableWrapper.style.display = 'none';
     if (emptyEl) emptyEl.style.display = 'none';
-    
+
     // Hiển thị skeleton rows trong khi chờ load
     if (tbody) {
         tbody.innerHTML = '';
@@ -1076,15 +1074,15 @@ async function loadProjectList() {
         }
         if (tableWrapper) tableWrapper.style.display = 'block';
     }
-    
+
     try {
         Logger.debug('DEBUG: loadProjectList called');
         const response = await fetchAPI(`${API_BASE_URL}/projects/my-projects`, {}, { showError: true });
         if (response.ok) {
             allProjects = await response.json();
-            
+
             if (loadingEl) loadingEl.style.display = 'none';
-            
+
             if (allProjects.length === 0) {
                 if (tableWrapper) tableWrapper.style.display = 'none';
                 if (emptyEl) {
@@ -1113,18 +1111,18 @@ async function loadProjectList() {
 function renderProjectList(projects) {
     const tbody = document.getElementById('project-list-body');
     if (!tbody) return;
-    
+
     tbody.innerHTML = '';
-    
+
     projects.forEach((project, index) => {
         const tr = document.createElement('tr');
         tr.onclick = () => openProject(project.id);
-        
+
         const createdDate = project.createdAt ? formatDate(project.createdAt) : 'N/A';
         const modifiedDate = project.updatedAt ? formatDate(project.updatedAt) : 'N/A';
         const statusClass = getStatusClass(project.status);
         const statusText = getStatusText(project.status, project.statusRound);
-        
+
         tr.innerHTML = `
             <td>${index + 1}</td>
             <td class="project-name-cell">${project.name || 'Chưa có tên'}</td>
@@ -1167,12 +1165,12 @@ function getStatusClass(status) {
 function getStatusText(status, statusRound) {
     const round = statusRound || 1;
     const s = (status || '').toUpperCase();
-    
+
     if (s === 'SIZING' || s.includes('SIZING')) return `Sizing lần ${round}`;
     if (s === 'THAM_DINH' || s.includes('THAM_DINH')) return `Thẩm định lần ${round}`;
     if (s === 'PHE_DUYET' || s.includes('PHE_DUYET')) return `Phê duyệt lần ${round}`;
     if (s === 'HOAN_THANH' || s.includes('HOAN_THANH')) return 'Hoàn thành';
-    
+
     // Legacy support
     switch (status?.toLowerCase()) {
         case 'draft': return `Sizing lần ${round}`;
@@ -1186,25 +1184,25 @@ function getStatusText(status, statusRound) {
 function filterProjects() {
     const searchText = document.getElementById('search-project')?.value.toLowerCase() || '';
     const statusFilter = document.getElementById('filter-status')?.value || '';
-    
+
     // Show/hide clear button
     const clearBtn = document.getElementById('btn-clear-search');
     if (clearBtn) clearBtn.style.display = searchText ? 'flex' : 'none';
-    
+
     let filtered = allProjects;
-    
+
     if (searchText) {
-        filtered = filtered.filter(p => 
+        filtered = filtered.filter(p =>
             (p.name && p.name.toLowerCase().includes(searchText)) ||
             (p.devUnit && p.devUnit.toLowerCase().includes(searchText)) ||
             (p.ownerName && p.ownerName.toLowerCase().includes(searchText))
         );
     }
-    
+
     if (statusFilter) {
         filtered = filtered.filter(p => p.status?.toUpperCase() === statusFilter);
     }
-    
+
     renderProjectList(filtered);
 }
 
@@ -1224,14 +1222,14 @@ function clearProjectSearch() {
 function updateProjectStatusDisplay() {
     const statusBadge = document.getElementById('current-project-status');
     if (!statusBadge) return;
-    
+
     const statusClass = getStatusClass(currentProjectStatus);
     const statusText = getStatusText(currentProjectStatus, currentProjectStatusRound);
-    
+
     statusBadge.className = `project-status-badge ${statusClass}`;
     statusBadge.innerHTML = `<i class="fa-solid fa-circle-info"></i> ${statusText}`;
     statusBadge.style.display = 'inline-flex';
-    
+
     // Hiển thị/ẩn nút Phê duyệt cho admin2
     updateApproveButtonVisibility();
 }
@@ -1243,10 +1241,10 @@ function updateProjectStatusDisplay() {
 async function updateProjectStatus(actionType) {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
-    
+
     let newStatus = currentProjectStatus;
     let newRound = currentProjectStatusRound;
-    
+
     switch (actionType) {
         case 'user_edit':
             // User chỉnh sửa: quay về Sizing
@@ -1264,7 +1262,7 @@ async function updateProjectStatus(actionType) {
             }
             // Nếu đang ở SIZING thì giữ nguyên round
             break;
-            
+
         case 'admin1_review':
             // Admin1 đánh giá: Sizing -> Thẩm định (giữ nguyên round)
             if (currentProjectStatus === 'SIZING' || currentProjectStatus === 'Draft' || !currentProjectStatus) {
@@ -1272,7 +1270,7 @@ async function updateProjectStatus(actionType) {
                 // Giữ nguyên round
             }
             break;
-            
+
         case 'admin2_review':
             // Admin2 đánh giá: Thẩm định -> Phê duyệt (giữ nguyên round)
             if (currentProjectStatus === 'THAM_DINH') {
@@ -1280,7 +1278,7 @@ async function updateProjectStatus(actionType) {
                 // Giữ nguyên round
             }
             break;
-            
+
         case 'admin2_approve':
             // Admin2 phê duyệt: Thẩm định/Phê duyệt -> Hoàn thành
             if (currentProjectStatus === 'THAM_DINH' || currentProjectStatus === 'PHE_DUYET') {
@@ -1288,12 +1286,12 @@ async function updateProjectStatus(actionType) {
             }
             break;
     }
-    
+
     // Nếu không thay đổi thì không cần update
     if (newStatus === currentProjectStatus && newRound === currentProjectStatusRound) {
         return;
     }
-    
+
     try {
         const response = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`, {
             method: 'PUT',
@@ -1303,7 +1301,7 @@ async function updateProjectStatus(actionType) {
                 statusRound: newRound
             })
         });
-        
+
         if (response.ok) {
             currentProjectStatus = newStatus;
             currentProjectStatusRound = newRound;
@@ -1321,14 +1319,14 @@ async function updateProjectStatus(actionType) {
 function updateApproveButtonVisibility() {
     const approveHeaderBtn = document.getElementById('btn-approve-header');
     if (!approveHeaderBtn) return;
-    
+
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
-    
+
     // Nút phê duyệt luôn hiển thị trên header khi đang ở trong project detail
     const inProject = document.getElementById('project-detail-page')?.style.display !== 'none';
     approveHeaderBtn.style.display = inProject ? 'inline-flex' : 'none';
-    
+
     // Chỉ admin2 mới bấm được, enable khi dự án ở trạng thái THAM_DINH hoặc PHE_DUYET
     const canApprove = (role === 'admin2' && (currentProjectStatus === 'THAM_DINH' || currentProjectStatus === 'PHE_DUYET'));
     approveHeaderBtn.disabled = !canApprove;
@@ -1357,7 +1355,7 @@ async function approveProject() {
         { confirmText: 'Phê duyệt', cancelText: 'Hủy' }
     );
     if (!confirmed) return;
-    
+
     showLoading(true, 'Đang phê duyệt dự án...');
     await updateProjectStatus('admin2_approve');
     showLoading(false);
@@ -1366,9 +1364,9 @@ async function approveProject() {
 
 async function openProject(projectId, options = {}) {
     saveProjectIdToStorage(projectId);
-    
+
     showLoading(true, 'Đang tải dữ liệu dự án...');
-    
+
     document.getElementById('project-list-page').style.display = 'none';
     document.getElementById('project-detail-page').style.display = 'flex';
     document.getElementById('btn-back-to-list').style.display = 'inline-block';
@@ -1376,27 +1374,23 @@ async function openProject(projectId, options = {}) {
     // Hiển thị tab được chỉ định hoặc page-request mặc định
     const targetTab = options.tab || 'page-request';
     showSection(targetTab, document.querySelector(`.side-menu a[onclick*="${targetTab}"]`), { skipPushState: true });
-    
-    // Hiện nút Lịch sử phiên bản
-    const btnVersionHistory = document.getElementById('btn-version-history');
-    if (btnVersionHistory) btnVersionHistory.style.display = 'inline-block';
-    
+
     currentProjectDataId = null;
     localStorage.removeItem('currentProjectDataId');
     revisionCheckedForSession = false; // Reset revision check cho project mới
-    
+
     // Reset toàn bộ form trước khi load dữ liệu mới để tránh hiển thị dữ liệu cũ từ dự án trước
     resetAllForms();
-    
+
     try {
         await loadAllDataFromDB();
-        
+
         // Kiểm tra session editor: nếu account mới mở project -> tạo revision cho account cũ
         const user = getCurrentUser();
         const currentUsername = user.username || user.displayName || 'unknown';
         await checkAndCreateRevisionForPreviousEditor(currentUsername);
         revisionCheckedForSession = true; // Đã check xong
-        
+
         // Cập nhật nút Phê duyệt sau khi load dữ liệu
         updateApproveButtonVisibility();
     } catch (error) {
@@ -1416,17 +1410,10 @@ function showProjectList(options = {}) {
     document.getElementById('project-list-page').style.display = 'block';
     document.getElementById('project-detail-page').style.display = 'none';
     document.getElementById('btn-back-to-list').style.display = 'none';
-    
-    // Ẩn nút Lịch sử phiên bản
-    const btnVersionHistory = document.getElementById('btn-version-history');
-    if (btnVersionHistory) btnVersionHistory.style.display = 'none';
-    
+
     // Ẩn nút Phê duyệt khi không ở trong dự án
     updateApproveButtonVisibility();
-    
-    // Đóng panel lịch sử nếu đang mở
-    closeVersionHistory();
-    
+
     loadProjectList();
 
     // Cập nhật URL/history
@@ -1442,16 +1429,16 @@ async function deleteProject(projectId, projectName) {
         { confirmText: 'Xóa dự án', danger: true }
     );
     if (!confirmed) return;
-    
+
     showLoading(true, 'Đang xóa dự án...');
-    
+
     try {
         const response = await fetchAPI(`${API_BASE_URL}/projects/${projectId}`, {
             method: 'DELETE'
         }, { showError: true });
-        
+
         showLoading(false);
-        
+
         if (response.ok) {
             showToast('Xóa dự án thành công!', 'success');
             loadProjectList();
@@ -1469,9 +1456,9 @@ async function deleteProject(projectId, projectName) {
 async function startNewProject() {
     const user = getCurrentUser();
     const projectName = 'Dự án mới - ' + new Date().toLocaleString('vi-VN');
-    
+
     showLoading(true, 'Đang tạo dự án mới...');
-    
+
     try {
         const response = await fetchAPI(`${API_BASE_URL}/projects`, {
             method: 'POST',
@@ -1483,32 +1470,28 @@ async function startNewProject() {
                 statusRound: 1
             })
         }, { showError: true });
-        
+
         showLoading(false);
-        
+
         if (response.ok) {
             const project = await response.json();
             saveProjectIdToStorage(project.id);
-            
+
             // Cập nhật trạng thái dự án
             currentProjectStatus = 'SIZING';
             currentProjectStatusRound = 1;
             updateProjectStatusDisplay();
-            
+
             document.getElementById('project-list-page').style.display = 'none';
             document.getElementById('project-detail-page').style.display = 'flex';
             document.getElementById('btn-back-to-list').style.display = 'inline-block';
-            
-            // Hiện nút Lịch sử phiên bản
-            const btnVersionHistory = document.getElementById('btn-version-history');
-            if (btnVersionHistory) btnVersionHistory.style.display = 'inline-block';
-            
+
             resetAllForms();
             await loadAllDataFromDB();
-            
+
             // Cập nhật URL/history cho dự án mới
             pushAppState('project', project.id, 'page-request');
-            
+
             showToast('Tạo dự án mới thành công!', 'success');
             Logger.debug('Created new project:', project.id);
         } else {
@@ -1688,15 +1671,15 @@ function resetAllForms() {
     // Reset tabs
     const menuLinks = document.querySelectorAll(".side-menu a");
     const pages = document.querySelectorAll(".page-section");
-    
+
     menuLinks.forEach(l => l.classList.remove("active"));
     pages.forEach(p => p.classList.remove("active"));
-    
+
     if (menuLinks[0]) menuLinks[0].classList.add("active");
     const firstPage = document.getElementById('page-request');
     if (firstPage) firstPage.classList.add("active");
 
-    try { updateModuleVisibility(); } catch (e) {}
+    try { updateModuleVisibility(); } catch (e) { }
 
     // Always restore fixed sizing rule after global reset.
     applyFixedSizingRule();
@@ -1721,13 +1704,13 @@ async function loadAllDataFromDB() {
             currentProjectStatusRound = project.statusRound || 1;
             updateProjectStatusDisplay();
         }
-        
+
         const sizingIframe = document.getElementById('sizing-iframe');
         if (sizingIframe && currentProjectId) {
             const baseUrl = sizingIframe.src.split('?')[0];
             sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
         }
-        
+
         const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`);
         if (response.ok) {
             const projectData = await response.json();
@@ -1736,14 +1719,14 @@ async function loadAllDataFromDB() {
             if (projectData.yeuCauBaiToanContent) {
                 let content = JSON.parse(projectData.yeuCauBaiToanContent);
                 if (projectData.yeuCauAdminReview) {
-                    try { content.adminReview = JSON.parse(projectData.yeuCauAdminReview); } catch(e) { /* ignore */ }
+                    try { content.adminReview = JSON.parse(projectData.yeuCauAdminReview); } catch (e) { /* ignore */ }
                 }
                 loadYeuCauBaiToan(content);
             }
             if (projectData.thongTinDauVaoContent) {
                 let content = JSON.parse(projectData.thongTinDauVaoContent);
                 if (projectData.thongTinAdminReview) {
-                    try { content.adminReview = JSON.parse(projectData.thongTinAdminReview); } catch(e) { /* ignore */ }
+                    try { content.adminReview = JSON.parse(projectData.thongTinAdminReview); } catch (e) { /* ignore */ }
                 }
                 loadThongTinDauVao(content);
                 // After loading input table, populate POC/Sizing dropdowns and attach listeners
@@ -1769,12 +1752,12 @@ async function loadAllDataFromDB() {
             if (projectData.tongHopVaDeXuatContent) {
                 loadTongHop(JSON.parse(projectData.tongHopVaDeXuatContent));
             }
-            
+
             // Load sizing data (dinhCoHeThongContent)
             if (projectData.dinhCoHeThongContent) {
                 loadSizingData(projectData.dinhCoHeThongContent);
             }
-            
+
             // Load sizing admin review (dinhCoAdminReview)
             if (projectData.dinhCoAdminReview) {
                 try {
@@ -1784,7 +1767,7 @@ async function loadAllDataFromDB() {
                     Logger.error('Error parsing sizing admin review:', e);
                 }
             }
-            
+
             Logger.debug('Đã tải dữ liệu từ database thành công!');
         } else if (response.status === 404) {
             Logger.debug('Chưa có ProjectData cho project này');
@@ -1830,17 +1813,17 @@ function applyFixedSizingRule() {
 
 function loadYeuCauBaiToan(data) {
     const rows = document.querySelectorAll('#request-table-body tr');
-    
+
     // Helper function để load dữ liệu vào 1 dòng (Input + Admin)
     const loadRowData = (rowIndex, value, adminData) => {
         const row = rows[rowIndex];
         if (!row) return;
-        
+
         // Cột User Input (Cột 2)
         const userInput = row.cells[1].querySelector('input');
         const userSelect = row.cells[1].querySelector('select');
         const userTextarea = row.cells[1].querySelector('textarea');
-        
+
         if (userInput) userInput.value = value || '';
         if (userSelect) userSelect.value = value || '';
         if (userTextarea) userTextarea.value = value || '';
@@ -1863,7 +1846,7 @@ function loadYeuCauBaiToan(data) {
     loadRowData(1, data.projectName, data.adminReview?.row1);
     // Dòng 3: Chức năng
     loadRowData(2, data.sysFeature, data.adminReview?.row2);
-    
+
     // Dòng 4: Đầu mối (Tách chuỗi contactPerson)
     const contactRow = rows[3];
     if (contactRow) {
@@ -1873,10 +1856,10 @@ function loadYeuCauBaiToan(data) {
         document.getElementById('contact-email').value = contactParts[0] || '';
         document.getElementById('contact-unit').value = contactParts[1] || '';
         document.getElementById('contact-phone').value = contactParts[2] || '';
-        
+
         // Load admin
         const adminData = data.adminReview?.row3;
-        if(adminData) {
+        if (adminData) {
             const adminEval = contactRow.cells[2].querySelector('select');
             const adminNote = contactRow.cells[3].querySelector('textarea') || contactRow.cells[3].querySelector('input');
             if (adminEval) { adminEval.value = adminData.eval || ''; updateColor(adminEval); }
@@ -1975,8 +1958,8 @@ function loadMoHinhHeThong(data, admin) {
         };
 
         setAdmin('physical', adminObj.physical || data.adminPhysical);
-        setAdmin('logical',  adminObj.logical  || data.adminLogical);
-        setAdmin('flow',     adminObj.flow     || data.adminFlow);
+        setAdmin('logical', adminObj.logical || data.adminLogical);
+        setAdmin('flow', adminObj.flow || data.adminFlow);
 
         // Architecture rows
         const archBody = document.getElementById('arch-table-body');
@@ -1990,7 +1973,7 @@ function loadMoHinhHeThong(data, admin) {
             } else {
                 archBody.appendChild(createArchTableRow(1, {}));
             }
-            
+
             // Load admin review for each arch row
             if (adminObj.archRowReviews && Array.isArray(adminObj.archRowReviews)) {
                 const rows = archBody.querySelectorAll('tr');
@@ -2038,8 +2021,8 @@ function loadMoHinhHeThong(data, admin) {
         }
 
         // Ensure role permissions applied after building model section
-        try { applyRolePermissions(); } catch (e) {}
-        
+        try { applyRolePermissions(); } catch (e) { }
+
         // Update module visibility in sizing section based on selected modules
         updateModuleVisibility();
     } catch (e) {
@@ -2076,7 +2059,7 @@ function collectYeuCauBaiToan() {
     const unit = document.getElementById('contact-unit')?.value || '';
     const phone = document.getElementById('contact-phone')?.value || '';
     const contactCombined = [email, unit, phone].join(' - '); // Luôn join để giữ vị trí khi split
-    
+
     return {
         devUnit: getVal(0),
         projectName: getVal(1),
@@ -2111,10 +2094,10 @@ async function saveYeuCauBaiToan() {
         showToast("Vui lòng nhập Tên dự án!", 'warning');
         return;
     }
-    
+
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
-        
+
         // 1. Tạo hoặc Cập nhật Project
         if (!currentProjectId) {
             const projectResponse = await fetchAPI(`${API_BASE_URL}/projects`, {
@@ -2127,12 +2110,12 @@ async function saveYeuCauBaiToan() {
                     status: 'Draft'
                 })
             });
-            
+
             if (!projectResponse.ok) throw new Error('Không thể tạo Project mới.');
             const project = await projectResponse.json();
             saveProjectIdToStorage(project.id);
         } else {
-                await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`, {
+            await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -2157,18 +2140,18 @@ async function saveYeuCauBaiToan() {
         };
 
         const method = currentProjectDataId ? 'PUT' : 'POST';
-        const url = currentProjectDataId 
+        const url = currentProjectDataId
             ? `${API_BASE_URL}/project-data/${currentProjectDataId}` // Giả sử BE hỗ trợ update qua ID này
             : `${API_BASE_URL}/project-data`; // Hoặc tạo mới
 
         // Logic cũ của bạn đang dùng API khác nhau cho create/update project data
         // Tôi sẽ điều chỉnh theo luồng chuẩn: Update vào bảng ProjectData
         // Lưu nội dung Yêu cầu bài toán vào cột yeuCauBaiToanContent
-        
+
         let response;
         const baseHeaders = { 'Content-Type': 'application/json' };
-        if(currentProjectDataId) {
-             response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+        if (currentProjectDataId) {
+            response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
                 method: 'PUT',
                 headers: baseHeaders,
                 body: JSON.stringify({ yeuCauBaiToanContent: JSON.stringify(systemInfoPayload) })
@@ -2183,12 +2166,12 @@ async function saveYeuCauBaiToan() {
                 })
             });
         }
-        
+
         if (response.ok) {
             const result = await response.json();
-            if(!currentProjectDataId) saveProjectDataIdToStorage(result.id);
+            if (!currentProjectDataId) saveProjectDataIdToStorage(result.id);
             if (statusDiv) statusDiv.innerHTML = `<span style="color: green;">✓ Lưu thành công!</span>`;
-            
+
             // Cập nhật trạng thái dự án dựa trên role
             const role = (user.role || '').toLowerCase();
             if (role === 'admin1') {
@@ -2198,15 +2181,12 @@ async function saveYeuCauBaiToan() {
             } else if (role === 'user' || !role) {
                 await updateProjectStatus('user_edit');
             }
-            
-            // Tạo revision sau khi lưu thành công
-            await createRevision(`${user.displayName || user.username || 'User'} cập nhật Yêu cầu bài toán`);
-            
+
             showToast('Đã lưu thông tin thành công!', 'success');
         } else {
             throw new Error(await response.text());
         }
-        
+
     } catch (error) {
         Logger.error('Error:', error);
         if (statusDiv) statusDiv.innerHTML = `<span style="color: red;">✗ Lỗi: ${error.message}</span>`;
@@ -2224,7 +2204,7 @@ function loadThongTinDauVao(data) {
     } else {
         tbody.innerHTML = '';
     }
-    
+
     if (data.inputRows && data.inputRows.length > 0) {
         // If adminReview.rows provided, merge admin eval/note into each row object
         const adminRows = (data.adminReview && data.adminReview.rows) ? data.adminReview.rows : null;
@@ -2238,13 +2218,13 @@ function loadThongTinDauVao(data) {
             tbody.appendChild(tr);
         });
     }
-    
+
     // Note: baselineRows and global evidenceImages have been removed from storage structure
     // Load per-row images (pocEvidenceImages / sizingEvidenceImages) when present
     // (the per-row image loading is handled inside createInputTableRow below)
 }
 // Ensure role permissions applied after loading input table
-try { applyRolePermissions(); } catch (e) {}
+try { applyRolePermissions(); } catch (e) { }
 
 // 2. Hàm xử lý khi chọn ảnh từ icon dấu hỏi (?)
 // Hàm xử lý khi chọn file ảnh
@@ -2336,7 +2316,7 @@ function createInputTableRow(stt, data = {}) {
 
     // Kích hoạt màu sắc cho ô Select nếu đã có dữ liệu (OK xanh / NOK đỏ)
     const select = tr.querySelector('select');
-    if(select && select.value) updateColor(select);
+    if (select && select.value) updateColor(select);
 
     // Nếu vai trò hiện tại không phải admin, vô hiệu hóa các ô Admin trong dòng mới
     try {
@@ -2374,11 +2354,11 @@ function createInputTableRow(stt, data = {}) {
 
 // 4. [MỚI] Hàm xóa dòng cụ thể
 function deleteRow(btn) {
-    if(confirm("Bạn có chắc muốn xóa dòng này không?")) {
+    if (confirm("Bạn có chắc muốn xóa dòng này không?")) {
         const row = btn.closest('tr');
         const tbody = row.parentElement;
         row.remove();
-        
+
         // Cập nhật lại số thứ tự (STT)
         Array.from(tbody.rows).forEach((r, index) => {
             r.cells[0].innerText = index + 1;
@@ -2394,10 +2374,10 @@ function addInputRow() {
         Logger.error("Không tìm thấy tbody có id='input-table-body'");
         return;
     }
-    
+
     const nextSTT = tbody.rows.length + 1;
     // Gọi hàm tạo dòng ở trên
-    const tr = createInputTableRow(nextSTT); 
+    const tr = createInputTableRow(nextSTT);
     tbody.appendChild(tr);
     // Re-apply role permissions so dynamically added row gets correct disabled state
     try { applyRolePermissions(); } catch (e) { /* ignore */ }
@@ -2455,15 +2435,15 @@ function collectThongTinDauVao() {
                 text: getWrapperInput(3),
                 sizingEvidenceImages: getRowImages(3)
             },
-            
+
             module: cells[4]?.querySelector('input')?.value || '', // Cột 4
             ghiChu: cells[5]?.querySelector('textarea')?.value || '', // Cột 5
-            
+
             adminEval: cells[6]?.querySelector('select')?.value || '', // Cột 6
             adminNote: cells[7]?.querySelector('textarea')?.value || ''   // Cột 7
         });
     });
-    
+
     // Thu thập bảng Baseline
     // NOTE: baselineRows and global evidenceImages were removed from storage per new spec
     return {
@@ -2477,19 +2457,19 @@ function collectThongTinDauVao() {
 function populatePocSizingDropdowns() {
     // Collect rows from input table — each row has POC and Sizing values
     const inputRows = [];
-    
+
     document.querySelectorAll('#input-table-body tr').forEach((row, index) => {
         const cells = row.querySelectorAll('td');
         const dauVao = cells[1]?.querySelector('textarea')?.value?.trim() || '';
-        
+
         // POC: column 2 (cell-wrapper > input)
         const pocInput = cells[2]?.querySelector('input');
         const pocVal = pocInput?.value?.trim() || '';
-        
+
         // Sizing: column 3 (cell-wrapper > input)
         const sizingInput = cells[3]?.querySelector('input');
         const sizingVal = sizingInput?.value?.trim() || '';
-        
+
         if (pocVal || sizingVal) {
             inputRows.push({
                 index: index,
@@ -2522,9 +2502,7 @@ function populatePocSizingDropdowns() {
             option.value = row.index;
             option.dataset.poc = row.poc;
             option.dataset.sizing = row.sizing;
-            const label = row.dauVao
-                ? `Dòng ${row.index + 1}: POC=${row.poc}, Định cỡ=${row.sizing} (${row.dauVao})`
-                : `Dòng ${row.index + 1}: POC=${row.poc}, Định cỡ=${row.sizing}`;
+            const label = row.dauVao?.trim() || `Dòng ${row.index + 1}`;
             option.textContent = label;
             select.appendChild(option);
         });
@@ -2542,7 +2520,7 @@ function populatePocSizingDropdowns() {
             if (sizingInput) sizingInput.value = selectedOption.dataset.sizing || '';
         }
     };
-    
+
     rowSelectors.forEach(({ selectId, pocId, sizingId }) => {
         const baseSelect = document.getElementById(selectId);
         repopulateSingleSelector(baseSelect, document.getElementById(pocId), document.getElementById(sizingId));
@@ -2688,7 +2666,7 @@ function onInputRowSelect(selectEl, pocInputId, sizingInputId) {
 function attachInputTableChangeListeners() {
     const tbody = document.getElementById('input-table-body');
     if (!tbody) return;
-    
+
     // Use event delegation on the tbody
     tbody.addEventListener('input', (e) => {
         // Only react to changes in POC (col 2) or Sizing (col 3) input fields, or dauVao textarea
@@ -2705,15 +2683,15 @@ function attachInputTableChangeListeners() {
 
 async function saveThongTinDauVao() {
     const statusDiv = document.getElementById('input-save-status');
-    
+
     if (!currentProjectId) {
         showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning');
         return;
     }
-    
+
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
-        
+
         const data = collectThongTinDauVao();
         // If user is not admin, strip any admin eval/note fields from payload to avoid overwriting admin columns
         const user = getCurrentUser();
@@ -2736,9 +2714,9 @@ async function saveThongTinDauVao() {
                 thongTinDauVaoContent: content
             })
         });
-        
+
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
-        
+
         // Cập nhật trạng thái dự án dựa trên role
         const role = (user.role || '').toLowerCase();
         if (role === 'admin1') {
@@ -2748,12 +2726,9 @@ async function saveThongTinDauVao() {
         } else if (role === 'user' || !role) {
             await updateProjectStatus('user_edit');
         }
-        
-        // Tạo revision sau khi lưu thành công
-        await createRevision(`${user.displayName || user.username || 'User'} cập nhật Thông tin đầu vào`);
-        
+
         showToast('Đã lưu Thông tin đầu vào thành công!', 'success');
-        
+
     } catch (error) {
         Logger.error('Error:', error);
         if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">✗ Lỗi!</span>';
@@ -2766,7 +2741,7 @@ function addInputRow() {
     const nextSTT = tbody.rows.length + 1;
     const tr = createInputTableRow(nextSTT);
     tbody.appendChild(tr);
-    try { applyRolePermissions(); } catch (e) {}
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 function ensureAppSelectHandler() {
@@ -2818,7 +2793,7 @@ function addBaselineRow() {
     const tbody = document.getElementById('baseline-specs-body');
     const tr = createBaselineTableRow();
     tbody.appendChild(tr);
-    try { applyRolePermissions(); } catch (e) {}
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 function autoGrowTextarea(textarea) {
@@ -2852,7 +2827,7 @@ function addLogicComponentRow() {
     const nextSTT = tbody.rows.length + 1;
     const tr = createLogicComponentTableRow(nextSTT);
     tbody.appendChild(tr);
-    try { applyRolePermissions(); } catch (e) {}
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 function removeLogicComponentRow(btn) {
@@ -2875,7 +2850,8 @@ function createArchTableRow(stt, data = {}) {
                 <option value="Kafka" ${data.loaiModule === 'Kafka' ? 'selected' : ''}>Kafka</option>
                 <option value="K8S" ${data.loaiModule === 'K8S' ? 'selected' : ''}>K8S</option>
                 <option value="LB/FW" ${data.loaiModule === 'LB/FW' ? 'selected' : ''}>LB/FW</option>
-            </select>
+                <option value="Khác" ${data.loaiModule === 'Khác' ? 'selected' : ''}>Khác</option>
+            </select> 
         </td>
         <td>
             <select style="width: 100%; padding: 8px; border: 1px solid transparent; background: transparent;">
@@ -2923,7 +2899,7 @@ function collectMoHinhHeThong() {
     const archRows = [];
     document.querySelectorAll('#arch-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
-        
+
         archRows.push({
             moduleName: cells[1]?.querySelector('input')?.value || '',
             loaiModule: cells[2]?.querySelector('select')?.value || '',
@@ -2933,7 +2909,7 @@ function collectMoHinhHeThong() {
             // NOTE: Admin eval/note NOT saved here - goes to moHinhAdminReview
         });
     });
-    
+
     return {
         physicalImages: collectImagesFromContainer('physical'),
         logicalImages: collectImagesFromContainer('logical'),
@@ -2954,7 +2930,7 @@ function collectMoHinhAdminReview() {
         eval: document.getElementById(`eval-${type}`)?.value || '',
         note: document.getElementById(`note-${type}`)?.value || ''
     });
-    
+
     // Collect admin review for each arch row
     const archRowReviews = [];
     document.querySelectorAll('#arch-table-body tr').forEach((row, index) => {
@@ -2965,7 +2941,7 @@ function collectMoHinhAdminReview() {
             note: cells[7]?.querySelector('.admin-note')?.value || ''
         });
     });
-    
+
     // Collect admin review for each connection row
     const connectionRowReviews = [];
     document.querySelectorAll('#connection-info-table-body tr').forEach((row, index) => {
@@ -2991,16 +2967,16 @@ async function saveMoHinhHeThong() {
     if (!currentProjectId) { showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning'); return; }
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
-        
+
         const data = collectMoHinhHeThong();
-        
-            await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+
+        await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ moHinhHeThongContent: JSON.stringify(data) })
         });
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
-        
+
         // Cập nhật trạng thái dự án dựa trên role
         const user = getCurrentUser();
         const role = (user.role || '').toLowerCase();
@@ -3011,12 +2987,9 @@ async function saveMoHinhHeThong() {
         } else if (role === 'user' || !role) {
             await updateProjectStatus('user_edit');
         }
-        
-        // Tạo revision sau khi lưu thành công
-        await createRevision(`${user.displayName || user.username || 'User'} cập nhật Mô hình hệ thống`);
-        
+
         showToast('Đã lưu Mô hình hệ thống thành công!', 'success');
-        
+
     } catch (error) {
         Logger.error('Error:', error);
         showToast('Lỗi: ' + error.message, 'error');
@@ -3028,7 +3001,7 @@ function addArchRow() {
     const nextSTT = tbody.rows.length + 1;
     const tr = createArchTableRow(nextSTT);
     tbody.appendChild(tr);
-    try { applyRolePermissions(); } catch (e) {}
+    try { applyRolePermissions(); } catch (e) { }
     updateModuleVisibility();
 }
 
@@ -3087,7 +3060,8 @@ const MODULE_TEMPLATE_MAPPING = {
     'MariaDB': 'module-mariadb-content',
     'Kafka': 'module-kafka-content',
     'K8S': 'module-k8s-content',
-    'LB/FW': 'module-lbfw-content'
+    'LB/FW': 'module-lbfw-content',
+    'Khác': 'module-custom-content'
 };
 
 const MODULE_ICON_MAPPING = {
@@ -3096,7 +3070,8 @@ const MODULE_ICON_MAPPING = {
     'MariaDB': 'fa-solid fa-database',
     'Kafka': 'fa-solid fa-stream',
     'K8S': 'fa-brands fa-kubernetes',
-    'LB/FW': 'fa-solid fa-shield-halved'
+    'LB/FW': 'fa-solid fa-shield-halved',
+    'Khác': 'fa-solid fa-puzzle-piece'
 };
 
 const moduleTemplateRegistry = {};
@@ -3197,7 +3172,7 @@ function createModuleCloneForInstance(moduleName, instance) {
     const titleSpan = header?.querySelector('span');
     if (titleSpan) {
         const iconClass = MODULE_ICON_MAPPING[moduleName] || 'fa-solid fa-cube';
-        titleSpan.innerHTML = `<i class="${iconClass}"></i> Module ${moduleName} - ${escapeHtml(getModuleInstanceDisplayName(instance))}`;
+        titleSpan.innerHTML = `<i class="${iconClass}"></i> Module ${escapeHtml(getModuleInstanceDisplayName(instance))}`;
     }
 
     if (header) {
@@ -3336,11 +3311,11 @@ function updateModuleVisibility() {
 
     syncMariaDBMasterRadioNames();
 
-    try { populatePocSizingDropdowns(); } catch (e) {}
+    try { populatePocSizingDropdowns(); } catch (e) { }
 
-    try { refreshSizingRequiredMarkers(); } catch (e) {}
+    try { refreshSizingRequiredMarkers(); } catch (e) { }
 
-    try { applyRolePermissions(); } catch (e) {}
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 // ==================== TỔNG HỢP VÀ ĐỀ XUẤT ====================
@@ -3348,7 +3323,7 @@ function updateModuleVisibility() {
 function loadTongHop(data) {
     const tbody = document.getElementById('summary-table-body');
     tbody.innerHTML = '';
-    
+
     if (data.summaryRows && data.summaryRows.length > 0) {
         data.summaryRows.forEach((row, index) => {
             const tr = createSummaryTableRow(index + 1, row);
@@ -3395,7 +3370,7 @@ function collectTongHop() {
             });
         }
     });
-    
+
     return { summaryRows: summaryRows };
 }
 
@@ -3405,10 +3380,10 @@ function aggregateSizingResults() {
     if (!tbody) return;
     const instancesByType = getModuleInstancesByType();
     const selectedModules = Object.keys(instancesByType);
-    
+
     const results = [];
     let stt = 1;
-    
+
     // 1. Module App - Chỉ khi module App được chọn trong mô hình
     if (selectedModules.includes('App')) {
         (instancesByType.App || []).forEach(instance => {
@@ -3429,7 +3404,7 @@ function aggregateSizingResults() {
             }
         });
     }
-    
+
     // 2. Module MariaDB - Chỉ khi module MariaDB được chọn
     if (selectedModules.includes('MariaDB')) {
         (instancesByType.MariaDB || []).forEach(instance => {
@@ -3504,7 +3479,7 @@ function aggregateSizingResults() {
             }
         }
     }
-    
+
     // 3. Module Redis - Chỉ khi module Redis được chọn
     if (selectedModules.includes('Redis')) {
         (instancesByType.Redis || []).forEach(instance => {
@@ -3529,7 +3504,7 @@ function aggregateSizingResults() {
             }
         });
     }
-    
+
     // 4. Module Kafka - Chỉ khi module Kafka được chọn
     if (selectedModules.includes('Kafka')) {
         (instancesByType.Kafka || []).forEach(instance => {
@@ -3565,7 +3540,7 @@ function aggregateSizingResults() {
             }
         });
     }
-    
+
     // 5. Module K8S - Chỉ khi module K8S được chọn
     if (selectedModules.includes('K8S')) {
         (instancesByType.K8S || []).forEach(instance => {
@@ -3589,7 +3564,7 @@ function aggregateSizingResults() {
             }
         });
     }
-    
+
     // 6. Module LB/FW - Chỉ khi module LB/FW được chọn
     if (selectedModules.includes('LB/FW')) {
         (instancesByType['LB/FW'] || []).forEach(instance => {
@@ -3626,7 +3601,57 @@ function aggregateSizingResults() {
             }
         });
     }
-    
+
+    // 7. Module Khác
+    if (selectedModules.includes('Khác')) {
+        (instancesByType['Khác'] || []).forEach(instance => {
+            const instanceKey = getModuleInstanceKey(instance);
+            const customData = runInInstanceContext(instanceKey, () => collectCustomModuleData());
+            const instanceName = getModuleInstanceDisplayName(instance);
+
+            if (customData.selectedMethod === 'linearEquivalentApp') {
+                const parsed = parseAppSizingResult(customData.linearEquivalentApp?.sizingResult || '');
+                if (parsed) {
+                    results.push({
+                        stt: stt++,
+                        moduleType: 'Khác',
+                        moduleName: instanceName,
+                        cauHinh: parsed.cauHinh,
+                        soLuong: parsed.soLuong,
+                        ghiChu: parsed.ghiChu
+                    });
+                }
+            } else {
+                const docText = (customData.customMethodDocText || '').trim();
+                const proposalRows = Array.isArray(customData.customProposalTable) ? customData.customProposalTable : [];
+                const nonEmptyRows = proposalRows.filter(r =>
+                    (r.component || '').trim() || (r.configuration || '').trim() || (r.quantity || '').trim() || (r.note || '').trim()
+                );
+                if (nonEmptyRows.length > 0) {
+                    nonEmptyRows.forEach(row => {
+                        results.push({
+                            stt: stt++,
+                            moduleType: 'Khác',
+                            moduleName: (row.component || '').trim() || instanceName,
+                            cauHinh: (row.configuration || '').trim() || 'Theo phương pháp khác (xem chi tiết)',
+                            soLuong: (row.quantity || '').trim(),
+                            ghiChu: (row.note || '').trim() || (docText ? docText.split('\n').slice(0, 2).join(' ') : '')
+                        });
+                    });
+                } else {
+                    results.push({
+                        stt: stt++,
+                        moduleType: 'Khác',
+                        moduleName: instanceName,
+                        cauHinh: 'Theo phương pháp khác (xem chi tiết)',
+                        soLuong: '',
+                        ghiChu: docText ? docText.split('\n').slice(0, 2).join(' ') : ''
+                    });
+                }
+            }
+        });
+    }
+
     // Render bảng
     if (results.length === 0) {
         tbody.innerHTML = `<tr>
@@ -3646,50 +3671,282 @@ function aggregateSizingResults() {
             </tr>
         `).join('');
     }
-    
+
     return results;
+}
+
+function stripUnsafeHtml(rawHtml) {
+    if (!rawHtml) return '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHtml, 'text/html');
+    doc.querySelectorAll('script, style, iframe, object, embed').forEach(el => el.remove());
+    doc.querySelectorAll('*').forEach(el => {
+        Array.from(el.attributes).forEach(attr => {
+            const name = attr.name.toLowerCase();
+            const value = (attr.value || '').trim().toLowerCase();
+            if (name.startsWith('on')) el.removeAttribute(attr.name);
+            if ((name === 'href' || name === 'src') && value.startsWith('javascript:')) {
+                el.removeAttribute(attr.name);
+            }
+        });
+    });
+    return doc.body.innerHTML;
+}
+
+function getCustomDocEditor() {
+    return document.getElementById('custom-method-editor');
+}
+
+function onCustomMethodChanged() {
+    const method = document.getElementById('custom-method-select')?.value || 'linearEquivalentApp';
+    const linearBox = document.getElementById('custom-linear-wrapper');
+    const docBox = document.getElementById('custom-doc-wrapper');
+    if (linearBox) linearBox.style.display = method === 'linearEquivalentApp' ? 'block' : 'none';
+    if (docBox) docBox.style.display = method === 'customMethod' ? 'block' : 'none';
+    if (method === 'customMethod') {
+        const tbody = document.getElementById('custom-proposal-table-body');
+        if (tbody && tbody.children.length === 0) addCustomProposalRow({});
+    }
+}
+
+function formatCustomDoc(command, value = null) {
+    const editor = getCustomDocEditor();
+    if (!editor) return;
+    editor.focus();
+    if (command === 'createLink') {
+        const url = prompt('Nhập URL');
+        if (!url) return;
+        document.execCommand(command, false, url);
+        return;
+    }
+    document.execCommand(command, false, value);
+}
+
+function collectCustomModuleData() {
+    const selectedMethod = document.getElementById('custom-method-select')?.value || 'linearEquivalentApp';
+    const editor = getCustomDocEditor();
+    const html = stripUnsafeHtml(editor?.innerHTML || '');
+    const text = (editor?.innerText || '').trim();
+    const linearEquivalentApp = {
+        baselineTable: collectBaselineTableData(),
+        inputConfigTable: collectInputConfigTableData(),
+        selectedInputRow: document.getElementById('app-input-row-select')?.value || '',
+        pocValue: document.getElementById('poc-value')?.value || '',
+        sizingValue: document.getElementById('sizing-value')?.value || '',
+        virtualizationMode: document.getElementById('app-virtualization-mode')?.value || 'ram',
+        vcpuFlavor: document.getElementById('app-vcpu-flavor')?.value || '8',
+        ramFlavor: document.getElementById('app-ram-flavor')?.value || '32',
+        flavorEval: '',
+        flavorNote: '',
+        sizingResult: document.getElementById('sizing-result-container')?.innerHTML || ''
+    };
+    return {
+        selectedMethod,
+        linearEquivalentApp,
+        customMethodDocHtml: html,
+        customMethodDocText: text,
+        customProposalTable: collectCustomProposalTableData(),
+        editorMeta: { type: 'contenteditable', version: 1 }
+    };
+}
+
+function createCustomProposalRow(data = {}) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-full custom-proposal-component" placeholder="Thành phần" value="${escapeHtml(data.component || '')}"></td>
+        <td><textarea rows="2" class="input-full custom-proposal-config" placeholder="Cấu hình đề xuất">${escapeHtml(data.configuration || '')}</textarea></td>
+        <td><input type="text" class="input-full custom-proposal-qty" placeholder="Số lượng" value="${escapeHtml(data.quantity || '')}"></td>
+        <td><input type="text" class="input-full custom-proposal-note" placeholder="Ghi chú" value="${escapeHtml(data.note || '')}"></td>
+        <td class="admin-cell">
+            <select class="admin-eval-select custom-proposal-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note custom-proposal-admin-note" placeholder="Nhận xét...">
+        </td>
+        <td><button type="button" class="btn-delete" onclick="removeRow(this)">✖</button></td>
+    `;
+    return tr;
+}
+
+function addCustomProposalRow(data = {}) {
+    const tbody = document.getElementById('custom-proposal-table-body');
+    if (!tbody) return;
+    tbody.appendChild(createCustomProposalRow(data));
+    try { applyRolePermissions(); } catch (e) { }
+}
+
+function collectCustomProposalTableData() {
+    const rows = [];
+    document.querySelectorAll('#custom-proposal-table-body tr').forEach(row => {
+        rows.push({
+            component: row.querySelector('.custom-proposal-component')?.value?.trim() || '',
+            configuration: row.querySelector('.custom-proposal-config')?.value?.trim() || '',
+            quantity: row.querySelector('.custom-proposal-qty')?.value?.trim() || '',
+            note: row.querySelector('.custom-proposal-note')?.value?.trim() || ''
+        });
+    });
+    return rows;
+}
+
+function loadCustomProposalTableData(rows) {
+    const tbody = document.getElementById('custom-proposal-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (Array.isArray(rows) && rows.length > 0) {
+        rows.forEach(row => addCustomProposalRow(row));
+    } else {
+        addCustomProposalRow({});
+    }
+}
+
+function loadCustomLinearLikeApp(moduleApp) {
+    if (!moduleApp) return;
+    const baselineBody = document.getElementById('baseline-table-body');
+    const inputBody = document.getElementById('input-config-table-body');
+    if (baselineBody) baselineBody.innerHTML = '';
+    if (inputBody) inputBody.innerHTML = '';
+
+    if (Array.isArray(moduleApp.baselineTable)) {
+        moduleApp.baselineTable.forEach(row => {
+            addBaselineRow();
+            const lastRow = baselineBody?.lastElementChild;
+            if (!lastRow) return;
+            const ipInput = lastRow.querySelector('.ip-input');
+            const cpuInput = lastRow.querySelector('.cpu-input');
+            const ramInput = lastRow.querySelector('.ram-input');
+            const diskInput = lastRow.querySelector('.disk-input');
+            const cintInput = lastRow.querySelector('.cint-input');
+            if (ipInput) ipInput.value = row.ip || '';
+            if (cpuInput) cpuInput.value = row.cpu || '';
+            if (ramInput) ramInput.value = row.ram || '';
+            if (diskInput) diskInput.value = row.disk || '';
+            if (cintInput) cintInput.value = row.cintRate || '';
+            const imgs = getEvidenceImagesFromRowData(row);
+            if (imgs.length > 0) {
+                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                if (evidenceCell) loadInlineEvidence(evidenceCell, imgs);
+            }
+        });
+    }
+
+    if (Array.isArray(moduleApp.inputConfigTable)) {
+        moduleApp.inputConfigTable.forEach(row => {
+            addInputConfigRow();
+            const lastRow = inputBody?.lastElementChild;
+            if (!lastRow) return;
+            const ipInput = lastRow.querySelector('.ip-config-input');
+            const cpuLoadInput = lastRow.querySelector('.cpu-load-input');
+            const ramLoadInput = lastRow.querySelector('.ram-load-input');
+            const diskLoadInput = lastRow.querySelector('.disk-load-input');
+            const cintUsedInput = lastRow.querySelector('.cint-used-input');
+            const ramUsedInput = lastRow.querySelector('.ram-used-input');
+            const diskUsedInput = lastRow.querySelector('.disk-used-input');
+            if (ipInput) ipInput.value = row.ip || '';
+            if (cpuLoadInput) cpuLoadInput.value = row.cpuLoad || '';
+            if (ramLoadInput) ramLoadInput.value = row.ramLoad || '';
+            if (diskLoadInput) diskLoadInput.value = row.diskLoad || '';
+            if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
+            if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
+            if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
+            const imgs = getEvidenceImagesFromRowData(row);
+            if (imgs.length > 0) {
+                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                if (evidenceCell) loadInlineEvidence(evidenceCell, imgs);
+            }
+        });
+    }
+
+    updateBaselineTotal();
+    updateInputConfigTotal();
+
+    const setValue = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val; };
+    setValue('app-input-row-select', moduleApp.selectedInputRow || '');
+    setValue('poc-value', moduleApp.pocValue || '');
+    setValue('sizing-value', moduleApp.sizingValue || '');
+    setValue('app-virtualization-mode', moduleApp.virtualizationMode || 'ram');
+    setValue('app-vcpu-flavor', moduleApp.vcpuFlavor || '8');
+    setValue('app-ram-flavor', moduleApp.ramFlavor || '32');
+    onVirtualizationModeChange('app');
+    const result = document.getElementById('sizing-result-container');
+    if (result) result.innerHTML = moduleApp.sizingResult || '';
+}
+
+function loadCustomModuleData(data) {
+    if (!data) return;
+    const selectedMethod = data.selectedMethod || 'linearEquivalentApp';
+    const select = document.getElementById('custom-method-select');
+    if (select) select.value = selectedMethod;
+    loadCustomLinearLikeApp(data.linearEquivalentApp || {});
+    const editor = getCustomDocEditor();
+    if (editor) editor.innerHTML = stripUnsafeHtml(data.customMethodDocHtml || '');
+    loadCustomProposalTableData(data.customProposalTable);
+    onCustomMethodChanged();
+}
+
+function handleCustomDocPaste(event) {
+    if (!event || !event.clipboardData) return;
+    const items = event.clipboardData.items || [];
+    for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+            event.preventDefault();
+            const file = item.getAsFile();
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const src = e.target?.result || '';
+                if (!src) return;
+                document.execCommand('insertHTML', false, `<img src="${src}" alt="Pasted Image" style="max-width:100%; height:auto;">`);
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+    }
 }
 
 // Parse kết quả Module App
 function parseAppSizingResult(html) {
     if (!html || html.trim() === '') return null;
-    
+
     // Tìm CPU (Cint format): CPU: = 30 Cint
     const cpuCintMatch = html.match(/CPU[:\s]*=?\s*(\d+)\s*Cint/i);
     // Tìm vCPU format: <strong>32 vCPU</strong>
     const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i);
-    
+
     // Tìm RAM: RAM: = 30 GB hoặc <strong>64 GB RAM</strong>
     const ramMatch = html.match(/RAM[:\s]*=?\s*(\d+)\s*GB/i) || html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i);
-    
+
     // Tìm DISK: DISK: = 100 GB hoặc <strong>200 GB DISK</strong>
     const diskMatch = html.match(/DISK[:\s]*=?\s*(\d+)\s*GB/i) || html.match(/<strong>(\d+)\s*GB\s*DISK<\/strong>/i);
-    
+
     // Tìm /os và /u01 từ text format
     const diskOsMatch = html.match(/\/os[:\s]*(\d+)\s*GB/i);
     const diskU01Match = html.match(/\/u01[:\s]*(\d+)\s*GB/i);
-    
+
     // Tìm số lượng: <td class="text-center"><strong>7</strong></td>
     const soLuongMatch = html.match(/<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong><\/td>/i);
-    
+
     // Tìm ghi chú từ textarea: Dự phòng N+1
     const ghiChuMatch = html.match(/Dự phòng\s*(N\+\d+)/i) || html.match(/N\s*\+\s*1/i);
-    
+
     // Tìm throughput cho FW/LB
     const throughputMatch = html.match(/Throughput[^:]*:\s*([\d.]+)\s*Gbps/i);
-    
+
     // Kiểm tra xem có dữ liệu không
     if (!cpuCintMatch && !vcpuMatch && !ramMatch) return null;
-    
+
     let cauHinh = '';
     if (vcpuMatch) {
         cauHinh += `- vCPU = ${vcpuMatch[1]}\n`;
     } else if (cpuCintMatch) {
         cauHinh += `- CPU = ${cpuCintMatch[1]} Cint\n`;
     }
-    
+
     if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
-    
+
     if (diskOsMatch || diskU01Match) {
         cauHinh += `- Disk:\n`;
         if (diskOsMatch) cauHinh += `  + /os: ${diskOsMatch[1]}GB\n`;
@@ -3697,20 +3954,20 @@ function parseAppSizingResult(html) {
     } else if (diskMatch) {
         cauHinh += `- Disk = ${diskMatch[1]}GB`;
     }
-    
+
     const result = {
         cauHinh: cauHinh.replace(/\n/g, '<br>'),
         soLuong: soLuongMatch ? soLuongMatch[1] : '',
         ghiChu: ghiChuMatch ? `Dự phòng ${ghiChuMatch[1] || 'N+1'}` : ''
     };
-    
+
     // FW/LB info
     if (throughputMatch) {
         result.fwlb = {
             cauHinh: `Thông lượng < ${throughputMatch[1]} Gbps`
         };
     }
-    
+
     return result;
 }
 
@@ -3803,24 +4060,24 @@ function parseMariaDBSizingResult(html) {
 // Parse kết quả Module Redis
 function parseRedisSizingResult(html) {
     if (!html || html.trim() === '') return null;
-    
+
     const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i);
     const ramMatch = html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i);
     const diskMatch = html.match(/<strong>(\d+)\s*GB\s*DISK<\/strong>/i);
     const soLuongMatch = html.match(/<td[^>]*class="text-center"[^>]*><strong>(\d+)<\/strong><\/td>/i);
     const modelMatch = html.match(/Redis\s*(Sentinel|Cluster)/i);
     const masterSlaveMatch = html.match(/(\d+)\s*master\s*.*?(\d+)\s*slave/i);
-    
+
     if (!vcpuMatch && !ramMatch) return null;
-    
+
     let cauHinh = '';
     if (vcpuMatch) cauHinh += `- vCPU = ${vcpuMatch[1]}\n`;
     if (ramMatch) cauHinh += `- RAM = ${ramMatch[1]}GB\n`;
     if (diskMatch) cauHinh += `- Disk = ${diskMatch[1]}GB`;
-    
+
     let ghiChu = modelMatch ? `Redis ${modelMatch[1]}` : '';
     if (masterSlaveMatch) ghiChu += ` (${masterSlaveMatch[1]} master ${masterSlaveMatch[2]} slave)`;
-    
+
     return {
         cauHinh: cauHinh.replace(/\n/g, '<br>'),
         soLuong: soLuongMatch ? soLuongMatch[1] : '',
@@ -3831,15 +4088,15 @@ function parseRedisSizingResult(html) {
 // Parse kết quả Module Kafka
 function parseKafkaSizingResult(html) {
     if (!html || html.trim() === '') return null;
-    
+
     // Kafka Broker row: Số lượng Node | vCPU/Node | RAM/Node | Disk/Node
     // Format: <td><strong>Kafka Broker</strong></td> <td>...</td> ...
-    
+
     let vcpu = '', ram = '', disk = '', soLuong = '';
-    
+
     // Tìm dòng Kafka Broker: <tr>...<td><strong>Kafka Broker</strong></td>...<td>...</td>...<td>...</td>...<td>...</td></tr>
     const brokerRowMatch = html.match(/<tr[^>]*>[\s\S]*?<td[^>]*><strong>Kafka\s*Broker<\/strong><\/td>([\s\S]*?)<\/tr>/i);
-    
+
     if (brokerRowMatch) {
         const brokerRowContent = brokerRowMatch[1];
         // Trích xuất 4 thẻ <td> tiếp theo (Số lượng, vCPU, RAM, Disk)
@@ -3849,22 +4106,22 @@ function parseKafkaSizingResult(html) {
             const vcpuMatch = tdMatches[1].match(/<strong>([\d]+)<\/strong>/);
             const ramMatch = tdMatches[2].match(/<strong>([\d.]+)\s*GB<\/strong>/i);
             const diskMatch = tdMatches[3].match(/<strong>([\d.]+)\s*(GB|TB)<\/strong>/i);
-            
+
             if (numMatch) soLuong = numMatch[1];
             if (vcpuMatch) vcpu = vcpuMatch[1];
             if (ramMatch) ram = ramMatch[1];
             if (diskMatch) disk = diskMatch[1] + ' ' + diskMatch[2];
         }
     }
-    
+
     // Kiểm tra xem có dữ liệu Kafka Broker không
     if (!vcpu && !ram) return null;
-    
+
     let cauHinh = '';
     if (vcpu) cauHinh += `- vCPU = ${vcpu}\n`;
     if (ram) cauHinh += `- RAM = ${ram}GB\n`;
     if (disk) cauHinh += `- Disk = ${disk}`;
-    
+
     // Parse Zookeeper/KRaft data 
     let zookeeper = null;
     // Tìm dòng Zookeeper/KRaft: <tr>...<td><strong>Zookeeper/KRaft</strong></td>...<td>...</td>...<td>...</td>...<td>...</td></tr>
@@ -3878,12 +4135,12 @@ function parseKafkaSizingResult(html) {
             const zkVcpuMatch = zkTdMatches[1].match(/<strong>([\d]+)<\/strong>/);
             const zkRamMatch = zkTdMatches[2].match(/<strong>([\d.]+)\s*GB<\/strong>/i);
             const zkDiskMatch = zkTdMatches[3].match(/<strong>([\d.]+)\s*(GB|TB)<\/strong>/i);
-            
+
             let zkCauHinh = '';
             if (zkVcpuMatch) zkCauHinh += `- vCPU = ${zkVcpuMatch[1]}\n`;
             if (zkRamMatch) zkCauHinh += `- RAM = ${zkRamMatch[1]}GB\n`;
             if (zkDiskMatch) zkCauHinh += `- Disk = ${zkDiskMatch[1]} ${zkDiskMatch[2]}`;
-            
+
             zookeeper = {
                 cauHinh: zkCauHinh.replace(/\n/g, '<br>'),
                 soLuong: zkNumMatch ? zkNumMatch[1] : '3',
@@ -3891,7 +4148,7 @@ function parseKafkaSizingResult(html) {
             };
         }
     }
-    
+
     return {
         cauHinh: cauHinh.replace(/\n/g, '<br>'),
         soLuong: soLuong,
@@ -3905,17 +4162,17 @@ async function saveTongHop() {
     if (!currentProjectId) { showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning'); return; }
     try {
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang lưu...</span>';
-        
+
         const data = collectTongHop();
-        
+
         await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tongHopVaDeXuatContent: JSON.stringify(data) })
         });
-        
+
         if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Lưu thành công!</span>';
-        
+
         // Cập nhật trạng thái dự án dựa trên role
         const user = getCurrentUser();
         const role = (user.role || '').toLowerCase();
@@ -3926,12 +4183,9 @@ async function saveTongHop() {
         } else if (role === 'user' || !role) {
             await updateProjectStatus('user_edit');
         }
-        
-        // Tạo revision sau khi lưu thành công
-        await createRevision(`${user.displayName || user.username || 'User'} cập nhật Tổng hợp và đề xuất`);
-        
+
         showToast('Đã lưu Tổng hợp và đề xuất thành công!', 'success');
-        
+
     } catch (error) {
         Logger.error('Error:', error);
         showToast('Lỗi: ' + error.message, 'error');
@@ -3943,7 +4197,7 @@ function addSummaryRow() {
     const nextSTT = tbody.rows.length + 1;
     const tr = createSummaryTableRow(nextSTT);
     tbody.appendChild(tr);
-    try { applyRolePermissions(); } catch (e) {}
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 // ==================== UTILITY FUNCTIONS ====================
@@ -3956,8 +4210,8 @@ function removeRow(btn) {
 }
 
 function removeSummaryRow(btn) { removeRow(btn); }
-function removeArchRow(btn) { 
-    removeRow(btn); 
+function removeArchRow(btn) {
+    removeRow(btn);
     updateModuleVisibility();
 }
 
@@ -3972,10 +4226,10 @@ function calculateBaselineTotal() {
     let totalCint = 0;
     document.querySelectorAll('.ram-val').forEach(input => totalRam += parseFloat(input.value) || 0);
     document.querySelectorAll('.cint-val').forEach(input => totalCint += parseFloat(input.value) || 0);
-    
+
     const ramEl = document.getElementById('total-ram-baseline');
     const cintEl = document.getElementById('total-cint-baseline');
-    
+
     if (ramEl) ramEl.innerText = totalRam;
     if (cintEl) cintEl.innerText = totalCint;
 }
@@ -3987,17 +4241,17 @@ function collectImagesFromContainer(type) {
     const containerId = 'container-' + type;
     const container = document.getElementById(containerId);
     if (!container) return [];
-    
+
     const images = [];
     const boxes = container.querySelectorAll('.upload-box');
-    
+
     boxes.forEach(box => {
         const img = box.querySelector('.preview-area img');
         if (img && img.src) {
             images.push({ id: box.id, base64: img.src });
         }
     });
-    
+
     return images;
 }
 
@@ -4006,10 +4260,10 @@ function loadImagesToContainer(type, images) {
     const containerId = 'container-' + type;
     const container = document.getElementById(containerId);
     if (!container) return;
-    
+
     // Xóa các box cũ
     container.innerHTML = '';
-    
+
     // Tạo lại các box với ảnh đã lưu
     images.forEach(imgData => {
         const boxId = imgData.id || 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
@@ -4055,7 +4309,7 @@ function createUploadBox(type) {
     `;
     container.appendChild(div);
     // enforce role permissions (disable upload box for admin if needed)
-    try { applyRolePermissions(); } catch (e) {}
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 function addEvidenceSlot() {
@@ -4083,7 +4337,7 @@ function previewModelImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
         };
         reader.readAsDataURL(input.files[0]);
@@ -4094,7 +4348,7 @@ function previewEvidenceImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
         };
         reader.readAsDataURL(input.files[0]);
@@ -4122,10 +4376,10 @@ function addEvidenceSizingSlot() {
 function previewEvidenceSizingImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
     const placeholder = document.querySelector(`#${boxId} .upload-placeholder`);
-    
+
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             previewArea.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                     <img src="${e.target.result}" alt="Evidence" style="display:none;">
@@ -4160,7 +4414,7 @@ function handleRowEvidenceUpload(input, kind) {
     // Only accept the first file (single image per cell)
     const file = files[0];
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         const div = document.createElement('div');
         div.className = 'row-evidence-item';
         const safeBase64 = e.target.result.replace(/"/g, '&quot;');
@@ -4266,20 +4520,17 @@ async function evaluateSection(sectionKey) {
 
         if (resp.ok) {
             if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Đã gửi đánh giá</span>';
-            
+
             // Đợi một chút để đảm bảo database đã commit transaction
             await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Tạo revision khi admin đánh giá thành công
-            await createRevision(`${user.displayName || user.username || 'Admin'} đánh giá ${label}`);
-            
+
             // Cập nhật trạng thái dự án (admin review)
             if (role === 'admin1') {
                 await updateProjectStatus('admin1_review');
             } else if (role === 'admin2') {
                 await updateProjectStatus('admin2_review');
             }
-            
+
             showToast('Đã gửi đánh giá cho "' + label + '"', 'success');
             // reload data to reflect saved admin review
             await loadAllDataFromDB();
@@ -4310,7 +4561,7 @@ function openModalFromElement(el) {
 
 async function exportToWord() {
     const statusDiv = document.getElementById('summary-save-status');
-    
+
     if (!currentProjectId) {
         showToast('Chưa có dữ liệu để xuất! Vui lòng lưu dữ liệu trước.', 'warning');
         return;
@@ -4331,9 +4582,9 @@ async function exportToWord() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
+
         if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">⏳ Đang tạo file DOCX...</span>';
-        
+
         // 2. Gọi API export từ backend1
         const response = await fetchAPI(`${API_BASE_URL}/export/project/${currentProjectId}`, {
             method: 'GET',
@@ -4341,11 +4592,11 @@ async function exportToWord() {
                 'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             }
         });
-        
+
         if (response.ok) {
             // Lấy blob từ response
             const blob = await response.blob();
-            
+
             // Lấy filename từ header Content-Disposition nếu có
             const contentDisposition = response.headers.get('Content-Disposition');
             let filename = `project-report-${currentProjectId}.docx`;
@@ -4355,7 +4606,7 @@ async function exportToWord() {
                     filename = filenameMatch[1].replace(/['"]/g, '');
                 }
             }
-            
+
             // Tạo URL và download file
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -4365,7 +4616,7 @@ async function exportToWord() {
             a.click();
             window.URL.revokeObjectURL(url);
             a.remove();
-            
+
             if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">✓ Xuất file DOCX thành công!</span>';
         } else {
             throw new Error('Không thể xuất file');
@@ -4380,7 +4631,7 @@ async function exportToWord() {
 document.addEventListener("DOMContentLoaded", async function () {
     Logger.debug('Current Project ID:', currentProjectId);
     applyFixedSizingRule();
-    
+
     // Kiểm tra xem người dùng đã đăng nhập chưa
     const isLoggedIn = localStorage.getItem('isLoggedIn');
     const authToken = localStorage.getItem('authToken');
@@ -4389,7 +4640,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         window.location.href = 'login.html';
         return;
     }
-    
+
     checkAuthStatus();
     applyRolePermissions();
     initHelpTooltipSmartPositioning();
@@ -4409,11 +4660,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         document.getElementById('project-list-page').style.display = 'block';
         document.getElementById('project-detail-page').style.display = 'none';
         document.getElementById('btn-back-to-list').style.display = 'none';
-        
+
         // Ẩn nút Lịch sử phiên bản khi ở trang danh sách
         const btnVersionHistory = document.getElementById('btn-version-history');
         if (btnVersionHistory) btnVersionHistory.style.display = 'none';
-        
+
         await loadProjectList();
         replaceAppState('projects', null, null);
     }
@@ -4458,7 +4709,7 @@ function removeLastRow(tbodyId) {
 function openModal(imgSrc) {
     const modal = document.getElementById("evidence-modal");
     const modalImg = document.getElementById("modal-img");
-    
+
     if (modal && modalImg && imgSrc) {
         modal.style.display = "flex"; // Hiện modal
         modalImg.src = imgSrc;
@@ -4474,11 +4725,9 @@ function closeModal() {
 }
 
 // Đóng modal khi nhấn phím ESC
-document.addEventListener('keydown', function(event) {
+document.addEventListener('keydown', function (event) {
     if (event.key === "Escape") {
         closeModal();
-        closeVersionHistory();
-        closeVersionPreview();
     }
 });
 
@@ -4488,13 +4737,13 @@ document.addEventListener('keydown', function(event) {
 
 // 1. Danh sách Module để hiển thị trong Dropdown
 const MODULE_LIST = [
-    "APP (Application)", 
-    "DB (Database)", 
-    "WEB (Web Server)", 
-    "LB (Load Balancer)", 
-    "CACHE (Redis/Memcached)", 
-    "SEARCH (Elasticsearch)", 
-    "MQ (Kafka/RabbitMQ)", 
+    "APP (Application)",
+    "DB (Database)",
+    "WEB (Web Server)",
+    "LB (Load Balancer)",
+    "CACHE (Redis/Memcached)",
+    "SEARCH (Elasticsearch)",
+    "MQ (Kafka/RabbitMQ)",
     "OTHER"
 ];
 
@@ -4561,13 +4810,13 @@ function addBaselineRow() {
             </button>
         </td>
     `;
-    
+
     tbody.appendChild(tr);
     // Tự động thêm dòng tương ứng vào bảng input config
     if (inputConfigTbody) {
         addInputConfigRow();
     }
-    
+
     // Re-apply role permissions for new row (disable admin fields for user, disable user fields for admin)
     applyRolePermissions();
 }
@@ -4584,7 +4833,7 @@ function handleInlineEvidenceUpload(input) {
 
     files.forEach(file => {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             previewSpan.insertAdjacentHTML('beforeend', createInlineEvidenceItemMarkup(e.target.result));
         };
         reader.readAsDataURL(file);
@@ -4672,7 +4921,7 @@ function loadInlineEvidence(cell, dataUrlOrList) {
 function addBaselineEvidenceSlot() {
     const grid = document.getElementById('baseline-evidence-grid');
     if (!grid) return;
-    
+
     const slot = document.createElement('div');
     slot.className = 'upload-box';
     slot.innerHTML = `
@@ -4690,10 +4939,10 @@ function handleBaselineEvidenceUpload(input) {
     const slot = input.closest('.upload-box');
     const previewArea = slot.querySelector('.preview-area');
     const placeholder = slot.querySelector('.upload-placeholder');
-    
+
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             previewArea.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                     <img src="${e.target.result}" alt="Evidence" style="display:none;">
@@ -4721,7 +4970,7 @@ function deleteBaselineEvidenceSlot(btn) {
 function collectBaselineEvidenceData() {
     const grid = document.getElementById('baseline-evidence-grid');
     if (!grid) return [];
-    
+
     const images = [];
     grid.querySelectorAll('.upload-box').forEach(slot => {
         const img = slot.querySelector('.preview-area img');
@@ -4744,12 +4993,12 @@ function openImageModal(src) {
             <img id="modal-image" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px;">
             <button onclick="closeImageModal()" style="position: absolute; top: 20px; right: 30px; background: none; border: none; color: white; font-size: 40px; cursor: pointer;">&times;</button>
         `;
-        modal.onclick = function(e) {
+        modal.onclick = function (e) {
             if (e.target === modal) closeImageModal();
         };
         document.body.appendChild(modal);
     }
-    
+
     document.getElementById('modal-image').src = src;
     modal.style.display = 'flex';
 }
@@ -4761,12 +5010,12 @@ function closeImageModal() {
 
 // 3. Hàm Xóa dòng & Cập nhật lại STT
 function deleteBaselineRow(btn) {
-    if(confirm('Bạn có chắc muốn xóa dòng này?')) {
+    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
         const baselineRow = btn.closest('tr');
         const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
-        
+
         baselineRow.remove();
-        
+
         // Xóa dòng tương ứng trong input config table
         const inputConfigTbody = document.getElementById('input-config-table-body');
         if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
@@ -4784,7 +5033,7 @@ function updateRowNumbers() {
     const rows = document.querySelectorAll('#baseline-table-body tr');
     rows.forEach((row, index) => {
         const sttCell = row.querySelector('.stt-cell');
-        if(sttCell) sttCell.innerText = index + 1;
+        if (sttCell) sttCell.innerText = index + 1;
     });
 }
 
@@ -4819,8 +5068,8 @@ function updateBaselineTotal() {
 // 6. Helper: Đổi màu xanh/đỏ cho ô Admin Select
 function styleAdminSelect(select) {
     select.classList.remove('ok-status', 'nok-status');
-    if(select.value === 'OK') select.classList.add('ok-status');
-    if(select.value === 'NOK') select.classList.add('nok-status');
+    if (select.value === 'OK') select.classList.add('ok-status');
+    if (select.value === 'NOK') select.classList.add('nok-status');
 }
 
 // 6a. Helper: Đồng bộ IP từ bảng baseline sang input config
@@ -4828,7 +5077,7 @@ function syncIPToInputConfig(ipInput) {
     const baselineRow = ipInput.closest('tr');
     const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
     const inputConfigTbody = document.getElementById('input-config-table-body');
-    
+
     if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
         const inputConfigRow = inputConfigTbody.rows[baselineRowIndex];
         const ipConfigInput = inputConfigRow.querySelector('.ip-config-input');
@@ -4843,7 +5092,7 @@ function recalculateInputConfigForRow(baselineInput) {
     const baselineRow = baselineInput.closest('tr');
     const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
     const inputConfigTbody = document.getElementById('input-config-table-body');
-    
+
     if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
         const inputConfigRow = inputConfigTbody.rows[baselineRowIndex];
         // Lấy input bất kỳ từ input config row để tính toán
@@ -4857,9 +5106,9 @@ function recalculateInputConfigForRow(baselineInput) {
 // 7. HÀM LƯU DỮ LIỆU (VALIDATE NGHIÊM NGẶT)
 function saveBaselineData() {
     const rows = document.querySelectorAll('#baseline-table-body tr');
-    
+
     // Check 1: Phải có ít nhất 1 dòng
-    if(rows.length === 0) {
+    if (rows.length === 0) {
         showToast("Vui lòng thêm ít nhất một Server tham chiếu!", 'warning');
         return;
     }
@@ -4877,20 +5126,20 @@ function saveBaselineData() {
         const inputs = row.querySelectorAll('input');
 
         // Rule 1: User bắt buộc chọn Module
-        if(!moduleSel.value) {
+        if (!moduleSel.value) {
             moduleSel.classList.add('input-error');
             isValid = false;
-            if(!firstError) firstError = moduleSel;
+            if (!firstError) firstError = moduleSel;
         }
 
         // Rule 2: Admin bắt buộc phải đánh giá (OK/NOK)
-        if(!adminEval.value) {
+        if (!adminEval.value) {
             adminEval.classList.add('input-error');
             isValid = false;
-            if(!firstError) firstError = adminEval;
+            if (!firstError) firstError = adminEval;
         }
 
-        if(isValid) {
+        if (isValid) {
             dataToSave.push({
                 stt: index + 1,
                 module: moduleSel.value,
@@ -4904,15 +5153,15 @@ function saveBaselineData() {
         }
     });
 
-    if(!isValid) {
+    if (!isValid) {
         showToast("KHÔNG THỂ LƯU!\nVui lòng điền các ô bị báo đỏ:\n1. Chọn tên Module.\n2. Admin phải Đánh giá từng dòng.", 'warning');
-        if(firstError) firstError.focus();
+        if (firstError) firstError.focus();
         return;
     }
 
     Logger.debug("Dữ liệu chuẩn bị lưu:", dataToSave);
     showToast("✓ Đã lưu cấu hình tham chiếu thành công!", 'success');
-    
+
     // TODO: Viết code gọi API lưu vào DB ở đây
 }
 
@@ -4923,7 +5172,7 @@ function toggleModuleCollapsible(contentId) {
     const content = document.getElementById(contentId);
     const header = content.previousElementSibling;
     const icon = header.querySelector('.module-toggle-icon');
-    
+
     if (content.classList.contains('expanded')) {
         content.classList.remove('expanded');
         header.classList.remove('active');
@@ -4937,7 +5186,7 @@ function toggleModuleCollapsible(contentId) {
 function collectBaselineTableData() {
     const rows = document.querySelectorAll('#baseline-table-body tr');
     const data = [];
-    
+
     rows.forEach((row, index) => {
         // Collect user data
         const evidenceImages = collectInlineEvidenceFromScope(row);
@@ -4952,7 +5201,7 @@ function collectBaselineTableData() {
             evidenceImages: evidenceImages
         });
     });
-    
+
     return data;
 }
 
@@ -4960,18 +5209,18 @@ function collectBaselineTableData() {
 function collectBaselineAdminReviewData() {
     const rows = document.querySelectorAll('#baseline-table-body tr');
     const data = [];
-    
+
     rows.forEach((row, index) => {
         const adminEval = row.querySelector('.admin-eval-select');
         const adminNoteInput = row.querySelector('.admin-note');
-        
+
         data.push({
             rowIndex: index,
             eval: adminEval?.value || '',
             note: adminNoteInput?.value || ''
         });
     });
-    
+
     return data;
 }
 
@@ -4979,7 +5228,7 @@ function collectBaselineAdminReviewData() {
 function collectInputConfigTableData() {
     const rows = document.querySelectorAll('#input-config-table-body tr');
     const data = [];
-    
+
     rows.forEach((row, index) => {
         const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
@@ -4997,7 +5246,7 @@ function collectInputConfigTableData() {
             adminNote: row.querySelector('.input-config-note')?.value || ''
         });
     });
-    
+
     return data;
 }
 
@@ -5005,7 +5254,7 @@ function collectInputConfigTableData() {
 function collectEvidenceSizingData() {
     const grid = document.getElementById('evidence-sizing-grid');
     if (!grid) return [];
-    
+
     const images = [];
     // Try the upload-box structure first (from addEvidenceSizingSlot)
     grid.querySelectorAll('.upload-box').forEach((box, index) => {
@@ -5017,7 +5266,7 @@ function collectEvidenceSizingData() {
             });
         }
     });
-    
+
     // Also try image-upload-item structure (alternate structure)
     if (images.length === 0) {
         grid.querySelectorAll('.image-upload-item').forEach((item, index) => {
@@ -5030,7 +5279,7 @@ function collectEvidenceSizingData() {
             }
         });
     }
-    
+
     return images;
 }
 
@@ -5066,6 +5315,7 @@ function collectAllSizingData() {
         if (moduleType === 'Kafka') return collectKafkaData();
         if (moduleType === 'K8S') return collectK8SData();
         if (moduleType === 'LB/FW') return collectLBFWData();
+        if (moduleType === 'Khác') return collectCustomModuleData();
         return {};
     };
 
@@ -5102,6 +5352,7 @@ function collectAllSizingData() {
         moduleKafka: firstByType.Kafka || {},
         moduleK8S: firstByType.K8S || {},
         moduleLBFW: firstByType['LB/FW'] || {},
+        moduleCustom: firstByType['Khác'] || {},
         moduleInstances,
         moduleInstanceSnapshots
     };
@@ -5227,6 +5478,31 @@ function collectSizingAdminReviewData() {
                 }
             };
         }
+        if (moduleType === 'Khác') {
+            return {
+                baselineRowReviews: collectBaselineAdminReviewData(),
+                inputConfigRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#input-config-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.input-config-eval')?.value || '',
+                            note: row.querySelector('.input-config-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })(),
+                proposalRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#custom-proposal-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.custom-proposal-eval')?.value || '',
+                            note: row.querySelector('.custom-proposal-admin-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })()
+            };
+        }
         return {};
     };
 
@@ -5256,6 +5532,7 @@ function collectSizingAdminReviewData() {
         moduleKafka: firstByType.Kafka || {},
         moduleK8S: firstByType.K8S || {},
         moduleLBFW: firstByType['LB/FW'] || {},
+        moduleCustom: firstByType['Khác'] || {},
         moduleInstanceReviews
     };
 }
@@ -5276,7 +5553,7 @@ async function saveSizingData() {
 
     try {
         const sizingData = collectAllSizingData();
-        
+
         const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -5288,9 +5565,7 @@ async function saveSizingData() {
             if (role === 'user' || !role) {
                 await updateProjectStatus('user_edit');
             }
-            
-            // Tạo revision sau khi lưu thành công
-            await createRevision(`${user.displayName || user.username || 'User'} cập nhật Định cỡ hệ thống`);
+
             showToast('✓ Đã lưu dữ liệu Định cỡ hệ thống thành công!', 'success');
         } else {
             const errorText = await response.text();
@@ -5338,23 +5613,20 @@ async function evaluateSizingSection() {
         const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 section: 'sizing',
                 reviewJson: JSON.stringify(adminData)
             })
         });
 
         if (response.ok) {
-            // Tạo revision khi admin đánh giá thành công
-            await createRevision(`${user.displayName || user.username || 'Admin'} đánh giá Định cỡ hệ thống`);
-            
             // Cập nhật trạng thái dự án (admin review)
             if (role === 'admin1') {
                 await updateProjectStatus('admin1_review');
             } else if (role === 'admin2') {
                 await updateProjectStatus('admin2_review');
             }
-            
+
             showToast('✓ Đã lưu đánh giá Định cỡ hệ thống thành công!', 'success');
             // reload data to reflect saved admin review
             await loadAllDataFromDB();
@@ -5371,7 +5643,7 @@ async function evaluateSizingSection() {
 // Load sizing data from database
 function loadSizingData(data) {
     if (!data) return;
-    
+
     try {
         const sizingData = typeof data === 'string' ? JSON.parse(data) : data;
         const instancesByType = getModuleInstancesByType();
@@ -5391,18 +5663,18 @@ function loadSizingData(data) {
                     applyFormControlStates(wrapper, snapshot.controlStates);
                 }
             });
-            try { populatePocSizingDropdowns(); } catch (e) {}
-            try { refreshSizingRequiredMarkers(); } catch (e) {}
-            try { applyRolePermissions(); } catch (e) {}
+            try { populatePocSizingDropdowns(); } catch (e) { }
+            try { refreshSizingRequiredMarkers(); } catch (e) { }
+            try { applyRolePermissions(); } catch (e) { }
             Logger.debug('Loaded sizing data from module instance snapshots successfully');
             return;
         }
-        
+
         // Load Module App data
         if (sizingData.moduleApp) {
             withFirstInstance('App', () => {
                 const moduleApp = sizingData.moduleApp;
-                
+
                 // Load baseline table data
                 if (moduleApp.baselineTable && Array.isArray(moduleApp.baselineTable) && moduleApp.baselineTable.length > 0) {
                     const tbody = document.getElementById('baseline-table-body');
@@ -5411,7 +5683,7 @@ function loadSizingData(data) {
                         // Also clear input-config-table-body since addBaselineRow adds rows there
                         const inputConfigTbody = document.getElementById('input-config-table-body');
                         if (inputConfigTbody) inputConfigTbody.innerHTML = '';
-                        
+
                         moduleApp.baselineTable.forEach((row, idx) => {
                             addBaselineRow(); // Add a new row
                             const lastRow = tbody.lastElementChild;
@@ -5422,13 +5694,13 @@ function loadSizingData(data) {
                                 const ramInput = lastRow.querySelector('.ram-input');
                                 const diskInput = lastRow.querySelector('.disk-input');
                                 const cintInput = lastRow.querySelector('.cint-input');
-                                
+
                                 if (ipInput) ipInput.value = row.ip || '';
                                 if (cpuInput) cpuInput.value = row.cpu || '';
                                 if (ramInput) ramInput.value = row.ram || '';
                                 if (diskInput) diskInput.value = row.disk || '';
                                 if (cintInput) cintInput.value = row.cintRate || '';
-                                
+
                                 // Load inline evidence image(s)
                                 const baselineEvidenceImages = getEvidenceImagesFromRowData(row);
                                 if (baselineEvidenceImages.length > 0) {
@@ -5440,7 +5712,7 @@ function loadSizingData(data) {
                         updateBaselineTotal();
                     }
                 }
-                
+
                 // Load input config table data
                 if (moduleApp.inputConfigTable && Array.isArray(moduleApp.inputConfigTable) && moduleApp.inputConfigTable.length > 0) {
                     const tbody = document.getElementById('input-config-table-body');
@@ -5480,7 +5752,7 @@ function loadSizingData(data) {
                         updateInputConfigTotal();
                     }
                 }
-                
+
                 // Load POC and Sizing values
                 if (moduleApp.selectedInputRow !== undefined && moduleApp.selectedInputRow !== '' && document.getElementById('app-input-row-select')) {
                     document.getElementById('app-input-row-select').value = moduleApp.selectedInputRow;
@@ -5511,14 +5783,14 @@ function loadSizingData(data) {
                 if (document.getElementById('app-flavor-note')) {
                     document.getElementById('app-flavor-note').value = moduleApp.flavorNote || '';
                 }
-                
+
                 // Load sizing result
                 if (moduleApp.sizingResult && document.getElementById('sizing-result-container')) {
                     document.getElementById('sizing-result-container').innerHTML = moduleApp.sizingResult;
                 }
-                
+
                 // Auto expand the module if has data
-                if (moduleApp.pocValue || moduleApp.sizingValue || moduleApp.sizingResult || 
+                if (moduleApp.pocValue || moduleApp.sizingValue || moduleApp.sizingResult ||
                     (moduleApp.baselineTable && moduleApp.baselineTable.length > 0)) {
                     const content = document.getElementById('module-app-content');
                     const header = content?.previousElementSibling;
@@ -5529,14 +5801,14 @@ function loadSizingData(data) {
                 }
             });
         }
-        
+
         // Load Module MariaDB data
         if (sizingData.moduleMariaDB) {
             withFirstInstance('MariaDB', () => loadMariaDBData(sizingData.moduleMariaDB));
-            
+
             // Auto expand if has data
             const mariadb = sizingData.moduleMariaDB;
-            if ((mariadb.refTable && mariadb.refTable.length > 0) || 
+            if ((mariadb.refTable && mariadb.refTable.length > 0) ||
                 (mariadb.storageTable && mariadb.storageTable.length > 0) ||
                 mariadb.inputCCU || mariadb.sizingCCU) {
                 const content = document.getElementById('module-mariadb-content');
@@ -5547,11 +5819,11 @@ function loadSizingData(data) {
                 }
             }
         }
-        
+
         // Load Module Redis data
         if (sizingData.moduleRedis) {
             withFirstInstance('Redis', () => loadRedisData(sizingData.moduleRedis));
-            
+
             // Auto expand if has data
             const redis = sizingData.moduleRedis;
             if ((redis.keyMethod && (redis.keyMethod.keyCount || redis.keyMethod.recordSize)) ||
@@ -5564,16 +5836,16 @@ function loadSizingData(data) {
                 }
             }
         }
-        
+
         // Load Module Kafka data
         if (sizingData.moduleKafka) {
             withFirstInstance('Kafka', () => loadKafkaData(sizingData.moduleKafka));
-            
+
             // Auto expand if has data
             const kafka = sizingData.moduleKafka;
             const hasThroughputData = kafka.throughputMethod && (kafka.throughputMethod.throughputA || kafka.throughputMethod.retentionT);
             const hasLinearData = kafka.linearMethod && kafka.linearMethod.linearTable && kafka.linearMethod.linearTable.length > 0;
-            
+
             if (hasThroughputData || hasLinearData) {
                 const content = document.getElementById('module-kafka-content');
                 const header = content?.previousElementSibling;
@@ -5583,20 +5855,25 @@ function loadSizingData(data) {
                 }
             }
         }
-        
+
         // Load Module K8S data
         if (sizingData.moduleK8S) {
             withFirstInstance('K8S', () => loadK8SData(sizingData.moduleK8S));
         }
-        
+
         // Load Module LB/FW data
         if (sizingData.moduleLBFW) {
             withFirstInstance('LB/FW', () => loadLBFWData(sizingData.moduleLBFW));
         }
-        
+
+        // Load Module Khác data
+        if (sizingData.moduleCustom) {
+            withFirstInstance('Khác', () => loadCustomModuleData(sizingData.moduleCustom));
+        }
+
         // Re-apply role permissions after loading data (disable admin fields for user, etc.)
         applyRolePermissions();
-        
+
         Logger.debug('Loaded sizing data successfully');
     } catch (e) {
         Logger.error('Error loading sizing data:', e);
@@ -5606,7 +5883,7 @@ function loadSizingData(data) {
 // Load sizing admin review from separate column
 function loadSizingAdminReview(adminReview) {
     if (!adminReview) return;
-    
+
     try {
         if (Array.isArray(adminReview.moduleInstanceReviews) && adminReview.moduleInstanceReviews.length > 0) {
             adminReview.moduleInstanceReviews.forEach(item => {
@@ -5618,6 +5895,7 @@ function loadSizingAdminReview(adminReview) {
                 if (item.moduleType === 'Kafka') legacyReview.moduleKafka = item.reviewData || {};
                 if (item.moduleType === 'K8S') legacyReview.moduleK8S = item.reviewData || {};
                 if (item.moduleType === 'LB/FW') legacyReview.moduleLBFW = item.reviewData || {};
+                if (item.moduleType === 'Khác') legacyReview.moduleCustom = item.reviewData || {};
                 runInInstanceContext(item.instanceKey, () => loadSizingAdminReview(legacyReview));
             });
             applyRolePermissions();
@@ -5668,7 +5946,7 @@ function loadSizingAdminReview(adminReview) {
                     }
                 });
             }
-            
+
             // Load input config row reviews
             if (adminReview.moduleApp.inputConfigRowReviews) {
                 const rows = document.querySelectorAll('#input-config-table-body tr');
@@ -5698,7 +5976,7 @@ function loadSizingAdminReview(adminReview) {
                 if (noteEl) noteEl.value = flavorReview.note || '';
             }
         }
-        
+
         // Load module MariaDB admin review
         if (adminReview.moduleMariaDB) {
             // Load ref table row reviews
@@ -5718,7 +5996,7 @@ function loadSizingAdminReview(adminReview) {
                     }
                 });
             }
-            
+
             // Load storage review
             if (adminReview.moduleMariaDB.storageReview) {
                 const storageReview = adminReview.moduleMariaDB.storageReview;
@@ -5731,7 +6009,7 @@ function loadSizingAdminReview(adminReview) {
                 }
             }
         }
-        
+
         // Load module Redis admin review
         if (adminReview.moduleRedis) {
             if (adminReview.moduleRedis.overallReview) {
@@ -5744,7 +6022,7 @@ function loadSizingAdminReview(adminReview) {
                     document.getElementById('note-module-redis').value = redisReview.note || '';
                 }
             }
-            
+
             // Load Redis config row reviews
             if (adminReview.moduleRedis.configRowReviews) {
                 const rows = document.querySelectorAll('#redis-config-table-body tr');
@@ -5763,7 +6041,7 @@ function loadSizingAdminReview(adminReview) {
                 });
             }
         }
-        
+
         // Load module Kafka admin review
         if (adminReview.moduleKafka) {
             if (adminReview.moduleKafka.overallReview) {
@@ -5776,7 +6054,7 @@ function loadSizingAdminReview(adminReview) {
                     document.getElementById('note-module-kafka').value = kafkaReview.note || '';
                 }
             }
-            
+
             // Load Kafka linear row reviews
             if (adminReview.moduleKafka.linearRowReviews) {
                 const rows = getKafkaLinearRows();
@@ -5795,7 +6073,7 @@ function loadSizingAdminReview(adminReview) {
                 });
             }
         }
-        
+
         // Load module K8S admin review
         if (adminReview.moduleK8S) {
             if (adminReview.moduleK8S.baselineRowReviews) {
@@ -5842,7 +6120,7 @@ function loadSizingAdminReview(adminReview) {
                 if (noteEl) noteEl.value = flavorReview.note || '';
             }
         }
-        
+
         // Load module LB/FW admin review
         if (adminReview.moduleLBFW) {
             if (adminReview.moduleLBFW.overallReview) {
@@ -5856,10 +6134,58 @@ function loadSizingAdminReview(adminReview) {
                 }
             }
         }
-        
+
+        // Load module Khac admin review
+        if (adminReview.moduleCustom) {
+            if (adminReview.moduleCustom.baselineRowReviews) {
+                const rows = document.querySelectorAll('#baseline-table-body tr');
+                adminReview.moduleCustom.baselineRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.admin-eval-select');
+                        const adminNote = rows[index].querySelector('.admin-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) adminNote.value = review.note || '';
+                    }
+                });
+            }
+
+            if (adminReview.moduleCustom.inputConfigRowReviews) {
+                const rows = document.querySelectorAll('#input-config-table-body tr');
+                adminReview.moduleCustom.inputConfigRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.input-config-eval');
+                        const adminNote = rows[index].querySelector('.input-config-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) adminNote.value = review.note || '';
+                    }
+                });
+            }
+
+            if (adminReview.moduleCustom.proposalRowReviews) {
+                const rows = document.querySelectorAll('#custom-proposal-table-body tr');
+                adminReview.moduleCustom.proposalRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.custom-proposal-eval');
+                        const adminNote = rows[index].querySelector('.custom-proposal-admin-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) adminNote.value = review.note || '';
+                    }
+                });
+            }
+        }
+
         // Re-apply role permissions after loading admin review
         applyRolePermissions();
-        
+
         Logger.debug('Loaded sizing admin review successfully');
     } catch (e) {
         Logger.error('Error loading sizing admin review:', e);
@@ -5875,7 +6201,7 @@ function showSection(sectionId, linkElement, options = {}) {
     const isKnownTabFlow = currentTabIndex !== -1 && targetTabIndex !== -1;
     const isForwardNavigation = isKnownTabFlow && targetTabIndex > currentTabIndex;
 
-    if (!options.skipValidation && !options.skipPushState && activeSectionId && activeSectionId !== sectionId && isForwardNavigation) {
+    if (!options.skipValidation && !options.skipPushState && activeSectionId && activeSectionId !== sectionId && isForwardNavigation && activeSectionId !== 'page-input') {
         const validation = validateTabCompletion(activeSectionId, {
             focusFirstInvalid: true,
             showToastMessage: false
@@ -5905,16 +6231,16 @@ function showSection(sectionId, linkElement, options = {}) {
     // 3. Cập nhật trạng thái "active" (màu đỏ) cho Menu bên trái
     const menuLinks = document.querySelectorAll('.side-menu a');
     menuLinks.forEach(link => link.classList.remove('active')); // Xóa active cũ
-    
+
     // Thêm active cho link vừa bấm
     if (linkElement) {
         linkElement.classList.add('active');
     }
-    
+
     // 4. Khi chuyển sang trang Tổng hợp, tự động aggregate dữ liệu
     if (sectionId === 'page-summary') {
         aggregateSizingResults();
-    }    
+    }
 
     // 5. Cập nhật URL/history khi chuyển tab (chỉ khi đang ở project detail)
     if (!options.skipPushState && currentProjectId) {
@@ -5923,10 +6249,10 @@ function showSection(sectionId, linkElement, options = {}) {
 }
 
 // Tự động thêm 1 dòng trắng khi load trang lần đầu
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
     applyFixedSizingRule();
     const tbody = document.getElementById('baseline-table-body');
-    if(tbody && tbody.children.length === 0) {
+    if (tbody && tbody.children.length === 0) {
         addBaselineRow();
     }
     const connectionBody = document.getElementById('connection-info-table-body');
@@ -5957,7 +6283,7 @@ function addInputConfigRow() {
     const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
     const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
     const deleteRowHandler = buildInstanceAwareHandler('deleteInputConfigRow(this)');
-    
+
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         
@@ -6014,7 +6340,7 @@ function addInputConfigRow() {
             </button>
         </td>
     `;
-    
+
     tbody.appendChild(tr);
     applyRolePermissions();
 }
@@ -6026,38 +6352,38 @@ function calculateInputConfigRow(input) {
     const cintUsedInput = row.querySelector('.cint-used-input');
     const ramUsedInput = row.querySelector('.ram-used-input');
     const diskUsedInput = row.querySelector('.disk-used-input');
-    
+
     // Lấy giá trị từ bảng baseline tương ứng
     const baselineRows = document.querySelectorAll('#baseline-table-body tr');
     const rowIndex = Array.from(row.parentNode.children).indexOf(row);
-    
+
     if (rowIndex < baselineRows.length) {
         const baselineRow = baselineRows[rowIndex];
         const baselineCint = parseFloat(baselineRow.querySelector('.cint-input').value) || 0;
         const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
         const baselineDisk = parseFloat(baselineRow.querySelector('.disk-input').value) || 0;
-        
+
         const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
         const ramLoad = parseFloat(ramLoadInput.value) || 0;
         const diskLoad = parseFloat(row.querySelector('.disk-load-input')?.value) || 0;
-        
+
         // Công thức:
         // Cint_rate used (Cint) = Cint_rate_2017 (hệ thống tham chiếu) × Tải CPU 95th percentile (%)
         // RAM used (GB) = RAM (hệ thống tham chiếu) × Tải RAM 95th percentile (%)
         const cintUsed = (baselineCint * cpuLoad / 100).toFixed(2);
         const ramUsed = (baselineRam * ramLoad / 100).toFixed(2);
         const diskUsed = (baselineDisk * diskLoad / 100).toFixed(2);
-        
+
         cintUsedInput.value = cintUsed;
         ramUsedInput.value = ramUsed;
         diskUsedInput.value = diskUsed;
     }
-    
+
     updateInputConfigTotal();
 }
 
 function deleteInputConfigRow(btn) {
-    if(confirm('Bạn có chắc muốn xóa dòng này?')) {
+    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
         btn.closest('tr').remove();
         updateInputConfigRowNumbers();
         updateInputConfigTotal();
@@ -6068,7 +6394,7 @@ function updateInputConfigRowNumbers() {
     const rows = document.querySelectorAll('#input-config-table-body tr');
     rows.forEach((row, index) => {
         const sttCell = row.querySelector('.stt-cell');
-        if(sttCell) sttCell.innerText = index + 1;
+        if (sttCell) sttCell.innerText = index + 1;
     });
 }
 
@@ -6076,7 +6402,7 @@ function updateInputConfigTotal() {
     const totalCintUsedEl = document.getElementById('total-cint-used');
     const totalRamUsedEl = document.getElementById('total-ram-used');
     const totalDiskUsedEl = document.getElementById('total-disk-used');
-    
+
     if (!totalCintUsedEl || !totalRamUsedEl || !totalDiskUsedEl) return;
 
     let totalCintUsed = 0;
@@ -6151,12 +6477,12 @@ function calculateSizingRecommendations() {
 
     // Tính toán các thông số cơ bản
     const factor = sizing / poc;
-    
+
     // Các giá trị cần cho TPS
     const cintForTPS = totalCint * factor;
     const ramForTPS = totalRam * factor;
     const diskForTPS = totalDisk * factor;
-    
+
     // Các giá trị sau khi nhân hệ số dự phòng và đảm bảo KPI
     const cintAfterKPI = cintForTPS / 0.75 * 1.1;
     const ramAfterKPI = ramForTPS / 0.9 * 1.1;
@@ -6173,7 +6499,7 @@ function calculateSizingRecommendations() {
         : Math.ceil(ramAfterKPI / virtualization.ram);
 
     let html = '';
-    
+
     // ==================== BẢNG 1: Thông số Máy chủ Tiến trình ====================
     html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán Máy chủ Tiến trình</h4>`;
     html += `<table class="sizing-table" style="margin-top:8px;">
@@ -6266,7 +6592,7 @@ function calculateSizingRecommendations() {
         const ramPerN = ramAfterKPI / item.value;
         const diskPerN = diskAfterKPI / item.value;
         const isMain = item.label === 'Ketqua';
-        
+
         html += `<tr${isMain ? ' style="background:#e6ffed; font-weight:600;"' : ''}>
                     <td class="text-center">${item.value}</td>
                     <td class="text-center">${cintPerN.toFixed(2)}</td>
@@ -6285,7 +6611,7 @@ function calculateSizingRecommendations() {
         ? virtualization.ram
         : Math.ceil(ramAfterKPI / ketqua);
     const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
-    
+
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
     html += `<table class="sizing-table" style="margin-top:8px;">
                 <thead>
@@ -6987,7 +7313,7 @@ function handleLBFWEvidenceUpload(input) {
 
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             previewArea.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                     <img src="${e.target.result}" alt="Evidence" style="display:none;">
@@ -7338,7 +7664,7 @@ function addMariaDBRefRow(data = {}) {
     const tbody = document.getElementById('mariadb-ref-table-body');
     if (!tbody) return;
     const masterGroupName = resolveMariaDBMasterGroupName(tbody);
-    
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" class="input-full sizing-user-input mariadb-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
@@ -7375,14 +7701,14 @@ function addMariaDBRefRow(data = {}) {
         </td>
     `;
     tbody.appendChild(tr);
-    
+
     // Load inline evidence image(s) if provided
     const mariaRefEvidenceImages = getEvidenceImagesFromRowData(data);
     if (mariaRefEvidenceImages.length > 0) {
         const evidenceCell = tr.querySelector('.inline-evidence-cell');
         if (evidenceCell) loadInlineEvidence(evidenceCell, mariaRefEvidenceImages);
     }
-    
+
     // Apply role permissions for new row
     applyRolePermissions();
 }
@@ -7466,18 +7792,18 @@ function getMariaDBStorage() {
 function calculateMariaDBSizing() {
     const inputCCU = parseFloat(document.getElementById('mariadb-input-ccu')?.value) || 0;
     const sizingCCU = parseFloat(document.getElementById('mariadb-sizing-ccu')?.value) || 0;
-    
+
     if (!inputCCU || !sizingCCU) {
         showToast('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".', 'warning');
         return;
     }
-    
+
     const masterData = getMariaDBMasterData();
     if (!masterData) {
         showToast('Vui lòng chọn một IP làm Master trong bảng thông tin hệ thống tham chiếu.', 'warning');
         return;
     }
-    
+
     const storage = getMariaDBStorage();
     const replicationModelRaw = document.getElementById('mariadb-replication-model')?.value || 'asynchronous';
     const replicationModel = replicationModelRaw === 'active-active' ? 'multi-master' : replicationModelRaw;
@@ -7490,17 +7816,17 @@ function calculateMariaDBSizing() {
         showToast('Vui lòng nhập thông tin /data used, /log used trong bảng Storage.', 'warning');
         return;
     }
-    
+
     // Hệ số
     const factor = sizingCCU / inputCCU;
-    
+
     // Công thức tính:
     // CPU cần = CPU * Tải CPU * (Định cỡ / Đầu vào) * 1.1 / 0.75
     // RAM cần = RAM * Tải RAM * (Định cỡ / Đầu vào) * 1.1 / 0.9
     // /data cần = /data used * (Định cỡ / Đầu vào) * 1.1 / 0.8
     // /log cần = /log used * (Định cỡ / Đầu vào) * 1.1 / 0.8
     // /backup cần = /data cần * số bản lưu backup * tỉ lệ nén (%)
-    
+
     const baseCpuNeeded = masterData.cpu * (masterData.cpuLoad / 100) * factor * 1.1 / 0.75;
     const baseRamNeeded = masterData.ram * (masterData.ramLoad / 100) * factor * 1.1 / 0.9;
     const cpuNeeded = isActiveActive ? (baseCpuNeeded / 3) : baseCpuNeeded;
@@ -7508,30 +7834,30 @@ function calculateMariaDBSizing() {
     const dataNeeded = storage.dataUsed * factor * 1.1 / 0.8;
     const logNeeded = storage.logUsed * factor * 1.1 / 0.8;
     const backupNeeded = dataNeeded * storage.soBanBackup * (storage.tiLeNen / 100);
-    
+
     // NAS = chỉ /backup cần
     const nasTotal = backupNeeded;
-    
+
     let html = '';
-    
+
     // ==================== CÔNG THỨC TÍNH ====================
     html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Công thức tính toán (dựa trên IP Master: ${masterData.ip})</h4>
         <p style="margin: 0 0 10px; font-size: 13px; color: #333;"><strong>Mô hình:</strong> ${modelLabel}</p>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-            <li><strong>CPU cần</strong> = CPU × Tải CPU × (Định cỡ / Đầu vào) × 1.1 / 0.75${isActiveActive ? ' / 3 (chia cho 3 master)' : ''} = ${masterData.cpu} × ${(masterData.cpuLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.75${isActiveActive ? ' / 3' : ''} = <strong>${cpuNeeded.toFixed(2)} vCPU</strong></li>
-            <li><strong>RAM cần</strong> = RAM × Tải RAM × (Định cỡ / Đầu vào) × 1.1 / 0.9${isActiveActive ? ' / 3 (chia cho 3 master)' : ''} = ${masterData.ram} × ${(masterData.ramLoad/100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9${isActiveActive ? ' / 3' : ''} = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
+            <li><strong>CPU cần</strong> = CPU × Tải CPU × (Định cỡ / Đầu vào) × 1.1 / 0.75${isActiveActive ? ' / 3 (chia cho 3 master)' : ''} = ${masterData.cpu} × ${(masterData.cpuLoad / 100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.75${isActiveActive ? ' / 3' : ''} = <strong>${cpuNeeded.toFixed(2)} vCPU</strong></li>
+            <li><strong>RAM cần</strong> = RAM × Tải RAM × (Định cỡ / Đầu vào) × 1.1 / 0.9${isActiveActive ? ' / 3 (chia cho 3 master)' : ''} = ${masterData.ram} × ${(masterData.ramLoad / 100).toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9${isActiveActive ? ' / 3' : ''} = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
             <li><strong>/data cần</strong> = /data used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.dataUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${dataNeeded.toFixed(2)} GB</strong></li>
             <li><strong>/log cần</strong> = /log used × (Định cỡ / Đầu vào) × 1.1 / 0.8 = ${storage.logUsed} × ${factor.toFixed(2)} × 1.1 / 0.8 = <strong>${logNeeded.toFixed(2)} GB</strong></li>
             <li><strong>/backup cần</strong> = /data cần × Số bản lưu backup × Tỉ lệ nén (%) = ${dataNeeded.toFixed(2)} × ${storage.soBanBackup} × ${storage.tiLeNen}% = <strong>${backupNeeded.toFixed(2)} GB</strong></li>
         </ul>
     </div>`;
-    
+
     // ==================== BẢNG KẾT QUẢ ====================
     html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
     </h4>`;
-    
+
     html += `<table class="sizing-table" style="margin-top: 10px;">
         <thead>
             <tr>
@@ -7575,7 +7901,7 @@ function calculateMariaDBSizing() {
             </tr>
         </tbody>
     </table>`;
-    
+
     const container = document.getElementById('mariadb-result-container');
     if (container) container.innerHTML = html;
 }
@@ -7583,16 +7909,16 @@ function calculateMariaDBSizing() {
 // Load dữ liệu MariaDB từ DB
 function loadMariaDBData(data) {
     if (!data) return;
-    
+
     // Clear existing rows
     document.getElementById('mariadb-ref-table-body').innerHTML = '';
-    
+
     // Load bảng ref
     if (data.refTable && Array.isArray(data.refTable)) {
         data.refTable.forEach(row => addMariaDBRefRow(row));
     }
     syncMariaDBMasterRadioNames();
-    
+
     // Load storage (direct input values)
     if (data.storage) {
         const dataUsedEl = document.getElementById('mariadb-storage-data-used');
@@ -7620,11 +7946,11 @@ function loadMariaDBData(data) {
         if (dataUsedEl) dataUsedEl.value = firstRow.dataUsed || firstRow.data || '';
         if (logUsedEl) logUsedEl.value = firstRow.logUsed || firstRow.log || '';
     }
-    
+
     // Load note
     const noteEl = document.getElementById('mariadb-note');
     if (noteEl && data.note) noteEl.value = data.note;
-    
+
     // Load input values
     const replicationModel = document.getElementById('mariadb-replication-model');
     if (replicationModel) {
@@ -7647,13 +7973,13 @@ function loadMariaDBData(data) {
     const sizingCCU = document.getElementById('mariadb-sizing-ccu');
     if (inputCCU && data.inputCCU) inputCCU.value = data.inputCCU;
     if (sizingCCU && data.sizingCCU) sizingCCU.value = data.sizingCCU;
-    
+
     // Load result if exists
     if (data.resultHTML) {
         const container = document.getElementById('mariadb-result-container');
         if (container) container.innerHTML = data.resultHTML;
     }
-    
+
     // Apply role permissions
     applyRolePermissions();
 }
@@ -7661,10 +7987,10 @@ function loadMariaDBData(data) {
 // Load ảnh sở cứ bảng tham chiếu MariaDB
 function loadMariaDBRefEvidence(data) {
     if (!data || !data.refEvidence || !Array.isArray(data.refEvidence)) return;
-    
+
     const grid = document.getElementById('mariadb-ref-evidence-grid');
     if (!grid) return;
-    
+
     grid.innerHTML = '';
     data.refEvidence.forEach(img => {
         const slot = document.createElement('div');
@@ -7709,7 +8035,7 @@ function collectMariaDBData() {
 function addMariaDBEvidenceSlot() {
     const grid = document.getElementById('mariadb-evidence-grid');
     if (!grid) return;
-    
+
     const slot = document.createElement('div');
     slot.className = 'upload-box';
     slot.innerHTML = `
@@ -7727,13 +8053,13 @@ function addMariaDBEvidenceSlot() {
 function handleMariaDBEvidenceUpload(input) {
     const file = input.files[0];
     if (!file) return;
-    
+
     const slot = input.closest('.upload-box');
     const previewArea = slot.querySelector('.preview-area');
     const placeholder = slot.querySelector('.upload-placeholder');
-    
+
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         previewArea.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                 <img src="${e.target.result}" alt="Evidence" style="display:none;">
@@ -7764,7 +8090,7 @@ function deleteMariaDBEvidenceSlot(btn) {
 function addMariaDBStorageEvidenceSlot() {
     const grid = document.getElementById('mariadb-storage-evidence-grid');
     if (!grid) return;
-    
+
     const slot = document.createElement('div');
     slot.className = 'mariadb-storage-evidence-slot';
     slot.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: #f0f9ff; border-radius: 4px; border: 1px solid #d0e0f0;';
@@ -7784,10 +8110,10 @@ function addMariaDBStorageEvidenceSlot() {
 function handleMariaDBStorageEvidenceUpload(input) {
     const slot = input.closest('.mariadb-storage-evidence-slot');
     const previewSpan = slot.querySelector('.storage-evidence-preview');
-    
+
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             previewSpan.innerHTML = `
                 <img src="${e.target.result}" alt="Evidence" style="display:none;">
                 <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh" style="font-size: 10px; padding: 1px 4px;">
@@ -7817,7 +8143,7 @@ function removeMariaDBStorageEvidenceSlot(btn) {
 function loadMariaDBStorageEvidence(images) {
     const grid = document.getElementById('mariadb-storage-evidence-grid');
     if (!grid || !images || !Array.isArray(images)) return;
-    
+
     grid.innerHTML = '';
     images.forEach(imgSrc => {
         const slot = document.createElement('div');
@@ -7843,7 +8169,7 @@ function loadMariaDBStorageEvidence(images) {
 function collectMariaDBEvidenceData() {
     const grid = document.getElementById('mariadb-evidence-grid');
     if (!grid) return [];
-    
+
     const images = [];
     grid.querySelectorAll('.upload-box').forEach(slot => {
         const img = slot.querySelector('.preview-area img');
@@ -7858,7 +8184,7 @@ function collectMariaDBEvidenceData() {
 function addMariaDBRefEvidenceSlot() {
     const grid = document.getElementById('mariadb-ref-evidence-grid');
     if (!grid) return;
-    
+
     const slot = document.createElement('div');
     slot.className = 'upload-box';
     slot.innerHTML = `
@@ -7876,13 +8202,13 @@ function addMariaDBRefEvidenceSlot() {
 function handleMariaDBRefEvidenceUpload(input) {
     const file = input.files[0];
     if (!file) return;
-    
+
     const slot = input.closest('.upload-box');
     const previewArea = slot.querySelector('.preview-area');
     const placeholder = slot.querySelector('.upload-placeholder');
-    
+
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         previewArea.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
                 <img src="${e.target.result}" alt="Evidence" style="display:none;">
@@ -7911,7 +8237,7 @@ function deleteMariaDBRefEvidenceSlot(btn) {
 function collectMariaDBRefEvidenceData() {
     const grid = document.getElementById('mariadb-ref-evidence-grid');
     if (!grid) return [];
-    
+
     const images = [];
     grid.querySelectorAll('.upload-box').forEach(slot => {
         const img = slot.querySelector('.preview-area img');
@@ -7930,7 +8256,7 @@ function selectRedisMethod(method) {
     const configBtn = document.getElementById('redis-method-config');
     const keyContent = document.getElementById('redis-method-key-content');
     const configContent = document.getElementById('redis-method-config-content');
-    
+
     if (method === 'key') {
         keyBtn.classList.add('active');
         keyBtn.style.border = '2px solid #0066cc';
@@ -7956,7 +8282,7 @@ function selectRedisMethod(method) {
 function addRedisKeyEvidenceSlot() {
     const grid = document.getElementById('redis-key-evidence-grid');
     if (!grid) return;
-    
+
     const slot = document.createElement('div');
     slot.className = 'upload-box';
     slot.innerHTML = `
@@ -7976,9 +8302,9 @@ function addRedisKeyEvidenceSlot() {
 function handleRedisKeyImageUpload(input) {
     const file = input.files[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         const previewArea = input.closest('.upload-box').querySelector('.preview-area');
         previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
     };
@@ -7989,7 +8315,7 @@ function handleRedisKeyImageUpload(input) {
 function addRedisConfigRow(data = {}) {
     const tbody = document.getElementById('redis-config-table-body');
     if (!tbody) return;
-    
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" class="input-full sizing-user-input redis-config-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
@@ -8024,7 +8350,7 @@ function addRedisConfigRow(data = {}) {
         </td>
     `;
     tbody.appendChild(tr);
-    
+
     // Apply role permissions for new row
     applyRolePermissions();
 }
@@ -8033,7 +8359,7 @@ function addRedisConfigRow(data = {}) {
 function updateRedisTotalMasterRAM() {
     const rows = document.querySelectorAll('#redis-config-table-body tr');
     let totalMasterRAM = 0;
-    
+
     rows.forEach(row => {
         const isMaster = row.querySelector('.redis-master-checkbox')?.checked;
         if (isMaster) {
@@ -8042,7 +8368,7 @@ function updateRedisTotalMasterRAM() {
             totalMasterRAM += ram * (ramLoad / 100);
         }
     });
-    
+
     const totalEl = document.getElementById('redis-total-master-ram');
     if (totalEl) totalEl.innerText = totalMasterRAM.toFixed(2);
 }
@@ -8071,7 +8397,7 @@ function collectRedisConfigTableData() {
 function collectRedisKeyEvidenceData() {
     const grid = document.getElementById('redis-key-evidence-grid');
     if (!grid) return [];
-    
+
     const images = [];
     grid.querySelectorAll('.upload-box').forEach(slot => {
         const img = slot.querySelector('.preview-area img');
@@ -8086,18 +8412,18 @@ function collectRedisKeyEvidenceData() {
 function findOptimalN(totalRAM) {
     const targetRAM = totalRAM * 1.1 / 0.8;
     let N = 1;
-    
+
     // Nếu targetRAM < 64, N = 1 là đủ
     if (targetRAM < 64) {
         return 1;
     }
-    
+
     // Tìm N là số lẻ > 1 sao cho RAM/N < 64
     N = 3; // Bắt đầu từ 3 (số lẻ > 1)
     while (targetRAM / N >= 64) {
         N += 2; // Tăng lên số lẻ tiếp theo
     }
-    
+
     return N;
 }
 
@@ -8106,7 +8432,7 @@ function updateRedisKeyCalculated() {
     const poc = parseFloat(document.getElementById('redis-key-poc')?.value) || 0;
     const sizing = parseFloat(document.getElementById('redis-key-sizing')?.value) || 0;
     const keyCountPOC = parseFloat(document.getElementById('redis-key-count-poc')?.value) || 0;
-    
+
     const keyCountEl = document.getElementById('redis-key-count');
     if (keyCountEl) {
         if (poc > 0 && sizing > 0 && keyCountPOC > 0) {
@@ -8126,24 +8452,24 @@ function calculateRedisKeyMethod() {
     const keyCount = parseFloat(document.getElementById('redis-key-count')?.value) || 0;
     const recordSize = parseFloat(document.getElementById('redis-record-size')?.value) || 0;
     const importance = document.getElementById('redis-key-importance')?.value || 'normal';
-    
+
     if (!poc || !sizing || !keyCountPOC) {
         showToast('Vui lòng nhập đầy đủ thông tin: Tải hệ thống POC, Định cỡ và Tổng lượng Key POC!', 'warning');
         return;
     }
-    
+
     if (!recordSize) {
         showToast('Vui lòng nhập Kích thước trung bình 1 bản ghi!', 'warning');
         return;
     }
-    
+
     // Tính C = A * B (bytes -> GB)
     const C = (keyCount * recordSize) / (1024 * 1024 * 1024); // Convert to GB
-    
+
     // Update display
     const totalCapEl = document.getElementById('redis-total-capacity');
     if (totalCapEl) totalCapEl.innerText = C.toFixed(4);
-    
+
     let html = '';
     let model = '';
     let vcpu = 0;
@@ -8152,7 +8478,7 @@ function calculateRedisKeyMethod() {
     let masterCount = 1;
     let slavePerMaster = importance === 'dbqt' ? 2 : 1;
     let totalServers = 0;
-    
+
     if (C < 32) {
         // Redis Sentinel: 1 master 2 slave
         model = 'Redis Sentinel';
@@ -8166,7 +8492,7 @@ function calculateRedisKeyMethod() {
         // Redis Cluster
         model = 'Redis Cluster';
         vcpu = 16;
-        
+
         // Tìm N
         const N = findOptimalN(C);
         masterCount = N;
@@ -8174,7 +8500,7 @@ function calculateRedisKeyMethod() {
         diskPerServer = 4 * ramPerServer;
         totalServers = N * (1 + slavePerMaster); // N master * (1 + số slave mỗi master)
     }
-    
+
     // ==================== HIỂN THỊ KẾT QUẢ ====================
     html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin tính toán</h4>
@@ -8189,7 +8515,7 @@ function calculateRedisKeyMethod() {
             <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT' : 'Bình thường'}</li>
         </ul>
     </div>`;
-    
+
     html += `<div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #28a745;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;"><i class="fa-solid fa-lightbulb"></i> Đề xuất mô hình</h4>
         <p style="margin: 0; font-size: 15px;">
@@ -8197,7 +8523,7 @@ function calculateRedisKeyMethod() {
             ${C >= 32 ? `<br><em>(C = ${C.toFixed(2)} GB > 32 GB → Sử dụng Cluster với N = ${masterCount} master)</em>` : `<br><em>(C = ${C.toFixed(2)} GB < 32 GB → Sử dụng Sentinel)</em>`}
         </p>
     </div>`;
-    
+
     html += `<div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #856404;">Công thức tính toán</h4>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
@@ -8206,12 +8532,12 @@ function calculateRedisKeyMethod() {
             <li><strong>DISK mỗi server:</strong> 4 × RAM = 4 × ${ramPerServer.toFixed(2)} = <strong>${diskPerServer.toFixed(2)} GB</strong></li>
         </ul>
     </div>`;
-    
+
     // Bảng kết quả
     html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
     </h4>`;
-    
+
     html += `<table class="sizing-table" style="margin-top: 10px;">
         <thead>
             <tr>
@@ -8236,7 +8562,7 @@ function calculateRedisKeyMethod() {
             </tr>
         </tbody>
     </table>`;
-    
+
     const container = document.getElementById('redis-key-result-container');
     if (container) container.innerHTML = html;
 }
@@ -8247,29 +8573,29 @@ function calculateRedisConfigMethod() {
     const sizingCCU = parseFloat(document.getElementById('redis-config-sizing-ccu')?.value) || 0;
     const importance = document.getElementById('redis-config-importance')?.value || 'normal';
     const currentModel = document.getElementById('redis-current-model')?.value || 'cluster';
-    
+
     if (!inputCCU || !sizingCCU) {
         showToast('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".', 'warning');
         return;
     }
-    
+
     // Lấy tổng RAM từ các Master
     const totalMasterRAM = parseFloat(document.getElementById('redis-total-master-ram')?.innerText) || 0;
-    
+
     if (totalMasterRAM <= 0) {
         showToast('Vui lòng nhập thông tin và tick chọn ít nhất một Master trong bảng cấu hình!', 'warning');
         return;
     }
-    
+
     // Hệ số
     const factor = sizingCCU / inputCCU;
-    
+
     // RAM cần = RAM * Tải RAM * (Định cỡ / Đầu vào) * 1.1 / 0.9
     const ramNeeded = totalMasterRAM * factor * 1.1 / 0.9;
-    
+
     // Sau đó áp dụng công thức tương tự phương pháp Key
     const C = ramNeeded;
-    
+
     let html = '';
     let model = '';
     let vcpu = 0;
@@ -8278,7 +8604,7 @@ function calculateRedisConfigMethod() {
     let masterCount = 1;
     let slavePerMaster = importance === 'dbqt' ? 2 : 1;
     let totalServers = 0;
-    
+
     if (C < 32) {
         // Redis Sentinel
         model = 'Redis Sentinel';
@@ -8292,14 +8618,14 @@ function calculateRedisConfigMethod() {
         // Redis Cluster
         model = 'Redis Cluster';
         vcpu = 16;
-        
+
         const N = findOptimalN(C);
         masterCount = N;
         ramPerServer = (C * 1.1 / 0.8) / N;
         diskPerServer = 4 * ramPerServer;
         totalServers = N * (1 + slavePerMaster);
     }
-    
+
     // ==================== HIỂN THỊ KẾT QUẢ ====================
     html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin tính toán</h4>
@@ -8311,7 +8637,7 @@ function calculateRedisConfigMethod() {
             <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT' : 'Bình thường'}</li>
         </ul>
     </div>`;
-    
+
     html += `<div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #28a745;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;"><i class="fa-solid fa-lightbulb"></i> Đề xuất mô hình</h4>
         <p style="margin: 0; font-size: 15px;">
@@ -8319,7 +8645,7 @@ function calculateRedisConfigMethod() {
             ${C >= 32 ? `<br><em>(RAM = ${C.toFixed(2)} GB > 32 GB → Sử dụng Cluster với N = ${masterCount} master)</em>` : `<br><em>(RAM = ${C.toFixed(2)} GB < 32 GB → Sử dụng Sentinel)</em>`}
         </p>
     </div>`;
-    
+
     html += `<div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #856404;">Công thức tính toán</h4>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
@@ -8328,12 +8654,12 @@ function calculateRedisConfigMethod() {
             <li><strong>DISK mỗi server:</strong> 4 × RAM = 4 × ${ramPerServer.toFixed(2)} = <strong>${diskPerServer.toFixed(2)} GB</strong></li>
         </ul>
     </div>`;
-    
+
     // Bảng kết quả
     html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
     </h4>`;
-    
+
     html += `<table class="sizing-table" style="margin-top: 10px;">
         <thead>
             <tr>
@@ -8358,7 +8684,7 @@ function calculateRedisConfigMethod() {
             </tr>
         </tbody>
     </table>`;
-    
+
     const container = document.getElementById('redis-config-result-container');
     if (container) container.innerHTML = html;
 }
@@ -8368,7 +8694,7 @@ function collectRedisData() {
     // Xác định phương pháp đang chọn
     const keyBtn = document.getElementById('redis-method-key');
     const selectedMethod = keyBtn?.classList.contains('active') ? 'key' : 'config';
-    
+
     return {
         selectedMethod: selectedMethod,
         // Phương pháp Key
@@ -8399,12 +8725,12 @@ function collectRedisData() {
 // Load dữ liệu Redis từ DB
 function loadRedisData(data) {
     if (!data) return;
-    
+
     // Load phương pháp đã chọn
     if (data.selectedMethod) {
         selectRedisMethod(data.selectedMethod);
     }
-    
+
     // Load phương pháp Key
     if (data.keyMethod) {
         const km = data.keyMethod;
@@ -8421,7 +8747,7 @@ function loadRedisData(data) {
         if (km.keyCount) document.getElementById('redis-key-count').value = km.keyCount;
         if (km.recordSize) document.getElementById('redis-record-size').value = km.recordSize;
         if (km.importance) document.getElementById('redis-key-importance').value = km.importance;
-        
+
         // Load ảnh sở cứ
         if (km.evidenceImages && Array.isArray(km.evidenceImages)) {
             const grid = document.getElementById('redis-key-evidence-grid');
@@ -8439,14 +8765,14 @@ function loadRedisData(data) {
                 });
             }
         }
-        
+
         // Load kết quả
         if (km.resultHTML) {
             const container = document.getElementById('redis-key-result-container');
             if (container) container.innerHTML = km.resultHTML;
         }
     }
-    
+
     // Load phương pháp Config
     if (data.configMethod) {
         const cm = data.configMethod;
@@ -8461,7 +8787,7 @@ function loadRedisData(data) {
         if (cm.inputCCU) document.getElementById('redis-config-input-ccu').value = cm.inputCCU;
         if (cm.sizingCCU) document.getElementById('redis-config-sizing-ccu').value = cm.sizingCCU;
         if (cm.importance) document.getElementById('redis-config-importance').value = cm.importance;
-        
+
         // Load bảng config
         if (cm.configTable && Array.isArray(cm.configTable)) {
             document.getElementById('redis-config-table-body').innerHTML = '';
@@ -8480,7 +8806,7 @@ function loadRedisData(data) {
             });
             updateRedisTotalMasterRAM();
         }
-        
+
         // Load kết quả
         if (cm.resultHTML) {
             const container = document.getElementById('redis-config-result-container');
@@ -8497,7 +8823,7 @@ function selectKafkaMethod(method) {
     const linearBtn = document.getElementById('kafka-method-linear');
     const throughputContent = document.getElementById('kafka-method-throughput-content');
     const linearContent = document.getElementById('kafka-method-linear-content');
-    
+
     if (method === 'throughput') {
         throughputBtn.classList.add('active');
         throughputBtn.style.border = '2px solid #0066cc';
@@ -8554,9 +8880,9 @@ function addImageUploadSlot(grid, handlerName) {
 function handleKafkaImageUpload(input) {
     const file = input.files[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         const previewArea = input.closest('.upload-box').querySelector('.preview-area');
         previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" style="display:none;"><button type="button" class="btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
     };
@@ -8591,12 +8917,12 @@ function addKafkaHelperSizeEvidenceSlot() {
 function calculateKafkaHelperThroughput() {
     const msgCount = parseFloat(document.getElementById('kafka-helper-msg-count')?.value) || 0;
     const msgSize = parseFloat(document.getElementById('kafka-helper-msg-size')?.value) || 0;
-    
+
     if (!msgCount || !msgSize) {
         showToast('Vui lòng nhập đầy đủ thông tin!', 'warning');
         return;
     }
-    
+
     // A = msgCount * msgSize / 1024 (KB -> MB)
     const A = (msgCount * msgSize) / 1024;
     document.getElementById('kafka-helper-result').innerText = A.toFixed(4);
@@ -8609,7 +8935,7 @@ function applyKafkaHelperResult() {
         showToast('Vui lòng tính toán trước khi áp dụng!', 'warning');
         return;
     }
-    
+
     document.getElementById('kafka-throughput-a').value = result.toFixed(4);
     closeKafkaHelperTool();
 }
@@ -8618,7 +8944,7 @@ function applyKafkaHelperResult() {
 function addKafkaLinearRow(data = {}) {
     const tbody = document.getElementById('kafka-linear-table-body');
     if (!tbody) return;
-    
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" class="input-full sizing-user-input kafka-linear-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
@@ -8654,7 +8980,7 @@ function addKafkaLinearRow(data = {}) {
         </td>
     `;
     tbody.appendChild(tr);
-    
+
     // Apply role permissions for new row
     applyRolePermissions();
 }
@@ -8669,7 +8995,7 @@ function getKafkaLinearRows() {
 function updateKafkaLinearTotal() {
     const rows = getKafkaLinearRows();
     let totalCPU = 0, totalRAM = 0, totalDisk = 0;
-    
+
     rows.forEach(row => {
         const vcpu = parseFloat(row.querySelector('.kafka-linear-vcpu')?.value) || 0;
         const ram = parseFloat(row.querySelector('.kafka-linear-ram')?.value) || 0;
@@ -8677,7 +9003,7 @@ function updateKafkaLinearTotal() {
         const cpuLoad = parseFloat(row.querySelector('.kafka-linear-cpu-load')?.value) || 0;
         const ramLoad = parseFloat(row.querySelector('.kafka-linear-ram-load')?.value) || 0;
         const diskLoad = parseFloat(row.querySelector('.kafka-linear-disk-load')?.value) || 0;
-        
+
         totalCPU += vcpu * (cpuLoad / 100);
         totalRAM += ram * (ramLoad / 100);
         totalDisk += disk * (diskLoad / 100);
@@ -8718,7 +9044,7 @@ function collectKafkaLinearTableData() {
 function collectKafkaEvidenceData(gridId) {
     const grid = document.getElementById(gridId);
     if (!grid) return [];
-    
+
     const images = [];
     grid.querySelectorAll('.upload-box').forEach(slot => {
         const img = slot.querySelector('.preview-area img');
@@ -8734,7 +9060,7 @@ function findOptimalKafkaN(S, R) {
     // RAM = S * R / N + 8GB
     // Tìm N sao cho 16 < RAM < 64 (mục tiêu ~32GB)
     let N = 3; // Kafka cluster tối thiểu 3 broker
-    
+
     while (N < 100) { // Giới hạn tìm kiếm
         const RAM = (S * R / N) + 8;
         if (RAM < 64) {
@@ -8745,7 +9071,7 @@ function findOptimalKafkaN(S, R) {
         }
         N++;
     }
-    
+
     return 3; // Mặc định
 }
 
@@ -8757,7 +9083,7 @@ function calculateKafkaThroughputMethod() {
     const C = parseFloat(document.getElementById('kafka-compression')?.value) || 0.5;
     const pocVal = parseFloat(document.getElementById('kafka-throughput-input-ccu')?.value) || 0;
     const sizingVal = parseFloat(document.getElementById('kafka-throughput-sizing-ccu')?.value) || 0;
-    
+
     if (!A_poc) {
         showToast('Vui lòng nhập Lưu lượng vào (Write) - A!', 'warning');
         return;
@@ -8766,27 +9092,27 @@ function calculateKafkaThroughputMethod() {
         showToast('Vui lòng chọn dòng đầu vào (POC & Định cỡ)!', 'warning');
         return;
     }
-    
+
     // Tính A thực tế theo tỉ lệ Định cỡ / POC
     const ratio = sizingVal / pocVal;
     const A = A_poc * ratio;
-    
+
     // Tổng Disk Cluster: D = A * 3600 * T * R * C * 1.1 / 0.8 (MB)
     const D_MB = A * 3600 * T * R * C * 1.1 / 0.8;
     const D_GB = D_MB / 1024;
     const D_TB = D_GB / 1024;
-    
+
     // S = A * 1800 (dữ liệu trong 30 phút)
     const S = A * 1800 / 1024;
-    
+
     // Tìm N tối ưu
     const optimalN = findOptimalKafkaN(S, R);
-    
+
     // vCPU: A < 50MB/s: 8 vCPU; A >= 50MB/s: 16 vCPU
     const vCPU = A < 50 ? 8 : 16;
-    
+
     let html = '';
-    
+
     // ==================== CÔNG THỨC TÍNH ====================
     html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin đầu vào</h4>
@@ -8795,13 +9121,13 @@ function calculateKafkaThroughputMethod() {
             <li><strong>POC:</strong> ${pocVal} &nbsp;|&nbsp; <strong>Định cỡ:</strong> ${sizingVal}</li>
             <li><strong>Hệ số (Định cỡ/POC):</strong> ${sizingVal} / ${pocVal} = ${ratio.toFixed(4)}</li>
             <li><strong>Lưu lượng định cỡ (A):</strong> A₀ × (Định cỡ/POC) = ${A_poc} × ${ratio.toFixed(4)} = <strong>${A.toFixed(4)} MB/s</strong></li>
-            <li><strong>Thời gian lưu trữ (T):</strong> ${T} giờ (${T/24} ngày)</li>
+            <li><strong>Thời gian lưu trữ (T):</strong> ${T} giờ (${T / 24} ngày)</li>
             <li><strong>Hệ số nhân bản (R):</strong> ${R}</li>
             <li><strong>Hệ số nén (C):</strong> ${C}</li>
             <li><strong>S (dữ liệu 30 phút):</strong> A × 1800 / 1024 = ${A.toFixed(4)} × 1800 / 1024 = ${S.toFixed(2)} GB</li>
         </ul>
     </div>`;
-    
+
     html += `<div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #28a745;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;"><i class="fa-solid fa-hard-drive"></i> Tổng Disk Cluster</h4>
         <p style="margin: 0; font-size: 14px;">
@@ -8810,12 +9136,12 @@ function calculateKafkaThroughputMethod() {
             D = <strong>${D_MB.toFixed(2)} MB</strong> = <strong>${D_GB.toFixed(2)} GB</strong> = <strong>${D_TB.toFixed(4)} TB</strong>
         </p>
     </div>`;
-    
+
     // ==================== BẢNG PHÂN BỔ THEO N ====================
     html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-table"></i> Bảng phân bổ theo số lượng Broker (N)
     </h4>`;
-    
+
     html += `<table class="sizing-table" style="margin-top: 10px;">
         <thead>
             <tr>
@@ -8837,17 +9163,17 @@ function calculateKafkaThroughputMethod() {
         <td class="text-center">${vCPU}</td>
         <td>Khuyến nghị (16 < RAM < 64)</td>
     </tr>`;
-    
+
     html += `</tbody></table>`;
-    
+
     // ==================== KẾT QUẢ ĐỀ XUẤT ====================
     const diskPerServer = D_GB / optimalN;
     const ramPerServer = (S * R / optimalN) + 8;
-    
+
     html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình (N = ${optimalN})
     </h4>`;
-    
+
     html += `<table class="sizing-table" style="margin-top: 10px;">
         <thead>
             <tr>
@@ -8864,7 +9190,7 @@ function calculateKafkaThroughputMethod() {
                 <td class="text-center"><strong>${optimalN}</strong></td>
                 <td class="text-center"><strong>${vCPU}</strong></td>
                 <td class="text-center"><strong>${Math.ceil(ramPerServer)} GB</strong></td>
-                <td class="text-center"><strong>${diskPerServer >= 1024 ? (diskPerServer/1024).toFixed(2) + ' TB' : Math.ceil(diskPerServer) + ' GB'}</strong></td>
+                <td class="text-center"><strong>${diskPerServer >= 1024 ? (diskPerServer / 1024).toFixed(2) + ' TB' : Math.ceil(diskPerServer) + ' GB'}</strong></td>
             </tr>
             <tr style="background: #fff3cd;">
                 <td><strong>Zookeeper/KRaft</strong></td>
@@ -8876,14 +9202,14 @@ function calculateKafkaThroughputMethod() {
         </tbody>
         
     </table>`;
-    
+
     html += `<div style="background: #d4edda; padding: 15px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #28a745;">
         <h4 style="margin: 0 0 10px 0; color: #155724;"><i class="fa-solid fa-info-circle"></i> Khuyến nghị</h4>
         <p style="margin: 0; font-size: 13px; color: #155724;">
             Tách rời 3 node Zookeeper/KRaft Controller (2 vCPU / 4GB RAM / 100GB DISK) để đảm bảo độ ổn định cao nhất.
         </p>
     </div>`;
-    
+
     const container = document.getElementById('kafka-throughput-result-container');
     if (container) container.innerHTML = html;
 }
@@ -8892,12 +9218,12 @@ function calculateKafkaThroughputMethod() {
 function calculateKafkaLinearMethod() {
     const inputCCU = parseFloat(document.getElementById('kafka-linear-input-ccu')?.value) || 0;
     const sizingCCU = parseFloat(document.getElementById('kafka-linear-sizing-ccu')?.value) || 0;
-    
+
     if (!inputCCU || !sizingCCU) {
         showToast('Vui lòng nhập giá trị hợp lệ cho "Đầu vào" và "Định cỡ".', 'warning');
         return;
     }
-    
+
     // Tính tổng trực tiếp từ bảng để đảm bảo đúng theo module instance đang active
     const rows = getKafkaLinearRows();
     let totalCPU = 0, totalRAM = 0, totalDisk = 0;
@@ -8914,20 +9240,20 @@ function calculateKafkaLinearMethod() {
         totalDisk += disk * (diskLoad / 100);
     });
     updateKafkaLinearTotal();
-    
+
     if (totalCPU <= 0 && totalRAM <= 0 && totalDisk <= 0) {
         showToast('Vui lòng nhập thông tin các Broker hiện tại!', 'warning');
         return;
     }
-    
+
     // Hệ số
     const factor = sizingCCU / inputCCU;
-    
+
     // Tính toán cần
     const cpuNeeded = totalCPU * factor * 1.1 / 0.75;
     const ramNeeded = totalRAM * factor * 1.1 / 0.9;
     const diskNeeded = totalDisk * factor * 1.1 / 0.8;
-    
+
     // Tìm N tối ưu (RAM mục tiêu ~32GB)
     let optimalN = 3;
     for (let n = 3; n <= 20; n++) {
@@ -8941,13 +9267,13 @@ function calculateKafkaLinearMethod() {
             break;
         }
     }
-    
+
     const cpuPerNode = Math.ceil(cpuNeeded / optimalN);
     const ramPerNode = Math.ceil(ramNeeded / optimalN);
     const diskPerNode = Math.ceil(diskNeeded / optimalN);
-    
+
     let html = '';
-    
+
     html += `<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ee0033;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #2c5282;">Thông tin tính toán</h4>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
@@ -8957,7 +9283,7 @@ function calculateKafkaLinearMethod() {
             <li><strong>Hệ số (Định cỡ/Đầu vào):</strong> ${sizingCCU} / ${inputCCU} = ${factor.toFixed(2)}</li>
         </ul>
     </div>`;
-    
+
     html += `<div style="background: #e6ffed; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #28a745;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #155724;">Tài nguyên cần cho hệ thống mới</h4>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
@@ -8996,12 +9322,12 @@ function calculateKafkaLinearMethod() {
     </tr>`;
 
     html += `</tbody></table>`;
-    
+
     // Bảng kết quả
     html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình (N = ${optimalN})
     </h4>`;
-    
+
     html += `<table class="sizing-table" style="margin-top: 10px;">
         <thead>
             <tr>
@@ -9018,7 +9344,7 @@ function calculateKafkaLinearMethod() {
                 <td class="text-center"><strong>${optimalN}</strong></td>
                 <td class="text-center"><strong>${cpuPerNode}</strong></td>
                 <td class="text-center"><strong>${ramPerNode} GB</strong></td>
-                <td class="text-center"><strong>${diskPerNode >= 1024 ? (diskPerNode/1024).toFixed(2) + ' TB' : diskPerNode + ' GB'}</strong></td>
+                <td class="text-center"><strong>${diskPerNode >= 1024 ? (diskPerNode / 1024).toFixed(2) + ' TB' : diskPerNode + ' GB'}</strong></td>
             </tr>
             <tr style="background: #fff3cd;">
                 <td><strong>Zookeeper/KRaft</strong></td>
@@ -9034,11 +9360,11 @@ function calculateKafkaLinearMethod() {
                 <td class="text-center">${optimalN + 3}</td>
                 <td class="text-center">${cpuPerNode * optimalN + 6}</td>
                 <td class="text-center">${ramPerNode * optimalN + 12} GB</td>
-                <td class="text-center">${(diskPerNode * optimalN + 300) >= 1024 ? ((diskPerNode * optimalN + 300)/1024).toFixed(2) + ' TB' : (diskPerNode * optimalN + 300) + ' GB'}</td>
+                <td class="text-center">${(diskPerNode * optimalN + 300) >= 1024 ? ((diskPerNode * optimalN + 300) / 1024).toFixed(2) + ' TB' : (diskPerNode * optimalN + 300) + ' GB'}</td>
             </tr>
         </tfoot>
     </table>`;
-    
+
     const container = document.getElementById('kafka-linear-result-container');
     if (container) container.innerHTML = html;
 }
@@ -9047,7 +9373,7 @@ function calculateKafkaLinearMethod() {
 function collectKafkaData() {
     const throughputBtn = document.getElementById('kafka-method-throughput');
     const selectedMethod = throughputBtn?.classList.contains('active') ? 'throughput' : 'linear';
-    
+
     return {
         selectedMethod: selectedMethod,
         // Phương pháp Throughput
@@ -9082,12 +9408,12 @@ function collectKafkaData() {
 // Load dữ liệu Kafka từ DB
 function loadKafkaData(data) {
     if (!data) return;
-    
+
     // Load phương pháp đã chọn
     if (data.selectedMethod) {
         selectKafkaMethod(data.selectedMethod);
     }
-    
+
     // Load phương pháp Throughput
     if (data.throughputMethod) {
         const tm = data.throughputMethod;
@@ -9104,24 +9430,24 @@ function loadKafkaData(data) {
         if (tm.retentionTime) { const retEl = document.getElementById('kafka-retention-time'); if (retEl) retEl.value = tm.retentionTime; }
         if (tm.replicationFactor) document.getElementById('kafka-replication-factor').value = tm.replicationFactor;
         if (tm.compression) document.getElementById('kafka-compression').value = tm.compression;
-        
+
         // Load ảnh sở cứ throughput
         loadKafkaEvidenceImages('kafka-throughput-evidence-grid', tm.throughputEvidence, addKafkaThroughputEvidenceSlot);
         loadKafkaEvidenceImages('kafka-compression-evidence-grid', tm.compressionEvidence, addKafkaCompressionEvidenceSlot);
-        
+
         // Load helper tool data
         if (tm.helperMsgCount) document.getElementById('kafka-helper-msg-count').value = tm.helperMsgCount;
         if (tm.helperMsgSize) document.getElementById('kafka-helper-msg-size').value = tm.helperMsgSize;
         loadKafkaEvidenceImages('kafka-helper-msg-evidence-grid', tm.helperMsgEvidence, addKafkaHelperMsgEvidenceSlot);
         loadKafkaEvidenceImages('kafka-helper-size-evidence-grid', tm.helperSizeEvidence, addKafkaHelperSizeEvidenceSlot);
-        
+
         // Load kết quả
         if (tm.resultHTML) {
             const container = document.getElementById('kafka-throughput-result-container');
             if (container) container.innerHTML = tm.resultHTML;
         }
     }
-    
+
     // Load phương pháp Linear
     if (data.linearMethod) {
         const lm = data.linearMethod;
@@ -9134,7 +9460,7 @@ function loadKafkaData(data) {
         }
         if (lm.inputCCU) document.getElementById('kafka-linear-input-ccu').value = lm.inputCCU;
         if (lm.sizingCCU) document.getElementById('kafka-linear-sizing-ccu').value = lm.sizingCCU;
-        
+
         // Load bảng linear
         if (lm.linearTable && Array.isArray(lm.linearTable)) {
             const linearTbody = document.getElementById('kafka-linear-table-body');
@@ -9156,7 +9482,7 @@ function loadKafkaData(data) {
                 updateKafkaLinearTotal();
             }
         }
-        
+
         // Load kết quả
         if (lm.resultHTML) {
             const container = document.getElementById('kafka-linear-result-container');
@@ -9168,10 +9494,10 @@ function loadKafkaData(data) {
 // Helper để load ảnh sở cứ
 function loadKafkaEvidenceImages(gridId, images, addSlotFn) {
     if (!images || !Array.isArray(images) || images.length === 0) return;
-    
+
     const grid = document.getElementById(gridId);
     if (!grid) return;
-    
+
     grid.innerHTML = '';
     images.forEach(img => {
         addSlotFn();
@@ -9203,10 +9529,10 @@ async function createRevision(changeDescription = '', forceBaseline = false) {
         Logger.warn('Không có projectId để tạo revision');
         return null;
     }
-    
+
     const user = getCurrentUser();
     const changeLog = changeDescription || `Tự động lưu lúc ${new Date().toLocaleString('vi-VN')}`;
-    
+
     try {
         const response = await fetchAPI(`${API_BASE_URL}/project-revisions`, {
             method: 'POST',
@@ -9218,7 +9544,7 @@ async function createRevision(changeDescription = '', forceBaseline = false) {
                 forceBaseline: forceBaseline
             })
         });
-        
+
         if (response.ok) {
             const rawText = await response.text();
             if (!rawText || !rawText.trim()) {
@@ -9256,9 +9582,9 @@ async function createRevision(changeDescription = '', forceBaseline = false) {
 async function openVersionHistory() {
     const panel = document.getElementById('version-history-panel');
     if (!panel) return;
-    
+
     panel.classList.add('open');
-    
+
     // Load danh sách revisions
     await loadVersionHistoryList();
 }
@@ -9280,28 +9606,28 @@ async function loadVersionHistoryList() {
     const listContainer = document.getElementById('version-list');
     const loadingDiv = document.getElementById('version-list-loading');
     const emptyDiv = document.getElementById('version-list-empty');
-    
+
     if (!listContainer) return;
-    
+
     // Show loading
     listContainer.innerHTML = '';
     if (loadingDiv) loadingDiv.style.display = 'flex';
     if (emptyDiv) emptyDiv.style.display = 'none';
-    
+
     try {
         const response = await fetchAPI(`${API_BASE_URL}/project-revisions/project/${currentProjectId}`);
-        
+
         if (loadingDiv) loadingDiv.style.display = 'none';
-        
+
         if (response.ok) {
             const revisions = await response.json();
             allRevisionsList = revisions; // Lưu lại danh sách để dùng khi preview
-            
+
             if (revisions.length === 0) {
                 if (emptyDiv) emptyDiv.style.display = 'flex';
                 return;
             }
-            
+
             // Render danh sách
             listContainer.innerHTML = revisions.map((rev, index) => {
                 const isFirst = index === 0;
@@ -9310,10 +9636,10 @@ async function loadVersionHistoryList() {
                 const isBaseline = rev.revisionType === 'BASELINE' || !rev.revisionType;
                 const typeBadge = !rev.revisionType
                     ? '<span class="revision-type-badge baseline" title="Legacy full snapshot"><i class="fa-solid fa-database"></i> Legacy</span>'
-                    : isBaseline 
+                    : isBaseline
                         ? '<span class="revision-type-badge baseline" title="Full snapshot"><i class="fa-solid fa-database"></i> Baseline</span>'
                         : '<span class="revision-type-badge incremental" title="Chỉ lưu phần thay đổi"><i class="fa-solid fa-code-branch"></i> Incremental</span>';
-                
+
                 return `
                     <div class="version-item ${isFirst ? 'current' : ''}" data-revision-id="${rev.id}">
                         <div class="version-header">
@@ -9344,7 +9670,7 @@ async function loadVersionHistoryList() {
                     </div>
                 `;
             }).join('');
-            
+
         } else {
             listContainer.innerHTML = '<p style="color: red; text-align: center;">Lỗi khi tải lịch sử phiên bản</p>';
         }
@@ -9366,12 +9692,12 @@ function formatVersionDate(dateString) {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    
+
     if (diffMins < 1) return 'Vừa xong';
     if (diffMins < 60) return `${diffMins} phút trước`;
     if (diffHours < 24) return `${diffHours} giờ trước`;
     if (diffDays < 7) return `${diffDays} ngày trước`;
-    
+
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
@@ -9387,23 +9713,23 @@ async function previewVersion(revisionId) {
     const modal = document.getElementById('version-preview-modal');
     const metaInfo = document.getElementById('vp-meta-info');
     const contentArea = document.getElementById('vp-content-area');
-    
+
     if (!modal) return;
-    
+
     currentPreviewRevisionId = revisionId;
     previousPreviewSnapshot = null; // Reset
-    
+
     try {
         // Load revision data (reconstructed full snapshot)
         const response = await fetchAPI(`${API_BASE_URL}/project-revisions/${revisionId}/reconstruct`);
-        
+
         if (!response.ok) {
             throw new Error('Không thể tải phiên bản');
         }
-        
+
         const revision = await response.json();
         currentPreviewSnapshot = JSON.parse(revision.snapshotContent || '{}');
-        
+
         // Tìm và load phiên bản trước đó để so sánh (cũng dùng reconstruct)
         const currentIndex = allRevisionsList.findIndex(r => r.id === revisionId);
         if (currentIndex >= 0 && currentIndex < allRevisionsList.length - 1) {
@@ -9414,11 +9740,11 @@ async function previewVersion(revisionId) {
                     const prevRevision = await prevResponse.json();
                     previousPreviewSnapshot = JSON.parse(prevRevision.snapshotContent || '{}');
                 }
-            } catch(e) {
+            } catch (e) {
                 Logger.warn('Không thể load phiên bản trước:', e);
             }
         }
-        
+
         // Show meta info
         if (metaInfo) {
             const hasPrevious = previousPreviewSnapshot !== null;
@@ -9443,13 +9769,13 @@ async function previewVersion(revisionId) {
                 </div>
             `;
         }
-        
+
         // Show modal
         modal.style.display = 'flex';
-        
+
         // Default tab
         switchPreviewTab('request');
-        
+
     } catch (error) {
         Logger.error('Lỗi xem trước phiên bản:', error);
         showToast('Không thể tải phiên bản: ' + error.message, 'error');
@@ -9464,13 +9790,13 @@ function switchPreviewTab(tabName) {
     document.querySelectorAll('.vp-tab').forEach(tab => {
         tab.classList.toggle('active', tab.getAttribute('data-tab') === tabName);
     });
-    
+
     const contentArea = document.getElementById('vp-content-area');
     if (!contentArea || !currentPreviewSnapshot) return;
-    
+
     let html = '';
-    
-    switch(tabName) {
+
+    switch (tabName) {
         case 'request':
             html = renderRequestDiff(currentPreviewSnapshot, previousPreviewSnapshot);
             break;
@@ -9487,7 +9813,7 @@ function switchPreviewTab(tabName) {
             html = renderSummaryDiff(currentPreviewSnapshot, previousPreviewSnapshot);
             break;
     }
-    
+
     contentArea.innerHTML = html;
 }
 
@@ -9499,12 +9825,12 @@ function switchPreviewTab(tabName) {
 function renderDiffValue(newVal, oldVal) {
     const newStr = (newVal || '').toString().trim();
     const oldStr = (oldVal || '').toString().trim();
-    
+
     if (newStr === oldStr) {
         // Không thay đổi - không hiển thị
         return null;
     }
-    
+
     let html = '';
     if (oldStr && oldStr !== newStr) {
         html += `<span class="diff-removed">${oldStr}</span>`;
@@ -9536,43 +9862,43 @@ function renderRequestDiff(snapshot, prevSnapshot) {
     if (!content) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
-    
+
     let data;
     try {
         data = typeof content === 'string' ? JSON.parse(content) : content;
-    } catch(e) {
+    } catch (e) {
         return '<p style="color: red;">Lỗi parse dữ liệu</p>';
     }
-    
+
     // Parse previous data
     let prevData = {};
     if (prevSnapshot && prevSnapshot.yeuCauBaiToanContent) {
         try {
-            prevData = typeof prevSnapshot.yeuCauBaiToanContent === 'string' 
-                ? JSON.parse(prevSnapshot.yeuCauBaiToanContent) 
+            prevData = typeof prevSnapshot.yeuCauBaiToanContent === 'string'
+                ? JSON.parse(prevSnapshot.yeuCauBaiToanContent)
                 : prevSnapshot.yeuCauBaiToanContent;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     // Parse admin review
     let adminReview = {};
     if (snapshot.yeuCauAdminReview) {
         try {
-            adminReview = typeof snapshot.yeuCauAdminReview === 'string' 
-                ? JSON.parse(snapshot.yeuCauAdminReview) 
+            adminReview = typeof snapshot.yeuCauAdminReview === 'string'
+                ? JSON.parse(snapshot.yeuCauAdminReview)
                 : snapshot.yeuCauAdminReview;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     let prevAdminReview = {};
     if (prevSnapshot && prevSnapshot.yeuCauAdminReview) {
         try {
-            prevAdminReview = typeof prevSnapshot.yeuCauAdminReview === 'string' 
-                ? JSON.parse(prevSnapshot.yeuCauAdminReview) 
+            prevAdminReview = typeof prevSnapshot.yeuCauAdminReview === 'string'
+                ? JSON.parse(prevSnapshot.yeuCauAdminReview)
                 : prevSnapshot.yeuCauAdminReview;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     // Danh sách các field
     const fields = [
         { label: 'Đơn vị phát triển', key: 'devUnit', adminKey: 'row0' },
@@ -9585,19 +9911,19 @@ function renderRequestDiff(snapshot, prevSnapshot) {
         { label: 'Mức độ quan trọng', key: 'importance', adminKey: 'row7' },
         { label: 'Thời gian triển khai', key: 'deploymentTime', adminKey: 'row8' }
     ];
-    
+
     // Chỉ lấy những field có thay đổi
     const changedFields = fields.filter(field => {
         const newVal = (data[field.key] || '').toString().trim();
         const oldVal = (prevData[field.key] || '').toString().trim();
         const newAdmin = adminReview[field.adminKey] || {};
         const oldAdmin = prevAdminReview[field.adminKey] || {};
-        
-        return newVal !== oldVal || 
-               (newAdmin.eval || '') !== (oldAdmin.eval || '') ||
-               (newAdmin.note || '') !== (oldAdmin.note || '');
+
+        return newVal !== oldVal ||
+            (newAdmin.eval || '') !== (oldAdmin.eval || '') ||
+            (newAdmin.note || '') !== (oldAdmin.note || '');
     });
-    
+
     if (changedFields.length === 0 && prevSnapshot) {
         return `
             <div class="vp-section">
@@ -9608,13 +9934,13 @@ function renderRequestDiff(snapshot, prevSnapshot) {
             </div>
         `;
     }
-    
+
     const fieldsHtml = changedFields.map(field => {
         const newVal = data[field.key] || '';
         const oldVal = prevData[field.key] || '';
         const admin = adminReview[field.adminKey] || {};
         const prevAdmin = prevAdminReview[field.adminKey] || {};
-        
+
         // Render diff cho giá trị
         let valueHtml = '';
         if (oldVal && oldVal !== newVal) {
@@ -9626,10 +9952,10 @@ function renderRequestDiff(snapshot, prevSnapshot) {
         if (newVal === oldVal && newVal) {
             valueHtml = newVal;
         }
-        
+
         // Render diff cho admin eval
         let evalHtml = renderEvalDiff(admin.eval, prevAdmin.eval);
-        
+
         // Render diff cho admin note
         let noteHtml = '';
         const newNote = admin.note || '';
@@ -9643,7 +9969,7 @@ function renderRequestDiff(snapshot, prevSnapshot) {
         if (newNote === oldNote) {
             noteHtml = newNote || '-';
         }
-        
+
         return `
             <tr>
                 <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: 500; background: #f8fafc; width: 180px;">${field.label}</td>
@@ -9653,7 +9979,7 @@ function renderRequestDiff(snapshot, prevSnapshot) {
             </tr>
         `;
     }).join('');
-    
+
     return `
         <div class="vp-section">
             <div class="vp-section-title">
@@ -9688,11 +10014,11 @@ function renderEvalDiff(newEval, oldEval) {
         if (val === 'NOK') return '<span style="background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">NOK</span>';
         return `<span>${val}</span>`;
     };
-    
+
     if ((newEval || '') === (oldEval || '')) {
         return renderBadge(newEval) || '-';
     }
-    
+
     let html = '';
     if (oldEval) {
         html += `<div class="diff-removed">${renderBadge(oldEval)}</div>`;
@@ -9710,31 +10036,31 @@ function renderInputDiff(snapshot, prevSnapshot) {
     const content = snapshot.thongTinDauVaoContent;
     const hasAdminReview = snapshot.thongTinAdminReview;
     const prevHasAdminReview = prevSnapshot && prevSnapshot.thongTinAdminReview;
-    
+
     // Kiểm tra xem có dữ liệu gì không (user content hoặc admin review)
     if (!content && !hasAdminReview) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
-    
+
     let data = { inputRows: [] };
     if (content) {
         try {
             data = typeof content === 'string' ? JSON.parse(content) : content;
-        } catch(e) {
+        } catch (e) {
             Logger.error('Lỗi parse thongTinDauVaoContent:', e);
         }
     }
-    
+
     // Parse previous data
     let prevData = { inputRows: [] };
     if (prevSnapshot && prevSnapshot.thongTinDauVaoContent) {
         try {
-            prevData = typeof prevSnapshot.thongTinDauVaoContent === 'string' 
-                ? JSON.parse(prevSnapshot.thongTinDauVaoContent) 
+            prevData = typeof prevSnapshot.thongTinDauVaoContent === 'string'
+                ? JSON.parse(prevSnapshot.thongTinDauVaoContent)
                 : prevSnapshot.thongTinDauVaoContent;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     // Parse admin review - có thể ở format { rows: [...] } hoặc { row0: {...}, row1: {...} }
     let adminReview = {};
     let adminReviewRows = []; // Array format
@@ -9742,8 +10068,8 @@ function renderInputDiff(snapshot, prevSnapshot) {
     Logger.debug('DEBUG renderInputDiff - prevSnapshot?.thongTinAdminReview:', prevSnapshot?.thongTinAdminReview);
     if (snapshot.thongTinAdminReview) {
         try {
-            const parsed = typeof snapshot.thongTinAdminReview === 'string' 
-                ? JSON.parse(snapshot.thongTinAdminReview) 
+            const parsed = typeof snapshot.thongTinAdminReview === 'string'
+                ? JSON.parse(snapshot.thongTinAdminReview)
                 : snapshot.thongTinAdminReview;
             Logger.debug('DEBUG parsed adminReview:', parsed);
             if (parsed.rows && Array.isArray(parsed.rows)) {
@@ -9753,67 +10079,67 @@ function renderInputDiff(snapshot, prevSnapshot) {
                 // Format { row0: {...}, row1: {...} }
                 adminReview = parsed;
             }
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     let prevAdminReview = {};
     let prevAdminReviewRows = []; // Array format
     if (prevSnapshot && prevSnapshot.thongTinAdminReview) {
         try {
-            const parsed = typeof prevSnapshot.thongTinAdminReview === 'string' 
-                ? JSON.parse(prevSnapshot.thongTinAdminReview) 
+            const parsed = typeof prevSnapshot.thongTinAdminReview === 'string'
+                ? JSON.parse(prevSnapshot.thongTinAdminReview)
                 : prevSnapshot.thongTinAdminReview;
             if (parsed.rows && Array.isArray(parsed.rows)) {
                 prevAdminReviewRows = parsed.rows;
             } else {
                 prevAdminReview = parsed;
             }
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     // Nếu không có inputRows nhưng có admin review thay đổi, vẫn hiển thị
     const hasAdminReviewChange = JSON.stringify(adminReviewRows) !== JSON.stringify(prevAdminReviewRows) ||
-                                  JSON.stringify(adminReview) !== JSON.stringify(prevAdminReview);
-    
+        JSON.stringify(adminReview) !== JSON.stringify(prevAdminReview);
+
     Logger.debug('DEBUG hasAdminReviewChange:', hasAdminReviewChange);
     Logger.debug('DEBUG adminReviewRows:', adminReviewRows);
     Logger.debug('DEBUG prevAdminReviewRows:', prevAdminReviewRows);
     Logger.debug('DEBUG data.inputRows length:', data.inputRows?.length);
-    
+
     if ((!data.inputRows || data.inputRows.length === 0) && !hasAdminReviewChange) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu đầu vào</p>';
     }
-    
+
     // Nếu không có inputRows nhưng có admin review, tạo rows ảo từ số lượng admin review
     if (!data.inputRows || data.inputRows.length === 0) {
-        const numRows = Math.max(adminReviewRows.length, prevAdminReviewRows.length, 
-                                 Object.keys(adminReview).filter(k => k.startsWith('row')).length,
-                                 Object.keys(prevAdminReview).filter(k => k.startsWith('row')).length);
+        const numRows = Math.max(adminReviewRows.length, prevAdminReviewRows.length,
+            Object.keys(adminReview).filter(k => k.startsWith('row')).length,
+            Object.keys(prevAdminReview).filter(k => k.startsWith('row')).length);
         data.inputRows = Array(numRows).fill({});
     }
-    
+
     const prevRows = prevData.inputRows || [];
-    
+
     // Tìm những hàng có thay đổi
     let changedRowsHtml = [];
     let changeCount = 0;
-    
+
     data.inputRows.forEach((row, index) => {
         const prevRow = prevRows[index] || {};
-        
+
         // Lấy admin data từ array hoặc object format
         const adminData = adminReviewRows[index] || adminReview['row' + index] || {};
         const prevAdminData = prevAdminReviewRows[index] || prevAdminReview['row' + index] || {};
-        
+
         Logger.debug(`DEBUG row ${index}: adminData=`, adminData, 'prevAdminData=', prevAdminData);
-        
+
         // So sánh các trường
         const fields = ['dauVao', 'module', 'ghiChu'];
         const pocText = typeof row.taiHeThongPOC === 'object' ? row.taiHeThongPOC.text : (row.taiHeThongPOC || '');
         const prevPocText = typeof prevRow.taiHeThongPOC === 'object' ? prevRow.taiHeThongPOC.text : (prevRow.taiHeThongPOC || '');
         const sizingText = typeof row.dinhCo === 'object' ? row.dinhCo.text : (row.dinhCo || '');
         const prevSizingText = typeof prevRow.dinhCo === 'object' ? prevRow.dinhCo.text : (prevRow.dinhCo || '');
-        
+
         let hasChange = false;
         for (const f of fields) {
             if ((row[f] || '').trim() !== (prevRow[f] || '').trim()) hasChange = true;
@@ -9822,14 +10148,14 @@ function renderInputDiff(snapshot, prevSnapshot) {
         if (sizingText.trim() !== prevSizingText.trim()) hasChange = true;
         if ((adminData.eval || '') !== (prevAdminData.eval || '')) hasChange = true;
         if ((adminData.note || '') !== (prevAdminData.note || '')) hasChange = true;
-        
+
         // Nếu là row mới (không có trong prev)
         const isNewRow = index >= prevRows.length;
-        
+
         if (hasChange || isNewRow) {
             changeCount++;
             const rowClass = isNewRow ? 'diff-row-added' : '';
-            
+
             changedRowsHtml.push(`
                 <tr class="${rowClass}">
                     <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${index + 1}</td>
@@ -9858,7 +10184,7 @@ function renderInputDiff(snapshot, prevSnapshot) {
             `);
         }
     });
-    
+
     // Kiểm tra các hàng bị xóa
     if (prevRows.length > data.inputRows.length) {
         for (let i = data.inputRows.length; i < prevRows.length; i++) {
@@ -9880,7 +10206,7 @@ function renderInputDiff(snapshot, prevSnapshot) {
             `);
         }
     }
-    
+
     if (changedRowsHtml.length === 0 && prevSnapshot) {
         return `
             <div class="vp-section">
@@ -9891,7 +10217,7 @@ function renderInputDiff(snapshot, prevSnapshot) {
             </div>
         `;
     }
-    
+
     return `
         <div class="vp-section">
             <div class="vp-section-title">
@@ -9926,11 +10252,11 @@ function renderInputDiff(snapshot, prevSnapshot) {
 function renderTextDiff(newVal, oldVal) {
     const newStr = (newVal || '').toString().trim();
     const oldStr = (oldVal || '').toString().trim();
-    
+
     if (newStr === oldStr) {
         return newStr || '-';
     }
-    
+
     let html = '';
     if (oldStr) {
         html += `<div class="diff-removed">${oldStr}</div>`;
@@ -9949,45 +10275,45 @@ function renderModelDiff(snapshot, prevSnapshot) {
     if (!content) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
-    
+
     let data;
     try {
         data = typeof content === 'string' ? JSON.parse(content) : content;
-    } catch(e) {
+    } catch (e) {
         return '<p style="color: red;">Lỗi parse dữ liệu</p>';
     }
-    
+
     // Parse previous data
     let prevData = {};
     if (prevSnapshot && prevSnapshot.moHinhHeThongContent) {
         try {
-            prevData = typeof prevSnapshot.moHinhHeThongContent === 'string' 
-                ? JSON.parse(prevSnapshot.moHinhHeThongContent) 
+            prevData = typeof prevSnapshot.moHinhHeThongContent === 'string'
+                ? JSON.parse(prevSnapshot.moHinhHeThongContent)
                 : prevSnapshot.moHinhHeThongContent;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     // Parse admin review
     let moHinhAdmin = {};
     if (snapshot.moHinhAdminReview) {
         try {
-            moHinhAdmin = typeof snapshot.moHinhAdminReview === 'string' 
-                ? JSON.parse(snapshot.moHinhAdminReview) 
+            moHinhAdmin = typeof snapshot.moHinhAdminReview === 'string'
+                ? JSON.parse(snapshot.moHinhAdminReview)
                 : snapshot.moHinhAdminReview;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     let prevMoHinhAdmin = {};
     if (prevSnapshot && prevSnapshot.moHinhAdminReview) {
         try {
-            prevMoHinhAdmin = typeof prevSnapshot.moHinhAdminReview === 'string' 
-                ? JSON.parse(prevSnapshot.moHinhAdminReview) 
+            prevMoHinhAdmin = typeof prevSnapshot.moHinhAdminReview === 'string'
+                ? JSON.parse(prevSnapshot.moHinhAdminReview)
                 : prevSnapshot.moHinhAdminReview;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     let html = '';
-    
+
     // Helper: render image gallery
     const renderImageGallery = (title, images, adminData) => {
         if (!images || images.length === 0) return '';
@@ -10004,25 +10330,25 @@ function renderModelDiff(snapshot, prevSnapshot) {
             </div>
         `;
     };
-    
+
     // Render images
     html += renderImageGallery('Mô hình Vật lý', data.physicalImages, moHinhAdmin.physical);
     html += renderImageGallery('Mô hình Logic', data.logicalImages, moHinhAdmin.logical);
     html += renderImageGallery('Luồng nghiệp vụ', data.flowImages, moHinhAdmin.flow);
-    
+
     // Mô tả luồng nghiệp vụ
     const flowExpl = (data.flowExplanation || '').trim();
     if (flowExpl) {
         const prevFlowExpl = (prevData.flowExplanation || '').trim();
         html += `<div class="diff-item"><strong>Mô tả luồng nghiệp vụ:</strong><br>${flowExpl !== prevFlowExpl && prevSnapshot ? renderTextDiff(flowExpl, prevFlowExpl) : `<div style="margin-top:4px; white-space:pre-wrap;">${flowExpl}</div>`}</div>`;
     }
-    
+
     // Architecture table
     const archRows = data.archRows || [];
     const prevArchRows = prevData.archRows || [];
     const archAdminReviews = moHinhAdmin.archRowReviews || [];
     const prevArchAdminReviews = prevMoHinhAdmin.archRowReviews || [];
-    
+
     if (archRows.length > 0) {
         const fieldLabels = { moduleName: 'Module', loaiModule: 'Loại module', zoneMang: 'Zone mạng', heDieuHanh: 'Hệ điều hành', soLuongVIP: 'Số lượng/VIP' };
         let archRowsHtml = '';
@@ -10032,7 +10358,7 @@ function renderModelDiff(snapshot, prevSnapshot) {
             const prevAdminRow = prevArchAdminReviews[i] || {};
             const isNew = i >= prevArchRows.length;
             const rowClass = isNew ? 'diff-row-added' : '';
-            
+
             archRowsHtml += `
                 <tr class="${rowClass}">
                     <td style="padding:8px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
@@ -10046,7 +10372,7 @@ function renderModelDiff(snapshot, prevSnapshot) {
                 </tr>
             `;
         });
-        
+
         html += `
             <div class="diff-item" style="margin-top:16px;">
                 <strong>Chi tiết thành phần kiến trúc</strong>
@@ -10068,7 +10394,7 @@ function renderModelDiff(snapshot, prevSnapshot) {
             </div>
         `;
     }
-    
+
     if (!html.trim()) {
         if (prevSnapshot) {
             return `
@@ -10082,7 +10408,7 @@ function renderModelDiff(snapshot, prevSnapshot) {
         }
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
-    
+
     return `
         <div class="vp-section">
             <div class="vp-section-title">
@@ -10104,58 +10430,58 @@ function renderSizingDiff(snapshot, prevSnapshot) {
     if (!content) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
-    
+
     let data;
     try {
         data = typeof content === 'string' ? JSON.parse(content) : content;
-    } catch(e) {
+    } catch (e) {
         return '<p style="color: red;">Lỗi parse dữ liệu</p>';
     }
-    
+
     // Parse previous data
     let prevData = { moduleApp: {} };
     if (prevSnapshot && prevSnapshot.dinhCoHeThongContent) {
         try {
-            prevData = typeof prevSnapshot.dinhCoHeThongContent === 'string' 
-                ? JSON.parse(prevSnapshot.dinhCoHeThongContent) 
+            prevData = typeof prevSnapshot.dinhCoHeThongContent === 'string'
+                ? JSON.parse(prevSnapshot.dinhCoHeThongContent)
                 : prevSnapshot.dinhCoHeThongContent;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     // Parse admin review
     let adminReview = {};
     if (snapshot.dinhCoAdminReview) {
         try {
-            adminReview = typeof snapshot.dinhCoAdminReview === 'string' 
-                ? JSON.parse(snapshot.dinhCoAdminReview) 
+            adminReview = typeof snapshot.dinhCoAdminReview === 'string'
+                ? JSON.parse(snapshot.dinhCoAdminReview)
                 : snapshot.dinhCoAdminReview;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     let prevAdminReview = {};
     if (prevSnapshot && prevSnapshot.dinhCoAdminReview) {
         try {
-            prevAdminReview = typeof prevSnapshot.dinhCoAdminReview === 'string' 
-                ? JSON.parse(prevSnapshot.dinhCoAdminReview) 
+            prevAdminReview = typeof prevSnapshot.dinhCoAdminReview === 'string'
+                ? JSON.parse(prevSnapshot.dinhCoAdminReview)
                 : prevSnapshot.dinhCoAdminReview;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     let html = '';
-    
+
     // ===================== MODULE APP =====================
     const moduleApp = data.moduleApp || {};
     const prevModuleApp = prevData.moduleApp || {};
-    
+
     let appHtml = '';
-    
+
     // POC / Sizing
     const pocVal = moduleApp.pocValue || '';
     const sizVal = moduleApp.sizingValue || '';
     if (pocVal || sizVal) {
         appHtml += `<div class="diff-item"><strong>Tải hệ thống POC:</strong> ${prevSnapshot ? renderTextDiff(pocVal, prevModuleApp.pocValue) : (pocVal || '-')} &nbsp; | &nbsp; <strong>Định cỡ:</strong> ${prevSnapshot ? renderTextDiff(sizVal, prevModuleApp.sizingValue) : (sizVal || '-')}</div>`;
     }
-    
+
     // Baseline table
     const baselineRows = moduleApp.baselineTable || [];
     if (baselineRows.length > 0) {
@@ -10165,7 +10491,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
             const prev = prevBaselineRows[i] || {};
             const ar = baselineAdminReviews[i] || {};
             return `<tr>
-                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i+1}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.ip, prev.ip) : (row.ip || '-')}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.cpu, prev.cpu) : (row.cpu || '-')}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.ram, prev.ram) : (row.ram || '-')}</td>
@@ -10190,7 +10516,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
                 <tbody>${bRowsHtml}</tbody>
             </table></div>`;
     }
-    
+
     // Input config table
     const inputConfigRows = moduleApp.inputConfigTable || [];
     const inputConfigReviews = ((adminReview.moduleApp || {}).inputConfigRowReviews) || [];
@@ -10202,7 +10528,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
             const evalVal = ar.eval || row.adminEval || '';
             const noteVal = ar.note || row.adminNote || '';
             return `<tr>
-                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i+1}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.ip, prev.ip) : (row.ip || '-')}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.cpuLoad, prev.cpuLoad) : (row.cpuLoad || '-')}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.ramLoad, prev.ramLoad) : (row.ramLoad || '-')}</td>
@@ -10231,7 +10557,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
                 <tbody>${icRowsHtml}</tbody>
             </table></div>`;
     }
-    
+
     // Evidence images
     const evidenceImgs = moduleApp.evidenceImages || [];
     if (evidenceImgs.length > 0) {
@@ -10241,18 +10567,18 @@ function renderSizingDiff(snapshot, prevSnapshot) {
         }).join('');
         appHtml += `<div class="diff-item"><strong>Ảnh sở cứ Module App</strong> (${evidenceImgs.length} ảnh)<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">${thumbs}</div></div>`;
     }
-    
-    
+
+
     if (appHtml) {
         html += `<div style="margin-bottom:20px; padding:12px; background:#f8fafc; border-radius:8px; border-left:4px solid #3b82f6;">
             <h4 style="margin:0 0 10px 0; color:#1e40af;"><i class="fa-solid fa-server"></i> Module App</h4>${appHtml}</div>`;
     }
-    
+
     // ===================== MODULE MARIADB =====================
     const moduleMariaDB = data.moduleMariaDB || {};
     const prevModuleMariaDB = prevData.moduleMariaDB || {};
     let mariadbHtml = '';
-    
+
     // Ref table
     const refRows = moduleMariaDB.refTable || [];
     const mariadbRefReviews = ((adminReview.moduleMariaDB || {}).refRowReviews) || [];
@@ -10260,7 +10586,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
         let rRowsHtml = refRows.map((row, i) => {
             const ar = mariadbRefReviews[i] || {};
             return `<tr>
-            <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i+1}</td>
+            <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
             <td style="padding:6px; border:1px solid #e2e8f0;">${row.dbName || '-'}</td>
             <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.cpuLoad || '-'}</td>
             <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.ramLoad || '-'}</td>
@@ -10280,29 +10606,29 @@ function renderSizingDiff(snapshot, prevSnapshot) {
                 </tr></thead><tbody>${rRowsHtml}</tbody>
             </table></div>`;
     }
-    
+
     // Storage review
     const mariadbStorageReview = (adminReview.moduleMariaDB || {}).storageReview || {};
     if (mariadbStorageReview.eval || mariadbStorageReview.note) {
         mariadbHtml += `<div class="diff-item"><strong>Đánh giá Storage:</strong> ${renderEvalDiff(mariadbStorageReview.eval, null)} <span style="color:#6366f1; font-style:italic;">${mariadbStorageReview.note || ''}</span></div>`;
     }
-    
-    
+
+
     if (mariadbHtml) {
         html += `<div style="margin-bottom:20px; padding:12px; background:#fefce8; border-radius:8px; border-left:4px solid #eab308;">
             <h4 style="margin:0 0 10px 0; color:#854d0e;"><i class="fa-solid fa-database"></i> Module MariaDB</h4>${mariadbHtml}</div>`;
     }
-    
+
     // ===================== MODULE REDIS =====================
     const moduleRedis = data.moduleRedis || {};
     const prevModuleRedis = prevData.moduleRedis || {};
     const redisAdmin = (adminReview.moduleRedis || {}).overallReview || {};
     let redisHtml = '';
-    
+
     if (moduleRedis.selectedMethod) {
         redisHtml += `<div class="diff-item"><strong>Phương pháp:</strong> ${moduleRedis.selectedMethod === 'key' ? 'Tính theo Key' : 'Tính theo cấu hình hiện có'}</div>`;
     }
-    
+
     // Key method
     if (moduleRedis.keyMethod) {
         const km = moduleRedis.keyMethod;
@@ -10310,7 +10636,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
             redisHtml += `<div class="diff-item"><strong>Key Count:</strong> ${km.keyCount || '-'} &nbsp; <strong>Record Size:</strong> ${km.recordSize || '-'}</div>`;
         }
     }
-    
+
     // Config method
     if (moduleRedis.configMethod) {
         const cm = moduleRedis.configMethod;
@@ -10346,26 +10672,26 @@ function renderSizingDiff(snapshot, prevSnapshot) {
             redisHtml += `<div class="diff-item"><strong>CCU đầu vào:</strong> ${cm.inputCCU || '-'} &nbsp; <strong>CCU Định cỡ:</strong> ${cm.sizingCCU || '-'}</div>`;
         }
     }
-    
+
     if (redisAdmin.eval || redisAdmin.note) {
         redisHtml += `<div class="diff-item"><strong>Admin đánh giá:</strong> ${renderEvalDiff(redisAdmin.eval, null)} <span style="color:#6366f1; font-style:italic;">${redisAdmin.note || ''}</span></div>`;
     }
-    
+
     if (redisHtml) {
         html += `<div style="margin-bottom:20px; padding:12px; background:#fef2f2; border-radius:8px; border-left:4px solid #ef4444;">
             <h4 style="margin:0 0 10px 0; color:#991b1b;"><i class="fa-solid fa-memory"></i> Module Redis</h4>${redisHtml}</div>`;
     }
-    
+
     // ===================== MODULE KAFKA =====================
     const moduleKafka = data.moduleKafka || {};
     const prevModuleKafka = prevData.moduleKafka || {};
     const kafkaAdmin = (adminReview.moduleKafka || {}).overallReview || {};
     let kafkaHtml = '';
-    
+
     if (moduleKafka.selectedMethod) {
         kafkaHtml += `<div class="diff-item"><strong>Phương pháp:</strong> ${moduleKafka.selectedMethod === 'throughput' ? 'Throughput' : 'Linear (Phương án B)'}</div>`;
     }
-    
+
     // Throughput method
     if (moduleKafka.throughputMethod) {
         const tm = moduleKafka.throughputMethod;
@@ -10373,7 +10699,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
             kafkaHtml += `<div class="diff-item"><strong>Throughput A:</strong> ${tm.throughputA} &nbsp; <strong>Retention:</strong> ${tm.retentionTime || '168'}h &nbsp; <strong>Replication:</strong> ${tm.replicationFactor || '3'} &nbsp; <strong>Compression:</strong> ${tm.compression || '0.5'}</div>`;
         }
     }
-    
+
     // Linear method
     if (moduleKafka.linearMethod) {
         const lm = moduleKafka.linearMethod;
@@ -10415,23 +10741,23 @@ function renderSizingDiff(snapshot, prevSnapshot) {
             kafkaHtml += `<div class="diff-item"><strong>CCU đầu vào:</strong> ${lm.inputCCU || '-'} &nbsp; <strong>CCU Định cỡ:</strong> ${lm.sizingCCU || '-'}</div>`;
         }
     }
-    
+
     if (kafkaAdmin.eval || kafkaAdmin.note) {
         kafkaHtml += `<div class="diff-item"><strong>Admin đánh giá:</strong> ${renderEvalDiff(kafkaAdmin.eval, null)} <span style="color:#6366f1; font-style:italic;">${kafkaAdmin.note || ''}</span></div>`;
     }
-    
+
     if (kafkaHtml) {
         html += `<div style="margin-bottom:20px; padding:12px; background:#f0fdf4; border-radius:8px; border-left:4px solid #22c55e;">
             <h4 style="margin:0 0 10px 0; color:#166534;"><i class="fa-solid fa-stream"></i> Module Kafka</h4>${kafkaHtml}</div>`;
     }
-    
+
     if (!html.trim()) {
         if (prevSnapshot) {
             return `<div class="vp-section"><div class="vp-no-changes"><i class="fa-solid fa-check-circle"></i><span>Không có thay đổi trong phần Định cỡ hệ thống</span></div></div>`;
         }
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
-    
+
     return `
         <div class="vp-section">
             <div class="vp-section-title">
@@ -10451,43 +10777,43 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
     if (!content) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
     }
-    
+
     let data;
     try {
         data = typeof content === 'string' ? JSON.parse(content) : content;
-    } catch(e) {
+    } catch (e) {
         return '<p style="color: red;">Lỗi parse dữ liệu</p>';
     }
-    
+
     // Parse previous data
     let prevData = { summaryRows: [] };
     if (prevSnapshot && prevSnapshot.tongHopVaDeXuatContent) {
         try {
-            prevData = typeof prevSnapshot.tongHopVaDeXuatContent === 'string' 
-                ? JSON.parse(prevSnapshot.tongHopVaDeXuatContent) 
+            prevData = typeof prevSnapshot.tongHopVaDeXuatContent === 'string'
+                ? JSON.parse(prevSnapshot.tongHopVaDeXuatContent)
                 : prevSnapshot.tongHopVaDeXuatContent;
-        } catch(e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
     }
-    
+
     if (!data.summaryRows || data.summaryRows.length === 0) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Chưa có đề xuất</p>';
     }
-    
+
     const prevRows = prevData.summaryRows || [];
     let changedRowsHtml = [];
     let changeCount = 0;
-    
+
     data.summaryRows.forEach((row, index) => {
         const prevRow = prevRows[index] || {};
         const fields = ['moduleType', 'moduleName', 'module', 'cauHinh', 'soLuong', 'ghiChu'];
-        
+
         let hasChange = false;
         for (const f of fields) {
             if ((row[f] || '').toString().trim() !== (prevRow[f] || '').toString().trim()) hasChange = true;
         }
-        
+
         const isNewRow = index >= prevRows.length;
-        
+
         if (hasChange || isNewRow) {
             changeCount++;
             const rowClass = isNewRow ? 'diff-row-added' : '';
@@ -10497,7 +10823,7 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
             const prevModuleName = prevRow.moduleName || '';
             const rowCauHinh = row.cauHinh || row.volume || '';
             const prevCauHinh = prevRow.cauHinh || prevRow.volume || '';
-            
+
             changedRowsHtml.push(`
                 <tr class="${rowClass}">
                     <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${index + 1}</td>
@@ -10510,7 +10836,7 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
             `);
         }
     });
-    
+
     // Kiểm tra các hàng bị xóa
     if (prevRows.length > data.summaryRows.length) {
         for (let i = data.summaryRows.length; i < prevRows.length; i++) {
@@ -10531,7 +10857,7 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
             `);
         }
     }
-    
+
     if (changedRowsHtml.length === 0 && prevSnapshot) {
         return `
             <div class="vp-section">
@@ -10542,7 +10868,7 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
             </div>
         `;
     }
-    
+
     return `
         <div class="vp-section">
             <div class="vp-section-title">
@@ -10598,26 +10924,26 @@ async function restoreVersion(revisionId) {
         { confirmText: 'Khôi phục', cancelText: 'Hủy', danger: true }
     );
     if (!confirmed) return;
-    
+
     showLoading(true, 'Đang khôi phục phiên bản...');
-    
+
     try {
         // 1. Tạo BASELINE snapshot dữ liệu hiện tại trước khi khôi phục
         await createRevision('Backup trước khi khôi phục phiên bản', true);
-        
+
         // 2. Gọi API restore
         const response = await fetchAPI(`${API_BASE_URL}/project-revisions/${revisionId}/restore`, {
             method: 'POST'
         });
-        
+
         if (response.ok) {
             showToast('✅ Đã khôi phục phiên bản thành công!\n\nTrang sẽ được tải lại để hiển thị dữ liệu.', 'success');
             closeVersionPreview();
             closeVersionHistory();
-            
+
             // Reload dữ liệu
             await loadAllDataFromDB();
-            
+
         } else {
             throw new Error(await response.text() || 'Không thể khôi phục phiên bản');
         }
@@ -10635,7 +10961,7 @@ async function restoreVersion(revisionId) {
 async function saveWithRevision(saveFunction, sectionName) {
     // Thực hiện save gốc
     await saveFunction();
-    
+
     // Tạo revision
     const user = getCurrentUser();
     await createRevision(`${user.displayName || user.username || 'User'} cập nhật ${sectionName}`);
@@ -10651,9 +10977,9 @@ let isSaving = false;
 function buildSavePayload() {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
-    
+
     let payload = {};
-    
+
     try {
         // === 1. YÊU CẦU BÀI TOÁN ===
         const requestData = collectYeuCauBaiToan();
@@ -10661,29 +10987,29 @@ function buildSavePayload() {
             delete requestData.adminReview;
         }
         payload.yeuCauBaiToanContent = JSON.stringify(requestData);
-        
+
         // === 2. THÔNG TIN ĐẦU VÀO ===
         const inputData = collectThongTinDauVao();
         if (role !== 'admin1' && role !== 'admin2') {
-            inputData.inputRows = inputData.inputRows.map(r => { 
-                const c = Object.assign({}, r); 
-                delete c.adminEval; 
-                delete c.adminNote; 
-                return c; 
+            inputData.inputRows = inputData.inputRows.map(r => {
+                const c = Object.assign({}, r);
+                delete c.adminEval;
+                delete c.adminNote;
+                return c;
             });
         }
         payload.thongTinDauVaoContent = JSON.stringify(inputData);
-        
+
         // === 3. MÔ HÌNH HỆ THỐNG ===
         const modelData = collectMoHinhHeThong();
         payload.moHinhHeThongContent = JSON.stringify(modelData);
-        
+
         // === 4. ĐỊNH CỠ HỆ THỐNG ===
         if (typeof collectAllSizingData === 'function') {
             const sizingData = collectAllSizingData();
             payload.dinhCoHeThongContent = JSON.stringify(sizingData);
         }
-        
+
         // === 5. TỔNG HỢP VÀ ĐỀ XUẤT ===
         // Trước khi collect, aggregate lại từ kết quả định cỡ (chỉ module được chọn)
         aggregateSizingResults();
@@ -10693,7 +11019,7 @@ function buildSavePayload() {
         Logger.error('Error building save payload:', e);
         return null;
     }
-    
+
     return payload;
 }
 
@@ -10710,7 +11036,7 @@ async function performManualSave() {
 
     const activeSection = document.querySelector('.page-section.active');
     const activeSectionId = activeSection?.id || null;
-    if (activeSectionId) {
+    if (activeSectionId && activeSectionId !== 'page-input') {
         const validation = validateTabCompletion(activeSectionId, {
             focusFirstInvalid: true,
             showToastMessage: true
@@ -10720,45 +11046,45 @@ async function performManualSave() {
             return;
         }
     }
-    
+
     isSaving = true;
     showSaveStatus('saving');
     showLoading(true, 'Đang lưu dữ liệu...');
-    
+
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
-    
+
     try {
         const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
-        
+
         // ========== BUILD PAYLOAD ==========
         const payload = buildSavePayload();
         if (!payload) {
             showSaveStatus('error');
             return;
         }
-        
+
         // Lấy requestData cho project name update
         let requestData = {};
-        try { requestData = collectYeuCauBaiToan(); } catch(e) {}
-        
+        try { requestData = collectYeuCauBaiToan(); } catch (e) { }
+
         // ========== CHẠY SONG SONG TẤT CẢ NETWORK REQUESTS ==========
         const networkPromises = [];
-        
+
         // 1) Cập nhật project name/devUnit
         if (requestData.projectName) {
             networkPromises.push(
                 fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
                     method: 'PUT', headers,
-                    body: JSON.stringify({ 
-                        name: requestData.projectName, 
-                        devUnit: requestData.devUnit, 
-                        ownerName: requestData.contactPerson 
+                    body: JSON.stringify({
+                        name: requestData.projectName,
+                        devUnit: requestData.devUnit,
+                        ownerName: requestData.contactPerson
                     })
-                }).catch(() => {})
+                }).catch(() => { })
             );
         }
-        
+
         // 2) Lưu dữ liệu chính
         if (Object.keys(payload).length > 0) {
             if (!currentProjectDataId) {
@@ -10784,30 +11110,32 @@ async function performManualSave() {
                 );
             }
         }
-        
+
         // 3) Admin review (nếu là admin)
         if (role === 'admin1' || role === 'admin2') {
             const requestAdminReview = requestData.adminReview || {};
-            
+
             const inputRows = Array.from(document.querySelectorAll('#input-table-body tr'));
-            const inputAdminReview = { rows: inputRows.map(row => ({ 
-                eval: row.querySelector('.admin-eval')?.value || '', 
-                note: row.querySelector('.admin-note')?.value || '' 
-            })) };
-            
+            const inputAdminReview = {
+                rows: inputRows.map(row => ({
+                    eval: row.querySelector('.admin-eval')?.value || '',
+                    note: row.querySelector('.admin-note')?.value || ''
+                }))
+            };
+
             let modelAdminReview = {};
-            try { modelAdminReview = collectMoHinhAdminReview(); } catch(e) {}
-            
+            try { modelAdminReview = collectMoHinhAdminReview(); } catch (e) { }
+
             let sizingAdminReview = {};
-            try { sizingAdminReview = collectSizingAdminReviewData(); } catch(e) {}
-            
+            try { sizingAdminReview = collectSizingAdminReviewData(); } catch (e) { }
+
             const reviewSections = [
                 { section: 'request', data: requestAdminReview },
                 { section: 'input', data: inputAdminReview },
                 { section: 'model', data: modelAdminReview },
                 { section: 'sizing', data: sizingAdminReview }
             ];
-            
+
             reviewSections.forEach(({ section, data }) => {
                 networkPromises.push(
                     fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
@@ -10817,22 +11145,22 @@ async function performManualSave() {
                 );
             });
         }
-        
+
         // ========== CHỜ TẤT CẢ HOÀN TẤT ==========
         const results = await Promise.allSettled(networkPromises);
-        
+
         const failedResults = results.filter(r => r.status === 'rejected');
         if (failedResults.length > 0) {
             Logger.warn(`Save: ${failedResults.length}/${results.length} requests failed`, failedResults);
         }
-        
+
         // ========== TẠO REVISION SAU KHI LƯU THÀNH CÔNG ==========
         const userName = user.displayName || user.username || 'User';
         await createRevision(`${userName} lưu dữ liệu`);
-        
+
         showSaveStatus('saved');
         showToast('Lưu dữ liệu thành công!', 'success');
-        
+
         // Cập nhật trạng thái dự án dựa trên role
         if (role === 'admin1') {
             // Admin1 đánh giá: SIZING -> THAM_DINH
@@ -10867,7 +11195,7 @@ async function performManualSave() {
 function showSaveStatus(status) {
     // Tìm status div của section đang active
     const activeSection = document.querySelector('.page-section.active');
-    
+
     let targetStatusId = null;
     if (activeSection) {
         if (activeSection.id === 'page-request') targetStatusId = 'save-status';
@@ -10876,15 +11204,15 @@ function showSaveStatus(status) {
         else if (activeSection.id === 'page-sizing') targetStatusId = 'sizing-save-status';
         else if (activeSection.id === 'page-summary') targetStatusId = 'summary-save-status';
     }
-    
+
     const statusDiv = targetStatusId ? document.getElementById(targetStatusId) : null;
-    
+
     // Cập nhật header save indicator
     const headerIndicator = document.getElementById('header-save-status');
     if (headerIndicator) {
         headerIndicator.classList.remove('saving', 'saved', 'error');
         headerIndicator.classList.add('visible');
-        
+
         switch (status) {
             case 'saving':
                 headerIndicator.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
@@ -10906,9 +11234,9 @@ function showSaveStatus(status) {
                 break;
         }
     }
-    
+
     if (!statusDiv) return;
-    
+
     switch (status) {
         case 'saving':
             statusDiv.innerHTML = '<span style="color: #b8860b; font-size: 12px;"><i class="fa-solid fa-spinner fa-spin"></i> Đang lưu...</span>';
@@ -10934,7 +11262,7 @@ let revisionCheckedForSession = false;
 
 async function checkAndCreateRevisionForPreviousEditor(currentUsername) {
     const prevEditor = localStorage.getItem('lastEditorUsername');
-    
+
     if (prevEditor && prevEditor !== currentUsername && currentProjectId) {
         // Account mới bắt đầu edit -> tạo BASELINE revision cho account trước
         try {
@@ -10953,7 +11281,7 @@ async function checkAndCreateRevisionForPreviousEditor(currentUsername) {
             Logger.error('Lỗi tạo revision cho editor trước:', e);
         }
     }
-    
+
     // Cập nhật editor hiện tại
     localStorage.setItem('lastEditorUsername', currentUsername);
 }
@@ -10999,7 +11327,7 @@ function addConnectionRow(data = {}) {
     const stt = tbody.rows.length + 1;
     const tr = createConnectionTableRow(stt, data);
     tbody.appendChild(tr);
-    try { applyRolePermissions(); } catch (e) {}
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 function removeConnectionRow(btn) {
@@ -11035,7 +11363,7 @@ function loadConnectionInfo(data) {
     const tbody = document.getElementById('connection-info-table-body');
     if (!tbody) return;
     tbody.innerHTML = '';
-    
+
     if (Array.isArray(data) && data.length > 0) {
         data.forEach((row, idx) => {
             // Chỉ load dữ liệu user - admin review được load riêng từ moHinhAdminReview
