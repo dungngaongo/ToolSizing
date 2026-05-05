@@ -8,10 +8,10 @@ import com.example.sizing.model.Project;
 import com.example.sizing.model.ProjectData;
 import com.example.sizing.repository.ProjectRepository;
 import com.example.sizing.repository.ProjectDataRepository;
+import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -25,14 +25,19 @@ public class ProjectDataService {
 
     private final ProjectDataRepository projectDataRepository;
     private final ProjectRepository projectRepository;
+    private final ActivityLogService activityLogService;
 
-    public ProjectDataService(ProjectDataRepository projectDataRepository, ProjectRepository projectRepository) {
+    public ProjectDataService(ProjectDataRepository projectDataRepository,
+                              ProjectRepository projectRepository,
+                              ActivityLogService activityLogService) {
         this.projectDataRepository = projectDataRepository;
         this.projectRepository = projectRepository;
+        this.activityLogService = activityLogService;
     }
 
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Transactional
     public ProjectData create(CreateProjectDataRequest request) {
         log.info("Creating/updating ProjectData for projectId: {}", request.getProjectId());
         ensureProjectExists(request.getProjectId());
@@ -57,7 +62,15 @@ public class ProjectDataService {
             if (request.getTongHopVaDeXuatContent() != null) {
                 projectData.setTongHopVaDeXuatContent(request.getTongHopVaDeXuatContent());
             }
-            return projectDataRepository.save(projectData);
+                ProjectData saved = projectDataRepository.save(projectData);
+                    activityLogService.record(
+                        "SAVE",
+                        "PROJECT",
+                        request.getProjectId(),
+                        getProjectName(request.getProjectId()),
+                        buildProjectDataSummary(request, false)
+                    );
+                return saved;
         }
         
         // Tạo mới nếu chưa tồn tại
@@ -69,7 +82,15 @@ public class ProjectDataService {
         projectData.setMoHinhHeThongContent(request.getMoHinhHeThongContent());
         projectData.setDinhCoHeThongContent(request.getDinhCoHeThongContent());
         projectData.setTongHopVaDeXuatContent(request.getTongHopVaDeXuatContent());
-        return projectDataRepository.save(projectData);
+        ProjectData saved = projectDataRepository.save(projectData);
+        activityLogService.record(
+            "SAVE",
+            "PROJECT",
+            request.getProjectId(),
+            getProjectName(request.getProjectId()),
+            buildProjectDataSummary(request, true)
+        );
+        return saved;
     }
 
     public List<ProjectData> getAll() {
@@ -85,6 +106,7 @@ public class ProjectDataService {
         return projectDataRepository.findFirstByProjectId(projectId);
     }
 
+    @Transactional
     public ProjectData update(String projectId, UpdateProjectDataRequest request) {
         log.info("Updating ProjectData for projectId: {}", projectId);
         ensureProjectExists(projectId);
@@ -108,7 +130,15 @@ public class ProjectDataService {
             projectData.setTongHopVaDeXuatContent(request.getTongHopVaDeXuatContent());
         }
 
-        return projectDataRepository.save(projectData);
+        ProjectData saved = projectDataRepository.save(projectData);
+        activityLogService.record(
+            "SAVE",
+            "PROJECT",
+            projectId,
+            getProjectName(projectId),
+            buildProjectDataSummary(request, false)
+        );
+        return saved;
     }
 
     @Transactional
@@ -135,7 +165,15 @@ public class ProjectDataService {
                 throw new BadRequestException("Unknown section: " + section);
         }
 
-        return projectDataRepository.save(projectData);
+        ProjectData saved = projectDataRepository.save(projectData);
+        activityLogService.record(
+            "EVALUATE",
+            "PROJECT",
+            projectId,
+            getProjectName(projectId),
+            "Đánh giá " + describeSection(section) + ""
+        );
+        return saved;
     }
 
     public void delete(String id) {
@@ -163,5 +201,54 @@ public class ProjectDataService {
         if (!projectRepository.existsById(projectId)) {
             throw new BadRequestException("Invalid projectId: " + projectId);
         }
+    }
+
+    private String getProjectName(String projectId) {
+        return projectRepository.findById(projectId).map(Project::getName).orElse(projectId);
+    }
+
+    private String buildProjectDataSummary(CreateProjectDataRequest request, boolean isCreate) {
+        String sections = joinSections(
+                request.getYeuCauBaiToanContent(), "Yêu cầu bài toán",
+                request.getThongTinDauVaoContent(), "Thông tin đầu vào",
+                request.getMoHinhHeThongContent(), "Mô hình hệ thống",
+                request.getDinhCoHeThongContent(), "Định cỡ hệ thống",
+                request.getTongHopVaDeXuatContent(), "Tổng hợp và đề xuất"
+        );
+        return (isCreate ? "Khởi tạo" : "Cập nhật") + (sections.isEmpty() ? " dữ liệu dự án" : " " + sections);
+    }
+
+    private String buildProjectDataSummary(UpdateProjectDataRequest request, boolean isCreate) {
+        String sections = joinSections(
+                request.getYeuCauBaiToanContent(), "Yêu cầu bài toán",
+                request.getThongTinDauVaoContent(), "Thông tin đầu vào",
+                request.getMoHinhHeThongContent(), "Mô hình hệ thống",
+                request.getDinhCoHeThongContent(), "Định cỡ hệ thống",
+                request.getTongHopVaDeXuatContent(), "Tổng hợp và đề xuất"
+        );
+        return (isCreate ? "Khởi tạo" : "Cập nhật") + (sections.isEmpty() ? " dữ liệu dự án" : " " + sections);
+    }
+
+    private String joinSections(String... pairs) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < pairs.length; i += 2) {
+            String value = pairs[i];
+            String label = pairs[i + 1];
+            if (value != null) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(label);
+            }
+        }
+        return sb.toString();
+    }
+
+    private String describeSection(String section) {
+        return switch (section) {
+            case "request" -> "Yêu cầu bài toán";
+            case "input" -> "Thông tin đầu vào";
+            case "model" -> "Mô hình hệ thống";
+            case "sizing" -> "Định cỡ hệ thống";
+            default -> section;
+        };
     }
 }

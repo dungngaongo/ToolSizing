@@ -227,12 +227,13 @@
                     </div>
                     <select id="filter-audit-action">
                         <option value="">Tất cả hành động</option>
+                        <option value="SAVE">Lưu</option>
+                        <option value="EVALUATE">Đánh giá</option>
                         <option value="CREATE">Tạo mới</option>
                         <option value="UPDATE">Cập nhật</option>
                         <option value="DELETE">Xóa</option>
-                        <option value="APPROVE">Phê duyệt</option>
-                        <option value="LOGIN">Đăng nhập</option>
-                        <option value="LOGOUT">Đăng xuất</option>
+                        <option value="ASSIGN">Chỉ định</option>
+                        <option value="UNASSIGN">Bỏ chỉ định</option>
                     </select>
                     <select id="filter-audit-target">
                         <option value="">Tất cả đối tượng</option>
@@ -428,7 +429,7 @@
     <script src="js/utils.js"></script>
     <script src="js/api.js"></script>
     <script src="js/audit-log.js"></script>
-    <script src="js/auth.js?v=11234"></script>
+    <script src="js/auth.js"></script>
     <script src="js/dashboard.js"></script>
     <script src="js/users.js"></script>
     <script src="js/projects.js"></script>
