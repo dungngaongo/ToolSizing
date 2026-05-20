@@ -210,8 +210,8 @@
                                 <tr>
                                     <td><strong>3. Chức năng hệ thống</strong> <span class="info-icon"
                                             title="Mô tả ngắn gọn chức năng">?</span></td>
-                                    <td><textarea class="input-full" rows="2" placeholder="Mô tả chức năng..."
-                                            style="resize: vertical; min-height: 36px;"></textarea></td>
+                                        <td><textarea class="input-full connection-auto-textarea" rows="2" placeholder="Mô tả chức năng..."
+                                            style="min-height: 36px;" oninput="autoResizeConnectionTextarea(this)"></textarea></td>
                                     <td><select class="admin-eval" onchange="updateColor(this)">
                                             <option value="">--</option>
                                             <option value="OK">OK</option>
@@ -398,12 +398,12 @@
                                 <tr>
                                     <td style="text-align: center;">1</td>
 
-                                    <td><textarea rows="2" class="input-full"
-                                            placeholder="Ví dụ: Tổng CCU..."></textarea></td>
+                                        <td><textarea rows="2" class="input-full connection-auto-textarea"
+                                            placeholder="Ví dụ: Tổng CCU..." oninput="autoResizeConnectionTextarea(this)"></textarea></td>
 
                                     <td>
                                         <div class="cell-wrapper">
-                                            <input type="text" placeholder="Giá trị...">
+                                            <textarea rows="2" class="input-full connection-auto-textarea" placeholder="Giá trị..." oninput="autoResizeConnectionTextarea(this)"></textarea>
                                             <div class="row-evidence-controls">
                                                 <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                                                     <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -418,7 +418,7 @@
 
                                     <td>
                                         <div class="cell-wrapper">
-                                            <input type="text" placeholder="Giá trị...">
+                                            <textarea rows="2" class="input-full connection-auto-textarea" placeholder="Giá trị..." oninput="autoResizeConnectionTextarea(this)"></textarea>
                                             <div class="row-evidence-controls">
                                                 <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                                                     <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -432,7 +432,8 @@
                                     </td>
 
                                     <td><input type="text" class="input-full" placeholder="Module..."></td>
-                                    <td><textarea rows="2" class="input-full" placeholder="Ghi chú..."></textarea></td>
+                                        <td><textarea rows="2" class="input-full connection-auto-textarea" placeholder="Ghi chú..."
+                                            oninput="autoResizeConnectionTextarea(this)"></textarea></td>
 
                                     <td>
                                         <select class="admin-eval" onchange="updateColor(this)">
@@ -443,8 +444,8 @@
                                     </td>
 
                                     <td>
-                                        <textarea rows="1" class="input-full admin-note" placeholder="..."
-                                            style="resize: vertical; min-height: 34px;"></textarea>
+                                        <textarea rows="1" class="input-full admin-note connection-auto-textarea" placeholder="..."
+                                            style="min-height: 34px;" oninput="autoResizeConnectionTextarea(this)"></textarea>
                                     </td>
 
                                     <td style="text-align: center;">
@@ -627,9 +628,17 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <button type="button" class="btn-add" id="addConnectionRowBtn" style="margin-top: 15px;">
-                                <i class="fa-solid fa-plus"></i> Thêm kết nối
-                            </button>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                                <button type="button" class="btn-add" id="addConnectionRowBtn">
+                                    <i class="fa-solid fa-plus"></i> Thêm kết nối
+                                </button>
+                                <button type="button" class="btn-add" id="importConnectionBtn"
+                                    onclick="document.getElementById('connection-import-input').click()">
+                                    <i class="fa-solid fa-file-import"></i> Import Excel/CSV
+                                </button>
+                                <input type="file" id="connection-import-input" accept=".xlsx,.csv"
+                                    onchange="handleConnectionImport(this)" style="display: none;">
+                            </div>
                         </div>
 
                     </div>
@@ -2488,6 +2497,7 @@
         </section>
     </main>
 
+    <script src="lib/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 
     <div id="evidence-modal" class="modal-overlay" onclick="closeModal()" style="display: none;">

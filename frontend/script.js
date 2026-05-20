@@ -903,6 +903,15 @@ function applyRolePermissions() {
             btn.style.cursor = 'pointer';
             btn.title = '';
         });
+
+        const importConnectionBtn = document.getElementById('importConnectionBtn');
+        const importConnectionInput = document.getElementById('connection-import-input');
+        if (importConnectionBtn) {
+            importConnectionBtn.disabled = true;
+            importConnectionBtn.style.opacity = '0.5';
+            importConnectionBtn.style.cursor = 'not-allowed';
+        }
+        if (importConnectionInput) importConnectionInput.disabled = true;
     } else {
         // Regular user: admin fields readonly, user inputs editable
         // add a body class so CSS can make admin controls visually and interactively disabled
@@ -968,6 +977,15 @@ function applyRolePermissions() {
             btn.style.opacity = '0.5';
             btn.style.cursor = 'not-allowed';
         });
+
+        const importConnectionBtn = document.getElementById('importConnectionBtn');
+        const importConnectionInput = document.getElementById('connection-import-input');
+        if (importConnectionBtn) {
+            importConnectionBtn.disabled = false;
+            importConnectionBtn.style.opacity = '1';
+            importConnectionBtn.style.cursor = 'pointer';
+        }
+        if (importConnectionInput) importConnectionInput.disabled = false;
     }
 
     // Update project status display after applying permissions
@@ -1826,7 +1844,12 @@ function loadYeuCauBaiToan(data) {
 
         if (userInput) userInput.value = value || '';
         if (userSelect) userSelect.value = value || '';
-        if (userTextarea) userTextarea.value = value || '';
+        if (userTextarea) {
+            userTextarea.value = value || '';
+            if (userTextarea.classList.contains('connection-auto-textarea')) {
+                autoResizeConnectionTextarea(userTextarea);
+            }
+        }
 
         // Cột Admin (Cột 3 & 4)
         if (adminData) {
@@ -2014,7 +2037,10 @@ function loadMoHinhHeThong(data, admin) {
                         const adminEval = cells[6]?.querySelector('.admin-eval-select');
                         const adminNote = cells[7]?.querySelector('.admin-note');
                         if (adminEval) { adminEval.value = review.eval || ''; styleAdminSelect(adminEval); }
-                        if (adminNote) adminNote.value = review.note || '';
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                            autoResizeConnectionTextarea(adminNote);
+                        }
                     }
                 });
             }
@@ -2216,6 +2242,7 @@ function loadThongTinDauVao(data) {
             }
             const tr = createInputTableRow(index + 1, rowCopy);
             tbody.appendChild(tr);
+            resizeConnectionTextareasInRow(tr);
         });
     }
 
@@ -2254,11 +2281,11 @@ function createInputTableRow(stt, data = {}) {
     tr.innerHTML = `
         <td style="text-align: center;">${stt}</td>
         
-        <td><textarea rows="2" class="input-full" placeholder="Nhập nội dung...">${data.dauVao || ''}</textarea></td>
+        <td><textarea rows="2" class="input-full connection-auto-textarea" placeholder="Nhập nội dung..." oninput="autoResizeConnectionTextarea(this)">${data.dauVao || ''}</textarea></td>
 
         <td>
             <div class="cell-wrapper">
-                <input type="text" value="${escapeHtml(pocText)}" placeholder="Giá trị...">
+                <textarea rows="2" class="input-full connection-auto-textarea" placeholder="Giá trị..." oninput="autoResizeConnectionTextarea(this)">${escapeHtml(pocText)}</textarea>
                 <div class="row-evidence-controls">
                     <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -2275,7 +2302,7 @@ function createInputTableRow(stt, data = {}) {
         
         <td>
             <div class="cell-wrapper">
-                <input type="text" value="${escapeHtml(sizingText)}" placeholder="Giá trị...">
+                <textarea rows="2" class="input-full connection-auto-textarea" placeholder="Giá trị..." oninput="autoResizeConnectionTextarea(this)">${escapeHtml(sizingText)}</textarea>
                 <div class="row-evidence-controls">
                     <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -2292,7 +2319,7 @@ function createInputTableRow(stt, data = {}) {
         
         <td><input type="text" class="input-full" value="${data.module || ''}" placeholder="Module..."></td>
         
-        <td><textarea rows="2" class="input-full" placeholder="Ghi chú...">${data.ghiChu || ''}</textarea></td>
+        <td><textarea rows="2" class="input-full connection-auto-textarea" placeholder="Ghi chú..." oninput="autoResizeConnectionTextarea(this)">${data.ghiChu || ''}</textarea></td>
         
         <td>
             <select class="admin-eval" onchange="updateColor(this)">
@@ -2302,9 +2329,9 @@ function createInputTableRow(stt, data = {}) {
             </select>
         </td>
         <td>
-            <textarea rows="1" class="input-full admin-note" 
+            <textarea rows="1" class="input-full admin-note connection-auto-textarea" 
                       placeholder="..." 
-                      style="resize: vertical; min-height: 36px;">${data.adminNote || ''}</textarea>
+                      style="min-height: 36px;" oninput="autoResizeConnectionTextarea(this)">${data.adminNote || ''}</textarea>
         </td>
         
         <td style="text-align: center;">
@@ -2379,6 +2406,7 @@ function addInputRow() {
     // Gọi hàm tạo dòng ở trên
     const tr = createInputTableRow(nextSTT);
     tbody.appendChild(tr);
+    resizeConnectionTextareasInRow(tr);
     // Re-apply role permissions so dynamically added row gets correct disabled state
     try { applyRolePermissions(); } catch (e) { /* ignore */ }
     // Update POC/Sizing dropdowns in case new row data matters
@@ -2421,7 +2449,9 @@ function collectThongTinDauVao() {
 
         // Helper: Lấy text input trong wrapper
         const getWrapperInput = (cellIndex) => {
-            return cells[cellIndex]?.querySelector('input[type="text"]')?.value || '';
+            const cell = cells[cellIndex];
+            if (!cell) return '';
+            return cell.querySelector('textarea')?.value || cell.querySelector('input[type="text"]')?.value || '';
         }
 
         inputRows.push({
@@ -2462,13 +2492,13 @@ function populatePocSizingDropdowns() {
         const cells = row.querySelectorAll('td');
         const dauVao = cells[1]?.querySelector('textarea')?.value?.trim() || '';
 
-        // POC: column 2 (cell-wrapper > input)
-        const pocInput = cells[2]?.querySelector('input');
-        const pocVal = pocInput?.value?.trim() || '';
+        // POC: column 2 (cell-wrapper > textarea/input)
+        const pocField = cells[2]?.querySelector('textarea') || cells[2]?.querySelector('input[type="text"]');
+        const pocVal = pocField?.value?.trim() || '';
 
-        // Sizing: column 3 (cell-wrapper > input)
-        const sizingInput = cells[3]?.querySelector('input');
-        const sizingVal = sizingInput?.value?.trim() || '';
+        // Sizing: column 3 (cell-wrapper > textarea/input)
+        const sizingField = cells[3]?.querySelector('textarea') || cells[3]?.querySelector('input[type="text"]');
+        const sizingVal = sizingField?.value?.trim() || '';
 
         if (pocVal || sizingVal) {
             inputRows.push({
@@ -2654,8 +2684,10 @@ function onInputRowSelect(selectEl, pocInputId, sizingInputId) {
             const sourceRow = sourceRows[rowIndex];
             if (sourceRow) {
                 const cells = sourceRow.querySelectorAll('td');
-                pocValue = cells[2]?.querySelector('input')?.value?.trim() || '';
-                sizingValue = cells[3]?.querySelector('input')?.value?.trim() || '';
+                const pocField = cells[2]?.querySelector('textarea') || cells[2]?.querySelector('input[type="text"]');
+                const sizingField = cells[3]?.querySelector('textarea') || cells[3]?.querySelector('input[type="text"]');
+                pocValue = pocField?.value?.trim() || '';
+                sizingValue = sizingField?.value?.trim() || '';
             }
         }
     }
@@ -11873,9 +11905,9 @@ function createConnectionTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td class="text-center">${stt}</td>
-        <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="VD: 10.0.0.1&#10;10.0.0.3">${escapeHtml(data.source || '')}</textarea></td>
-        <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="VD: 10.0.0.2&#10;10.0.0.4">${escapeHtml(data.destination || '')}</textarea></td>
-        <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="VD: 8080&#10;8443">${escapeHtml(data.port || '')}</textarea></td>
+        <td><textarea rows="2" class="input-full connection-auto-textarea" style="white-space: pre-wrap;" placeholder="VD: 10.0.0.1&#10;10.0.0.3" oninput="autoResizeConnectionTextarea(this)">${escapeHtml(data.source || '')}</textarea></td>
+        <td><textarea rows="2" class="input-full connection-auto-textarea" style="white-space: pre-wrap;" placeholder="VD: 10.0.0.2&#10;10.0.0.4" oninput="autoResizeConnectionTextarea(this)">${escapeHtml(data.destination || '')}</textarea></td>
+        <td><textarea rows="2" class="input-full connection-auto-textarea" style="white-space: pre-wrap;" placeholder="VD: 8080&#10;8443" oninput="autoResizeConnectionTextarea(this)">${escapeHtml(data.port || '')}</textarea></td>
         <td>
             <select class="input-full">
                 <option value="">-- Chọn --</option>
@@ -11884,7 +11916,7 @@ function createConnectionTableRow(stt, data = {}) {
                 <option value="TCP/UDP" ${data.protocol === 'TCP/UDP' ? 'selected' : ''}>TCP/UDP</option>
             </select>
         </td>
-        <td><textarea rows="2" class="input-full" style="resize: vertical; min-height: 44px; white-space: pre-wrap;" placeholder="Mô tả kết nối...">${escapeHtml(data.description || '')}</textarea></td>
+        <td><textarea rows="2" class="input-full connection-auto-textarea" style="white-space: pre-wrap;" placeholder="Mô tả kết nối..." oninput="autoResizeConnectionTextarea(this)">${escapeHtml(data.description || '')}</textarea></td>
         <td class="admin-cell">
             <select class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -11893,7 +11925,7 @@ function createConnectionTableRow(stt, data = {}) {
             </select>
         </td>
         <td class="admin-cell">
-            <textarea rows="1" class="input-full admin-note" placeholder="Nhận xét..." style="resize: vertical; min-height: 34px;">${data.adminNote || ''}</textarea>
+            <textarea rows="1" class="input-full admin-note connection-auto-textarea" placeholder="Nhận xét..." style="min-height: 34px;" oninput="autoResizeConnectionTextarea(this)">${data.adminNote || ''}</textarea>
         </td>
         <td class="text-center">
             <button class="btn-delete" onclick="removeConnectionRow(this)">✖</button>
@@ -11902,12 +11934,24 @@ function createConnectionTableRow(stt, data = {}) {
     return tr;
 }
 
+function autoResizeConnectionTextarea(textarea) {
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+function resizeConnectionTextareasInRow(row) {
+    if (!row) return;
+    row.querySelectorAll('.connection-auto-textarea').forEach(autoResizeConnectionTextarea);
+}
+
 function addConnectionRow(data = {}) {
     const tbody = document.getElementById('connection-info-table-body');
     if (!tbody) return;
     const stt = tbody.rows.length + 1;
     const tr = createConnectionTableRow(stt, data);
     tbody.appendChild(tr);
+    resizeConnectionTextareasInRow(tr);
     try { applyRolePermissions(); } catch (e) { }
 }
 
@@ -11957,9 +12001,121 @@ function loadConnectionInfo(data) {
                 // NOTE: adminEval/adminNote sẽ được load riêng từ connectionRowReviews
             });
             tbody.appendChild(tr);
+            resizeConnectionTextareasInRow(tr);
         });
     } else {
-        tbody.appendChild(createConnectionTableRow(1, {}));
+        const tr = createConnectionTableRow(1, {});
+        tbody.appendChild(tr);
+        resizeConnectionTextareasInRow(tr);
     }
+}
+
+function normalizeConnectionHeader(value) {
+    return String(value || '').trim();
+}
+
+function getConnectionCellText(sheet, row, col) {
+    const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+    if (!cell) return '';
+    if (cell.w !== undefined) return String(cell.w);
+    if (cell.v !== undefined) return String(cell.v);
+    return '';
+}
+
+function parseConnectionImportSheet(sheet) {
+    if (!sheet || !sheet['!ref']) return null;
+
+    const requiredHeaders = ['IP Nguồn', 'IP Đích', 'Port', 'Giao thức', 'Mô tả'];
+    const range = XLSX.utils.decode_range(sheet['!ref']);
+    const headerRow = range.s.r;
+    const headerColumns = {};
+
+    for (let col = range.s.c; col <= range.e.c; col += 1) {
+        const headerValue = normalizeConnectionHeader(getConnectionCellText(sheet, headerRow, col));
+        if (headerValue && headerColumns[headerValue] === undefined) {
+            headerColumns[headerValue] = col;
+        }
+    }
+
+    const missingHeaders = requiredHeaders.filter(name => headerColumns[name] === undefined);
+    if (missingHeaders.length > 0) {
+        showToast(`Thiếu cột bắt buộc: ${missingHeaders.join(', ')}`, 'warning');
+        return null;
+    }
+
+    const rows = [];
+    for (let row = headerRow + 1; row <= range.e.r; row += 1) {
+        rows.push({
+            source: getConnectionCellText(sheet, row, headerColumns['IP Nguồn']),
+            destination: getConnectionCellText(sheet, row, headerColumns['IP Đích']),
+            port: getConnectionCellText(sheet, row, headerColumns['Port']),
+            protocol: getConnectionCellText(sheet, row, headerColumns['Giao thức']),
+            description: getConnectionCellText(sheet, row, headerColumns['Mô tả'])
+        });
+    }
+
+    return rows;
+}
+
+function handleConnectionImport(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    const role = (getCurrentUser()?.role || '').toLowerCase();
+    if (role === 'admin1' || role === 'admin2') {
+        showToast('Chỉ user mới có thể import dữ liệu.', 'warning');
+        input.value = '';
+        return;
+    }
+
+    if (typeof XLSX === 'undefined') {
+        showToast('Thiếu thư viện đọc Excel. Vui lòng liên hệ admin hệ thống.', 'error');
+        input.value = '';
+        return;
+    }
+
+    const tbody = document.getElementById('connection-info-table-body');
+    if (!tbody) {
+        showToast('Không tìm thấy bảng Thông tin kết nối.', 'error');
+        input.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            const data = new Uint8Array(event.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames && workbook.SheetNames[0];
+            const sheet = sheetName ? workbook.Sheets[sheetName] : null;
+
+            const rows = parseConnectionImportSheet(sheet);
+            if (!rows) {
+                input.value = '';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            if (rows.length === 0) {
+                addConnectionRow({});
+                showToast('Không có dòng dữ liệu. Đã tạo 1 dòng trống.', 'info');
+                input.value = '';
+                return;
+            }
+
+            rows.forEach(row => addConnectionRow(row));
+            showToast(`Đã import ${rows.length} dòng từ file.`, 'success');
+        } catch (error) {
+            showToast('Không thể đọc file. Vui lòng kiểm tra định dạng Excel/CSV.', 'error');
+        } finally {
+            input.value = '';
+        }
+    };
+    reader.onerror = () => {
+        showToast('Đọc file thất bại. Vui lòng thử lại.', 'error');
+        input.value = '';
+    };
+
+    reader.readAsArrayBuffer(file);
 }
 
