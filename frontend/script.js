@@ -1,4 +1,4 @@
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://10.61.152.54:8085/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
@@ -2244,11 +2244,11 @@ function createInputTableRow(stt, data = {}) {
 
     // --- 1. XỬ LÝ ẢNH (POC) ---
     // Support multiple images per row: data.taiHeThongPOC = { text: '', pocEvidenceImages: [ {base64}, ... ] }
-    const pocText = (data.taiHeThongPOC && data.taiHeThongPOC.text) ? data.taiHeThongPOC.text : (data.taiHeThongPOC || '');
+    const pocText = (data.taiHeThongPOC && typeof data.taiHeThongPOC === 'object' && typeof data.taiHeThongPOC.text === 'string') ? data.taiHeThongPOC.text : '';
     const pocImages = (data.taiHeThongPOC && Array.isArray(data.taiHeThongPOC.pocEvidenceImages)) ? data.taiHeThongPOC.pocEvidenceImages : (data.pocImage ? [{ base64: data.pocImage }] : []);
 
     // --- 2. XỬ LÝ ẢNH (ĐỊNH CỠ) ---
-    const sizingText = (data.dinhCo && typeof data.dinhCo === 'object' && data.dinhCo.text) ? data.dinhCo.text : (typeof data.dinhCo === 'string' ? data.dinhCo : '');
+    const sizingText = (data.dinhCo && typeof data.dinhCo === 'object' && typeof data.dinhCo.text === 'string') ? data.dinhCo.text : (typeof data.dinhCo === 'string' ? data.dinhCo : '');
     const sizingImages = (data.dinhCo && Array.isArray(data.dinhCo.sizingEvidenceImages)) ? data.dinhCo.sizingEvidenceImages : (data.sizingImage ? [{ base64: data.sizingImage }] : []);
 
     tr.innerHTML = `
@@ -2489,7 +2489,8 @@ function populatePocSizingDropdowns() {
         { selectId: 'kafka-throughput-input-row-select', pocId: 'kafka-throughput-input-ccu', sizingId: 'kafka-throughput-sizing-ccu' },
         { selectId: 'kafka-linear-input-row-select', pocId: 'kafka-linear-input-ccu', sizingId: 'kafka-linear-sizing-ccu' },
         { selectId: 'k8s-input-row-select', pocId: 'k8s-poc-value', sizingId: 'k8s-sizing-value' },
-        { selectId: 'lbfw-input-row-select', pocId: 'lbfw-poc-value', sizingId: 'lbfw-sizing-value' }
+        { selectId: 'lbfw-input-row-select', pocId: 'lbfw-poc-value', sizingId: 'lbfw-sizing-value' },
+        { selectId: 'custom-input-row-select', pocId: 'custom-poc-value', sizingId: 'custom-sizing-value' }
     ];
 
     const repopulateSingleSelector = (select, pocInput, sizingInput) => {
@@ -2500,8 +2501,9 @@ function populatePocSizingDropdowns() {
         inputRows.forEach(row => {
             const option = document.createElement('option');
             option.value = row.index;
-            option.dataset.poc = row.poc;
-            option.dataset.sizing = row.sizing;
+            // Ensure dataset values are strings, not objects
+            option.dataset.poc = (typeof row.poc === 'object' ? '' : String(row.poc || ''));
+            option.dataset.sizing = (typeof row.sizing === 'object' ? '' : String(row.sizing || ''));
             const label = row.dauVao?.trim() || `Dòng ${row.index + 1}`;
             option.textContent = label;
             select.appendChild(option);
@@ -2635,6 +2637,14 @@ function onInputRowSelect(selectEl, pocInputId, sizingInputId) {
 
     let pocValue = selectedOption.dataset?.poc || '';
     let sizingValue = selectedOption.dataset?.sizing || '';
+
+    // Ensure values are strings, not objects
+    if (pocValue && typeof pocValue !== 'string') {
+        pocValue = String(pocValue);
+    }
+    if (sizingValue && typeof sizingValue !== 'string') {
+        sizingValue = String(sizingValue);
+    }
 
     // Fallback: đọc trực tiếp từ bảng Thông tin đầu vào theo chỉ số dòng
     if (!pocValue && !sizingValue) {
@@ -3697,6 +3707,474 @@ function getCustomDocEditor() {
     return document.getElementById('custom-method-editor');
 }
 
+// Collect custom baseline table data
+function collectCustomBaselineTableData() {
+    const rows = document.querySelectorAll('#custom-baseline-table-body tr');
+    const data = [];
+    rows.forEach((row, index) => {
+        const inputs = row.querySelectorAll('input, select');
+        const ip = inputs[0]?.value || '';
+        const cpu = inputs[1]?.value || '';
+        const ram = inputs[2]?.value || '';
+        const disk = inputs[3]?.value || '';
+        const cint = inputs[4]?.value || '';
+
+        const evidenceImages = collectInlineEvidenceFromScope(row);
+
+        const adminEval = row.querySelector('.admin-eval-select')?.value || '';
+        const adminNote = row.querySelector('.admin-note')?.value || '';
+
+        if (ip || cpu || ram || disk || cint) {
+            data.push({
+                stt: index + 1,
+                ip, cpu, ram, disk, cintRate: cint,
+                evidenceImages,
+                adminRating: adminEval,
+                adminNote
+            });
+        }
+    });
+    return data.length > 0 ? data : null;
+}
+
+// Collect custom input config table data
+function collectCustomInputConfigTableData() {
+    const rows = document.querySelectorAll('#custom-input-config-table-body tr');
+    const data = [];
+    rows.forEach((row, index) => {
+        const inputs = row.querySelectorAll('input');
+        const ip = inputs[0]?.value || '';
+        const cpuLoad = inputs[1]?.value || '0';
+        const ramLoad = inputs[2]?.value || '0';
+        const diskLoad = inputs[3]?.value || '0';
+        const cintUsed = inputs[4]?.value || '0';
+        const ramUsed = inputs[5]?.value || '0';
+        const diskUsed = inputs[6]?.value || '0';
+
+        const evidenceImages = collectInlineEvidenceFromScope(row);
+
+        const adminEval = row.querySelector('.admin-eval-select')?.value || '';
+        const adminNote = row.querySelector('.admin-note')?.value || '';
+
+        if (ip || cpuLoad !== '0' || ramLoad !== '0' || diskLoad !== '0') {
+            data.push({
+                stt: index + 1,
+                ip, cpuLoad, ramLoad, diskLoad, cintUsed, ramUsed, diskUsed,
+                evidenceImages,
+                adminRating: adminEval,
+                adminNote
+            });
+        }
+    });
+    return data.length > 0 ? data : null;
+}
+
+// Add custom baseline row
+function addCustomBaselineRow() {
+    const tbody = document.getElementById('custom-baseline-table-body');
+    if (!tbody) return;
+
+    const rowCount = tbody.rows.length + 1;
+    const tr = document.createElement('tr');
+
+    // Build instance-aware event handlers
+    const syncIpHandler = buildInstanceAwareHandler('updateCustomIPToInputConfig(this)');
+    const baselineRamHandler = buildInstanceAwareHandler('updateCustomBaselineTotal(); recalculateCustomInputConfigRow(this)');
+    const baselineDiskHandler = buildInstanceAwareHandler('updateCustomBaselineTotal(); recalculateCustomInputConfigRow(this)');
+    const baselineCintHandler = buildInstanceAwareHandler('updateCustomBaselineTotal(); recalculateCustomInputConfigRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteRowHandler = buildInstanceAwareHandler('deleteCustomBaselineRow(this)');
+
+    tr.innerHTML = `
+        <td class="text-center stt-cell">${rowCount}</td>
+        <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
+        <td><input type="text" class="input-full cpu-input" placeholder="Intel Xeon..."></td>
+        <td><input type="number" class="input-full text-center ram-input" value="0" min="0" oninput="${baselineRamHandler}"></td>
+        <td><input type="number" class="input-full text-center disk-input" value="0" min="0" oninput="${baselineDiskHandler}"></td>
+        <td><input type="number" class="input-full text-center cint-input" value="0" min="0" oninput="${baselineCintHandler}"></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="baseline-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
+        <td class="admin-cell">
+            <select class="admin-eval-select" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note" placeholder="Nhận xét...">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn-delete" onclick="${deleteRowHandler}">✖</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+
+    // Thêm dòng tương ứng vào input config table
+    addCustomInputConfigRow();
+
+    try { applyRolePermissions(); } catch (e) {}
+}
+
+// Add custom input config row
+function addCustomInputConfigRow() {
+    const tbody = document.getElementById('custom-input-config-table-body');
+    if (!tbody) return;
+
+    const rowCount = tbody.rows.length + 1;
+    const tr = document.createElement('tr');
+
+    // Build instance-aware event handlers
+    const calcHandler = buildInstanceAwareHandler('calculateCustomInputConfigRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteRowHandler = buildInstanceAwareHandler('removeRow(this)');
+
+    tr.innerHTML = `
+        <td class="text-center stt-cell">${rowCount}</td>
+        <td><input type="text" class="input-full text-center ip-config-input" placeholder="10.x.x.x"></td>
+        <td><input type="number" class="input-full text-center cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}"></td>
+        <td><input type="number" class="input-full text-center ram-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}"></td>
+        <td><input type="number" class="input-full text-center disk-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}"></td>
+        <td><input type="number" class="input-full text-center cint-used-input" value="0" min="0" readonly style="background-color:#f0f0f0;"></td>
+        <td><input type="number" class="input-full text-center ram-used-input" value="0" min="0" readonly style="background-color:#f0f0f0;"></td>
+        <td><input type="number" class="input-full text-center disk-used-input" value="0" min="0" readonly style="background-color:#f0f0f0;"></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="input-config-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
+        <td class="admin-cell">
+            <select class="admin-eval-select custom-input-config-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note custom-input-config-note" placeholder="Nhận xét...">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn-delete" onclick="${deleteRowHandler}">✖</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    try { applyRolePermissions(); } catch (e) {}
+}
+
+// Update custom baseline total
+function updateCustomBaselineTotal() {
+    const totalRamEl = document.getElementById('custom-total-ram');
+    const totalDiskEl = document.getElementById('custom-total-disk');
+    const totalCintEl = document.getElementById('custom-total-cint');
+
+    if (!totalRamEl || !totalDiskEl || !totalCintEl) return;
+
+    const tbody = document.getElementById('custom-baseline-table-body');
+    if (!tbody) return;
+
+    let totalRam = 0, totalDisk = 0, totalCint = 0;
+    tbody.querySelectorAll('tr').forEach(row => {
+        totalRam += parseFloat(row.querySelector('.ram-input')?.value) || 0;
+        totalDisk += parseFloat(row.querySelector('.disk-input')?.value) || 0;
+        totalCint += parseFloat(row.querySelector('.cint-input')?.value) || 0;
+    });
+
+    totalRamEl.innerText = totalRam.toFixed(0);
+    totalDiskEl.innerText = totalDisk.toFixed(0);
+    totalCintEl.innerText = totalCint.toFixed(0);
+}
+
+// Update custom input config total
+function updateCustomInputConfigTotal() {
+    const totalCintUsedEl = document.getElementById('custom-total-cint-used');
+    const totalRamUsedEl = document.getElementById('custom-total-ram-used');
+    const totalDiskUsedEl = document.getElementById('custom-total-disk-used');
+
+    if (!totalCintUsedEl || !totalRamUsedEl || !totalDiskUsedEl) return;
+
+    const tbody = document.getElementById('custom-input-config-table-body');
+    if (!tbody) return;
+
+    let totalCintUsed = 0, totalRamUsed = 0, totalDiskUsed = 0;
+    tbody.querySelectorAll('tr').forEach(row => {
+        totalCintUsed += parseFloat(row.querySelector('.cint-used-input')?.value) || 0;
+        totalRamUsed += parseFloat(row.querySelector('.ram-used-input')?.value) || 0;
+        totalDiskUsed += parseFloat(row.querySelector('.disk-used-input')?.value) || 0;
+    });
+
+    totalCintUsedEl.innerText = totalCintUsed.toFixed(2);
+    totalRamUsedEl.innerText = totalRamUsed.toFixed(2);
+    totalDiskUsedEl.innerText = totalDiskUsed.toFixed(2);
+}
+
+// Sync IP to input config for custom module
+function updateCustomIPToInputConfig(ipInput) {
+    const row = ipInput.closest('tr');
+    const rowIndex = Array.from(row.parentNode.children).indexOf(row);
+    const inputConfigTbody = document.getElementById('custom-input-config-table-body');
+    if (inputConfigTbody && inputConfigTbody.rows[rowIndex]) {
+        const ipConfigInput = inputConfigTbody.rows[rowIndex].querySelector('.ip-config-input');
+        if (ipConfigInput) ipConfigInput.value = ipInput.value;
+    }
+}
+
+// Calculate custom input config row
+function calculateCustomInputConfigRow(cpuLoadInput) {
+    if (!cpuLoadInput) return;
+    const row = cpuLoadInput.closest('tr');
+    const rowIndex = Array.from(row.parentNode.children).indexOf(row);
+    const baselineTbody = document.getElementById('custom-baseline-table-body');
+    if (!baselineTbody || !baselineTbody.rows[rowIndex]) return;
+
+    const baselineRow = baselineTbody.rows[rowIndex];
+    const cintUsedInput = row.querySelector('.cint-used-input');
+    const ramUsedInput = row.querySelector('.ram-used-input');
+    const diskUsedInput = row.querySelector('.disk-used-input');
+
+    if (!cintUsedInput || !ramUsedInput || !diskUsedInput) return;
+
+    const baselineCint = parseFloat(baselineRow.querySelector('.cint-input').value) || 0;
+    const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
+    const baselineDisk = parseFloat(baselineRow.querySelector('.disk-input').value) || 0;
+
+    const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
+    const ramLoad = parseFloat(row.querySelector('.ram-load-input')?.value) || 0;
+    const diskLoad = parseFloat(row.querySelector('.disk-load-input')?.value) || 0;
+
+    const cintUsed = (baselineCint * cpuLoad / 100).toFixed(2);
+    const ramUsed = (baselineRam * ramLoad / 100).toFixed(2);
+    const diskUsed = (baselineDisk * diskLoad / 100).toFixed(2);
+
+    cintUsedInput.value = cintUsed;
+    ramUsedInput.value = ramUsed;
+    diskUsedInput.value = diskUsed;
+
+    updateCustomInputConfigTotal();
+}
+
+// Calculate recommended flavors (shared by App and Custom modules)
+function calculateRecommendedFlavors(cintAfterKPI, ramAfterKPI, diskAfterKPI, mode, vcpu, ram) {
+    const ketqua = mode === 'vcpu'
+        ? Math.ceil(cintAfterKPI / vcpu)
+        : Math.ceil(ramAfterKPI / ram);
+
+    const cintPerServer = mode === 'vcpu'
+        ? vcpu
+        : Math.ceil(cintAfterKPI / ketqua);
+    const ramPerServer = mode === 'ram'
+        ? ram
+        : Math.ceil(ramAfterKPI / ketqua);
+    const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
+
+    return {
+        ketqua,
+        cintPerServer,
+        ramPerServer,
+        diskPerServer
+    };
+}
+
+// Generate sizing result HTML (shared by App and Custom modules)
+function generateSizingResultHTML(data) {
+    const {
+        totalCint, totalRam, totalDisk,
+        poc, sizing, factor,
+        cintForTPS, ramForTPS, diskForTPS,
+        cintAfterKPI, ramAfterKPI, diskAfterKPI,
+        virtualization, recommendedFlavors
+    } = data;
+
+    let html = '';
+
+    // ==================== BẢNG 1: Thông số Máy chủ Tiến trình ====================
+    html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán Máy chủ Tiến trình</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">STT</th>
+                        <th style="width:350px;">Thông số</th>
+                        <th style="width:150px;">Máy chủ Tiến trình</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-center">1</td>
+                        <td>Cintrate cần cho hệ thống</td>
+                        <td class="text-center">${cintForTPS.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalCint.toFixed(2)} × (${sizing} / ${poc}) = ${totalCint.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">2</td>
+                        <td>RAM (GB) cần cho hệ thống</td>
+                        <td class="text-center">${ramForTPS.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalRam.toFixed(2)} × (${sizing} / ${poc}) = ${totalRam.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">3</td>
+                        <td>Disk (GB) cần cho hệ thống</td>
+                        <td class="text-center">${diskForTPS.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalDisk.toFixed(2)} × (${sizing} / ${poc}) = ${totalDisk.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">4</td>
+                        <td>Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${cintForTPS.toFixed(2)} / 0.75 × 1.1. KPI 75%, Sai số 1.1</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">5</td>
+                        <td>RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${ramForTPS.toFixed(2)} / 0.9 × 1.1. KPI 90%, Sai số 1.1</textarea></td>
+                    </tr>
+                    <tr>
+                        <td class="text-center">6</td>
+                        <td>Disk cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
+                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${diskForTPS.toFixed(2)} / 0.8 × 1.1. KPI 80%, Sai số 1.1</textarea></td>
+                    </tr>
+                </tbody>
+            </table>`;
+
+    // ==================== ĐỀ XUẤT ====================
+    const recommendationFormula = virtualization.mode === 'vcpu'
+        ? `N = ${cintAfterKPI.toFixed(2)} / ${virtualization.vcpu}`
+        : `N = ${ramAfterKPI.toFixed(2)} / ${virtualization.ram}`;
+    const recommendationTarget = virtualization.mode === 'vcpu'
+        ? `theo vCPU <strong>${virtualization.selectedLabel}</strong>`
+        : `theo RAM <strong>${virtualization.selectedLabel}</strong>`;
+
+    html += `<div style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
+                <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa ${recommendationTarget}, lựa chọn số N theo mode đã chọn:
+                ${recommendationFormula} ≈ <strong>${recommendedFlavors.ketqua}</strong>
+            </div>`;
+
+    // ==================== BẢNG 2: Giá trị N với Cint/RAM/Disk ====================
+    const nValues = [
+        { label: 'Ketqua', value: recommendedFlavors.ketqua },
+    ];
+
+    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Bảng phân bổ theo số lượng N</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:120px;">Giá trị N</th>
+                        <th>Cint CPU yêu cầu</th>
+                        <th>RAM yêu cầu</th>
+                        <th>Disk yêu cầu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background:#f0f4f8;">
+                        <td class="text-center">1</td>
+                        <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
+                        <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
+                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
+                    </tr>`;
+
+    nValues.forEach(item => {
+        const cintPerN = cintAfterKPI / item.value;
+        const ramPerN = ramAfterKPI / item.value;
+        const diskPerN = diskAfterKPI / item.value;
+        const isMain = item.label === 'Ketqua';
+
+        html += `<tr${isMain ? ' style="background:#e6ffed; font-weight:600;"' : ''}>
+                    <td class="text-center">${item.value}</td>
+                    <td class="text-center">${cintPerN.toFixed(2)}</td>
+                    <td class="text-center">${ramPerN.toFixed(2)}</td>
+                    <td class="text-center">${diskPerN.toFixed(2)}</td>
+                </tr>`;
+    });
+
+    html += `</tbody></table>`;
+
+    // ==================== BẢNG 3: Đề xuất cấu hình ====================
+    html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
+    html += `<table class="sizing-table" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:250px;">Cấu hình</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background:#e6ffed;">
+                        <td>
+                            <ul style="margin:0; padding-left:20px;">
+                                <li>CPU: = ${recommendedFlavors.cintPerServer} Cint</li>
+                                <li>RAM: = ${recommendedFlavors.ramPerServer} GB</li>
+                                <li>DISK: = ${recommendedFlavors.diskPerServer} GB</li>
+                            </ul>
+                        </td>
+                        <td class="text-center"><strong>${recommendedFlavors.ketqua + 1}</strong></td>
+                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Dự phòng N+1</textarea></td>
+                    </tr>
+                </tbody>
+            </table>`;
+
+    return html;
+}
+
+// Calculate custom sizing recommendations
+function calculateCustomSizingRecommendations() {
+    const poc = parseFloat(document.getElementById('custom-poc-value')?.value) || 0;
+    const sizing = parseFloat(document.getElementById('custom-sizing-value')?.value) || 0;
+    if (!poc || !sizing) {
+        showToast('Vui lòng nhập giá trị hợp lệ cho "Tải hệ thống POC" và "Định cỡ".', 'warning');
+        return;
+    }
+
+    const totalCint = parseFloat(document.getElementById('custom-total-cint-used')?.innerText) || 0;
+    const totalRam = parseFloat(document.getElementById('custom-total-ram-used')?.innerText) || 0;
+    const totalDisk = parseFloat(document.getElementById('custom-total-disk-used')?.innerText) || 0;
+
+    const factor = sizing / poc;
+
+    const cintForTPS = totalCint * factor;
+    const ramForTPS = totalRam * factor;
+    const diskForTPS = totalDisk * factor;
+
+    const cintAfterKPI = cintForTPS / 0.75 * 1.1;
+    const ramAfterKPI = ramForTPS / 0.9 * 1.1;
+    const diskAfterKPI = diskForTPS / 0.8 * 1.1;
+
+    const virtualization = getVirtualizationChoice('custom');
+    if (!virtualization.selectedValue) {
+        showToast('Vui lòng chọn cấu hình ảo hóa hợp lệ trước khi tính toán.', 'warning');
+        return;
+    }
+
+    const recommendedFlavors = calculateRecommendedFlavors(
+        cintAfterKPI, ramAfterKPI, diskAfterKPI, virtualization.mode, virtualization.vcpu, virtualization.ram
+    );
+
+    const resultContainer = document.getElementById('sizing-result-container');
+    if (!resultContainer) return;
+
+    resultContainer.innerHTML = generateSizingResultHTML({
+        poc, sizing,
+        totalCint, totalRam, totalDisk,
+        factor, cintForTPS, ramForTPS, diskForTPS,
+        cintAfterKPI, ramAfterKPI, diskAfterKPI,
+        virtualization, recommendedFlavors
+    });
+}
+
 function onCustomMethodChanged() {
     const method = document.getElementById('custom-method-select')?.value || 'linearEquivalentApp';
     const linearBox = document.getElementById('custom-linear-wrapper');
@@ -3706,6 +4184,60 @@ function onCustomMethodChanged() {
     if (method === 'customMethod') {
         const tbody = document.getElementById('custom-proposal-table-body');
         if (tbody && tbody.children.length === 0) addCustomProposalRow({});
+    }
+}
+
+// 3. Delete custom baseline row
+function deleteCustomBaselineRow(btn) {
+    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
+        const baselineRow = btn.closest('tr');
+        const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+
+        baselineRow.remove();
+
+        // Xóa dòng tương ứng trong input config table
+        const inputConfigTbody = document.getElementById('custom-input-config-table-body');
+        if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+            inputConfigTbody.rows[baselineRowIndex].remove();
+        }
+        updateCustomBaselineRowNumbers();   // Đánh lại số STT
+        updateCustomInputConfigRowNumbers();
+        updateCustomBaselineTotal(); // Tính lại tổng
+        updateCustomInputConfigTotal();
+    }
+}
+
+// 4. Helper: Cập nhật lại số thứ tự (1, 2, 3...) khi xóa dòng giữa
+function updateCustomBaselineRowNumbers() {
+    const rows = document.querySelectorAll('#custom-baseline-table-body tr');
+    rows.forEach((row, index) => {
+        const sttCell = row.querySelector('.stt-cell');
+        if (sttCell) sttCell.innerText = index + 1;
+    });
+}
+
+// 5. Helper: Cập nhật lại số thứ tự cho input config table
+function updateCustomInputConfigRowNumbers() {
+    const rows = document.querySelectorAll('#custom-input-config-table-body tr');
+    rows.forEach((row, index) => {
+        const sttCell = row.querySelector('.stt-cell');
+        if (sttCell) sttCell.innerText = index + 1;
+    });
+}
+
+// 6. Helper: Tính lại kết quả cho dòng input config tương ứng khi baseline thay đổi
+function recalculateCustomInputConfigRow(baselineInput) {
+    const baselineRow = baselineInput.closest('tr');
+    const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+    const inputConfigTbody = document.getElementById('custom-input-config-table-body');
+
+    if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+        const inputConfigRow = inputConfigTbody.rows[baselineRowIndex];
+        // Lấy input bất kỳ từ input config row để tính toán
+        const cpuLoadInput = inputConfigRow.querySelector('.cpu-load-input');
+        if (cpuLoadInput) {
+            calculateCustomInputConfigRow(cpuLoadInput);
+        }
     }
 }
 
@@ -3728,14 +4260,14 @@ function collectCustomModuleData() {
     const html = stripUnsafeHtml(editor?.innerHTML || '');
     const text = (editor?.innerText || '').trim();
     const linearEquivalentApp = {
-        baselineTable: collectBaselineTableData(),
-        inputConfigTable: collectInputConfigTableData(),
-        selectedInputRow: document.getElementById('app-input-row-select')?.value || '',
-        pocValue: document.getElementById('poc-value')?.value || '',
-        sizingValue: document.getElementById('sizing-value')?.value || '',
-        virtualizationMode: document.getElementById('app-virtualization-mode')?.value || 'ram',
-        vcpuFlavor: document.getElementById('app-vcpu-flavor')?.value || '8',
-        ramFlavor: document.getElementById('app-ram-flavor')?.value || '32',
+        baselineTable: collectCustomBaselineTableData(),
+        inputConfigTable: collectCustomInputConfigTableData(),
+        selectedInputRow: document.getElementById('custom-input-row-select')?.value || '',
+        pocValue: document.getElementById('custom-poc-value')?.value || '',
+        sizingValue: document.getElementById('custom-sizing-value')?.value || '',
+        virtualizationMode: document.getElementById('custom-virtualization-mode')?.value || 'ram',
+        vcpuFlavor: document.getElementById('custom-vcpu-flavor')?.value || '8',
+        ramFlavor: document.getElementById('custom-ram-flavor')?.value || '32',
         flavorEval: '',
         flavorNote: '',
         sizingResult: document.getElementById('sizing-result-container')?.innerHTML || ''
@@ -3805,14 +4337,14 @@ function loadCustomProposalTableData(rows) {
 
 function loadCustomLinearLikeApp(moduleApp) {
     if (!moduleApp) return;
-    const baselineBody = document.getElementById('baseline-table-body');
-    const inputBody = document.getElementById('input-config-table-body');
+    const baselineBody = document.getElementById('custom-baseline-table-body');
+    const inputBody = document.getElementById('custom-input-config-table-body');
     if (baselineBody) baselineBody.innerHTML = '';
     if (inputBody) inputBody.innerHTML = '';
 
     if (Array.isArray(moduleApp.baselineTable)) {
         moduleApp.baselineTable.forEach(row => {
-            addBaselineRow();
+            addCustomBaselineRow();
             const lastRow = baselineBody?.lastElementChild;
             if (!lastRow) return;
             const ipInput = lastRow.querySelector('.ip-input');
@@ -3835,7 +4367,7 @@ function loadCustomLinearLikeApp(moduleApp) {
 
     if (Array.isArray(moduleApp.inputConfigTable)) {
         moduleApp.inputConfigTable.forEach(row => {
-            addInputConfigRow();
+            addCustomInputConfigRow();
             const lastRow = inputBody?.lastElementChild;
             if (!lastRow) return;
             const ipInput = lastRow.querySelector('.ip-config-input');
@@ -3860,17 +4392,17 @@ function loadCustomLinearLikeApp(moduleApp) {
         });
     }
 
-    updateBaselineTotal();
-    updateInputConfigTotal();
+    updateCustomBaselineTotal();
+    updateCustomInputConfigTotal();
 
     const setValue = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val; };
-    setValue('app-input-row-select', moduleApp.selectedInputRow || '');
-    setValue('poc-value', moduleApp.pocValue || '');
-    setValue('sizing-value', moduleApp.sizingValue || '');
-    setValue('app-virtualization-mode', moduleApp.virtualizationMode || 'ram');
-    setValue('app-vcpu-flavor', moduleApp.vcpuFlavor || '8');
-    setValue('app-ram-flavor', moduleApp.ramFlavor || '32');
-    onVirtualizationModeChange('app');
+    setValue('custom-input-row-select', moduleApp.selectedInputRow || '');
+    setValue('custom-poc-value', moduleApp.pocValue || '');
+    setValue('custom-sizing-value', moduleApp.sizingValue || '');
+    setValue('custom-virtualization-mode', moduleApp.virtualizationMode || 'ram');
+    setValue('custom-vcpu-flavor', moduleApp.vcpuFlavor || '8');
+    setValue('custom-ram-flavor', moduleApp.ramFlavor || '32');
+    onVirtualizationModeChange('custom');
     const result = document.getElementById('sizing-result-container');
     if (result) result.innerHTML = moduleApp.sizingResult || '';
 }
@@ -5760,10 +6292,10 @@ function loadSizingData(data) {
                     onInputRowSelect(document.getElementById('app-input-row-select'), 'poc-value', 'sizing-value');
                 }
                 if (moduleApp.pocValue && document.getElementById('poc-value')) {
-                    document.getElementById('poc-value').value = moduleApp.pocValue;
+                    safeSetValue(document.getElementById('poc-value'), moduleApp.pocValue);
                 }
                 if (moduleApp.sizingValue && document.getElementById('sizing-value')) {
-                    document.getElementById('sizing-value').value = moduleApp.sizingValue;
+                    safeSetValue(document.getElementById('sizing-value'), moduleApp.sizingValue);
                 }
 
                 if (document.getElementById('app-virtualization-mode')) {
@@ -6271,6 +6803,16 @@ document.addEventListener("DOMContentLoaded", function () {
     initHelpTooltipSmartPositioning();
     initFirstRowGuards();
 });
+// ==================== HELPER: Safe value assign to prevent [object Object] ====================
+function safeSetValue(element, value) {
+    if (!element) return;
+    if (value && typeof value === 'object') {
+        element.value = '';
+    } else {
+        element.value = String(value || '');
+    }
+}
+
 // ==================== XỬ LÝ BẢNG TÍNH TOÁN (INPUT CONFIG) ====================
 
 function addInputConfigRow() {
@@ -7246,10 +7788,10 @@ function loadK8SData(data) {
         onInputRowSelect(document.getElementById('k8s-input-row-select'), 'k8s-poc-value', 'k8s-sizing-value');
     }
     if (data.pocValue && document.getElementById('k8s-poc-value')) {
-        document.getElementById('k8s-poc-value').value = data.pocValue;
+        safeSetValue(document.getElementById('k8s-poc-value'), data.pocValue);
     }
     if (data.sizingValue && document.getElementById('k8s-sizing-value')) {
-        document.getElementById('k8s-sizing-value').value = data.sizingValue;
+        safeSetValue(document.getElementById('k8s-sizing-value'), data.sizingValue);
     }
 
     if (document.getElementById('k8s-virtualization-mode')) {
@@ -7496,10 +8038,10 @@ function loadLBFWData(data) {
         onInputRowSelect(document.getElementById('lbfw-input-row-select'), 'lbfw-poc-value', 'lbfw-sizing-value');
     }
     if (data.pocValue && document.getElementById('lbfw-poc-value')) {
-        document.getElementById('lbfw-poc-value').value = data.pocValue;
+        safeSetValue(document.getElementById('lbfw-poc-value'), data.pocValue);
     }
     if (data.sizingValue && document.getElementById('lbfw-sizing-value')) {
-        document.getElementById('lbfw-sizing-value').value = data.sizingValue;
+        safeSetValue(document.getElementById('lbfw-sizing-value'), data.sizingValue);
     }
 
     // Load sizing result
@@ -8936,8 +9478,38 @@ function applyKafkaHelperResult() {
         return;
     }
 
-    document.getElementById('kafka-throughput-a').value = result.toFixed(4);
+    // Lưu kết quả vào biến tạm
+    const resultValue = result.toFixed(4);
+
+    // Đóng modal trước để DOM có thể access được
     closeKafkaHelperTool();
+
+    // Đợi modal đóng xong rồi mới điền giá trị
+    setTimeout(() => {
+        console.log('=== DEBUG applyKafkaHelperResult ===');
+
+        // Tìm phần tử throughput field với pattern kafka-throughput-a__inst_Kafka-*
+        const throughputField = document.querySelector('input[id^="kafka-throughput-a"]');
+        console.log('throughputField:', throughputField);
+
+        if (!throughputField) {
+            console.error('Không tìm thấy phần tử kafka-throughput-a');
+
+            // Thử tìm tất cả các input có liên quan
+            const allInputs = document.querySelectorAll('input[id*="kafka"][id*="throughput"]');
+            console.log('Tất cả input kafka-throughput tìm được:', allInputs);
+
+            showToast('Không tìm thấy trường lưu lượng! Vui lòng refresh trang và thử lại.', 'error');
+            return;
+        }
+
+        console.log('Tìm thấy throughputField, ID:', throughputField.id);
+        console.log('Đang điền giá trị:', resultValue);
+
+        throughputField.value = resultValue;
+        throughputField.dispatchEvent(new Event('input', { bubbles: true })); // Trigger change event
+        showToast('Đã áp dụng kết quả thành công!', 'success');
+    }, 150);
 }
 
 // Thêm dòng vào bảng Linear (Existing System)
@@ -9157,9 +9729,9 @@ function calculateKafkaThroughputMethod() {
     const diskPerServerByOptimal = D_GB / optimalN;
     const ramPerServerByOptimal = (S * R / optimalN) + 8;
     html += `<tr style="background: #e6ffed; font-weight: 600;">
-        <td class="text-center">${optimalN} ★</td>
+        <td class="text-center">${optimalN}</td>
         <td class="text-center">${diskPerServerByOptimal >= 1024 ? (diskPerServerByOptimal / 1024).toFixed(2) + ' TB' : diskPerServerByOptimal.toFixed(2) + ' GB'}</td>
-        <td class="text-center">${ramPerServerByOptimal.toFixed(2)} GB ✓</td>
+        <td class="text-center">${ramPerServerByOptimal.toFixed(2)} GB</td>
         <td class="text-center">${vCPU}</td>
         <td>Khuyến nghị (16 < RAM < 64)</td>
     </tr>`;
@@ -9314,9 +9886,9 @@ function calculateKafkaLinearMethod() {
     const ramPerNodeOptimal = ramNeeded / optimalN;
     const diskPerNodeOptimal = diskNeeded / optimalN;
     html += `<tr style="background: #e6ffed; font-weight: 600;">
-        <td class="text-center">${optimalN} ★</td>
+        <td class="text-center">${optimalN}</td>
         <td class="text-center">${Math.ceil(cpuPerNodeOptimal)}</td>
-        <td class="text-center">${ramPerNodeOptimal.toFixed(2)} GB ✓</td>
+        <td class="text-center">${ramPerNodeOptimal.toFixed(2)} GB</td>
         <td class="text-center">${diskPerNodeOptimal >= 1024 ? (diskPerNodeOptimal / 1024).toFixed(2) + ' TB' : Math.ceil(diskPerNodeOptimal) + ' GB'}</td>
         <td>Khuyến nghị (16 <= RAM <= 64)</td>
     </tr>`;

@@ -511,6 +511,7 @@ body {
 .sizing-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
 }
 
 .sizing-table th {
@@ -1563,17 +1564,17 @@ tbody tr:first-child .btn-delete-row-item {
 .logic-task-textarea {
     resize: none;
     overflow: hidden;
-    min-height: 44px;
     line-height: 1.45;
     white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .logic-name-textarea {
     resize: none;
     overflow: hidden;
-    min-height: 44px;
     line-height: 1.45;
     white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .model-wrapper:hover {

@@ -156,6 +156,8 @@ public class ProjectService {
             .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
         // Backward compatible cleanup for environments where FK cascade is not yet active.
         projectDataRepository.deleteByProjectId(id);
+        // Break baseline FK chain before deleting revisions
+        projectRevisionRepository.clearBaselineByProjectId(id);
         projectRevisionRepository.deleteByProjectId(id);
         projectRepository.deleteById(id);
         activityLogService.record(

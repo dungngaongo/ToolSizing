@@ -1,0 +1,3 @@
+// Helper tool evidence
+                    addInlineImages(doc, throughputMethod.path("helperMsgEvidence"), buildCaption(heading + " - Sở cứ Message count", null));
+                    addInlineImages(doc, throughputMethod.path("helperSizeEvidence"), buildCaption(heading + " - Sở cứ Message size", null));

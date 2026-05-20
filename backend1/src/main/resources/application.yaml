@@ -2,17 +2,25 @@ spring:
   application:
     name: sizing
   datasource:
-      url: jdbc:mysql://10.207.252.12:33063/sizing?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      username: sizing
-      password: Admin123@
-      driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/demo?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MariaDBDialect
+        dialect: org.hibernate.dialect.MySQLDialect
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    stream-read-constraints:
+      max-string-length: 104857600  # 100MB
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -21,7 +29,11 @@ spring:
 
 server:
   address: 0.0.0.0
-  port: 8081
+  port: 8085
+  tomcat:
+    max-http-form-post-size: -1
+    connection-timeout: 120000ms
+    max-swallow-size: -1
 
 logging:
   level:
