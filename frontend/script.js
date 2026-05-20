@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://10.61.152.54:8085/api';
+const API_BASE_URL = 'http://localhost:8085/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
@@ -8899,20 +8899,29 @@ function addRedisConfigRow(data = {}) {
 
 // Cập nhật tổng RAM của các Master
 function updateRedisTotalMasterRAM() {
-    const rows = document.querySelectorAll('#redis-config-table-body tr');
+    const tableBody = document.getElementById('redis-config-table-body');
+    const fallbackTable = tableBody?.closest('table') || document.querySelector('.redis-config-table') || window.event?.target?.closest('table');
+    const rows = tableBody
+        ? tableBody.querySelectorAll('tr')
+        : (fallbackTable ? fallbackTable.querySelectorAll('tbody tr') : []);
     let totalMasterRAM = 0;
+    let masterCount = 0;
 
     rows.forEach(row => {
         const isMaster = row.querySelector('.redis-master-checkbox')?.checked;
         if (isMaster) {
+            masterCount += 1;
             const ram = parseFloat(row.querySelector('.redis-config-ram')?.value) || 0;
-            const ramLoad = parseFloat(row.querySelector('.redis-config-ram-load')?.value) || 0;
+            const ramLoadRaw = row.querySelector('.redis-config-ram-load')?.value;
+            const ramLoad = ramLoadRaw === '' ? 100 : (parseFloat(ramLoadRaw) || 0);
             totalMasterRAM += ram * (ramLoad / 100);
         }
     });
 
-    const totalEl = document.getElementById('redis-total-master-ram');
+    const totalEl = document.getElementById('redis-total-master-ram') || fallbackTable?.querySelector('#redis-total-master-ram');
     if (totalEl) totalEl.innerText = totalMasterRAM.toFixed(2);
+
+    return totalMasterRAM;
 }
 
 // Thu thập dữ liệu bảng cấu hình Redis
@@ -9122,7 +9131,7 @@ function calculateRedisConfigMethod() {
     }
 
     // Lấy tổng RAM từ các Master
-    const totalMasterRAM = parseFloat(document.getElementById('redis-total-master-ram')?.innerText) || 0;
+    const totalMasterRAM = updateRedisTotalMasterRAM();
 
     if (totalMasterRAM <= 0) {
         showToast('Vui lòng nhập thông tin và tick chọn ít nhất một Master trong bảng cấu hình!', 'warning');
