@@ -169,9 +169,9 @@ public class ExportService {
         setCell(table, 0, 2, "Chi ti\u1ebft", true, "D9E2F3");
 
         for (int i = 0; i < fields.length; i++) {
-            setCell(table, i + 1, 0, fields[i][0], false, null);
-            setCell(table, i + 1, 1, fields[i][1], false, null);
-            setCell(table, i + 1, 2, txt(node, fields[i][2]), false, null);
+            setCell(table, i + 1, 0, fields[i][0], false, null, ParagraphAlignment.CENTER);
+            setCell(table, i + 1, 1, fields[i][1], false, null, ParagraphAlignment.LEFT, 240);
+            setCell(table, i + 1, 2, txt(node, fields[i][2]), false, null, ParagraphAlignment.LEFT, 240);
         }
         doc.createParagraph();
     }
@@ -2611,6 +2611,14 @@ public class ExportService {
     }
 
     private void setCell(XWPFTable table, int row, int col, String text, boolean bold, String bgColor) {
+        setCell(table, row, col, text, bold, bgColor, ParagraphAlignment.CENTER, null);
+    }
+
+    private void setCell(XWPFTable table, int row, int col, String text, boolean bold, String bgColor, ParagraphAlignment alignment) {
+        setCell(table, row, col, text, bold, bgColor, alignment, null);
+    }
+
+    private void setCell(XWPFTable table, int row, int col, String text, boolean bold, String bgColor, ParagraphAlignment alignment, Integer indentLeft) {
         XWPFTableCell cell = table.getRow(row).getCell(col);
         cell.setVerticalAlignment(XWPFTableCell.XWPFVertAlign.CENTER);
 
@@ -2624,9 +2632,12 @@ public class ExportService {
 
         cell.removeParagraph(0);
         XWPFParagraph p = cell.addParagraph();
-        p.setAlignment(ParagraphAlignment.CENTER);
+        p.setAlignment(alignment != null ? alignment : ParagraphAlignment.CENTER);
         p.setSpacingBefore(40);
         p.setSpacingAfter(40);
+        if (indentLeft != null) {
+            p.setIndentationLeft(indentLeft);
+        }
 
         if (text != null && text.contains("\n")) {
             String[] lines = text.split("\n");
