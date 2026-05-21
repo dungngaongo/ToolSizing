@@ -3452,16 +3452,17 @@ function collectTongHop() {
 function aggregateSizingResults() {
     const tbody = document.getElementById('summary-table-body');
     if (!tbody) return;
-    const instancesByType = getModuleInstancesByType();
-    const selectedModules = Object.keys(instancesByType);
+    const orderedInstances = getModuleInstancesFromArchTable();
+    const selectedModules = orderedInstances.map(instance => instance.moduleType);
+    const hasAppSelected = selectedModules.includes('App');
 
     const results = [];
     let stt = 1;
 
-    // 1. Module App - Chỉ khi module App được chọn trong mô hình
-    if (selectedModules.includes('App')) {
-        (instancesByType.App || []).forEach(instance => {
-            const instanceKey = getModuleInstanceKey(instance);
+    orderedInstances.forEach(instance => {
+        const instanceKey = getModuleInstanceKey(instance);
+
+        if (instance.moduleType === 'App') {
             const appData = runInInstanceContext(instanceKey, () => {
                 const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
                 return parseAppSizingResult(appResult);
@@ -3476,13 +3477,10 @@ function aggregateSizingResults() {
                     ghiChu: appData.ghiChu
                 });
             }
-        });
-    }
+            return;
+        }
 
-    // 2. Module MariaDB - Chỉ khi module MariaDB được chọn
-    if (selectedModules.includes('MariaDB')) {
-        (instancesByType.MariaDB || []).forEach(instance => {
-            const instanceKey = getModuleInstanceKey(instance);
+        if (instance.moduleType === 'MariaDB') {
             const mariaData = runInInstanceContext(instanceKey, () => {
                 const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
                 return parseMariaDBSizingResult(mariaResult);
@@ -3518,46 +3516,10 @@ function aggregateSizingResults() {
                     });
                 }
             }
-        });
-    } else {
-        const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
-        const mariaData = parseMariaDBSizingResult(mariaResult);
-        if (mariaData) {
-            results.push({
-                stt: stt++,
-                moduleType: 'MariaDB',
-                moduleName: 'MariaDB',
-                cauHinh: mariaData.cauHinh,
-                soLuong: mariaData.soLuong,
-                ghiChu: mariaData.ghiChu
-            });
-            if (mariaData.maxScale) {
-                results.push({
-                    stt: stt++,
-                    moduleType: 'MaxScale',
-                    moduleName: 'MariaDB',
-                    cauHinh: mariaData.maxScale.cauHinh,
-                    soLuong: mariaData.maxScale.soLuong,
-                    ghiChu: mariaData.maxScale.ghiChu
-                });
-            }
-            if (mariaData.nas) {
-                results.push({
-                    stt: stt++,
-                    moduleType: 'NAS',
-                    moduleName: 'MariaDB',
-                    cauHinh: mariaData.nas.cauHinh,
-                    soLuong: mariaData.nas.soLuong,
-                    ghiChu: mariaData.nas.ghiChu
-                });
-            }
+            return;
         }
-    }
 
-    // 3. Module Redis - Chỉ khi module Redis được chọn
-    if (selectedModules.includes('Redis')) {
-        (instancesByType.Redis || []).forEach(instance => {
-            const instanceKey = getModuleInstanceKey(instance);
+        if (instance.moduleType === 'Redis') {
             const redisData = runInInstanceContext(instanceKey, () => {
                 const redisKeyBtn = document.getElementById('redis-method-key');
                 const isKeyMethodSelected = redisKeyBtn?.classList.contains('active') === true;
@@ -3576,13 +3538,10 @@ function aggregateSizingResults() {
                     ghiChu: redisData.ghiChu
                 });
             }
-        });
-    }
+            return;
+        }
 
-    // 4. Module Kafka - Chỉ khi module Kafka được chọn
-    if (selectedModules.includes('Kafka')) {
-        (instancesByType.Kafka || []).forEach(instance => {
-            const instanceKey = getModuleInstanceKey(instance);
+        if (instance.moduleType === 'Kafka') {
             const kafkaData = runInInstanceContext(instanceKey, () => {
                 const kafkaMethodThroughputBtn = document.getElementById('kafka-method-throughput');
                 const isThroughputMethodSelected = kafkaMethodThroughputBtn?.classList.contains('active') === true;
@@ -3612,13 +3571,10 @@ function aggregateSizingResults() {
                     });
                 }
             }
-        });
-    }
+            return;
+        }
 
-    // 5. Module K8S - Chỉ khi module K8S được chọn
-    if (selectedModules.includes('K8S')) {
-        (instancesByType.K8S || []).forEach(instance => {
-            const instanceKey = getModuleInstanceKey(instance);
+        if (instance.moduleType === 'K8S') {
             const k8sData = runInInstanceContext(instanceKey, () => {
                 const k8sResult = document.getElementById('k8s-result-container')?.innerHTML || '';
                 return parseK8SSizingResult(k8sResult);
@@ -3636,13 +3592,10 @@ function aggregateSizingResults() {
                     });
                 });
             }
-        });
-    }
+            return;
+        }
 
-    // 6. Module LB/FW - Chỉ khi module LB/FW được chọn
-    if (selectedModules.includes('LB/FW')) {
-        (instancesByType['LB/FW'] || []).forEach(instance => {
-            const instanceKey = getModuleInstanceKey(instance);
+        if (instance.moduleType === 'LB/FW') {
             const lbfwData = runInInstanceContext(instanceKey, () => {
                 const lbfwResult = document.getElementById('lbfw-result-container')?.innerHTML || '';
                 return parseLBFWSizingResult(lbfwResult);
@@ -3656,8 +3609,7 @@ function aggregateSizingResults() {
                     soLuong: lbfwData.soLuong,
                     ghiChu: lbfwData.ghiChu
                 });
-            } else if (selectedModules.includes('App')) {
-                // Fallback: FW/LB từ App nếu có (chỉ khi App cũng được chọn)
+            } else if (hasAppSelected) {
                 const appData = runInInstanceContext(instanceKey, () => {
                     const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
                     return parseAppSizingResult(appResult);
@@ -3673,13 +3625,10 @@ function aggregateSizingResults() {
                     });
                 }
             }
-        });
-    }
+            return;
+        }
 
-    // 7. Module Khác
-    if (selectedModules.includes('Khác')) {
-        (instancesByType['Khác'] || []).forEach(instance => {
-            const instanceKey = getModuleInstanceKey(instance);
+        if (instance.moduleType === 'Khác') {
             const customData = runInInstanceContext(instanceKey, () => collectCustomModuleData());
             const instanceName = getModuleInstanceDisplayName(instance);
 
@@ -3723,8 +3672,8 @@ function aggregateSizingResults() {
                     });
                 }
             }
-        });
-    }
+        }
+    });
 
     // Render bảng
     if (results.length === 0) {
