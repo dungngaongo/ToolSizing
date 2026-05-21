@@ -303,6 +303,7 @@ const SIZING_REQUIRED_SELECTOR_GROUPS = {
     App: [
         'select[id^="app-input-row-select"]',
         '#baseline-table-body .ip-input',
+        '#baseline-table-body .qty-input',
         '#baseline-table-body .cpu-input',
         '#baseline-table-body .ram-input',
         '#baseline-table-body .disk-input',
@@ -343,6 +344,7 @@ const SIZING_REQUIRED_SELECTOR_GROUPS = {
     K8S: [
         'select[id^="k8s-input-row-select"]',
         '#k8s-baseline-table-body .k8s-ip-input',
+        '#k8s-baseline-table-body .qty-input',
         '#k8s-baseline-table-body .k8s-cpu-input',
         '#k8s-baseline-table-body .k8s-ram-input',
         '#k8s-baseline-table-body .k8s-disk-input',
@@ -350,6 +352,9 @@ const SIZING_REQUIRED_SELECTOR_GROUPS = {
         '#k8s-input-config-table-body .k8s-cpu-load-input',
         '#k8s-input-config-table-body .k8s-ram-load-input',
         '#k8s-input-config-table-body .k8s-disk-load-input'
+    ],
+    'Khác': [
+        '#custom-baseline-table-body .qty-input'
     ],
     'LB/FW': [
         'select[id^="lbfw-input-row-select"]',
@@ -3744,12 +3749,12 @@ function collectCustomBaselineTableData() {
     const rows = document.querySelectorAll('#custom-baseline-table-body tr');
     const data = [];
     rows.forEach((row, index) => {
-        const inputs = row.querySelectorAll('input, select');
-        const ip = inputs[0]?.value || '';
-        const cpu = inputs[1]?.value || '';
-        const ram = inputs[2]?.value || '';
-        const disk = inputs[3]?.value || '';
-        const cint = inputs[4]?.value || '';
+        const ip = row.querySelector('.ip-input')?.value || '';
+        const qty = row.querySelector('.qty-input')?.value || '';
+        const cpu = row.querySelector('.cpu-input')?.value || '';
+        const ram = row.querySelector('.ram-input')?.value || '';
+        const disk = row.querySelector('.disk-input')?.value || '';
+        const cint = row.querySelector('.cint-input')?.value || '';
 
         const evidenceImages = collectInlineEvidenceFromScope(row);
 
@@ -3759,7 +3764,7 @@ function collectCustomBaselineTableData() {
         if (ip || cpu || ram || disk || cint) {
             data.push({
                 stt: index + 1,
-                ip, cpu, ram, disk, cintRate: cint,
+                ip, quantity: qty, cpu, ram, disk, cintRate: cint,
                 evidenceImages,
                 adminRating: adminEval,
                 adminNote
@@ -3821,6 +3826,7 @@ function addCustomBaselineRow() {
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
+        <td><input type="number" class="input-full text-center qty-input" value="1" min="1" step="1" oninput="${baselineRamHandler}"></td>
         <td><input type="text" class="input-full cpu-input" placeholder="Intel Xeon..."></td>
         <td><input type="number" class="input-full text-center ram-input" value="0" min="0" oninput="${baselineRamHandler}"></td>
         <td><input type="number" class="input-full text-center disk-input" value="0" min="0" oninput="${baselineDiskHandler}"></td>
@@ -3919,9 +3925,13 @@ function updateCustomBaselineTotal() {
 
     let totalRam = 0, totalDisk = 0, totalCint = 0;
     tbody.querySelectorAll('tr').forEach(row => {
-        totalRam += parseFloat(row.querySelector('.ram-input')?.value) || 0;
-        totalDisk += parseFloat(row.querySelector('.disk-input')?.value) || 0;
-        totalCint += parseFloat(row.querySelector('.cint-input')?.value) || 0;
+        const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+        const ram = parseFloat(row.querySelector('.ram-input')?.value) || 0;
+        const disk = parseFloat(row.querySelector('.disk-input')?.value) || 0;
+        const cint = parseFloat(row.querySelector('.cint-input')?.value) || 0;
+        totalRam += ram * qty;
+        totalDisk += disk * qty;
+        totalCint += cint * qty;
     });
 
     totalRamEl.innerText = totalRam.toFixed(0);
@@ -3981,14 +3991,15 @@ function calculateCustomInputConfigRow(cpuLoadInput) {
     const baselineCint = parseFloat(baselineRow.querySelector('.cint-input').value) || 0;
     const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
     const baselineDisk = parseFloat(baselineRow.querySelector('.disk-input').value) || 0;
+    const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
     const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
     const ramLoad = parseFloat(row.querySelector('.ram-load-input')?.value) || 0;
     const diskLoad = parseFloat(row.querySelector('.disk-load-input')?.value) || 0;
 
-    const cintUsed = (baselineCint * cpuLoad / 100).toFixed(2);
-    const ramUsed = (baselineRam * ramLoad / 100).toFixed(2);
-    const diskUsed = (baselineDisk * diskLoad / 100).toFixed(2);
+    const cintUsed = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
+    const ramUsed = (baselineRam * quantity * ramLoad / 100).toFixed(2);
+    const diskUsed = (baselineDisk * quantity * diskLoad / 100).toFixed(2);
 
     cintUsedInput.value = cintUsed;
     ramUsedInput.value = ramUsed;
@@ -4380,11 +4391,13 @@ function loadCustomLinearLikeApp(moduleApp) {
             const lastRow = baselineBody?.lastElementChild;
             if (!lastRow) return;
             const ipInput = lastRow.querySelector('.ip-input');
+            const qtyInput = lastRow.querySelector('.qty-input');
             const cpuInput = lastRow.querySelector('.cpu-input');
             const ramInput = lastRow.querySelector('.ram-input');
             const diskInput = lastRow.querySelector('.disk-input');
             const cintInput = lastRow.querySelector('.cint-input');
             if (ipInput) ipInput.value = row.ip || '';
+            if (qtyInput) qtyInput.value = row.quantity || '1';
             if (cpuInput) cpuInput.value = row.cpu || '';
             if (ramInput) ramInput.value = row.ram || '';
             if (diskInput) diskInput.value = row.disk || '';
@@ -5331,6 +5344,8 @@ function addBaselineRow() {
         <td class="text-center stt-cell">${rowCount}</td>
         
         <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
+
+        <td><input type="number" class="input-full text-center qty-input" value="1" min="1" step="1" oninput="${recalcHandler}"></td>
         
         <td><input type="text" class="input-full cpu-input" placeholder="Intel Xeon..."></td>
         
@@ -5612,16 +5627,14 @@ function updateBaselineTotal() {
     let totalCint = 0;
     let totalDisk = 0;
 
-    document.querySelectorAll('.ram-input').forEach(input => {
-        totalRam += parseFloat(input.value) || 0;
-    });
-
-    document.querySelectorAll('.cint-input').forEach(input => {
-        totalCint += parseFloat(input.value) || 0;
-    });
-
-    document.querySelectorAll('.disk-input').forEach(input => {
-        totalDisk += parseFloat(input.value) || 0;
+    document.querySelectorAll('#baseline-table-body tr').forEach(row => {
+        const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+        const ram = parseFloat(row.querySelector('.ram-input')?.value) || 0;
+        const cint = parseFloat(row.querySelector('.cint-input')?.value) || 0;
+        const disk = parseFloat(row.querySelector('.disk-input')?.value) || 0;
+        totalRam += ram * qty;
+        totalCint += cint * qty;
+        totalDisk += disk * qty;
     });
 
     totalRamEl.innerText = totalRam;
@@ -5757,6 +5770,7 @@ function collectBaselineTableData() {
         data.push({
             stt: index + 1,
             ip: row.querySelector('.ip-input')?.value || '',
+            quantity: row.querySelector('.qty-input')?.value || '',
             cpu: row.querySelector('.cpu-input')?.value || '',
             ram: row.querySelector('.ram-input')?.value || '',
             disk: row.querySelector('.disk-input')?.value || '',
@@ -6254,12 +6268,14 @@ function loadSizingData(data) {
                             if (lastRow) {
                                 // Use specific class selectors
                                 const ipInput = lastRow.querySelector('.ip-input');
+                                const qtyInput = lastRow.querySelector('.qty-input');
                                 const cpuInput = lastRow.querySelector('.cpu-input');
                                 const ramInput = lastRow.querySelector('.ram-input');
                                 const diskInput = lastRow.querySelector('.disk-input');
                                 const cintInput = lastRow.querySelector('.cint-input');
 
                                 if (ipInput) ipInput.value = row.ip || '';
+                                if (qtyInput) qtyInput.value = row.quantity || '1';
                                 if (cpuInput) cpuInput.value = row.cpu || '';
                                 if (ramInput) ramInput.value = row.ram || '';
                                 if (diskInput) diskInput.value = row.disk || '';
@@ -6936,6 +6952,7 @@ function calculateInputConfigRow(input) {
         const baselineCint = parseFloat(baselineRow.querySelector('.cint-input').value) || 0;
         const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
         const baselineDisk = parseFloat(baselineRow.querySelector('.disk-input').value) || 0;
+        const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
         const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
         const ramLoad = parseFloat(ramLoadInput.value) || 0;
@@ -6944,9 +6961,9 @@ function calculateInputConfigRow(input) {
         // Công thức:
         // Cint_rate used (Cint) = Cint_rate_2017 (hệ thống tham chiếu) × Tải CPU 95th percentile (%)
         // RAM used (GB) = RAM (hệ thống tham chiếu) × Tải RAM 95th percentile (%)
-        const cintUsed = (baselineCint * cpuLoad / 100).toFixed(2);
-        const ramUsed = (baselineRam * ramLoad / 100).toFixed(2);
-        const diskUsed = (baselineDisk * diskLoad / 100).toFixed(2);
+        const cintUsed = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
+        const ramUsed = (baselineRam * quantity * ramLoad / 100).toFixed(2);
+        const diskUsed = (baselineDisk * quantity * diskLoad / 100).toFixed(2);
 
         cintUsedInput.value = cintUsed;
         ramUsedInput.value = ramUsed;
@@ -7246,6 +7263,7 @@ function addK8SBaselineRow() {
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
+        <td><input type="number" class="input-full text-center qty-input" value="1" min="1" step="1" oninput="${baselineRamHandler}"></td>
         <td><input type="text" class="input-full k8s-cpu-input" placeholder="Intel Xeon..."></td>
         <td><input type="number" class="input-full text-center k8s-ram-input" value="0" min="0" oninput="${baselineRamHandler}"></td>
         <td><input type="number" class="input-full text-center k8s-disk-input" value="0" min="0" oninput="${baselineDiskHandler}"></td>
@@ -7349,14 +7367,15 @@ function calculateK8SInputConfigRow(input) {
         const baselineCint = parseFloat(baselineRow.querySelector('.k8s-cint-input').value) || 0;
         const baselineRam = parseFloat(baselineRow.querySelector('.k8s-ram-input').value) || 0;
         const baselineDisk = parseFloat(baselineRow.querySelector('.k8s-disk-input').value) || 0;
+        const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
         const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
         const ramLoad = parseFloat(ramLoadInput.value) || 0;
         const diskLoad = parseFloat(row.querySelector('.k8s-disk-load-input')?.value) || 0;
 
-        cintUsedInput.value = (baselineCint * cpuLoad / 100).toFixed(2);
-        ramUsedInput.value = (baselineRam * ramLoad / 100).toFixed(2);
-        diskUsedInput.value = (baselineDisk * diskLoad / 100).toFixed(2);
+        cintUsedInput.value = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
+        ramUsedInput.value = (baselineRam * quantity * ramLoad / 100).toFixed(2);
+        diskUsedInput.value = (baselineDisk * quantity * diskLoad / 100).toFixed(2);
     }
 
     updateK8SInputConfigTotal();
@@ -7412,16 +7431,13 @@ function updateK8SBaselineTotal() {
     let totalRam = 0, totalCint = 0, totalDisk = 0;
 
     getK8SBaselineRows().forEach(row => {
-        const input = row.querySelector('.k8s-ram-input');
-        totalRam += parseFloat(input?.value) || 0;
-    });
-    getK8SBaselineRows().forEach(row => {
-        const input = row.querySelector('.k8s-cint-input');
-        totalCint += parseFloat(input?.value) || 0;
-    });
-    getK8SBaselineRows().forEach(row => {
-        const input = row.querySelector('.k8s-disk-input');
-        totalDisk += parseFloat(input?.value) || 0;
+        const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+        const ram = parseFloat(row.querySelector('.k8s-ram-input')?.value) || 0;
+        const cint = parseFloat(row.querySelector('.k8s-cint-input')?.value) || 0;
+        const disk = parseFloat(row.querySelector('.k8s-disk-input')?.value) || 0;
+        totalRam += ram * qty;
+        totalCint += cint * qty;
+        totalDisk += disk * qty;
     });
 
     totalRamEl.innerText = totalRam;
@@ -7678,6 +7694,7 @@ function collectK8SBaselineTableData() {
         data.push({
             stt: index + 1,
             ip: row.querySelector('.k8s-ip-input')?.value || '',
+            quantity: row.querySelector('.qty-input')?.value || '',
             cpu: row.querySelector('.k8s-cpu-input')?.value || '',
             ram: row.querySelector('.k8s-ram-input')?.value || '',
             disk: row.querySelector('.k8s-disk-input')?.value || '',
@@ -7751,12 +7768,14 @@ function loadK8SData(data) {
                 const lastRow = tbody.lastElementChild;
                 if (lastRow) {
                     const ipInput = lastRow.querySelector('.k8s-ip-input');
+                    const qtyInput = lastRow.querySelector('.qty-input');
                     const cpuInput = lastRow.querySelector('.k8s-cpu-input');
                     const ramInput = lastRow.querySelector('.k8s-ram-input');
                     const diskInput = lastRow.querySelector('.k8s-disk-input');
                     const cintInput = lastRow.querySelector('.k8s-cint-input');
 
                     if (ipInput) ipInput.value = row.ip || '';
+                    if (qtyInput) qtyInput.value = row.quantity || '1';
                     if (cpuInput) cpuInput.value = row.cpu || '';
                     if (ramInput) ramInput.value = row.ram || '';
                     if (diskInput) diskInput.value = row.disk || '';
