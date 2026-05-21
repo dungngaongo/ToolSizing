@@ -24,6 +24,10 @@ public interface ProjectRevisionRepository extends JpaRepository<ProjectRevision
     @Query("DELETE FROM ProjectRevision r WHERE r.project.id = :projectId")
     void deleteByProjectId(@Param("projectId") String projectId);
 
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE ProjectRevision r SET r.baseline = NULL WHERE r.project.id = :projectId AND r.baseline IS NOT NULL")
+    void clearBaselineByProjectId(@Param("projectId") String projectId);
+
     // Tìm revision BASELINE mới nhất của project
     @Query(value = "SELECT * FROM project_revisions WHERE project_id = :projectId AND revision_type = :revisionType ORDER BY created_at DESC LIMIT 1", nativeQuery = true)
     Optional<ProjectRevision> findFirstByProjectIdAndRevisionTypeOrderByCreatedAtDesc(@Param("projectId") String projectId,

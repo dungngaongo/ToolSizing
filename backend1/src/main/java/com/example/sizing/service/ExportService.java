@@ -510,36 +510,45 @@ public class ExportService {
             addSubHeading2(doc, "Th\u00f4ng tin h\u1ec7 th\u1ed1ng tham chi\u1ebfu");
 
             int rows = baselineTable.size();
-            XWPFTable table = doc.createTable(rows + 2, 6);
+            XWPFTable table = doc.createTable(rows + 2, 7);
             styleTable(table);
 
             setCell(table, 0, 0, "STT", true, "D9E2F3");
             setCell(table, 0, 1, "IP", true, "D9E2F3");
-            setCell(table, 0, 2, "CPU", true, "D9E2F3");
-            setCell(table, 0, 3, "RAM\n(GB)", true, "D9E2F3");
-            setCell(table, 0, 4, "DISK\n(GB)", true, "D9E2F3");
-            setCell(table, 0, 5, "Cint_rate_2017", true, "D9E2F3");
+            setCell(table, 0, 2, "Số lượng", true, "D9E2F3");
+            setCell(table, 0, 3, "CPU", true, "D9E2F3");
+            setCell(table, 0, 4, "RAM\n(GB)", true, "D9E2F3");
+            setCell(table, 0, 5, "DISK\n(GB)", true, "D9E2F3");
+            setCell(table, 0, 6, "Cint_rate_2017", true, "D9E2F3");
 
             double totalCpu = 0, totalRam = 0, totalDisk = 0, totalCint = 0;
             for (int i = 0; i < rows; i++) {
                 JsonNode r = baselineTable.get(i);
+                double qty = toDouble(r, "quantity");
+                String qtyText = txt(r, "quantity");
+                if (qty <= 0) {
+                    qty = 1;
+                    if (qtyText.isBlank()) qtyText = "1";
+                }
                 setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
                 setCell(table, i + 1, 1, txt(r, "ip"), false, null);
-                setCell(table, i + 1, 2, txt(r, "cpu"), false, null);
-                setCell(table, i + 1, 3, txt(r, "ram"), false, null);
-                setCell(table, i + 1, 4, txt(r, "disk"), false, null);
-                setCell(table, i + 1, 5, txt(r, "cintRate"), false, null);
+                setCell(table, i + 1, 2, qtyText, false, null);
+                setCell(table, i + 1, 3, txt(r, "cpu"), false, null);
+                setCell(table, i + 1, 4, txt(r, "ram"), false, null);
+                setCell(table, i + 1, 5, txt(r, "disk"), false, null);
+                setCell(table, i + 1, 6, txt(r, "cintRate"), false, null);
                 totalCpu += toDouble(r, "cpu");
-                totalRam += toDouble(r, "ram");
-                totalDisk += toDouble(r, "disk");
-                totalCint += toDouble(r, "cintRate");
+                totalRam += toDouble(r, "ram") * qty;
+                totalDisk += toDouble(r, "disk") * qty;
+                totalCint += toDouble(r, "cintRate") * qty;
             }
             setCell(table, rows + 1, 0, "", true, "E2EFDA");
             setCell(table, rows + 1, 1, "T\u1ed5ng", true, "E2EFDA");
-            setCell(table, rows + 1, 2, formatNum(totalCpu), true, "E2EFDA");
-            setCell(table, rows + 1, 3, formatNum(totalRam), true, "E2EFDA");
-            setCell(table, rows + 1, 4, formatNum(totalDisk), true, "E2EFDA");
-            setCell(table, rows + 1, 5, formatNum(totalCint), true, "E2EFDA");
+            setCell(table, rows + 1, 2, "", true, "E2EFDA");
+            setCell(table, rows + 1, 3, formatNum(totalCpu), true, "E2EFDA");
+            setCell(table, rows + 1, 4, formatNum(totalRam), true, "E2EFDA");
+            setCell(table, rows + 1, 5, formatNum(totalDisk), true, "E2EFDA");
+            setCell(table, rows + 1, 6, formatNum(totalCint), true, "E2EFDA");
             doc.createParagraph();
 
             boolean hasBaselineEvidence = false;
@@ -1644,35 +1653,44 @@ public class ExportService {
             addSubHeading2(doc, "Th\u00f4ng tin h\u1ec7 th\u1ed1ng tham chi\u1ebfu");
 
             int rows = baselineTable.size();
-            XWPFTable table = doc.createTable(rows + 2, 6);
+            XWPFTable table = doc.createTable(rows + 2, 7);
             styleTable(table);
 
             setCell(table, 0, 0, "STT", true, "D9E2F3");
             setCell(table, 0, 1, "IP", true, "D9E2F3");
-            setCell(table, 0, 2, "CPU", true, "D9E2F3");
-            setCell(table, 0, 3, "RAM\n(GB)", true, "D9E2F3");
-            setCell(table, 0, 4, "DISK\n(GB)", true, "D9E2F3");
-            setCell(table, 0, 5, "Cint_rate_2017", true, "D9E2F3");
+            setCell(table, 0, 2, "Số lượng", true, "D9E2F3");
+            setCell(table, 0, 3, "CPU", true, "D9E2F3");
+            setCell(table, 0, 4, "RAM\n(GB)", true, "D9E2F3");
+            setCell(table, 0, 5, "DISK\n(GB)", true, "D9E2F3");
+            setCell(table, 0, 6, "Cint_rate_2017", true, "D9E2F3");
 
             double totalRam = 0, totalDisk = 0, totalCint = 0;
             for (int i = 0; i < rows; i++) {
                 JsonNode r = baselineTable.get(i);
+                double qty = toDouble(r, "quantity");
+                String qtyText = txt(r, "quantity");
+                if (qty <= 0) {
+                    qty = 1;
+                    if (qtyText.isBlank()) qtyText = "1";
+                }
                 setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
                 setCell(table, i + 1, 1, txt(r, "ip"), false, null);
-                setCell(table, i + 1, 2, txt(r, "cpu"), false, null);
-                setCell(table, i + 1, 3, txt(r, "ram"), false, null);
-                setCell(table, i + 1, 4, txt(r, "disk"), false, null);
-                setCell(table, i + 1, 5, txt(r, "cintRate"), false, null);
-                totalRam += toDouble(r, "ram");
-                totalDisk += toDouble(r, "disk");
-                totalCint += toDouble(r, "cintRate");
+                setCell(table, i + 1, 2, qtyText, false, null);
+                setCell(table, i + 1, 3, txt(r, "cpu"), false, null);
+                setCell(table, i + 1, 4, txt(r, "ram"), false, null);
+                setCell(table, i + 1, 5, txt(r, "disk"), false, null);
+                setCell(table, i + 1, 6, txt(r, "cintRate"), false, null);
+                totalRam += toDouble(r, "ram") * qty;
+                totalDisk += toDouble(r, "disk") * qty;
+                totalCint += toDouble(r, "cintRate") * qty;
             }
             setCell(table, rows + 1, 0, "", true, "E2EFDA");
             setCell(table, rows + 1, 1, "T\u1ed5ng", true, "E2EFDA");
             setCell(table, rows + 1, 2, "", true, "E2EFDA");
-            setCell(table, rows + 1, 3, formatNum(totalRam), true, "E2EFDA");
-            setCell(table, rows + 1, 4, formatNum(totalDisk), true, "E2EFDA");
-            setCell(table, rows + 1, 5, formatNum(totalCint), true, "E2EFDA");
+            setCell(table, rows + 1, 3, "", true, "E2EFDA");
+            setCell(table, rows + 1, 4, formatNum(totalRam), true, "E2EFDA");
+            setCell(table, rows + 1, 5, formatNum(totalDisk), true, "E2EFDA");
+            setCell(table, rows + 1, 6, formatNum(totalCint), true, "E2EFDA");
             doc.createParagraph();
 
             boolean hasBaselineEvidence = false;

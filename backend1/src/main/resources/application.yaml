@@ -13,6 +13,14 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MariaDBDialect
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    stream-read-constraints:
+      max-string-length: 104857600  # 100MB
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -22,6 +30,10 @@ spring:
 server:
   address: 0.0.0.0
   port: 8081
+  tomcat:
+    max-http-form-post-size: -1
+    connection-timeout: 120000ms
+    max-swallow-size: -1
 
 logging:
   level:

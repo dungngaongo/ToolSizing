@@ -210,8 +210,8 @@
                                 <tr>
                                     <td><strong>3. Chức năng hệ thống</strong> <span class="info-icon"
                                             title="Mô tả ngắn gọn chức năng">?</span></td>
-                                    <td><textarea class="input-full" rows="2" placeholder="Mô tả chức năng..."
-                                            style="resize: vertical; min-height: 36px;"></textarea></td>
+                                    <td><textarea class="input-full connection-auto-textarea" rows="2" placeholder="Mô tả chức năng..."
+                                            style="min-height: 36px;" oninput="autoResizeConnectionTextarea(this)"></textarea></td>
                                     <td><select class="admin-eval" onchange="updateColor(this)">
                                             <option value="">--</option>
                                             <option value="OK">OK</option>
@@ -360,10 +360,6 @@
                             </div>
                         </span>
                     </h2>
-                    <p style="color: #666; font-style: italic; margin-bottom: 15px; font-size: 13px;">
-                        &lt;Nhập thông tin CCU, POC, Định cỡ. Tải ảnh sở cứ vào biểu tượng đám mây. Nhấn vào ảnh để xem
-                        to.&gt;
-                    </p>
 
                     <div class="table-responsive">
                         <table class="sizing-table" id="input-table">
@@ -402,12 +398,27 @@
                                 <tr>
                                     <td style="text-align: center;">1</td>
 
-                                    <td><textarea rows="2" class="input-full"
-                                            placeholder="Ví dụ: Tổng CCU..."></textarea></td>
+                                    <td>
+                                        <select class="input-full dau-vao-type-select"
+                                                onchange="onDauVaoTypeChange(this)"
+                                                style="margin-bottom: 4px;">
+                                            <option value="">-- Chọn loại đầu vào --</option>
+                                            <option value="CCU">CCU</option>
+                                            <option value="TPS">TPS</option>
+                                            <option value="Số người dùng">Số người dùng</option>
+                                            <option value="Số hệ thống">Số hệ thống</option>
+                                            <option value="Thời gian lưu trữ">Thời gian lưu trữ</option>
+                                            <option value="Khác">Khác</option>
+                                        </select>
+                                        <input type="text" class="input-full connection-auto-textarea dau-vao-custom-input"
+                                               placeholder="Nhập giá trị tùy chỉnh..."
+                                               oninput="autoResizeConnectionTextarea(this)"
+                                               style="display: none;" disabled>
+                                    </td>
 
                                     <td>
                                         <div class="cell-wrapper">
-                                            <input type="text" placeholder="Giá trị...">
+                                            <textarea rows="2" class="input-full connection-auto-textarea" placeholder="Giá trị..." oninput="autoResizeConnectionTextarea(this)"></textarea>
                                             <div class="row-evidence-controls">
                                                 <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                                                     <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -422,7 +433,7 @@
 
                                     <td>
                                         <div class="cell-wrapper">
-                                            <input type="text" placeholder="Giá trị...">
+                                            <textarea rows="2" class="input-full connection-auto-textarea" placeholder="Giá trị..." oninput="autoResizeConnectionTextarea(this)"></textarea>
                                             <div class="row-evidence-controls">
                                                 <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                                                     <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -436,7 +447,8 @@
                                     </td>
 
                                     <td><input type="text" class="input-full" placeholder="Module..."></td>
-                                    <td><textarea rows="2" class="input-full" placeholder="Ghi chú..."></textarea></td>
+                                    <td><textarea rows="2" class="input-full connection-auto-textarea" placeholder="Ghi chú..."
+                                                  oninput="autoResizeConnectionTextarea(this)"></textarea></td>
 
                                     <td>
                                         <select class="admin-eval" onchange="updateColor(this)">
@@ -447,8 +459,8 @@
                                     </td>
 
                                     <td>
-                                        <textarea rows="1" class="input-full admin-note" placeholder="..."
-                                            style="resize: vertical; min-height: 34px;"></textarea>
+                                        <textarea rows="1" class="input-full admin-note connection-auto-textarea" placeholder="..."
+                                                  style="min-height: 34px;" oninput="autoResizeConnectionTextarea(this)"></textarea>
                                     </td>
 
                                     <td style="text-align: center;">
@@ -631,9 +643,17 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <button type="button" class="btn-add" id="addConnectionRowBtn" style="margin-top: 15px;">
-                                <i class="fa-solid fa-plus"></i> Thêm kết nối
-                            </button>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                                <button type="button" class="btn-add" id="addConnectionRowBtn">
+                                    <i class="fa-solid fa-plus"></i> Thêm kết nối
+                                </button>
+                                <button type="button" class="btn-add" id="importConnectionBtn"
+                                        onclick="document.getElementById('connection-import-input').click()">
+                                    <i class="fa-solid fa-file-import"></i> Import Excel/CSV
+                                </button>
+                                <input type="file" id="connection-import-input" accept=".xlsx,.csv"
+                                       onchange="handleConnectionImport(this)" style="display: none;">
+                            </div>
                         </div>
 
                     </div>
@@ -768,6 +788,7 @@
                                             <tr>
                                                 <th style="width: 50px;">STT</th>
                                                 <th style="width: 130px;">IP</th>
+                                                <th style="width: 80px;">Số lượng</th>
                                                 <th style="width: 220px;">CPU (Model & Specs)</th>
                                                 <th style="width: 100px;">RAM (GB)</th>
                                                 <th style="width: 100px;">Disk (GB)</th>
@@ -789,7 +810,7 @@
                                         <tbody id="baseline-table-body"></tbody>
                                         <tfoot>
                                             <tr>
-                                                <td colspan="3" class="text-right"
+                                                <td colspan="4" class="text-right"
                                                     style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">
                                                     Tổng cộng:
                                                 </td>
@@ -1821,13 +1842,13 @@
                                             style="border-radius: 8px; border: 1px solid #d1d5db; padding: 10px 12px; font-size: 14px; width: 100%; box-sizing: border-box; margin-bottom: 10px;">
                                         <div id="kafka-helper-msg-evidence-grid" class="image-upload-grid"
                                             style="margin-bottom: 8px; min-height: 20px;"></div>
-                                        <button type="button" class="btn-add-img sizing-user-btn"
-                                            onclick="addKafkaHelperMsgEvidenceSlot()"
-                                            style="font-size: 11px; border-radius: 6px; width: 100%; background: #f3f4f6; border: 1px dashed #d1d5db; color: #374151; padding: 7px 12px; cursor: pointer; transition: all 0.2s;"
-                                            onmouseover="this.style.background='#e5e7eb'"
-                                            onmouseout="this.style.background='#f3f4f6'">
-                                            <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
-                                        </button>
+<!--                                        <button type="button" class="btn-add-img sizing-user-btn"-->
+<!--                                            onclick="addKafkaHelperMsgEvidenceSlot()"-->
+<!--                                            style="font-size: 11px; border-radius: 6px; width: 100%; background: #f3f4f6; border: 1px dashed #d1d5db; color: #374151; padding: 7px 12px; cursor: pointer; transition: all 0.2s;"-->
+<!--                                            onmouseover="this.style.background='#e5e7eb'"-->
+<!--                                            onmouseout="this.style.background='#f3f4f6'">-->
+<!--                                            <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ-->
+<!--                                        </button>-->
                                     </div>
 
                                     <!-- Input 2: Message Size -->
@@ -1846,13 +1867,13 @@
                                             style="border-radius: 8px; border: 1px solid #d1d5db; padding: 10px 12px; font-size: 14px; width: 100%; box-sizing: border-box; margin-bottom: 10px;">
                                         <div id="kafka-helper-size-evidence-grid" class="image-upload-grid"
                                             style="margin-bottom: 8px; min-height: 20px;"></div>
-                                        <button type="button" class="btn-add-img sizing-user-btn"
-                                            onclick="addKafkaHelperSizeEvidenceSlot()"
-                                            style="font-size: 11px; border-radius: 6px; width: 100%; background: #f3f4f6; border: 1px dashed #d1d5db; color: #374151; padding: 7px 12px; cursor: pointer; transition: all 0.2s;"
-                                            onmouseover="this.style.background='#e5e7eb'"
-                                            onmouseout="this.style.background='#f3f4f6'">
-                                            <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
-                                        </button>
+<!--                                        <button type="button" class="btn-add-img sizing-user-btn"-->
+<!--                                            onclick="addKafkaHelperSizeEvidenceSlot()"-->
+<!--                                            style="font-size: 11px; border-radius: 6px; width: 100%; background: #f3f4f6; border: 1px dashed #d1d5db; color: #374151; padding: 7px 12px; cursor: pointer; transition: all 0.2s;"-->
+<!--                                            onmouseover="this.style.background='#e5e7eb'"-->
+<!--                                            onmouseout="this.style.background='#f3f4f6'">-->
+<!--                                            <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ-->
+<!--                                        </button>-->
                                     </div>
                                 </div>
 
@@ -1912,6 +1933,7 @@
                                             <tr>
                                                 <th style="width: 50px;">STT</th>
                                                 <th style="width: 130px;">IP</th>
+                                                <th style="width: 80px;">Số lượng</th>
                                                 <th style="width: 220px;">CPU (Model & Specs)</th>
                                                 <th style="width: 100px;">RAM (GB)</th>
                                                 <th style="width: 100px;">Disk (GB)</th>
@@ -1931,7 +1953,7 @@
                                         <tbody id="k8s-baseline-table-body"></tbody>
                                         <tfoot>
                                             <tr>
-                                                <td colspan="3" class="text-right"
+                                                <td colspan="4" class="text-right"
                                                     style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">
                                                     Tổng cộng:</td>
                                                 <td class="text-center" id="k8s-total-ram" style="font-weight: bold;">0
@@ -2236,6 +2258,7 @@
                                                 <tr>
                                                     <th style="width: 50px;">STT</th>
                                                     <th style="width: 130px;">IP</th>
+                                                    <th style="width: 80px;">Số lượng</th>
                                                     <th style="width: 220px;">CPU (Model & Specs)</th>
                                                     <th style="width: 100px;">RAM (GB)</th>
                                                     <th style="width: 100px;">Disk (GB)</th>
@@ -2249,24 +2272,24 @@
                                                     <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="baseline-table-body"></tbody>
+                                            <tbody id="custom-baseline-table-body"></tbody>
                                             <tfoot>
                                                 <tr>
-                                                    <td colspan="3" class="text-right"
+                                                    <td colspan="4" class="text-right"
                                                         style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">
                                                         Tổng cộng:</td>
-                                                    <td class="text-center" id="total-ram" style="font-weight: bold;">0
+                                                    <td class="text-center" id="custom-total-ram" style="font-weight: bold;">0
                                                     </td>
-                                                    <td class="text-center" id="total-disk" style="font-weight: bold;">0
+                                                    <td class="text-center" id="custom-total-disk" style="font-weight: bold;">0
                                                     </td>
-                                                    <td class="text-center" id="total-cint" style="font-weight: bold;">0
+                                                    <td class="text-center" id="custom-total-cint" style="font-weight: bold;">0
                                                     </td>
                                                     <td colspan="4"></td>
                                                 </tr>
                                             </tfoot>
                                         </table>
                                     </div>
-                                    <button type="button" class="btn-add sizing-user-btn" onclick="addBaselineRow()">
+                                    <button type="button" class="btn-add sizing-user-btn" onclick="addCustomBaselineRow()">
                                         <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
                                     </button>
 
@@ -2294,7 +2317,19 @@
                                                     <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="input-config-table-body"></tbody>
+                                            <tbody id="custom-input-config-table-body"></tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <td colspan="5" class="text-right"
+                                                        style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">Tổng cộng:</td>
+                                                    <td class="text-center" id="custom-total-cint-used" style="font-weight: bold;">0</td>
+                                                    <td class="text-center" id="custom-total-ram-used" style="font-weight: bold;">0</td>
+                                                    <td class="text-center" id="custom-total-disk-used" style="font-weight: bold;">0</td>
+                                                    <td></td>
+                                                    <td colspan="2"></td>
+                                                    <td></td>
+                                                </tr>
+                                            </tfoot>
                                         </table>
                                     </div>
 
@@ -2304,8 +2339,8 @@
                                             <label
                                                 style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn
                                                 dòng đầu vào (POC & Định cỡ)</label>
-                                            <select id="app-input-row-select" class="input-full sizing-user-input"
-                                                onchange="onInputRowSelect(this, 'poc-value', 'sizing-value')">
+                                            <select id="custom-input-row-select" class="input-full sizing-user-input"
+                                                onchange="onInputRowSelect(this, 'custom-poc-value', 'custom-sizing-value')">
                                                 <option value="">-- Chọn từ bảng đầu vào --</option>
                                             </select>
                                         </div>
@@ -2313,22 +2348,22 @@
                                             <label
                                                 style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải
                                                 hệ thống POC</label>
-                                            <input id="poc-value" type="text" class="input-full" readonly
+                                            <input id="custom-poc-value" type="text" class="input-full" readonly
                                                 style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                         </div>
                                         <div style="min-width:120px;">
                                             <label
                                                 style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định
                                                 cỡ</label>
-                                            <input id="sizing-value" type="text" class="input-full" readonly
+                                            <input id="custom-sizing-value" type="text" class="input-full" readonly
                                                 style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
                                         </div>
                                         <div style="min-width:220px;">
                                             <label
                                                 style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Mode
                                                 cấu hình ảo hóa</label>
-                                            <select id="app-virtualization-mode" class="input-full sizing-user-input"
-                                                onchange="onVirtualizationModeChange('app')">
+                                            <select id="custom-virtualization-mode" class="input-full sizing-user-input"
+                                                onchange="onVirtualizationModeChange('custom')">
                                                 <option value="ram" selected>Theo RAM</option>
                                                 <option value="vcpu">Theo vCPU</option>
                                             </select>
@@ -2337,7 +2372,7 @@
                                             <label
                                                 style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu
                                                 hình vCPU (Cint)</label>
-                                            <select id="app-vcpu-flavor" class="input-full sizing-user-input" disabled>
+                                            <select id="custom-vcpu-flavor" class="input-full sizing-user-input" disabled>
                                                 <option value="8">8 Cint</option>
                                                 <option value="16">16 Cint</option>
                                                 <option value="32">32 Cint</option>
@@ -2347,7 +2382,7 @@
                                             <label
                                                 style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu
                                                 hình RAM (GB)</label>
-                                            <select id="app-ram-flavor" class="input-full sizing-user-input">
+                                            <select id="custom-ram-flavor" class="input-full sizing-user-input">
                                                 <option value="8">8 GB</option>
                                                 <option value="16">16 GB</option>
                                                 <option value="32" selected>32 GB</option>
@@ -2356,7 +2391,7 @@
                                         </div>
                                         <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
                                             <button type="button" class="btn-submit sizing-user-btn"
-                                                onclick="calculateSizingRecommendations()">Tính toán</button>
+                                                onclick="calculateCustomSizingRecommendations()">Tính toán</button>
                                             <button type="button" class="btn-outline sizing-user-btn"
                                                 onclick="document.getElementById('sizing-result-container').innerHTML='';">Xóa
                                                 kết quả</button>
@@ -2480,11 +2515,8 @@
         </section>
     </main>
 
-<<<<<<< HEAD
-    <script src="script.js?v=21312111111"></script>
-=======
+    <script src="lib/xlsx.full.min.js"></script>
     <script src="script.js"></script>
->>>>>>> 41d0377ee47b474861d8feea98ed53502409dc46
 
     <div id="evidence-modal" class="modal-overlay" onclick="closeModal()" style="display: none;">
         <span class="close-btn">&times;</span>

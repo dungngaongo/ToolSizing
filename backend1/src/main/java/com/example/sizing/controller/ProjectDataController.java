@@ -70,6 +70,34 @@ public class ProjectDataController {
     @PutMapping("/project/{projectId}")
     public ResponseEntity<ProjectData> update(@PathVariable String projectId, @RequestBody UpdateProjectDataRequest request) {
         log.info("PUT /api/project-data/project/{} - Updating", projectId);
+        // Estimate request size for debugging
+        int totalSize = 0;
+        if (request.getYeuCauBaiToanContent() != null) totalSize += request.getYeuCauBaiToanContent().length();
+        if (request.getThongTinDauVaoContent() != null) totalSize += request.getThongTinDauVaoContent().length();
+        if (request.getMoHinhHeThongContent() != null) totalSize += request.getMoHinhHeThongContent().length();
+        if (request.getDinhCoHeThongContent() != null) {
+            int sizingSize = request.getDinhCoHeThongContent().length();
+            totalSize += sizingSize;
+            log.info("dinhCoHeThongContent size: {} bytes ({} KB)", sizingSize, sizingSize / 1024);
+        }
+        if (request.getTongHopVaDeXuatContent() != null) totalSize += request.getTongHopVaDeXuatContent().length();
+        log.info("Total estimated payload size: {} bytes ({} KB)", totalSize, totalSize / 1024);
+        // Log content lengths for debugging
+        if (request.getYeuCauBaiToanContent() != null) {
+            log.debug("yeuCauBaiToanContent length: {}", request.getYeuCauBaiToanContent().length());
+        }
+        if (request.getThongTinDauVaoContent() != null) {
+            log.debug("thongTinDauVaoContent length: {}", request.getThongTinDauVaoContent().length());
+        }
+        if (request.getMoHinhHeThongContent() != null) {
+            log.debug("moHinhHeThongContent length: {}", request.getMoHinhHeThongContent().length());
+        }
+        if (request.getDinhCoHeThongContent() != null) {
+            log.debug("dinhCoHeThongContent length: {}", request.getDinhCoHeThongContent().length());
+        }
+        if (request.getTongHopVaDeXuatContent() != null) {
+            log.debug("tongHopVaDeXuatContent length: {}", request.getTongHopVaDeXuatContent().length());
+        }
         // Kiểm tra quyền truy cập dự án
         if (!projectService.canAccessProject(projectId)) {
             throw new ForbiddenException("Bạn không có quyền cập nhật dữ liệu dự án này");

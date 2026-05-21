@@ -199,7 +199,19 @@ public class GlobalExceptionHandler {
     // ========================
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
-        log.warn("Message not readable: {}", ex.getMessage());
+        // Log chi tiết root cause để debug
+        Throwable cause = ex.getCause();
+        if (cause != null) {
+            log.error("JSON parse error on {}: rootCause={}, message={}",
+                request.getRequestURI(), cause.getClass().getSimpleName(), cause.getMessage());
+        } else {
+            log.error("Message not readable on {}: {}", request.getRequestURI(), ex.getMessage());
+        }
+        // Log content length để kiểm tra size limit
+        int contentLength = request.getContentLength();
+        if (contentLength > 0) {
+            log.error("Request content length: {} bytes ({} KB)", contentLength, contentLength / 1024);
+        }
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
                 "Bad Request",
