@@ -3343,6 +3343,29 @@ function renderModuleInstances(moduleName, moduleInstances, preservedSnapshots =
     });
 }
 
+function renderModuleInstancesInOrder(instances, preservedSnapshots = null) {
+    const container = document.getElementById('sizing-modules-container');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    instances.forEach(instance => {
+        const moduleName = instance.moduleType;
+        const clone = createModuleCloneForInstance(moduleName, instance);
+        if (!clone) return;
+
+        const instanceKey = getModuleInstanceKey(instance);
+        const snapshot = preservedSnapshots?.get(instanceKey);
+        if (snapshot && snapshot.moduleType === moduleName && typeof snapshot.html === 'string') {
+            clone.innerHTML = snapshot.html;
+            rewriteInlineHandlersForInstance(clone, instanceKey);
+            applyFormControlStates(clone, snapshot.controlStates);
+        }
+
+        container.appendChild(clone);
+    });
+}
+
 /**
  * Cập nhật visibility của các module sections dựa trên các module được chọn
  * Chỉ hiển thị module được chọn, ẩn các module khác
@@ -3352,9 +3375,13 @@ function updateModuleVisibility() {
     const instancesByType = getModuleInstancesByType();
     const preservedSnapshots = captureCurrentModuleInstanceSnapshots();
 
-    Object.keys(MODULE_TEMPLATE_MAPPING).forEach(moduleName => {
-        renderModuleInstances(moduleName, instancesByType[moduleName] || [], preservedSnapshots);
-    });
+    const orderedInstances = getModuleInstancesFromArchTable();
+    renderModuleInstancesInOrder(orderedInstances, preservedSnapshots);
+    if (!document.getElementById('sizing-modules-container')) {
+        Object.keys(MODULE_TEMPLATE_MAPPING).forEach(moduleName => {
+            renderModuleInstances(moduleName, instancesByType[moduleName] || [], preservedSnapshots);
+        });
+    }
 
     syncMariaDBMasterRadioNames();
 
