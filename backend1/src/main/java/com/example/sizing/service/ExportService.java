@@ -178,7 +178,7 @@ public class ExportService {
 
             setCell(table, 0, 0, "STT", true, "D9E2F3");
             setCell(table, 0, 1, "\u0110\u1ea7u v\u00e0o", true, "D9E2F3");
-            setCell(table, 0, 2, "T\u1ea3i h\u1ec7 th\u1ed1ng POC", true, "D9E2F3");
+            setCell(table, 0, 2, "Giá trị hiện tại", true, "D9E2F3");
             setCell(table, 0, 3, "\u0110\u1ecbnh c\u1ee1", true, "D9E2F3");
             setCell(table, 0, 4, "Module", true, "D9E2F3");
             setCell(table, 0, 5, "Ghi ch\u00fa", true, "D9E2F3");
