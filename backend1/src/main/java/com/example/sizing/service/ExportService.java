@@ -48,6 +48,16 @@ public class ExportService {
         }
     }
 
+    private static class OrderedModuleEntry {
+        private final String moduleType;
+        private final ModuleInstanceData instance;
+
+        private OrderedModuleEntry(String moduleType, ModuleInstanceData instance) {
+            this.moduleType = moduleType;
+            this.instance = instance;
+        }
+    }
+
     private static class AppendixImage {
         private final String ref;
         private final String title;
@@ -159,9 +169,9 @@ public class ExportService {
         setCell(table, 0, 2, "Chi ti\u1ebft", true, "D9E2F3");
 
         for (int i = 0; i < fields.length; i++) {
-            setCell(table, i + 1, 0, fields[i][0], false, null);
-            setCell(table, i + 1, 1, fields[i][1], false, null);
-            setCell(table, i + 1, 2, txt(node, fields[i][2]), false, null);
+            setCell(table, i + 1, 0, fields[i][0], false, null, ParagraphAlignment.CENTER);
+            setCell(table, i + 1, 1, fields[i][1], false, null, ParagraphAlignment.LEFT, 240);
+            setCell(table, i + 1, 2, txt(node, fields[i][2]), false, null, ParagraphAlignment.LEFT, 240);
         }
         doc.createParagraph();
     }
@@ -366,6 +376,45 @@ public class ExportService {
         
         // If no modules found in moHinhHeThong, export all (backward compatibility)
         boolean exportAll = selectedModules.isEmpty();
+
+        List<OrderedModuleEntry> orderedEntries = buildOrderedSizingEntries(root, moHinhNode);
+        if (!orderedEntries.isEmpty()) {
+            java.util.Map<String, Integer> totalByType = new java.util.HashMap<>();
+            for (OrderedModuleEntry entry : orderedEntries) {
+                totalByType.put(entry.moduleType, totalByType.getOrDefault(entry.moduleType, 0) + 1);
+            }
+
+            java.util.Map<String, Integer> seqByType = new java.util.HashMap<>();
+            int sectionIndex = 1;
+            for (OrderedModuleEntry entry : orderedEntries) {
+                String moduleType = entry.moduleType;
+                String heading = sectionIndex + ". Module " + moduleType;
+                int seq = seqByType.getOrDefault(moduleType, 0) + 1;
+                seqByType.put(moduleType, seq);
+                if (totalByType.getOrDefault(moduleType, 0) > 1) {
+                    heading = heading + " - " + resolveInstanceLabel(entry.instance, seq, moduleType);
+                }
+
+                if ("App".equals(moduleType)) {
+                    writeModuleApp(doc, entry.instance.data, heading, context);
+                } else if ("MariaDB".equals(moduleType)) {
+                    writeModuleMariaDB(doc, entry.instance.data, heading, context);
+                } else if ("Redis".equals(moduleType)) {
+                    writeModuleRedis(doc, entry.instance.data, heading, context);
+                } else if ("Kafka".equals(moduleType)) {
+                    writeModuleKafka(doc, entry.instance.data, heading, context);
+                } else if ("K8S".equals(moduleType)) {
+                    writeModuleK8S(doc, entry.instance.data, heading, context);
+                } else if ("LB/FW".equals(moduleType)) {
+                    writeModuleLBFW(doc, entry.instance.data, heading, context);
+                } else if ("Khác".equals(moduleType)) {
+                    writeModuleCustom(doc, entry.instance.data, heading, context);
+                }
+
+                sectionIndex++;
+            }
+            return;
+        }
         
         if (exportAll || selectedModules.contains("App")) {
             List<ModuleInstanceData> appInstances = extractModuleInstances(root, "App", "moduleApp");
@@ -497,6 +546,87 @@ public class ExportService {
         if (!instance.moduleName.isBlank()) return instance.moduleName;
         if (!instance.instanceKey.isBlank()) return instance.instanceKey;
         return defaultPrefix + " #" + index;
+    }
+
+    private List<OrderedModuleEntry> buildOrderedSizingEntries(JsonNode root, JsonNode moHinhNode) {
+        List<OrderedModuleEntry> ordered = new ArrayList<>();
+        if (moHinhNode == null) return ordered;
+
+        JsonNode archRows = moHinhNode.path("archRows");
+        if (!archRows.isArray() || archRows.size() == 0) return ordered;
+
+        JsonNode moduleInstances = root.path("moduleInstances");
+        if (!moduleInstances.isArray() || moduleInstances.size() == 0) return ordered;
+
+        java.util.Map<String, ModuleInstanceData> instanceByKey = new java.util.HashMap<>();
+        java.util.Map<String, java.util.List<ModuleInstanceData>> instancesByType = new java.util.HashMap<>();
+
+        for (JsonNode item : moduleInstances) {
+            String moduleType = txt(item, "moduleType").trim();
+            if (moduleType.isEmpty()) continue;
+            JsonNode data = item.path("data");
+            if (data.isMissingNode() || data.isNull()) continue;
+
+            ModuleInstanceData instance = new ModuleInstanceData(
+                    txt(item, "moduleName"),
+                    txt(item, "instanceKey"),
+                    data
+            );
+            String instanceKey = instance.instanceKey;
+            if (!instanceKey.isBlank()) {
+                instanceByKey.put(instanceKey, instance);
+            }
+            instancesByType.computeIfAbsent(moduleType, k -> new ArrayList<>()).add(instance);
+        }
+
+        java.util.Set<String> usedKeys = new java.util.HashSet<>();
+
+        for (int i = 0; i < archRows.size(); i++) {
+            JsonNode row = archRows.get(i);
+            String moduleType = txt(row, "loaiModule").trim();
+            if (moduleType.isEmpty()) continue;
+
+            String moduleName = txt(row, "moduleName").trim();
+            String instanceKey = buildInstanceKey(moduleType, i + 1);
+            ModuleInstanceData instance = instanceByKey.get(instanceKey);
+            if (instance != null && !instance.instanceKey.isBlank()) {
+                usedKeys.add(instance.instanceKey);
+                ordered.add(new OrderedModuleEntry(moduleType, instance));
+                continue;
+            }
+
+            List<ModuleInstanceData> candidates = instancesByType.getOrDefault(moduleType, new ArrayList<>());
+            ModuleInstanceData matched = null;
+            if (!moduleName.isBlank()) {
+                for (ModuleInstanceData candidate : candidates) {
+                    if (!candidate.instanceKey.isBlank() && usedKeys.contains(candidate.instanceKey)) continue;
+                    if (moduleName.equalsIgnoreCase(candidate.moduleName)) {
+                        matched = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (matched == null) {
+                for (ModuleInstanceData candidate : candidates) {
+                    if (!candidate.instanceKey.isBlank() && usedKeys.contains(candidate.instanceKey)) continue;
+                    matched = candidate;
+                    break;
+                }
+            }
+
+            if (matched != null) {
+                if (!matched.instanceKey.isBlank()) usedKeys.add(matched.instanceKey);
+                ordered.add(new OrderedModuleEntry(moduleType, matched));
+            }
+        }
+
+        return ordered;
+    }
+
+    private String buildInstanceKey(String moduleType, int rowIndex) {
+        String raw = moduleType + "-" + rowIndex;
+        return raw.replaceAll("[^a-zA-Z0-9_-]", "_");
     }
 
     // ---------- Module App ----------
@@ -2249,8 +2379,73 @@ public class ExportService {
                 }
             }
 
-            if (!filteredRows.isEmpty()) {
-                XWPFTable table = doc.createTable(filteredRows.size() + 1, 6);
+            java.util.List<JsonNode> orderedRows = new java.util.ArrayList<>(filteredRows);
+            if (moHinhNode != null) {
+                JsonNode archRows = moHinhNode.path("archRows");
+                if (archRows.isArray() && archRows.size() > 0) {
+                    orderedRows = new java.util.ArrayList<>();
+                    java.util.List<JsonNode> remaining = new java.util.ArrayList<>(filteredRows);
+                    java.util.Map<String, Integer> counters = new java.util.HashMap<>();
+
+                    for (JsonNode row : archRows) {
+                        String archType = txt(row, "loaiModule").trim();
+                        if (archType.isEmpty()) continue;
+
+                        int seq = counters.getOrDefault(archType, 0) + 1;
+                        counters.put(archType, seq);
+
+                        String archName = txt(row, "moduleName").trim();
+                        if (archName.isEmpty()) {
+                            archName = archType + " #" + seq;
+                        }
+
+                        java.util.List<JsonNode> matches = new java.util.ArrayList<>();
+                        for (JsonNode r : remaining) {
+                            String rowType = txt(r, "moduleType").trim();
+                            String rowLegacy = txt(r, "module").trim();
+                            String rowResolvedType = !rowType.isEmpty() ? rowType : rowLegacy;
+                            String rowMappedType = moduleToArch.getOrDefault(rowResolvedType, rowResolvedType);
+                            if (!archType.equals(rowMappedType)) {
+                                if (archType.equals("K8S") && (rowResolvedType.startsWith("K8S") || rowResolvedType.contains("Master") || rowResolvedType.contains("Worker") || rowResolvedType.contains("etcd"))) {
+                                    // ok
+                                } else {
+                                    continue;
+                                }
+                            }
+
+                            String rowModuleName = txt(r, "moduleName").trim();
+                            if (rowModuleName.equalsIgnoreCase(archName) || rowModuleName.isEmpty() || archName.isEmpty()) {
+                                matches.add(r);
+                            }
+                        }
+
+                        if (matches.isEmpty()) {
+                            for (JsonNode r : remaining) {
+                                String rowType = txt(r, "moduleType").trim();
+                                String rowLegacy = txt(r, "module").trim();
+                                String rowResolvedType = !rowType.isEmpty() ? rowType : rowLegacy;
+                                String rowMappedType = moduleToArch.getOrDefault(rowResolvedType, rowResolvedType);
+                                if (archType.equals(rowMappedType)
+                                        || (archType.equals("K8S") && (rowResolvedType.startsWith("K8S") || rowResolvedType.contains("Master") || rowResolvedType.contains("Worker") || rowResolvedType.contains("etcd")))) {
+                                    matches.add(r);
+                                }
+                            }
+                        }
+
+                        if (!matches.isEmpty()) {
+                            orderedRows.addAll(matches);
+                            remaining.removeAll(matches);
+                        }
+                    }
+
+                    if (!remaining.isEmpty()) {
+                        orderedRows.addAll(remaining);
+                    }
+                }
+            }
+
+            if (!orderedRows.isEmpty()) {
+                XWPFTable table = doc.createTable(orderedRows.size() + 1, 6);
                 styleTable(table);
 
                 setCell(table, 0, 0, "STT", true, "D9E2F3");
@@ -2260,8 +2455,8 @@ public class ExportService {
                 setCell(table, 0, 4, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
                 setCell(table, 0, 5, "Ghi ch\u00fa", true, "D9E2F3");
 
-                for (int i = 0; i < filteredRows.size(); i++) {
-                    JsonNode r = filteredRows.get(i);
+                for (int i = 0; i < orderedRows.size(); i++) {
+                    JsonNode r = orderedRows.get(i);
                     String moduleType = txt(r, "moduleType");
                     String moduleLegacy = txt(r, "module");
                     String moduleName = txt(r, "moduleName");
@@ -2416,6 +2611,14 @@ public class ExportService {
     }
 
     private void setCell(XWPFTable table, int row, int col, String text, boolean bold, String bgColor) {
+        setCell(table, row, col, text, bold, bgColor, ParagraphAlignment.CENTER, null);
+    }
+
+    private void setCell(XWPFTable table, int row, int col, String text, boolean bold, String bgColor, ParagraphAlignment alignment) {
+        setCell(table, row, col, text, bold, bgColor, alignment, null);
+    }
+
+    private void setCell(XWPFTable table, int row, int col, String text, boolean bold, String bgColor, ParagraphAlignment alignment, Integer indentLeft) {
         XWPFTableCell cell = table.getRow(row).getCell(col);
         cell.setVerticalAlignment(XWPFTableCell.XWPFVertAlign.CENTER);
 
@@ -2429,9 +2632,12 @@ public class ExportService {
 
         cell.removeParagraph(0);
         XWPFParagraph p = cell.addParagraph();
-        p.setAlignment(ParagraphAlignment.CENTER);
+        p.setAlignment(alignment != null ? alignment : ParagraphAlignment.CENTER);
         p.setSpacingBefore(40);
         p.setSpacingAfter(40);
+        if (indentLeft != null) {
+            p.setIndentationLeft(indentLeft);
+        }
 
         if (text != null && text.contains("\n")) {
             String[] lines = text.split("\n");

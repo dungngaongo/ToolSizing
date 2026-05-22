@@ -119,13 +119,21 @@ public class ProjectService {
         }
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
+        String currentStatus = project.getStatus();
+        int currentRound = project.getStatusRound() != null ? project.getStatusRound() : 1;
         if (request.getName() != null) {
             project.setName(request.getName());
         }
         if (request.getStatus() != null) {
-            project.setStatus(request.getStatus());
+            String newStatus = request.getStatus();
+            project.setStatus(newStatus);
+            if ("SIZING".equalsIgnoreCase(newStatus) && isReviewStatus(currentStatus)) {
+                project.setStatusRound(currentRound + 1);
+            } else if (request.getStatusRound() != null) {
+                project.setStatusRound(request.getStatusRound());
+            }
         }
-        if (request.getStatusRound() != null) {
+        if (request.getStatus() == null && request.getStatusRound() != null) {
             project.setStatusRound(request.getStatusRound());
         }
         if (request.getUserId() != null) {
@@ -147,6 +155,14 @@ public class ProjectService {
             "Cập nhật thông tin dự án"
         );
         return saved;
+    }
+
+    private boolean isReviewStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase();
+        return "THAM_DINH".equals(normalized) || "PHE_DUYET".equals(normalized);
     }
 
     @Transactional
