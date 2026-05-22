@@ -388,12 +388,10 @@ public class ExportService {
             int sectionIndex = 1;
             for (OrderedModuleEntry entry : orderedEntries) {
                 String moduleType = entry.moduleType;
-                String heading = sectionIndex + ". Module " + moduleType;
+                String moduleName = entry.instance.moduleName;
+                String heading = sectionIndex + ". Module " + (moduleName != null && !moduleName.isBlank() ? moduleName : moduleType);
                 int seq = seqByType.getOrDefault(moduleType, 0) + 1;
                 seqByType.put(moduleType, seq);
-                if (totalByType.getOrDefault(moduleType, 0) > 1) {
-                    heading = heading + " - " + resolveInstanceLabel(entry.instance, seq, moduleType);
-                }
 
                 if ("App".equals(moduleType)) {
                     writeModuleApp(doc, entry.instance.data, heading, context);
@@ -422,7 +420,9 @@ public class ExportService {
                 writeModuleApp(doc, root.path("moduleApp"), "1. Module App", context);
             } else {
                 for (int i = 0; i < appInstances.size(); i++) {
-                    String heading = "1. Module App";
+                    String moduleName = appInstances.get(i).moduleName;
+                    String displayName = (moduleName != null && !moduleName.isBlank()) ? moduleName : "App";
+                    String heading = "1. Module " + displayName;
                     if (appInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(appInstances.get(i), i + 1, "App");
                     }
@@ -436,7 +436,9 @@ public class ExportService {
                 writeModuleMariaDB(doc, root.path("moduleMariaDB"), "2. Module MariaDB", context);
             } else {
                 for (int i = 0; i < mariaInstances.size(); i++) {
-                    String heading = "2. Module MariaDB";
+                    String moduleName = mariaInstances.get(i).moduleName;
+                    String displayName = (moduleName != null && !moduleName.isBlank()) ? moduleName : "MariaDB";
+                    String heading = "2. Module " + displayName;
                     if (mariaInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(mariaInstances.get(i), i + 1, "MariaDB");
                     }
@@ -450,7 +452,9 @@ public class ExportService {
                 writeModuleRedis(doc, root.path("moduleRedis"), "3. Module Redis", context);
             } else {
                 for (int i = 0; i < redisInstances.size(); i++) {
-                    String heading = "3. Module Redis";
+                    String moduleName = redisInstances.get(i).moduleName;
+                    String displayName = (moduleName != null && !moduleName.isBlank()) ? moduleName : "Redis";
+                    String heading = "3. Module " + displayName;
                     if (redisInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(redisInstances.get(i), i + 1, "Redis");
                     }
@@ -464,7 +468,9 @@ public class ExportService {
                 writeModuleKafka(doc, root.path("moduleKafka"), "4. Module Kafka", context);
             } else {
                 for (int i = 0; i < kafkaInstances.size(); i++) {
-                    String heading = "4. Module Kafka";
+                    String moduleName = kafkaInstances.get(i).moduleName;
+                    String displayName = (moduleName != null && !moduleName.isBlank()) ? moduleName : "Kafka";
+                    String heading = "4. Module " + displayName;
                     if (kafkaInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(kafkaInstances.get(i), i + 1, "Kafka");
                     }
@@ -478,7 +484,9 @@ public class ExportService {
                 writeModuleK8S(doc, root.path("moduleK8S"), "5. Module K8S", context);
             } else {
                 for (int i = 0; i < k8sInstances.size(); i++) {
-                    String heading = "5. Module K8S";
+                    String moduleName = k8sInstances.get(i).moduleName;
+                    String displayName = (moduleName != null && !moduleName.isBlank()) ? moduleName : "K8S";
+                    String heading = "5. Module " + displayName;
                     if (k8sInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(k8sInstances.get(i), i + 1, "K8S");
                     }
@@ -492,7 +500,9 @@ public class ExportService {
                 writeModuleLBFW(doc, root.path("moduleLBFW"), "6. Module LB/FW", context);
             } else {
                 for (int i = 0; i < lbfwInstances.size(); i++) {
-                    String heading = "6. Module LB/FW";
+                    String moduleName = lbfwInstances.get(i).moduleName;
+                    String displayName = (moduleName != null && !moduleName.isBlank()) ? moduleName : "LB/FW";
+                    String heading = "6. Module " + displayName;
                     if (lbfwInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(lbfwInstances.get(i), i + 1, "LB/FW");
                     }
@@ -506,7 +516,9 @@ public class ExportService {
                 writeModuleCustom(doc, root.path("moduleCustom"), "7. Module Khác", context);
             } else {
                 for (int i = 0; i < customInstances.size(); i++) {
-                    String heading = "7. Module Khác";
+                    String moduleName = customInstances.get(i).moduleName;
+                    String displayName = (moduleName != null && !moduleName.isBlank()) ? moduleName : "Khác";
+                    String heading = "7. Module " + displayName;
                     if (customInstances.size() > 1) {
                         heading = heading + " - " + resolveInstanceLabel(customInstances.get(i), i + 1, "Khác");
                     }

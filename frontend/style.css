@@ -1857,9 +1857,6 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
     border: 2px solid #fff;
     border-radius: 4px;
     animation: zoom 0.3s;
-    /* Hỗ trợ flexbox layout cho Helper Tool */
-    display: flex;
-    flex-direction: column;
 }
 
 @keyframes zoom {
@@ -1879,6 +1876,453 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
 }
 .close-modal:hover, .close-modal:focus {
     color: #ee0033;
+}
+
+/* ========================================= */
+/* KAFKA HELPER TOOL MODAL                  */
+/* ========================================= */
+.kafka-helper-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+}
+.kafka-helper-modal.visible {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: kafkaModalFadeIn 0.3s ease;
+}
+
+.kafka-helper-modal-overlay {
+    position: fixed;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: kafkaOverlayFadeIn 0.3s ease;
+}
+
+.kafka-helper-modal-content {
+    position: relative;
+    background: #fff;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 92vh;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin: 20px;
+    animation: kafkaModalSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.kafka-helper-modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 16px;
+}
+
+.kafka-helper-modal-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.kafka-helper-modal-close {
+    background: rgba(255, 255, 255, 0.18);
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+.kafka-helper-modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.kafka-helper-modal-icon {
+    background: rgba(255, 255, 255, 0.2);
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.kafka-helper-modal-icon i {
+    font-size: 22px;
+    color: white;
+}
+
+.kafka-helper-modal-title h3 {
+    color: white;
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+.kafka-helper-modal-title p {
+    color: rgba(255, 255, 255, 0.8);
+    margin: 4px 0 0;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.kafka-helper-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    background: #fafbfc;
+}
+
+.kafka-helper-tip {
+    background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+    border: 1px solid #c7d2fe;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+.kafka-helper-tip-icon {
+    color: #6366f1;
+    font-size: 18px;
+    margin-top: 1px;
+    flex-shrink: 0;
+    background: rgba(99, 102, 241, 0.12);
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.kafka-helper-tip-icon i {
+    font-size: 14px;
+}
+.kafka-helper-tip-text {
+    color: #3730a3;
+    font-size: 13px;
+    line-height: 1.55;
+}
+.kafka-helper-tip-text strong {
+    color: #4338ca;
+}
+
+.kafka-helper-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.kafka-helper-input-box {
+    background: white;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 16px;
+    transition: all 0.25s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.kafka-helper-input-box:focus-within {
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1), 0 2px 8px rgba(0,0,0,0.06);
+    transform: translateY(-1px);
+}
+
+.kafka-helper-input-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.kafka-helper-input-label label {
+    font-weight: 700;
+    font-size: 13px;
+    color: #374151;
+    margin: 0;
+    letter-spacing: -0.2px;
+}
+.kafka-helper-input-label label i {
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+.kafka-helper-number {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+}
+
+.kafka-helper-input-wrapper {
+    position: relative;
+    margin-bottom: 10px;
+}
+.kafka-helper-input-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    font-size: 13px;
+    pointer-events: none;
+}
+.kafka-helper-input {
+    width: 100%;
+    padding: 11px 12px 11px 36px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1f2937;
+    background: #f9fafb;
+    box-sizing: border-box;
+    transition: all 0.2s;
+    outline: none;
+}
+.kafka-helper-input:focus {
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+.kafka-helper-input::placeholder {
+    color: #9ca3af;
+    font-weight: 400;
+}
+
+.kafka-helper-evidence-grid {
+    margin-bottom: 0;
+    min-height: 20px;
+}
+
+.kafka-helper-result {
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    border: 1.5px solid #86efac;
+    border-radius: 14px;
+    padding: 20px;
+    animation: kafkaResultPulse 0.3s ease;
+}
+
+.kafka-helper-result-header {
+    text-align: center;
+    margin-bottom: 12px;
+}
+.kafka-helper-result-label {
+    color: #059669;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.kafka-helper-result-label i {
+    font-size: 12px;
+}
+
+.kafka-helper-formula {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: white;
+    border: 1px solid #dcfce7;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.kafka-helper-formula .formula-tag {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-weight: 800;
+    font-size: 13px;
+}
+.kafka-helper-formula .formula-equals {
+    font-weight: 800;
+    font-size: 18px;
+    color: #059669;
+}
+.kafka-helper-formula .formula-value {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    color: #1f2937;
+    background: #f3f4f6;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+.kafka-helper-formula .formula-divide {
+    font-weight: 800;
+    font-size: 18px;
+    color: #9ca3af;
+}
+
+.kafka-helper-result-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #86efac, transparent);
+    margin: 14px 0;
+}
+
+.kafka-helper-result-display {
+    text-align: center;
+}
+
+.kafka-helper-result-value {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+.kafka-helper-result-value .result-label {
+    font-size: 16px;
+    color: #374151;
+    font-weight: 600;
+}
+#kafka-helper-result {
+    color: #059669;
+    font-weight: 900;
+    font-size: 42px;
+    line-height: 1;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    letter-spacing: -1px;
+    transition: all 0.3s ease;
+}
+.kafka-helper-result-value .result-unit {
+    font-size: 16px;
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.kafka-helper-modal-footer {
+    padding: 16px 24px;
+    background: white;
+    border-top: 1px solid #f3f4f6;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.04);
+}
+
+/* ---- Footer Buttons ---- */
+.kafka-btn {
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.2s;
+    border: 1.5px solid transparent;
+}
+.kafka-btn i {
+    font-size: 12px;
+}
+.kafka-btn-secondary {
+    background: #f3f4f6;
+    color: #6b7280;
+    border-color: #e5e7eb;
+}
+.kafka-btn-secondary:hover {
+    background: #e5e7eb;
+    color: #374151;
+    transform: translateY(-1px);
+}
+.kafka-btn-calculate {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+}
+.kafka-btn-calculate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(102, 126, 234, 0.45);
+}
+.kafka-btn-calculate:active {
+    transform: translateY(0);
+}
+.kafka-btn-apply {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+.kafka-btn-apply:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
+}
+.kafka-btn-apply:active {
+    transform: translateY(0);
+}
+
+/* ---- Animations ---- */
+@keyframes kafkaModalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes kafkaOverlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes kafkaModalSlideIn {
+    from { opacity: 0; transform: scale(0.92) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes kafkaResultPulse {
+    0% { transform: scale(0.98); }
+    50% { transform: scale(1.01); }
+    100% { transform: scale(1); }
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 640px) {
+    .kafka-helper-modal-content {
+        margin: 10px;
+        max-width: calc(100% - 20px);
+    }
+    .kafka-helper-inputs {
+        grid-template-columns: 1fr;
+    }
+    #kafka-helper-result {
+        font-size: 34px;
+    }
+    .kafka-helper-modal-footer {
+        flex-wrap: wrap;
+    }
+    .kafka-btn {
+        padding: 9px 16px;
+        font-size: 12px;
+    }
 }
 
 /* ========================================= */
