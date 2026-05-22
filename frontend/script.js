@@ -1,4 +1,4 @@
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://localhost:8081/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
@@ -9556,12 +9556,25 @@ function handleKafkaImageUpload(input) {
 
 // Mở Helper Tool popup
 function openKafkaHelperTool() {
-    document.getElementById('kafka-helper-modal').style.display = 'flex';
+    const modal = document.getElementById('kafka-helper-modal');
+    if (modal) {
+        modal.classList.add('visible');
+        document.body.style.overflow = 'hidden';
+        // Focus first input for better UX
+        setTimeout(() => {
+            const input = document.getElementById('kafka-helper-msg-count');
+            if (input) input.focus();
+        }, 350);
+    }
 }
 
 // Đóng Helper Tool popup
 function closeKafkaHelperTool() {
-    document.getElementById('kafka-helper-modal').style.display = 'none';
+    const modal = document.getElementById('kafka-helper-modal');
+    if (modal) {
+        modal.classList.remove('visible');
+        document.body.style.overflow = '';
+    }
 }
 
 // Thêm ảnh sở cứ cho Helper Tool - Message count
@@ -9590,7 +9603,18 @@ function calculateKafkaHelperThroughput() {
 
     // A = msgCount * msgSize / 1024 (KB -> MB)
     const A = (msgCount * msgSize) / 1024;
-    document.getElementById('kafka-helper-result').innerText = A.toFixed(4);
+    const resultEl = document.getElementById('kafka-helper-result');
+    // Animate the result update
+    resultEl.style.transform = 'scale(0.8)';
+    resultEl.style.opacity = '0.4';
+    setTimeout(() => {
+        resultEl.innerText = A.toFixed(4);
+        resultEl.style.transform = 'scale(1.1)';
+        resultEl.style.opacity = '1';
+        setTimeout(() => {
+            resultEl.style.transform = 'scale(1)';
+        }, 150);
+    }, 100);
 }
 
 // Áp dụng kết quả từ Helper Tool
