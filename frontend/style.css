@@ -2588,6 +2588,13 @@ body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f6f9; }
     overflow: auto;
 }
 
+.custom-doc-editor img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 12px auto;
+}
+
 .module-collapsible-content.expanded {
     max-height: 10000px;
     padding: 20px;
