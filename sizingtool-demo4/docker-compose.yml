@@ -1,0 +1,47 @@
+# services:
+#   backend:
+#     build:
+#       context: ./backend1
+#     restart: always
+
+#   nginx:
+#     build:
+#       context: .
+#       dockerfile: nginx/Dockerfile
+#     ports:
+#       - "80:80"
+#     depends_on:
+#       - backend
+#     restart: always
+
+
+services:
+  backend:
+    build:
+      context: ./backend1
+    restart: always
+    healthcheck:
+  # TODO: đổi sang /actuator/health khi Nexus có spring-boot-starter-actuator
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081 2>&1 | grep -q '.' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-net
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: always
+    networks:
+      - app-net
+
+networks:
+  app-net:
