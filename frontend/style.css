@@ -1314,8 +1314,10 @@ body.role-user .admin-note,
 }
 .inline-evidence-preview {
     display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 4px;
+    flex-wrap: wrap;
+    max-width: 300px;
 }
 
 /* Always keep first row non-deletable in table bodies */

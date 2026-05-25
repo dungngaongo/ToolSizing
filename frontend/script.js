@@ -9557,7 +9557,7 @@ function calculateRedisKeyMethod() {
     html += `<div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #856404;">Công thức tính toán</h4>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-            <li><strong>RAM mỗi server:</strong> RAM1svr = C × 1.1 / 0.8${masterCount > 1 ? ' / N' : ''} = ${C.toFixed(2)} × 1.1 / 0.8${masterCount > 1 ? ` / ${masterCount}` : ''} = <strong>${ramPerServer.toFixed(2)} GB</strong></li>
+            <li><strong>RAM mỗi server:</strong> RAM1svr = C × 1.1 / 0.9${masterCount > 1 ? ' / N' : ''} = ${C.toFixed(2)} × 1.1 / 0.9${masterCount > 1 ? ` / ${masterCount}` : ''} = <strong>${ramPerServer.toFixed(2)} GB</strong></li>
             <li><strong>vCPU mỗi server:</strong> ${vcpu} vCPU (mặc định cho ${model})</li>
             <li><strong>DISK mỗi server:</strong> 4 × RAM = 4 × ${ramPerServer.toFixed(2)} = <strong>${diskPerServer.toFixed(2)} GB</strong></li>
         </ul>
@@ -9639,7 +9639,7 @@ function calculateRedisConfigMethod() {
         // Redis Sentinel
         model = 'Redis Sentinel';
         vcpu = 8;
-        ramPerServer = C * 1.1 / 0.8;
+        ramPerServer = C * 1.1 / 0.9;
         diskPerServer = 4 * ramPerServer;
         masterCount = 1;
         slavePerMaster = 2;
@@ -9651,7 +9651,7 @@ function calculateRedisConfigMethod() {
 
         const N = findOptimalN(C);
         masterCount = N;
-        ramPerServer = (C * 1.1 / 0.8) / N;
+        ramPerServer = (C * 1.1 / 0.9) / N;
         diskPerServer = 4 * ramPerServer;
         totalServers = N * (1 + slavePerMaster);
     }
@@ -9679,7 +9679,7 @@ function calculateRedisConfigMethod() {
     html += `<div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
         <h4 style="margin-top: 0; margin-bottom: 10px; color: #856404;">Công thức tính toán</h4>
         <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-            <li><strong>RAM mỗi server:</strong> RAM1svr = C × 1.1 / 0.8${masterCount > 1 ? ' / N' : ''} = ${C.toFixed(2)} × 1.1 / 0.8${masterCount > 1 ? ` / ${masterCount}` : ''} = <strong>${ramPerServer.toFixed(2)} GB</strong></li>
+            <li><strong>RAM mỗi server:</strong> RAM1svr = C × 1.1 / 0.9${masterCount > 1 ? ' / N' : ''} = ${C.toFixed(2)} × 1.1 / 0.9${masterCount > 1 ? ` / ${masterCount}` : ''} = <strong>${ramPerServer.toFixed(2)} GB</strong></li>
             <li><strong>vCPU mỗi server:</strong> ${vcpu} vCPU (mặc định cho ${model})</li>
             <li><strong>DISK mỗi server:</strong> 4 × RAM = 4 × ${ramPerServer.toFixed(2)} = <strong>${diskPerServer.toFixed(2)} GB</strong></li>
         </ul>
