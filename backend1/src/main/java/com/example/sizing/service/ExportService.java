@@ -727,41 +727,34 @@ public class ExportService {
             addSubHeading2(doc, "Th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o");
 
             int rows = inputConfig.size();
-            XWPFTable table = doc.createTable(rows + 2, 8);
+            XWPFTable table = doc.createTable(rows + 2, 6);
             styleTable(table);
 
             setCell(table, 0, 0, "STT", true, "D9E2F3");
             setCell(table, 0, 1, "IP", true, "D9E2F3");
             setCell(table, 0, 2, "T\u1ea3i CPU 95th\npercentile (%)", true, "D9E2F3");
             setCell(table, 0, 3, "T\u1ea3i RAM 95th\npercentile (%)", true, "D9E2F3");
-            setCell(table, 0, 4, "T\u1ea3i DISK 95th\npercentile (%)", true, "D9E2F3");
-            setCell(table, 0, 5, "Cint_rate used\n(Cint)", true, "D9E2F3");
-            setCell(table, 0, 6, "RAM used\n(GB)", true, "D9E2F3");
-            setCell(table, 0, 7, "DISK used\n(GB)", true, "D9E2F3");
+            setCell(table, 0, 4, "Cint_rate used\n(Cint)", true, "D9E2F3");
+            setCell(table, 0, 5, "RAM used\n(GB)", true, "D9E2F3");
 
-            double totalCintUsed = 0, totalRamUsed = 0, totalDiskUsed = 0;
+            double totalCintUsed = 0, totalRamUsed = 0;
             for (int i = 0; i < rows; i++) {
                 JsonNode r = inputConfig.get(i);
                 setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
                 setCell(table, i + 1, 1, txt(r, "ip"), false, null);
                 setCell(table, i + 1, 2, txt(r, "cpuLoad"), false, null);
                 setCell(table, i + 1, 3, txt(r, "ramLoad"), false, null);
-                setCell(table, i + 1, 4, txt(r, "diskLoad"), false, null);
-                setCell(table, i + 1, 5, txt(r, "cintUsed"), false, null);
-                setCell(table, i + 1, 6, txt(r, "ramUsed"), false, null);
-                setCell(table, i + 1, 7, txt(r, "diskUsed"), false, null);
+                setCell(table, i + 1, 4, txt(r, "cintUsed"), false, null);
+                setCell(table, i + 1, 5, txt(r, "ramUsed"), false, null);
                 totalCintUsed += toDouble(r, "cintUsed");
                 totalRamUsed += toDouble(r, "ramUsed");
-                totalDiskUsed += toDouble(r, "diskUsed");
             }
             setCell(table, rows + 1, 0, "", true, "E2EFDA");
             setCell(table, rows + 1, 1, "T\u1ed5ng", true, "E2EFDA");
             setCell(table, rows + 1, 2, "", true, "E2EFDA");
             setCell(table, rows + 1, 3, "", true, "E2EFDA");
-            setCell(table, rows + 1, 4, "", true, "E2EFDA");
-            setCell(table, rows + 1, 5, formatNum(totalCintUsed), true, "E2EFDA");
-            setCell(table, rows + 1, 6, formatNum(totalRamUsed), true, "E2EFDA");
-            setCell(table, rows + 1, 7, formatNum(totalDiskUsed), true, "E2EFDA");
+            setCell(table, rows + 1, 4, formatNum(totalCintUsed), true, "E2EFDA");
+            setCell(table, rows + 1, 5, formatNum(totalRamUsed), true, "E2EFDA");
             doc.createParagraph();
 
             boolean hasInputEvidence = false;
@@ -790,6 +783,31 @@ public class ExportService {
             }
         }
 
+        JsonNode storageInput = moduleApp.path("storageInputTable");
+        if (storageInput.isArray() && storageInput.size() > 0) {
+            addSubHeading2(doc, "Th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o");
+
+            int rows = storageInput.size();
+            XWPFTable table = doc.createTable(rows + 1, 5);
+            styleTable(table);
+
+            setCell(table, 0, 0, "STT", true, "D9E2F3");
+            setCell(table, 0, 1, "IP", true, "D9E2F3");
+            setCell(table, 0, 2, "Ph\u00e2n v\u00f9ng", true, "D9E2F3");
+            setCell(table, 0, 3, "Used (GB)", true, "D9E2F3");
+            setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
+
+            for (int i = 0; i < rows; i++) {
+                JsonNode r = storageInput.get(i);
+                setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
+                setCell(table, i + 1, 1, txt(r, "ip"), false, null);
+                setCell(table, i + 1, 2, txt(r, "partition"), false, null);
+                setCell(table, i + 1, 3, txt(r, "used"), false, null);
+                setCell(table, i + 1, 4, txt(r, "note"), false, null);
+            }
+            doc.createParagraph();
+        }
+
         // Evidence images
         JsonNode evidenceImages = moduleApp.path("evidenceImages");
         if (evidenceImages.isArray() && evidenceImages.size() > 0) {
@@ -799,36 +817,14 @@ public class ExportService {
 
         String selectedInputRow = txt(moduleApp, "selectedInputRow");
         if (!selectedInputRow.isEmpty()) {
-            addLabelValue(doc, "D\u00f2ng \u0111\u1ea7u v\u00e0o \u0111\u00e3 ch\u1ecdn:", selectedInputRow);
+            addLabelValue(doc, "Lấy thông số đầu vào theo ", selectedInputRow);
         }
 
         String pocValue = txt(moduleApp, "pocValue");
         String sizingValue = txt(moduleApp, "sizingValue");
         if (!pocValue.isEmpty() || !sizingValue.isEmpty()) {
-            addLabelValue(doc, "CCU \u0111\u1ea7u v\u00e0o (POC):", pocValue);
-            addLabelValue(doc, "CCU \u0111\u1ecbnh c\u1ee1:", sizingValue);
-        }
-
-        String virtualizationMode = txt(moduleApp, "virtualizationMode");
-        String normalizedMode = virtualizationMode.trim().toLowerCase();
-        String vcpuFlavor = txt(moduleApp, "vcpuFlavor");
-        String ramFlavor = txt(moduleApp, "ramFlavor");
-        if (!virtualizationMode.isEmpty() || !vcpuFlavor.isEmpty() || !ramFlavor.isEmpty()) {
-            String modeDisplay = virtualizationMode;
-            if ("vcpu".equalsIgnoreCase(virtualizationMode)) {
-                modeDisplay = "Theo vCPU";
-            } else if ("ram".equalsIgnoreCase(virtualizationMode)) {
-                modeDisplay = "Theo RAM";
-            }
-            if (!modeDisplay.isEmpty()) {
-                addLabelValue(doc, "Ch\u1ebf \u0111\u1ed9 \u1ea3o h\u00f3a:", modeDisplay);
-            }
-            if ((normalizedMode.equals("vcpu") || normalizedMode.isEmpty()) && !vcpuFlavor.isEmpty()) {
-                addLabelValue(doc, "Flavor vCPU \u0111\u00e3 ch\u1ecdn:", vcpuFlavor + " Cint");
-            }
-            if ((normalizedMode.equals("ram") || normalizedMode.isEmpty()) && !ramFlavor.isEmpty()) {
-                addLabelValue(doc, "Flavor RAM \u0111\u00e3 ch\u1ecdn:", ramFlavor + " GB");
-            }
+            addLabelValue(doc, "Giá trị \u0111\u1ea7u v\u00e0o:", pocValue);
+            addLabelValue(doc, "Giá trị \u0111\u1ecbnh c\u1ee1:", sizingValue);
         }
 
         String flavorEval = txt(moduleApp, "flavorEval");
@@ -850,6 +846,85 @@ public class ExportService {
     // Parse Module App sizing result HTML and write to DOC with proper formatting
     private void parseAndWriteAppSizingResult(XWPFDocument doc, String html) {
         try {
+            String machineTableHtml = extractTableHtmlByMarker(html, "data-app-machine-table=\"1\"");
+            String nTableHtml = extractTableHtmlByMarker(html, "data-app-n-table=\"1\"");
+            String proposalTableHtml = extractTableHtmlByMarker(html, "data-app-proposal-table=\"1\"");
+            String recommendationHtml = extractDivHtmlByMarker(html, "data-app-recommendation=\"1\"");
+
+            if (!machineTableHtml.isEmpty() || !nTableHtml.isEmpty() || !proposalTableHtml.isEmpty()) {
+                List<List<String>> machineRows = extractTableRows(machineTableHtml);
+                if (!machineRows.isEmpty()) {
+                    addSubHeading2(doc, "B\u1ea3ng t\u00ednh to\u00e1n M\u00e1y ch\u1ee7 Ti\u1ebfn tr\u00ecnh");
+                    XWPFTable table = doc.createTable(machineRows.size() + 1, 4);
+                    styleTable(table);
+
+                    setCell(table, 0, 0, "STT", true, "D9E2F3");
+                    setCell(table, 0, 1, "Th\u00f4ng s\u1ed1", true, "D9E2F3");
+                    setCell(table, 0, 2, "M\u00e1y ch\u1ee7 Ti\u1ebfn tr\u00ecnh", true, "D9E2F3");
+                    setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+
+                    for (int i = 0; i < machineRows.size(); i++) {
+                        List<String> row = machineRows.get(i);
+                        if (row.size() < 4) continue;
+                        setCell(table, i + 1, 0, row.get(0), false, null);
+                        setCell(table, i + 1, 1, row.get(1), false, null);
+                        setCell(table, i + 1, 2, row.get(2), false, null);
+                        setCell(table, i + 1, 3, row.get(3), false, null);
+                    }
+                    doc.createParagraph();
+                }
+
+                if (!recommendationHtml.isEmpty()) {
+                    String recommendationText = stripHtmlKeepLineBreaks(recommendationHtml);
+                    if (!recommendationText.isEmpty()) {
+                        recommendationText = recommendationText.replaceFirst("(?i)^\\s*\\u0111\\u1ec1 xu\\u1ea5t\\s*:\\s*", "");
+                        addNormalText(doc, recommendationText);
+                        doc.createParagraph();
+                    }
+                }
+
+                List<String> nHeaders = extractTableHeaders(nTableHtml);
+                List<List<String>> nRows = extractTableRows(nTableHtml);
+                if (!nHeaders.isEmpty() && !nRows.isEmpty()) {
+                    addSubHeading2(doc, "B\u1ea3ng ph\u00e2n b\u1ed5 theo s\u1ed1 l\u01b0\u1ee3ng N");
+                    XWPFTable table = doc.createTable(nRows.size() + 1, nHeaders.size());
+                    styleTable(table);
+
+                    for (int col = 0; col < nHeaders.size(); col++) {
+                        setCell(table, 0, col, nHeaders.get(col), true, "D9E2F3");
+                    }
+
+                    for (int rowIndex = 0; rowIndex < nRows.size(); rowIndex++) {
+                        List<String> row = nRows.get(rowIndex);
+                        for (int col = 0; col < nHeaders.size(); col++) {
+                            String value = col < row.size() ? row.get(col) : "";
+                            setCell(table, rowIndex + 1, col, value, false, null);
+                        }
+                    }
+                    doc.createParagraph();
+                }
+
+                List<List<String>> proposalRows = extractTableRows(proposalTableHtml);
+                if (!proposalRows.isEmpty()) {
+                    List<String> proposalRow = proposalRows.get(0);
+                    if (proposalRow.size() >= 3) {
+                        addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t thi\u1ebft b\u1ecb");
+                        XWPFTable deviceTable = doc.createTable(2, 3);
+                        styleTable(deviceTable);
+
+                        setCell(deviceTable, 0, 0, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                        setCell(deviceTable, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                        setCell(deviceTable, 0, 2, "Ghi ch\u00fa", true, "D9E2F3");
+
+                        setCell(deviceTable, 1, 0, proposalRow.get(0), false, "E6FFED");
+                        setCell(deviceTable, 1, 1, proposalRow.get(1), true, "E6FFED");
+                        setCell(deviceTable, 1, 2, proposalRow.get(2), false, "E6FFED");
+                        doc.createParagraph();
+                    }
+                }
+                return;
+            }
+            
             Pattern machineTablePattern = Pattern.compile(
                     "B\u1ea3ng t\u00ednh to\u00e1n M\u00e1y ch\u1ee7 Ti\u1ebfn tr\u00ecnh.*?<tbody>(.*?)</tbody>",
                     Pattern.DOTALL | Pattern.CASE_INSENSITIVE
@@ -1270,6 +1345,57 @@ public class ExportService {
             String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
             if (!plainText.isEmpty()) addNormalText(doc, plainText);
         }
+    }
+
+    private String extractTableHtmlByMarker(String html, String marker) {
+        if (html == null || html.isBlank()) return "";
+        Pattern pattern = Pattern.compile("<table[^>]*" + Pattern.quote(marker) + "[^>]*>[\\s\\S]*?</table>", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(html);
+        return matcher.find() ? matcher.group() : "";
+    }
+
+    private String extractDivHtmlByMarker(String html, String marker) {
+        if (html == null || html.isBlank()) return "";
+        Pattern pattern = Pattern.compile("<div[^>]*" + Pattern.quote(marker) + "[^>]*>([\\s\\S]*?)</div>", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(html);
+        return matcher.find() ? matcher.group(1) : "";
+    }
+
+    private List<String> extractTableHeaders(String tableHtml) {
+        List<String> headers = new ArrayList<>();
+        if (tableHtml == null || tableHtml.isBlank()) return headers;
+
+        Pattern headerPattern = Pattern.compile("<thead>[\\s\\S]*?<tr[^>]*>([\\s\\S]*?)</tr>[\\s\\S]*?</thead>", Pattern.CASE_INSENSITIVE);
+        Matcher headerMatcher = headerPattern.matcher(tableHtml);
+        if (!headerMatcher.find()) return headers;
+
+        Matcher thMatcher = Pattern.compile("<th[^>]*>([\\s\\S]*?)</th>", Pattern.CASE_INSENSITIVE).matcher(headerMatcher.group(1));
+        while (thMatcher.find()) {
+            headers.add(stripHtmlKeepLineBreaks(thMatcher.group(1)));
+        }
+        return headers;
+    }
+
+    private List<List<String>> extractTableRows(String tableHtml) {
+        List<List<String>> rows = new ArrayList<>();
+        if (tableHtml == null || tableHtml.isBlank()) return rows;
+
+        Pattern bodyPattern = Pattern.compile("<tbody>([\\s\\S]*?)</tbody>", Pattern.CASE_INSENSITIVE);
+        Matcher bodyMatcher = bodyPattern.matcher(tableHtml);
+        if (!bodyMatcher.find()) return rows;
+
+        Matcher rowMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(bodyMatcher.group(1));
+        while (rowMatcher.find()) {
+            Matcher cellMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(rowMatcher.group(1));
+            List<String> row = new ArrayList<>();
+            while (cellMatcher.find()) {
+                row.add(stripHtmlKeepLineBreaks(cellMatcher.group(1)));
+            }
+            if (!row.isEmpty()) {
+                rows.add(row);
+            }
+        }
+        return rows;
     }
 
     private String extractRowByLabel(String html, String label) {
@@ -1938,28 +2064,6 @@ public class ExportService {
             addLabelValue(doc, "\u0110\u1ecbnh c\u1ee1:", sizingValue);
         }
 
-        String virtualizationMode = txt(moduleK8S, "virtualizationMode");
-        String normalizedMode = virtualizationMode.trim().toLowerCase();
-        String vcpuFlavor = txt(moduleK8S, "vcpuFlavor");
-        String ramFlavor = txt(moduleK8S, "ramFlavor");
-        if (!virtualizationMode.isEmpty() || !vcpuFlavor.isEmpty() || !ramFlavor.isEmpty()) {
-            String modeDisplay = virtualizationMode;
-            if ("vcpu".equalsIgnoreCase(virtualizationMode)) {
-                modeDisplay = "Theo vCPU";
-            } else if ("ram".equalsIgnoreCase(virtualizationMode)) {
-                modeDisplay = "Theo RAM";
-            }
-            if (!modeDisplay.isEmpty()) {
-                addLabelValue(doc, "Ch\u1ebf \u0111\u1ed9 \u1ea3o h\u00f3a:", modeDisplay);
-            }
-            if ((normalizedMode.equals("vcpu") || normalizedMode.isEmpty()) && !vcpuFlavor.isEmpty()) {
-                addLabelValue(doc, "Flavor vCPU \u0111\u00e3 ch\u1ecdn:", vcpuFlavor + " Cint");
-            }
-            if ((normalizedMode.equals("ram") || normalizedMode.isEmpty()) && !ramFlavor.isEmpty()) {
-                addLabelValue(doc, "Flavor RAM \u0111\u00e3 ch\u1ecdn:", ramFlavor + " GB");
-            }
-        }
-
         // Sizing result
         String sizingResult = txt(moduleK8S, "sizingResult");
         if (!sizingResult.isEmpty()) {
@@ -2288,17 +2392,9 @@ public class ExportService {
         if (html.isEmpty()) {
             html = txt(moduleCustom, "customMethodDocText");
         }
-        String plain = html
-                .replaceAll("(?i)<br\\s*/?>", "\n")
-                .replaceAll("(?i)</p>", "\n")
-                .replaceAll("(?i)</div>", "\n")
-                .replaceAll("<[^>]+>", " ")
-                .replace("&nbsp;", " ")
-                .replaceAll("\\n\\s*\\n+", "\n")
-                .replaceAll("[ \\t]+", " ")
-                .trim();
-        if (!plain.isEmpty()) {
-            addNormalText(doc, plain);
+        List<HtmlFragment> fragments = parseHtmlWithImages(html);
+        if (!fragments.isEmpty()) {
+            addHtmlFragments(doc, fragments);
         }
 
         JsonNode proposalRows = moduleCustom.path("customProposalTable");
@@ -2752,6 +2848,162 @@ public class ExportService {
             }
         } catch (Exception e) {
             log.warn("Failed to add base64 image: {}", e.getMessage());
+        }
+    }
+
+    // ========== HTML Fragment with Inline Images ==========
+
+    private static class HtmlFragment {
+        enum Type { TEXT, IMAGE }
+        Type type;
+        String content;
+
+        static HtmlFragment text(String content) {
+            HtmlFragment f = new HtmlFragment();
+            f.type = Type.TEXT;
+            f.content = content;
+            return f;
+        }
+
+        static HtmlFragment image(String base64Uri) {
+            HtmlFragment f = new HtmlFragment();
+            f.type = Type.IMAGE;
+            f.content = base64Uri;
+            return f;
+        }
+    }
+
+    private String stripOtherTags(String html) {
+        String result = html;
+        // Preserve line breaks from HTML tags
+        result = result.replaceAll("(?i)<br\\s*/?>", "\n");
+        result = result.replaceAll("(?i)</p>", "\n");
+        result = result.replaceAll("(?i)</div>", "\n");
+        result = result.replaceAll("(?i)</li>", "\n");
+        // Remove all HTML tags EXCEPT <img>
+        result = result.replaceAll("<(?!img\\b)[^>]+>", " ");
+        // Clean up whitespace
+        result = result.replace("&nbsp;", " ")
+                .replaceAll("\\n\\s*\\n+", "\n")
+                .replaceAll("[ \\t]+", " ")
+                .trim();
+        return result;
+    }
+
+    private List<HtmlFragment> parseHtmlWithImages(String html) {
+        List<HtmlFragment> fragments = new ArrayList<>();
+        if (html == null || html.isEmpty()) {
+            return fragments;
+        }
+
+        String imgPattern = "<img[^>]+src=[\"']data:image/([^;]+);base64,([^\"']+)[\"'][^>]*>";
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(imgPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+        java.util.regex.Matcher m = p.matcher(html);
+
+        int lastEnd = 0;
+        while (m.find()) {
+            String beforeText = html.substring(lastEnd, m.start());
+            String imgType = m.group(1);
+            String base64 = m.group(2);
+            String fullUri = "data:image/" + imgType + ";base64," + base64;
+
+            // Process text before image
+            String textContent = stripOtherTags(beforeText);
+            if (!textContent.isEmpty()) {
+                fragments.add(HtmlFragment.text(textContent));
+            }
+
+            // Add image
+            fragments.add(HtmlFragment.image(fullUri));
+
+            lastEnd = m.end();
+        }
+
+        // Process text after last image
+        String afterText = html.substring(lastEnd);
+        String textContent = stripOtherTags(afterText);
+        if (!textContent.isEmpty()) {
+            fragments.add(HtmlFragment.text(textContent));
+        }
+
+        return fragments;
+    }
+
+    private void addInlineImage(XWPFParagraph paragraph, String base64Uri) {
+        try {
+            String base64Data = base64Uri;
+            int pictureType = XWPFDocument.PICTURE_TYPE_PNG;
+
+            if (base64Uri.contains(",")) {
+                String[] parts = base64Uri.split(",", 2);
+                String header = parts[0].toLowerCase();
+                base64Data = parts[1];
+                if (header.contains("jpeg") || header.contains("jpg")) {
+                    pictureType = XWPFDocument.PICTURE_TYPE_JPEG;
+                } else if (header.contains("gif")) {
+                    pictureType = XWPFDocument.PICTURE_TYPE_GIF;
+                } else if (header.contains("bmp")) {
+                    pictureType = XWPFDocument.PICTURE_TYPE_BMP;
+                }
+            }
+
+            byte[] imageBytes = Base64.getDecoder().decode(base64Data);
+
+            XWPFRun imgRun = paragraph.createRun();
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes)) {
+                imgRun.addPicture(bis, pictureType, "image", Units.toEMU(350), Units.toEMU(220));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to add inline image: {}", e.getMessage());
+            XWPFRun placeholderRun = paragraph.createRun();
+            placeholderRun.setText("[Ảnh: base64 invalid]");
+            placeholderRun.setColor("999999");
+        }
+    }
+
+    private void addHtmlFragments(XWPFDocument doc, List<HtmlFragment> fragments) {
+        if (fragments == null || fragments.isEmpty()) {
+            return;
+        }
+
+        XWPFParagraph paragraph = doc.createParagraph();
+        boolean firstInParagraph = true;
+
+        for (HtmlFragment fragment : fragments) {
+            if (fragment.type == HtmlFragment.Type.TEXT) {
+                String text = fragment.content;
+                if (text.isEmpty()) {
+                    continue;
+                }
+
+                // For text starting with newline, create new paragraph
+                if (!firstInParagraph && text.startsWith("\n")) {
+                    paragraph = doc.createParagraph();
+                    text = text.substring(1);
+                    if (text.isEmpty()) {
+                        continue;
+                    }
+                }
+
+                // Split by newlines and add breaks
+                String[] lines = text.split("\\n", -1);
+                for (int i = 0; i < lines.length; i++) {
+                    if (i > 0) {
+                        paragraph.createRun().addBreak();
+                    }
+                    if (!lines[i].isEmpty()) {
+                        paragraph.createRun().setText(lines[i]);
+                    }
+                }
+                firstInParagraph = false;
+            } else if (fragment.type == HtmlFragment.Type.IMAGE) {
+                // Before image, if we have text before it in same paragraph, add break
+                if (!firstInParagraph) {
+                    paragraph.createRun().addBreak();
+                }
+                addInlineImage(paragraph, fragment.content);
+                firstInParagraph = true; // After image, next text should be new paragraph
+            }
         }
     }
 }
