@@ -14,11 +14,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -73,6 +76,7 @@ public class ExportService {
     private static class ExportContext {
         private final List<AppendixImage> appendixImages = new ArrayList<>();
         private int nextImageIndex = 1;
+        private JsonNode sizingRoot;
     }
 
     public ExportService(ProjectRepository projectRepository,
@@ -360,6 +364,7 @@ public class ExportService {
     private void writeDinhCoHeThong(XWPFDocument doc, JsonNode root, JsonNode moHinhNode, ExportContext context) {
         addSectionHeading(doc, "IV. ĐỊNH C\u1ee0 H\u1ec6 TH\u1ed0NG");
         
+        context.sizingRoot = root;
         // Get selected modules from moHinhHeThong archRows
         java.util.Set<String> selectedModules = new java.util.HashSet<>();
         if (moHinhNode != null) {
@@ -815,9 +820,9 @@ public class ExportService {
             addInlineImages(doc, evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o", null));
         }
 
-        String selectedInputRow = txt(moduleApp, "selectedInputRow");
-        if (!selectedInputRow.isEmpty()) {
-            addLabelValue(doc, "Lấy thông số đầu vào theo ", selectedInputRow);
+        String selectedInputRowLabel = resolveSelectedInputRowLabel(moduleApp, context);
+        if (!selectedInputRowLabel.isEmpty()) {
+            addLabelValue(doc, "Lấy thông số đầu vào theo ", selectedInputRowLabel);
         }
 
         String pocValue = txt(moduleApp, "pocValue");
@@ -837,14 +842,14 @@ public class ExportService {
         String sizingResult = txt(moduleApp, "sizingResult");
         if (!sizingResult.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-            parseAndWriteAppSizingResult(doc, sizingResult);
+            parseAndWriteAppSizingResult(doc, sizingResult, moduleApp);
         }
 
         doc.createParagraph();
     }
 
     // Parse Module App sizing result HTML and write to DOC with proper formatting
-    private void parseAndWriteAppSizingResult(XWPFDocument doc, String html) {
+    private void parseAndWriteAppSizingResult(XWPFDocument doc, String html, JsonNode moduleApp) {
         try {
             String machineTableHtml = extractTableHtmlByMarker(html, "data-app-machine-table=\"1\"");
             String nTableHtml = extractTableHtmlByMarker(html, "data-app-n-table=\"1\"");
@@ -905,22 +910,50 @@ public class ExportService {
                 }
 
                 List<List<String>> proposalRows = extractTableRows(proposalTableHtml);
-                if (!proposalRows.isEmpty()) {
+                String selectedProposalSource = txt(moduleApp, "selectedProposalSource").trim();
+                JsonNode customProposalTable = moduleApp.path("customProposalTable");
+                String customConfigurationText = txt(customProposalTable, "configurationText").trim();
+                String customQuantity = txt(customProposalTable, "quantity").trim();
+                String customNote = txt(customProposalTable, "note").trim();
+
+                String proposalConfig = "";
+                String proposalQuantity = "";
+                String proposalNote = "";
+
+                if ("custom".equalsIgnoreCase(selectedProposalSource) && !customConfigurationText.isEmpty()) {
+                    String[] lines = customConfigurationText.split("\\r?\\n");
+                    List<String> normalizedLines = new ArrayList<>();
+                    for (String line : lines) {
+                        String trimmed = line == null ? "" : line.trim();
+                        if (!trimmed.isEmpty()) {
+                            normalizedLines.add("- " + trimmed);
+                        }
+                    }
+                    proposalConfig = String.join("\n", normalizedLines);
+                    proposalQuantity = customQuantity;
+                    proposalNote = customNote;
+                } else if (!proposalRows.isEmpty()) {
                     List<String> proposalRow = proposalRows.get(0);
                     if (proposalRow.size() >= 3) {
-                        addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t thi\u1ebft b\u1ecb");
-                        XWPFTable deviceTable = doc.createTable(2, 3);
-                        styleTable(deviceTable);
-
-                        setCell(deviceTable, 0, 0, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
-                        setCell(deviceTable, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-                        setCell(deviceTable, 0, 2, "Ghi ch\u00fa", true, "D9E2F3");
-
-                        setCell(deviceTable, 1, 0, proposalRow.get(0), false, "E6FFED");
-                        setCell(deviceTable, 1, 1, proposalRow.get(1), true, "E6FFED");
-                        setCell(deviceTable, 1, 2, proposalRow.get(2), false, "E6FFED");
-                        doc.createParagraph();
+                        proposalConfig = proposalRow.get(0);
+                        proposalQuantity = proposalRow.get(1);
+                        proposalNote = proposalRow.get(2);
                     }
+                }
+
+                if (!proposalConfig.isEmpty() || !proposalQuantity.isEmpty() || !proposalNote.isEmpty()) {
+                    addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t thi\u1ebft b\u1ecb");
+                    XWPFTable deviceTable = doc.createTable(2, 3);
+                    styleTable(deviceTable);
+
+                    setCell(deviceTable, 0, 0, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                    setCell(deviceTable, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                    setCell(deviceTable, 0, 2, "Ghi ch\u00fa", true, "D9E2F3");
+
+                    setCell(deviceTable, 1, 0, proposalConfig, false, "E6FFED");
+                    setCell(deviceTable, 1, 1, proposalQuantity, true, "E6FFED");
+                    setCell(deviceTable, 1, 2, proposalNote, false, "E6FFED");
+                    doc.createParagraph();
                 }
                 return;
             }
@@ -1209,14 +1242,14 @@ public class ExportService {
         String resultHTML = txt(moduleMariaDB, "resultHTML");
         if (!resultHTML.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-            parseAndWriteMariaDBResult(doc, resultHTML);
+            parseAndWriteMariaDBResult(doc, resultHTML, moduleMariaDB);
         }
 
         doc.createParagraph();
     }
 
     // Parse Module MariaDB result HTML and write to DOC with proper formatting
-    private void parseAndWriteMariaDBResult(XWPFDocument doc, String html) {
+    private void parseAndWriteMariaDBResult(XWPFDocument doc, String html, JsonNode moduleMariaDB) {
         try {
             Pattern infoPattern = Pattern.compile("(Th\\u00f4ng tin t\\u00ednh to\\u00e1n|C\\u00f4ng th\\u1ee9c t\\u00ednh to\\u00e1n).*?</ul>", Pattern.DOTALL);
             Matcher infoMatcher = infoPattern.matcher(html);
@@ -1232,78 +1265,131 @@ public class ExportService {
                 }
             }
 
-            String mariaRow = extractRowByLabel(html, "MariaDB");
-            String maxScaleRow = extractRowByLabel(html, "MaxScale");
-            String nasRow = extractRowByLabel(html, "NAS");
-
             List<String[]> resultRows = new ArrayList<>();
 
-            if (!mariaRow.isEmpty()) {
-                String mariaList = extractListContent(mariaRow);
-                String vcpu = firstGroup(mariaList, "(\\d+)\\s*vCPU");
-                String ram = firstGroup(mariaList, "(\\d+)\\s*GB\\s*RAM");
-                String data = firstGroup(mariaList, "/data[:\\s]*(\\d+)\\s*GB");
-                String logDisk = firstGroup(mariaList, "/log[:\\s]*(\\d+)\\s*GB");
+            String selectedProposalSource = txt(moduleMariaDB, "selectedProposalSource").trim();
+            JsonNode customProposalTable = moduleMariaDB.path("customProposalTable");
+            boolean useCustomProposal = "custom".equalsIgnoreCase(selectedProposalSource)
+                    && customProposalTable.isArray()
+                    && customProposalTable.size() > 0;
 
-                StringBuilder configBuilder = new StringBuilder();
-                if (!vcpu.isEmpty()) configBuilder.append(vcpu).append(" vCPU\n");
-                if (!ram.isEmpty()) configBuilder.append(ram).append(" GB RAM\n");
-                if (!data.isEmpty()) configBuilder.append("/data: ").append(data).append(" GB\n");
-                if (!logDisk.isEmpty()) configBuilder.append("/log: ").append(logDisk).append(" GB");
+            if (useCustomProposal) {
+                for (JsonNode row : customProposalTable) {
+                    String component = txt(row, "component").trim();
+                    String config = txt(row, "configurationText").trim();
+                    String quantity = txt(row, "quantity").trim();
+                    String note = txt(row, "note").trim();
+                    if (component.isEmpty() || config.isEmpty()) {
+                        continue;
+                    }
 
-                String config = configBuilder.toString().trim();
-                if (config.isEmpty()) {
-                    config = stripHtml(extractListContent(mariaRow));
-                }
-                if (!config.isEmpty()) {
-                    resultRows.add(new String[]{
-                            "MariaDB",
-                            config,
-                            extractQuantity(mariaRow, "3"),
-                            extractNoteCell(mariaRow)
-                    });
-                }
-            }
-
-            if (!maxScaleRow.isEmpty()) {
-                String maxScaleList = extractListContent(maxScaleRow);
-                String msVcpu = firstGroup(maxScaleList, "(\\d+)\\s*vCPU");
-                String msRam = firstGroup(maxScaleList, "(\\d+)\\s*GB\\s*RAM");
-                String msDisk = firstGroup(maxScaleList, "/u01[:\\s]*(\\d+)\\s*GB");
-
-                StringBuilder configBuilder = new StringBuilder();
-                if (!msVcpu.isEmpty()) configBuilder.append(msVcpu).append(" vCPU\n");
-                if (!msRam.isEmpty()) configBuilder.append(msRam).append(" GB RAM\n");
-                if (!msDisk.isEmpty()) configBuilder.append("/u01: ").append(msDisk).append(" GB");
-
-                String config = configBuilder.toString().trim();
-                if (config.isEmpty()) {
-                    config = stripHtml(maxScaleList);
-                }
-                if (!config.isEmpty()) {
-                    String note = extractNoteCell(maxScaleRow);
-                    if (note.isEmpty()) note = "C\u1ea5u h\u00ecnh t\u1ed1i thi\u1ec3u + 1 VIP";
-                    resultRows.add(new String[]{
-                            "MaxScale",
-                            config,
-                            extractQuantity(maxScaleRow, "2"),
-                            note
-                    });
+                    String[] lines = config.split("\\r?\\n");
+                    List<String> normalizedLines = new ArrayList<>();
+                    for (String line : lines) {
+                        String trimmed = line == null ? "" : line.trim();
+                        if (!trimmed.isEmpty()) {
+                            normalizedLines.add("- " + trimmed);
+                        }
+                    }
+                    if (!normalizedLines.isEmpty()) {
+                        resultRows.add(new String[]{
+                                component,
+                                String.join("\n", normalizedLines),
+                                quantity,
+                                note
+                        });
+                    }
                 }
             }
 
-            if (!nasRow.isEmpty()) {
-                String nasSize = firstGroup(nasRow, "<strong>(\\d+)\\s*GB</strong>");
-                String nasConfig = !nasSize.isEmpty() ? nasSize + " GB" : stripHtml(extractListContent(nasRow));
-                if (!nasConfig.isEmpty()) {
-                    String note = extractNoteCell(nasRow);
-                    if (note.isEmpty()) note = "Mount chung (/backup c\u1ea7n)";
-                    resultRows.add(new String[]{
-                            "NAS",
-                            nasConfig,
-                            extractQuantity(nasRow, "-"),
-                            note
-                    });
+            if (resultRows.isEmpty()) {
+                String proposalTableHtml = extractTableHtmlByMarker(html, "data-mariadb-proposal-table=\"1\"");
+                List<List<String>> proposalRows = extractTableRows(proposalTableHtml);
+                if (!proposalRows.isEmpty()) {
+                    for (List<String> row : proposalRows) {
+                        if (row.size() < 4) continue;
+                        resultRows.add(new String[]{
+                                row.get(0),
+                                row.get(1),
+                                row.get(2),
+                                row.get(3)
+                        });
+                    }
+                }
+            }
+
+            if (resultRows.isEmpty()) {
+                String mariaRow = extractRowByLabel(html, "MariaDB");
+                String maxScaleRow = extractRowByLabel(html, "MaxScale");
+                String nasRow = extractRowByLabel(html, "NAS");
+
+                if (!mariaRow.isEmpty()) {
+                    String mariaList = extractListContent(mariaRow);
+                    String vcpu = firstGroup(mariaList, "(\\d+)\\s*vCPU");
+                    String ram = firstGroup(mariaList, "(\\d+)\\s*GB\\s*RAM");
+                    String data = firstGroup(mariaList, "/data[:\\s]*(\\d+)\\s*GB");
+                    String logDisk = firstGroup(mariaList, "/log[:\\s]*(\\d+)\\s*GB");
+
+                    StringBuilder configBuilder = new StringBuilder();
+                    if (!vcpu.isEmpty()) configBuilder.append(vcpu).append(" vCPU\n");
+                    if (!ram.isEmpty()) configBuilder.append(ram).append(" GB RAM\n");
+                    if (!data.isEmpty()) configBuilder.append("/data: ").append(data).append(" GB\n");
+                    if (!logDisk.isEmpty()) configBuilder.append("/log: ").append(logDisk).append(" GB");
+
+                    String config = configBuilder.toString().trim();
+                    if (config.isEmpty()) {
+                        config = stripHtml(extractListContent(mariaRow));
+                    }
+                    if (!config.isEmpty()) {
+                        resultRows.add(new String[]{
+                                "MariaDB",
+                                config,
+                                extractQuantity(mariaRow, "3"),
+                                extractNoteCell(mariaRow)
+                        });
+                    }
+                }
+
+                if (!maxScaleRow.isEmpty()) {
+                    String maxScaleList = extractListContent(maxScaleRow);
+                    String msVcpu = firstGroup(maxScaleList, "(\\d+)\\s*vCPU");
+                    String msRam = firstGroup(maxScaleList, "(\\d+)\\s*GB\\s*RAM");
+                    String msDisk = firstGroup(maxScaleList, "/u01[:\\s]*(\\d+)\\s*GB");
+
+                    StringBuilder configBuilder = new StringBuilder();
+                    if (!msVcpu.isEmpty()) configBuilder.append(msVcpu).append(" vCPU\n");
+                    if (!msRam.isEmpty()) configBuilder.append(msRam).append(" GB RAM\n");
+                    if (!msDisk.isEmpty()) configBuilder.append("/u01: ").append(msDisk).append(" GB");
+
+                    String config = configBuilder.toString().trim();
+                    if (config.isEmpty()) {
+                        config = stripHtml(maxScaleList);
+                    }
+                    if (!config.isEmpty()) {
+                        String note = extractNoteCell(maxScaleRow);
+                        if (note.isEmpty()) note = "C\u1ea5u h\u00ecnh t\u1ed1i thi\u1ec3u + 1 VIP";
+                        resultRows.add(new String[]{
+                                "MaxScale",
+                                config,
+                                extractQuantity(maxScaleRow, "2"),
+                                note
+                        });
+                    }
+                }
+
+                if (!nasRow.isEmpty()) {
+                    String nasSize = firstGroup(nasRow, "<strong>(\\d+)\\s*GB</strong>");
+                    String nasConfig = !nasSize.isEmpty() ? nasSize + " GB" : stripHtml(extractListContent(nasRow));
+                    if (!nasConfig.isEmpty()) {
+                        String note = extractNoteCell(nasRow);
+                        if (note.isEmpty()) note = "Mount chung (/backup c\u1ea7n)";
+                        resultRows.add(new String[]{
+                                "NAS",
+                                nasConfig,
+                                extractQuantity(nasRow, "-"),
+                                note
+                        });
+                    }
                 }
             }
 
@@ -1528,7 +1614,7 @@ public class ExportService {
                     String resultHTML = txt(keyMethod, "resultHTML");
                     if (!resultHTML.isEmpty()) {
                         addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-                        parseAndWriteRedisResult(doc, resultHTML);
+                        parseAndWriteRedisResult(doc, resultHTML, keyMethod);
                     }
                 }
             }
@@ -1578,7 +1664,7 @@ public class ExportService {
                 String resultHTML = txt(configMethod, "resultHTML");
                 if (!resultHTML.isEmpty()) {
                     addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-                    parseAndWriteRedisResult(doc, resultHTML);
+                    parseAndWriteRedisResult(doc, resultHTML, configMethod);
                 }
             }
         }
@@ -1587,7 +1673,7 @@ public class ExportService {
     }
 
     // Parse Redis result HTML and write to DOC with proper formatting
-    private void parseAndWriteRedisResult(XWPFDocument doc, String html) {
+    private void parseAndWriteRedisResult(XWPFDocument doc, String html, JsonNode methodNode) {
         try {
             Pattern infoPattern = Pattern.compile("Th\u00f4ng tin t\u00ednh to\u00e1n[\\s\\S]*?<ul[^>]*>([\\s\\S]*?)</ul>", Pattern.CASE_INSENSITIVE);
             Matcher infoMatcher = infoPattern.matcher(html);
@@ -1626,44 +1712,94 @@ public class ExportService {
                 doc.createParagraph();
             }
 
-            Pattern resultTablePattern = Pattern.compile(
-                    "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
-                    Pattern.CASE_INSENSITIVE
-            );
-            Matcher resultTableMatcher = resultTablePattern.matcher(html);
-            if (resultTableMatcher.find()) {
-                String tbody = resultTableMatcher.group(1);
-                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
-                if (trMatcher.find()) {
-                    String rowHtml = trMatcher.group(1);
-                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
-                    List<String> cols = new ArrayList<>();
-                    while (tdMatcher.find()) {
-                        cols.add(tdMatcher.group(1));
+            String component = "";
+            String config = "";
+            String quantity = "";
+            String note = "";
+
+            if (methodNode != null && !methodNode.isMissingNode()) {
+                String selectedProposalSource = txt(methodNode, "selectedProposalSource").trim();
+                JsonNode customProposalTable = methodNode.path("customProposalTable");
+                String customConfigurationText = txt(customProposalTable, "configurationText").trim();
+                if ("custom".equalsIgnoreCase(selectedProposalSource) && !customConfigurationText.isEmpty()) {
+                    String customComponent = txt(customProposalTable, "component").trim();
+                    String customQuantity = txt(customProposalTable, "quantity").trim();
+                    String customNote = txt(customProposalTable, "note").trim();
+                    String[] lines = customConfigurationText.split("\\r?\\n");
+                    List<String> normalizedLines = new ArrayList<>();
+                    for (String line : lines) {
+                        String trimmed = line == null ? "" : line.trim();
+                        if (!trimmed.isEmpty()) {
+                            normalizedLines.add("- " + trimmed);
+                        }
                     }
-
-                    if (cols.size() >= 4) {
-                        String component = stripHtml(cols.get(0));
-                        String config = stripHtmlKeepLineBreaks(cols.get(1));
-                        String quantity = stripHtml(cols.get(2));
-                        String note = stripHtml(cols.get(3));
-
-                        addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                        XWPFTable table = doc.createTable(2, 4);
-                        styleTable(table);
-
-                        setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
-                        setCell(table, 0, 1, "C\u1ea5u h\u00ecnh \u0111\u1ec1 xu\u1ea5t", true, "D9E2F3");
-                        setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-                        setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
-
-                        setCell(table, 1, 0, component.isEmpty() ? "Redis" : component, true, "E6FFED");
-                        setCell(table, 1, 1, config, false, "E6FFED");
-                        setCell(table, 1, 2, quantity, true, "E6FFED");
-                        setCell(table, 1, 3, note, false, "E6FFED");
-                        doc.createParagraph();
+                    if (!normalizedLines.isEmpty()) {
+                        component = customComponent.isEmpty() ? "Redis" : customComponent;
+                        config = String.join("\n", normalizedLines);
+                        quantity = customQuantity;
+                        note = customNote;
                     }
                 }
+            }
+
+            if (config.isEmpty()) {
+                String proposalTableHtml = extractTableHtmlByMarker(html, "data-redis-proposal-table=\"1\"");
+                List<List<String>> proposalRows = extractTableRows(proposalTableHtml);
+
+                if (proposalRows.isEmpty()) {
+                    Pattern resultTablePattern = Pattern.compile(
+                            "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                            Pattern.CASE_INSENSITIVE
+                    );
+                    Matcher resultTableMatcher = resultTablePattern.matcher(html);
+                    if (resultTableMatcher.find()) {
+                        String tbody = resultTableMatcher.group(1);
+                        Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                        if (trMatcher.find()) {
+                            String rowHtml = trMatcher.group(1);
+                            Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(rowHtml);
+                            List<String> cols = new ArrayList<>();
+                            while (tdMatcher.find()) {
+                                cols.add(tdMatcher.group(1));
+                            }
+                            if (cols.size() >= 4) {
+                                proposalRows.add(Arrays.asList(
+                                        stripHtml(cols.get(0)),
+                                        stripHtmlKeepLineBreaks(cols.get(1)),
+                                        stripHtml(cols.get(2)),
+                                        stripHtml(cols.get(3))
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                if (!proposalRows.isEmpty()) {
+                    List<String> proposalRow = proposalRows.get(0);
+                    if (proposalRow.size() >= 4) {
+                        component = proposalRow.get(0);
+                        config = proposalRow.get(1);
+                        quantity = proposalRow.get(2);
+                        note = proposalRow.get(3);
+                    }
+                }
+            }
+
+            if (!component.isEmpty() || !config.isEmpty() || !quantity.isEmpty() || !note.isEmpty()) {
+                addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                XWPFTable table = doc.createTable(2, 4);
+                styleTable(table);
+
+                setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                setCell(table, 0, 1, "C\u1ea5u h\u00ecnh \u0111\u1ec1 xu\u1ea5t", true, "D9E2F3");
+                setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+
+                setCell(table, 1, 0, component.isEmpty() ? "Redis" : component, true, "E6FFED");
+                setCell(table, 1, 1, config, false, "E6FFED");
+                setCell(table, 1, 2, quantity, true, "E6FFED");
+                setCell(table, 1, 3, note, false, "E6FFED");
+                doc.createParagraph();
             }
         } catch (Exception e) {
             // Fallback to plain text if parsing fails
@@ -1701,7 +1837,7 @@ public class ExportService {
                     String resultHTML = txt(throughputMethod, "resultHTML");
                     if (!resultHTML.isEmpty()) {
                         addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-                        parseAndWriteKafkaResult(doc, resultHTML);
+                        parseAndWriteKafkaResult(doc, resultHTML, throughputMethod);
                     }
                 }
             }
@@ -1750,7 +1886,7 @@ public class ExportService {
                 String resultHTML = txt(linearMethod, "resultHTML");
                 if (!resultHTML.isEmpty()) {
                     addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-                    parseAndWriteKafkaResult(doc, resultHTML);
+                    parseAndWriteKafkaResult(doc, resultHTML, linearMethod);
                 }
             }
         }
@@ -1759,7 +1895,7 @@ public class ExportService {
     }
 
     // Parse Kafka result HTML and write to DOC with proper formatting
-    private void parseAndWriteKafkaResult(XWPFDocument doc, String html) {
+    private void parseAndWriteKafkaResult(XWPFDocument doc, String html, JsonNode methodNode) {
         try {
             Pattern infoPattern = Pattern.compile("(Th\u00f4ng tin \u0111\u1ea7u v\u00e0o|Th\u00f4ng tin t\u00ednh to\u00e1n)[\\s\\S]*?<ul[^>]*>([\\s\\S]*?)</ul>", Pattern.CASE_INSENSITIVE);
             Matcher infoMatcher = infoPattern.matcher(html);
@@ -1853,46 +1989,70 @@ public class ExportService {
                 }
             }
 
-            Pattern resultTablePattern = Pattern.compile(
-                    "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
-                    Pattern.CASE_INSENSITIVE
-            );
-            Matcher resultTableMatcher = resultTablePattern.matcher(html);
-            if (resultTableMatcher.find()) {
-                String tbody = resultTableMatcher.group(1);
-                Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
-                List<List<String>> rows = new ArrayList<>();
-                while (trMatcher.find()) {
-                    Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(trMatcher.group(1));
-                    List<String> cols = new ArrayList<>();
-                    while (tdMatcher.find()) {
-                        cols.add(stripHtml(tdMatcher.group(1)));
+            List<List<String>> proposalRows = new ArrayList<>();
+            String selectedProposalSource = txt(methodNode, "selectedProposalSource").trim();
+            JsonNode customProposalTable = methodNode.path("customProposalTable");
+            if ("custom".equalsIgnoreCase(selectedProposalSource) && customProposalTable.isArray() && customProposalTable.size() > 0) {
+                for (JsonNode row : customProposalTable) {
+                    String component = txt(row, "component").trim();
+                    String quantity = txt(row, "quantity").trim();
+                    String vcpu = txt(row, "vcpu").trim();
+                    String ram = txt(row, "ram").trim();
+                    String disk = txt(row, "disk").trim();
+                    if (component.isEmpty() || quantity.isEmpty() || vcpu.isEmpty() || ram.isEmpty() || disk.isEmpty()) {
+                        continue;
                     }
-                    if (cols.size() >= 5) {
-                        rows.add(cols);
-                    }
+                    proposalRows.add(Arrays.asList(component, quantity, vcpu, ram, disk));
                 }
+            }
 
-                if (!rows.isEmpty()) {
-                    addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                    XWPFTable table = doc.createTable(rows.size() + 1, 5);
-                    styleTable(table);
+            if (proposalRows.isEmpty()) {
+                String proposalTableHtml = extractTableHtmlByMarker(html, "data-kafka-proposal-table=\"1\"");
+                proposalRows = extractTableRows(proposalTableHtml);
+            }
 
-                    setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
-                    setCell(table, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng Node", true, "D9E2F3");
-                    setCell(table, 0, 2, "vCPU/Node", true, "D9E2F3");
-                    setCell(table, 0, 3, "RAM/Node", true, "D9E2F3");
-                    setCell(table, 0, 4, "Disk/Node", true, "D9E2F3");
-
-                    for (int i = 0; i < rows.size(); i++) {
-                        List<String> row = rows.get(i);
-                        String rowColor = row.get(0).toLowerCase().contains("zookeeper") ? "FFF9E6" : "E6FFED";
-                        for (int c = 0; c < 5; c++) {
-                            setCell(table, i + 1, c, row.get(c), false, rowColor);
+            if (proposalRows.isEmpty()) {
+                Pattern resultTablePattern = Pattern.compile(
+                        "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
+                        Pattern.CASE_INSENSITIVE
+                );
+                Matcher resultTableMatcher = resultTablePattern.matcher(html);
+                if (resultTableMatcher.find()) {
+                    String tbody = resultTableMatcher.group(1);
+                    Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
+                    while (trMatcher.find()) {
+                        Matcher tdMatcher = Pattern.compile("<td[^>]*>([\\s\\S]*?)</td>", Pattern.CASE_INSENSITIVE).matcher(trMatcher.group(1));
+                        List<String> cols = new ArrayList<>();
+                        while (tdMatcher.find()) {
+                            cols.add(stripHtml(tdMatcher.group(1)));
+                        }
+                        if (cols.size() >= 5) {
+                            proposalRows.add(cols);
                         }
                     }
-                    doc.createParagraph();
                 }
+            }
+
+            if (!proposalRows.isEmpty()) {
+                addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                XWPFTable table = doc.createTable(proposalRows.size() + 1, 5);
+                styleTable(table);
+
+                setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                setCell(table, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng Node", true, "D9E2F3");
+                setCell(table, 0, 2, "vCPU/Node", true, "D9E2F3");
+                setCell(table, 0, 3, "RAM/Node", true, "D9E2F3");
+                setCell(table, 0, 4, "Disk/Node", true, "D9E2F3");
+
+                for (int i = 0; i < proposalRows.size(); i++) {
+                    List<String> row = proposalRows.get(i);
+                    if (row.size() < 5) continue;
+                    String rowColor = row.get(0).toLowerCase().contains("zookeeper") ? "FFF9E6" : "E6FFED";
+                    for (int c = 0; c < 5; c++) {
+                        setCell(table, i + 1, c, row.get(c), false, rowColor);
+                    }
+                }
+                doc.createParagraph();
             }
 
             Pattern recPattern = Pattern.compile("Khuy\u1ebfn ngh\u1ecb[\\s\\S]*?<p[^>]*>([\\s\\S]*?)</p>", Pattern.CASE_INSENSITIVE);
@@ -1993,41 +2153,34 @@ public class ExportService {
             addSubHeading2(doc, "Th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o");
 
             int rows = inputConfig.size();
-            XWPFTable table = doc.createTable(rows + 2, 8);
+            XWPFTable table = doc.createTable(rows + 2, 6);
             styleTable(table);
 
             setCell(table, 0, 0, "STT", true, "D9E2F3");
             setCell(table, 0, 1, "IP", true, "D9E2F3");
             setCell(table, 0, 2, "T\u1ea3i CPU 95th\npercentile (%)", true, "D9E2F3");
             setCell(table, 0, 3, "T\u1ea3i RAM 95th\npercentile (%)", true, "D9E2F3");
-            setCell(table, 0, 4, "T\u1ea3i DISK 95th\npercentile (%)", true, "D9E2F3");
-            setCell(table, 0, 5, "Cint_rate used\n(Cint)", true, "D9E2F3");
-            setCell(table, 0, 6, "RAM used\n(GB)", true, "D9E2F3");
-            setCell(table, 0, 7, "DISK used\n(GB)", true, "D9E2F3");
+            setCell(table, 0, 4, "Cint_rate used\n(Cint)", true, "D9E2F3");
+            setCell(table, 0, 5, "RAM used\n(GB)", true, "D9E2F3");
 
-            double totalCintUsed = 0, totalRamUsed = 0, totalDiskUsed = 0;
+            double totalCintUsed = 0, totalRamUsed = 0;
             for (int i = 0; i < rows; i++) {
                 JsonNode r = inputConfig.get(i);
                 setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
                 setCell(table, i + 1, 1, txt(r, "ip"), false, null);
                 setCell(table, i + 1, 2, txt(r, "cpuLoad"), false, null);
                 setCell(table, i + 1, 3, txt(r, "ramLoad"), false, null);
-                setCell(table, i + 1, 4, txt(r, "diskLoad"), false, null);
-                setCell(table, i + 1, 5, txt(r, "cintUsed"), false, null);
-                setCell(table, i + 1, 6, txt(r, "ramUsed"), false, null);
-                setCell(table, i + 1, 7, txt(r, "diskUsed"), false, null);
+                setCell(table, i + 1, 4, txt(r, "cintUsed"), false, null);
+                setCell(table, i + 1, 5, txt(r, "ramUsed"), false, null);
                 totalCintUsed += toDouble(r, "cintUsed");
                 totalRamUsed += toDouble(r, "ramUsed");
-                totalDiskUsed += toDouble(r, "diskUsed");
             }
             setCell(table, rows + 1, 0, "", true, "E2EFDA");
             setCell(table, rows + 1, 1, "T\u1ed5ng", true, "E2EFDA");
             setCell(table, rows + 1, 2, "", true, "E2EFDA");
             setCell(table, rows + 1, 3, "", true, "E2EFDA");
-            setCell(table, rows + 1, 4, "", true, "E2EFDA");
-            setCell(table, rows + 1, 5, formatNum(totalCintUsed), true, "E2EFDA");
-            setCell(table, rows + 1, 6, formatNum(totalRamUsed), true, "E2EFDA");
-            setCell(table, rows + 1, 7, formatNum(totalDiskUsed), true, "E2EFDA");
+            setCell(table, rows + 1, 4, formatNum(totalCintUsed), true, "E2EFDA");
+            setCell(table, rows + 1, 5, formatNum(totalRamUsed), true, "E2EFDA");
             doc.createParagraph();
 
             boolean hasInputEvidence = false;
@@ -2056,6 +2209,31 @@ public class ExportService {
             }
         }
 
+        JsonNode storageInput = moduleK8S.path("storageInputTable");
+        if (storageInput.isArray() && storageInput.size() > 0) {
+            addSubHeading2(doc, "Th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o");
+
+            int rows = storageInput.size();
+            XWPFTable table = doc.createTable(rows + 1, 5);
+            styleTable(table);
+
+            setCell(table, 0, 0, "STT", true, "D9E2F3");
+            setCell(table, 0, 1, "IP", true, "D9E2F3");
+            setCell(table, 0, 2, "Ph\u00e2n v\u00f9ng", true, "D9E2F3");
+            setCell(table, 0, 3, "Used (GB)", true, "D9E2F3");
+            setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
+
+            for (int i = 0; i < rows; i++) {
+                JsonNode r = storageInput.get(i);
+                setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
+                setCell(table, i + 1, 1, txt(r, "ip"), false, null);
+                setCell(table, i + 1, 2, txt(r, "partition"), false, null);
+                setCell(table, i + 1, 3, txt(r, "used"), false, null);
+                setCell(table, i + 1, 4, txt(r, "note"), false, null);
+            }
+            doc.createParagraph();
+        }
+
         // POC / Sizing
         String pocValue = txt(moduleK8S, "pocValue");
         String sizingValue = txt(moduleK8S, "sizingValue");
@@ -2064,19 +2242,133 @@ public class ExportService {
             addLabelValue(doc, "\u0110\u1ecbnh c\u1ee1:", sizingValue);
         }
 
+        String flavorEval = txt(moduleK8S, "flavorEval");
+        String flavorNote = txt(moduleK8S, "flavorNote");
+        if (!flavorEval.isEmpty() || !flavorNote.isEmpty()) {
+            addLabelValue(doc, "\u0110\u00e1nh gi\u00e1 flavor:", flavorEval);
+            addLabelValue(doc, "Ghi ch\u00fa flavor:", flavorNote);
+        }
+
         // Sizing result
         String sizingResult = txt(moduleK8S, "sizingResult");
         if (!sizingResult.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-            parseAndWriteK8SResult(doc, sizingResult);
+            parseAndWriteK8SResult(doc, sizingResult, moduleK8S);
         }
 
         doc.createParagraph();
     }
 
     // Parse K8S result HTML and write to DOC
-    private void parseAndWriteK8SResult(XWPFDocument doc, String html) {
+    private void parseAndWriteK8SResult(XWPFDocument doc, String html, JsonNode moduleK8S) {
         try {
+            String workerTableHtml = extractTableHtmlByMarker(html, "data-k8s-worker-table=\"1\"");
+            String distributionTableHtml = extractTableHtmlByMarker(html, "data-k8s-n-table=\"1\"");
+            String proposalTableHtml = extractTableHtmlByMarker(html, "data-k8s-proposal-table=\"1\"");
+            String recommendationHtml = extractDivHtmlByMarker(html, "data-k8s-recommendation=\"1\"");
+
+            if (!workerTableHtml.isEmpty() || !distributionTableHtml.isEmpty() || !proposalTableHtml.isEmpty()) {
+                List<List<String>> workerRows = extractTableRows(workerTableHtml);
+                if (!workerRows.isEmpty()) {
+                    addSubHeading2(doc, "B\u1ea3ng t\u00ednh to\u00e1n K8S Worker");
+                    XWPFTable table = doc.createTable(workerRows.size() + 1, 4);
+                    styleTable(table);
+
+                    setCell(table, 0, 0, "STT", true, "D9E2F3");
+                    setCell(table, 0, 1, "Th\u00f4ng s\u1ed1", true, "D9E2F3");
+                    setCell(table, 0, 2, "K8S Worker", true, "D9E2F3");
+                    setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+
+                    for (int i = 0; i < workerRows.size(); i++) {
+                        List<String> row = workerRows.get(i);
+                        if (row.size() < 4) continue;
+                        setCell(table, i + 1, 0, row.get(0), false, null);
+                        setCell(table, i + 1, 1, row.get(1), false, null);
+                        setCell(table, i + 1, 2, row.get(2), false, null);
+                        setCell(table, i + 1, 3, row.get(3), false, null);
+                    }
+                    doc.createParagraph();
+                }
+
+                if (!recommendationHtml.isEmpty()) {
+                    String recommendationText = stripHtmlKeepLineBreaks(recommendationHtml);
+                    recommendationText = recommendationText.replaceFirst("(?i)^\\s*\\u0111\\u1ec1 xu\\u1ea5t\\s*:\\s*", "");
+                    if (!recommendationText.isEmpty()) {
+                        addNormalText(doc, recommendationText);
+                        doc.createParagraph();
+                    }
+                }
+
+                List<String> distributionHeaders = extractTableHeaders(distributionTableHtml);
+                List<List<String>> distributionRows = extractTableRows(distributionTableHtml);
+                if (!distributionHeaders.isEmpty() && !distributionRows.isEmpty()) {
+                    addSubHeading2(doc, "B\u1ea3ng ph\u00e2n b\u1ed5 theo s\u1ed1 l\u01b0\u1ee3ng N");
+                    XWPFTable table = doc.createTable(distributionRows.size() + 1, distributionHeaders.size());
+                    styleTable(table);
+
+                    for (int col = 0; col < distributionHeaders.size(); col++) {
+                        setCell(table, 0, col, distributionHeaders.get(col), true, "D9E2F3");
+                    }
+
+                    for (int rowIndex = 0; rowIndex < distributionRows.size(); rowIndex++) {
+                        List<String> row = distributionRows.get(rowIndex);
+                        String bgColor = rowIndex == distributionRows.size() - 1 ? "E6FFED" : null;
+                        for (int col = 0; col < distributionHeaders.size(); col++) {
+                            String value = col < row.size() ? row.get(col) : "";
+                            setCell(table, rowIndex + 1, col, value, false, bgColor);
+                        }
+                    }
+                    doc.createParagraph();
+                }
+
+                List<List<String>> proposalRows = extractTableRows(proposalTableHtml);
+                String selectedProposalSource = txt(moduleK8S, "selectedProposalSource").trim();
+                JsonNode customProposalTable = moduleK8S.path("customProposalTable");
+                if ("custom".equalsIgnoreCase(selectedProposalSource) && customProposalTable.isArray() && customProposalTable.size() > 0) {
+                    List<List<String>> customRows = new ArrayList<>();
+                    for (JsonNode row : customProposalTable) {
+                        String component = txt(row, "component").trim();
+                        String config = txt(row, "configurationText").trim();
+                        if (component.isEmpty() || config.isEmpty()) continue;
+                        String quantity = txt(row, "quantity").trim();
+                        String note = txt(row, "note").trim();
+                        List<String> normalizedLines = new ArrayList<>();
+                        for (String line : config.split("\\r?\\n")) {
+                            String trimmed = line == null ? "" : line.trim();
+                            if (!trimmed.isEmpty()) normalizedLines.add("- " + trimmed);
+                        }
+                        if (!normalizedLines.isEmpty()) {
+                            customRows.add(Arrays.asList(component, String.join("\n", normalizedLines), quantity, note));
+                        }
+                    }
+                    if (!customRows.isEmpty()) {
+                        proposalRows = customRows;
+                    }
+                }
+                if (!proposalRows.isEmpty()) {
+                    addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
+                    XWPFTable configTable = doc.createTable(proposalRows.size() + 1, 4);
+                    styleTable(configTable);
+
+                    setCell(configTable, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                    setCell(configTable, 0, 1, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                    setCell(configTable, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                    setCell(configTable, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+
+                    for (int i = 0; i < proposalRows.size(); i++) {
+                        List<String> row = proposalRows.get(i);
+                        if (row.size() < 4) continue;
+                        String bgColor = "K8S Worker".equals(row.get(0)) ? "E6FFED" : null;
+                        setCell(configTable, i + 1, 0, row.get(0), true, bgColor);
+                        setCell(configTable, i + 1, 1, row.get(1), false, bgColor);
+                        setCell(configTable, i + 1, 2, row.get(2), true, bgColor);
+                        setCell(configTable, i + 1, 3, row.get(3), false, bgColor);
+                    }
+                    doc.createParagraph();
+                }
+                return;
+            }
+
             Pattern workerTablePattern = Pattern.compile(
                     "B\u1ea3ng t\u00ednh to\u00e1n K8S Worker[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
                     Pattern.CASE_INSENSITIVE
@@ -2205,6 +2497,27 @@ public class ExportService {
                     }
                 }
 
+                String selectedProposalSource = txt(moduleK8S, "selectedProposalSource").trim();
+                JsonNode customProposalTable = moduleK8S.path("customProposalTable");
+                if ("custom".equalsIgnoreCase(selectedProposalSource) && customProposalTable.isArray() && customProposalTable.size() > 0) {
+                    components.clear();
+                    for (JsonNode row : customProposalTable) {
+                        String component = txt(row, "component").trim();
+                        String config = txt(row, "configurationText").trim();
+                        if (component.isEmpty() || config.isEmpty()) continue;
+                        String quantity = txt(row, "quantity").trim();
+                        String note = txt(row, "note").trim();
+                        List<String> normalizedLines = new ArrayList<>();
+                        for (String line : config.split("\\r?\\n")) {
+                            String trimmed = line == null ? "" : line.trim();
+                            if (!trimmed.isEmpty()) normalizedLines.add("- " + trimmed);
+                        }
+                        if (!normalizedLines.isEmpty()) {
+                            components.add(new String[]{component, String.join("\n", normalizedLines), quantity, note});
+                        }
+                    }
+                }
+
                 if (!components.isEmpty()) {
                     addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
                     XWPFTable configTable = doc.createTable(components.size() + 1, 4);
@@ -2261,14 +2574,14 @@ public class ExportService {
         String sizingResult = txt(moduleLBFW, "sizingResult");
         if (!sizingResult.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-            parseAndWriteLBFWResult(doc, sizingResult);
+            parseAndWriteLBFWResult(doc, sizingResult, moduleLBFW);
         }
 
         doc.createParagraph();
     }
 
     // Parse LB/FW result HTML and write to DOC
-    private void parseAndWriteLBFWResult(XWPFDocument doc, String html) {
+    private void parseAndWriteLBFWResult(XWPFDocument doc, String html, JsonNode moduleLBFW) {
         try {
             // Extract bandwidth calculation table under heading "Bảng tính toán băng thông"
             Pattern bandwidthTablePattern = Pattern.compile(
@@ -2324,13 +2637,22 @@ public class ExportService {
             }
 
             // Extract config proposal table under heading "Đề xuất cấu hình"
+            String selectedProposalSource = txt(moduleLBFW, "selectedProposalSource").trim();
+            JsonNode customProposalTable = moduleLBFW.path("customProposalTable");
             Pattern configTablePattern = Pattern.compile(
                     "\u0110\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh[\\s\\S]*?<table[^>]*>[\\s\\S]*?<tbody>([\\s\\S]*?)</tbody>[\\s\\S]*?</table>",
                     Pattern.CASE_INSENSITIVE
             );
             Matcher configTableMatcher = configTablePattern.matcher(html);
             List<String[]> configRows = new ArrayList<>();
-            if (configTableMatcher.find()) {
+            if ("custom".equalsIgnoreCase(selectedProposalSource) && !txt(customProposalTable, "configurationText").trim().isEmpty()) {
+                configRows.add(new String[]{
+                        txt(customProposalTable, "component").trim().isEmpty() ? "FW/LB" : txt(customProposalTable, "component").trim(),
+                        txt(customProposalTable, "configurationText").trim(),
+                        txt(customProposalTable, "quantity").trim(),
+                        txt(customProposalTable, "note").trim()
+                });
+            } else if (configTableMatcher.find()) {
                 String tbody = configTableMatcher.group(1);
                 Matcher trMatcher = Pattern.compile("<tr[^>]*>([\\s\\S]*?)</tr>", Pattern.CASE_INSENSITIVE).matcher(tbody);
                 while (trMatcher.find()) {
@@ -2604,6 +2926,31 @@ public class ExportService {
 
     // ======================== HELPER METHODS ========================
 
+    private String resolveSelectedInputRowLabel(JsonNode moduleNode, ExportContext context) {
+        String label = txt(moduleNode, "selectedInputRowLabel").trim();
+        if (!label.isEmpty()) {
+            return label;
+        }
+
+        String selectedInputRow = txt(moduleNode, "selectedInputRow").trim();
+        if (selectedInputRow.isEmpty()) {
+            return "";
+        }
+
+        if (context != null && context.sizingRoot != null && selectedInputRow.matches("\\d+")) {
+            int rowIndex = Integer.parseInt(selectedInputRow);
+            JsonNode inputRows = context.sizingRoot.path("inputRows");
+            if (inputRows.isArray() && rowIndex >= 0 && rowIndex < inputRows.size()) {
+                String inputName = txt(inputRows.get(rowIndex), "dauVao").trim();
+                if (!inputName.isEmpty()) {
+                    return inputName;
+                }
+            }
+        }
+
+        return selectedInputRow;
+    }
+
     private String txt(JsonNode node, String field) {
         if (node == null || node.isMissingNode()) return "";
         JsonNode child = node.path(field);
@@ -2857,6 +3204,8 @@ public class ExportService {
         enum Type { TEXT, IMAGE }
         Type type;
         String content;
+        Integer widthPx;
+        Integer heightPx;
 
         static HtmlFragment text(String content) {
             HtmlFragment f = new HtmlFragment();
@@ -2865,10 +3214,12 @@ public class ExportService {
             return f;
         }
 
-        static HtmlFragment image(String base64Uri) {
+        static HtmlFragment image(String base64Uri, Integer widthPx, Integer heightPx) {
             HtmlFragment f = new HtmlFragment();
             f.type = Type.IMAGE;
             f.content = base64Uri;
+            f.widthPx = widthPx;
+            f.heightPx = heightPx;
             return f;
         }
     }
@@ -2877,8 +3228,11 @@ public class ExportService {
         String result = html;
         // Preserve line breaks from HTML tags
         result = result.replaceAll("(?i)<br\\s*/?>", "\n");
+        result = result.replaceAll("(?i)<div\\b[^>]*>", "\n");
         result = result.replaceAll("(?i)</p>", "\n");
+        result = result.replaceAll("(?i)<p\\b[^>]*>", "\n");
         result = result.replaceAll("(?i)</div>", "\n");
+        result = result.replaceAll("(?i)<li\\b[^>]*>", "\n");
         result = result.replaceAll("(?i)</li>", "\n");
         // Remove all HTML tags EXCEPT <img>
         result = result.replaceAll("<(?!img\\b)[^>]+>", " ");
@@ -2890,22 +3244,49 @@ public class ExportService {
         return result;
     }
 
+    private Integer extractImageDimension(String tag, String attributeName, String styleName) {
+        if (tag == null || tag.isEmpty()) {
+            return null;
+        }
+
+        Matcher attrMatcher = Pattern.compile(attributeName + "\\s*=\\s*[\"']?(\\d+)(?:px)?[\"']?", Pattern.CASE_INSENSITIVE).matcher(tag);
+        if (attrMatcher.find()) {
+            try {
+                return Integer.parseInt(attrMatcher.group(1));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        Matcher styleMatcher = Pattern.compile("(^|[;\\s])" + styleName + "\\s*:\\s*(\\d+)(?:px)?", Pattern.CASE_INSENSITIVE).matcher(tag);
+        if (styleMatcher.find()) {
+            try {
+                return Integer.parseInt(styleMatcher.group(2));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        return null;
+    }
+
     private List<HtmlFragment> parseHtmlWithImages(String html) {
         List<HtmlFragment> fragments = new ArrayList<>();
         if (html == null || html.isEmpty()) {
             return fragments;
         }
 
-        String imgPattern = "<img[^>]+src=[\"']data:image/([^;]+);base64,([^\"']+)[\"'][^>]*>";
+        String imgPattern = "<img\\b([^>]*?)src=[\"']data:image/([^;]+);base64,([^\"']+)[\"']([^>]*)>";
         java.util.regex.Pattern p = java.util.regex.Pattern.compile(imgPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
         java.util.regex.Matcher m = p.matcher(html);
 
         int lastEnd = 0;
         while (m.find()) {
             String beforeText = html.substring(lastEnd, m.start());
-            String imgType = m.group(1);
-            String base64 = m.group(2);
+            String imgTag = m.group(0);
+            String imgType = m.group(2);
+            String base64 = m.group(3);
             String fullUri = "data:image/" + imgType + ";base64," + base64;
+            Integer widthPx = extractImageDimension(imgTag, "data-origin-width", "width");
+            Integer heightPx = extractImageDimension(imgTag, "data-origin-height", "height");
 
             // Process text before image
             String textContent = stripOtherTags(beforeText);
@@ -2914,7 +3295,7 @@ public class ExportService {
             }
 
             // Add image
-            fragments.add(HtmlFragment.image(fullUri));
+            fragments.add(HtmlFragment.image(fullUri, widthPx, heightPx));
 
             lastEnd = m.end();
         }
@@ -2929,7 +3310,7 @@ public class ExportService {
         return fragments;
     }
 
-    private void addInlineImage(XWPFParagraph paragraph, String base64Uri) {
+    private void addInlineImage(XWPFParagraph paragraph, String base64Uri, Integer preferredWidthPx, Integer preferredHeightPx) {
         try {
             String base64Data = base64Uri;
             int pictureType = XWPFDocument.PICTURE_TYPE_PNG;
@@ -2948,10 +3329,45 @@ public class ExportService {
             }
 
             byte[] imageBytes = Base64.getDecoder().decode(base64Data);
+            int displayWidthPx = preferredWidthPx != null ? preferredWidthPx : 0;
+            int displayHeightPx = preferredHeightPx != null ? preferredHeightPx : 0;
+
+            BufferedImage bufferedImage = null;
+            try (ByteArrayInputStream imageInput = new ByteArrayInputStream(imageBytes)) {
+                bufferedImage = ImageIO.read(imageInput);
+            } catch (Exception ignored) {
+            }
+
+            int actualWidthPx = bufferedImage != null ? bufferedImage.getWidth() : 0;
+            int actualHeightPx = bufferedImage != null ? bufferedImage.getHeight() : 0;
+
+            if (displayWidthPx <= 0 && actualWidthPx > 0) {
+                displayWidthPx = actualWidthPx;
+            }
+            if (displayHeightPx <= 0 && actualHeightPx > 0) {
+                displayHeightPx = actualHeightPx;
+            }
+
+            if (displayWidthPx > 0 && displayHeightPx <= 0 && actualWidthPx > 0 && actualHeightPx > 0) {
+                displayHeightPx = (int) Math.round((double) displayWidthPx * actualHeightPx / actualWidthPx);
+            } else if (displayHeightPx > 0 && displayWidthPx <= 0 && actualWidthPx > 0 && actualHeightPx > 0) {
+                displayWidthPx = (int) Math.round((double) displayHeightPx * actualWidthPx / actualHeightPx);
+            }
+
+            if (displayWidthPx <= 0 || displayHeightPx <= 0) {
+                displayWidthPx = 420;
+                displayHeightPx = 280;
+            }
+
+            final int maxWidthPx = 520;
+            final int maxHeightPx = 720;
+            double scale = Math.min(1.0, Math.min((double) maxWidthPx / displayWidthPx, (double) maxHeightPx / displayHeightPx));
+            int finalWidthPx = Math.max(1, (int) Math.round(displayWidthPx * scale));
+            int finalHeightPx = Math.max(1, (int) Math.round(displayHeightPx * scale));
 
             XWPFRun imgRun = paragraph.createRun();
             try (ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes)) {
-                imgRun.addPicture(bis, pictureType, "image", Units.toEMU(350), Units.toEMU(220));
+                imgRun.addPicture(bis, pictureType, "image", Units.toEMU(finalWidthPx), Units.toEMU(finalHeightPx));
             }
         } catch (Exception e) {
             log.warn("Failed to add inline image: {}", e.getMessage());
@@ -2969,7 +3385,8 @@ public class ExportService {
         XWPFParagraph paragraph = doc.createParagraph();
         boolean firstInParagraph = true;
 
-        for (HtmlFragment fragment : fragments) {
+        for (int index = 0; index < fragments.size(); index++) {
+            HtmlFragment fragment = fragments.get(index);
             if (fragment.type == HtmlFragment.Type.TEXT) {
                 String text = fragment.content;
                 if (text.isEmpty()) {
@@ -2997,12 +3414,14 @@ public class ExportService {
                 }
                 firstInParagraph = false;
             } else if (fragment.type == HtmlFragment.Type.IMAGE) {
-                // Before image, if we have text before it in same paragraph, add break
                 if (!firstInParagraph) {
-                    paragraph.createRun().addBreak();
+                    paragraph = doc.createParagraph();
                 }
-                addInlineImage(paragraph, fragment.content);
-                firstInParagraph = true; // After image, next text should be new paragraph
+                addInlineImage(paragraph, fragment.content, fragment.widthPx, fragment.heightPx);
+                firstInParagraph = true;
+                if (index < fragments.size() - 1) {
+                    paragraph = doc.createParagraph();
+                }
             }
         }
     }

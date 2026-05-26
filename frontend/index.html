@@ -1886,11 +1886,8 @@
                                                         CPU<br>95th percentile (%)</th>
                                                     <th style="width: 90px; font-size: 11px; padding: 4px;">Tải
                                                         RAM<br>95th percentile (%)</th>
-                                                    <th style="width: 90px; font-size: 11px; padding: 4px;">Tải
-                                                        Disk<br>95th percentile (%)</th>
                                                     <th style="width: 130px;">Cint_rate used (Cint)</th>
                                                     <th style="width: 100px;">RAM used (GB)</th>
-                                                    <th style="width: 100px;">Disk used (GB)</th>
                                                     <th style="width: 120px;">Ảnh sở cứ</th>
                                                     <th class="admin-cell"
                                                         style="width: 80px; background-color: #fef3c7;">Đánh giá</th>
@@ -1903,14 +1900,12 @@
                                             <tbody id="k8s-input-config-table-body"></tbody>
                                             <tfoot>
                                                 <tr>
-                                                    <td colspan="5" class="text-right"
+                                                    <td colspan="4" class="text-right"
                                                         style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">
                                                         Tổng cộng:</td>
                                                     <td class="text-center" id="k8s-total-cint-used"
                                                         style="font-weight: bold;">0</td>
                                                     <td class="text-center" id="k8s-total-ram-used"
-                                                        style="font-weight: bold;">0</td>
-                                                    <td class="text-center" id="k8s-total-disk-used"
                                                         style="font-weight: bold;">0</td>
                                                     <td></td>
                                                     <td class="admin-cell" colspan="2"></td>
@@ -1919,6 +1914,37 @@
                                             </tfoot>
                                         </table>
                                     </div>
+                                </div>
+
+                                <div style="margin-top: 32px; border-top: 1px dashed #ccc; padding-top: 20px;">
+                                    <h3 class="model-header">
+                                        <i class="fa-solid fa-hard-drive" style="color: #ee0033;"></i>THÔNG TIN LƯU
+                                        TRỮ ĐẦU VÀO
+                                    </h3>
+                                    <div class="table-responsive">
+                                        <table class="sizing-table storage-input-table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 50px;">STT</th>
+                                                    <th style="width: 140px;">IP</th>
+                                                    <th style="width: 140px;">Phân vùng</th>
+                                                    <th style="width: 110px;">Used (GB)</th>
+                                                    <th style="width: 180px;">Ghi chú</th>
+                                                    <th class="admin-cell"
+                                                        style="width: 80px; background-color: #fef3c7;">Đánh giá</th>
+                                                    <th class="admin-cell"
+                                                        style="width: 130px; background-color: #fef3c7;">Ghi chú (Admin)
+                                                    </th>
+                                                    <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="k8s-storage-input-table-body"></tbody>
+                                        </table>
+                                    </div>
+
+                                    <button type="button" class="btn-add sizing-user-btn" onclick="addK8SStorageInputRow()">
+                                        <i class="fa-solid fa-plus"></i> Thêm Server Tham chiếu
+                                    </button>
                                 </div>
 
                                 <div style="margin-top: 40px; border-top: 1px dashed #ccc; padding-top: 20px;">
@@ -2201,11 +2227,8 @@
                                                         CPU<br>95th percentile (%)</th>
                                                     <th style="width: 90px; font-size: 11px; padding: 4px;">Tải
                                                         RAM<br>95th percentile (%)</th>
-                                                    <th style="width: 90px; font-size: 11px; padding: 4px;">Tải
-                                                        Disk<br>95th percentile (%)</th>
                                                     <th style="width: 130px;">Cint_rate used (Cint)</th>
                                                     <th style="width: 100px;">RAM used (GB)</th>
-                                                    <th style="width: 100px;">Disk used (GB)</th>
                                                     <th style="width: 120px;">Ảnh sở cứ</th>
                                                     <th class="admin-cell"
                                                         style="width: 80px; background-color: #fef3c7;">Đánh giá</th>
@@ -2218,11 +2241,10 @@
                                             <tbody id="custom-input-config-table-body"></tbody>
                                             <tfoot>
                                                 <tr>
-                                                    <td colspan="5" class="text-right"
+                                                    <td colspan="4" class="text-right"
                                                         style="padding-right: 15px; font-weight:bold; text-transform: uppercase;">Tổng cộng:</td>
                                                     <td class="text-center" id="custom-total-cint-used" style="font-weight: bold;">0</td>
                                                     <td class="text-center" id="custom-total-ram-used" style="font-weight: bold;">0</td>
-                                                    <td class="text-center" id="custom-total-disk-used" style="font-weight: bold;">0</td>
                                                     <td></td>
                                                     <td colspan="2"></td>
                                                     <td></td>
@@ -2230,6 +2252,32 @@
                                             </tfoot>
                                         </table>
                                     </div>
+
+                                    <div class="table-responsive" style="margin-top: 16px;">
+                                        <table class="sizing-table storage-input-table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 50px;">STT</th>
+                                                    <th style="width: 140px;">IP</th>
+                                                    <th style="width: 140px;">Phân vùng</th>
+                                                    <th style="width: 110px;">Used (GB)</th>
+                                                    <th style="width: 180px;">Ghi chú</th>
+                                                    <th class="admin-cell"
+                                                        style="width: 80px; background-color: #fef3c7;">Đánh giá</th>
+                                                    <th class="admin-cell"
+                                                        style="width: 130px; background-color: #fef3c7;">Ghi chú (Admin)
+                                                    </th>
+                                                    <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="custom-storage-input-table-body"></tbody>
+                                        </table>
+                                    </div>
+
+                                    <button type="button" class="btn-add sizing-user-btn" onclick="addCustomStorageInputRow()"
+                                        style="margin-top: 12px;">
+                                        <i class="fa-solid fa-plus"></i> Thêm Server Tham chiếu
+                                    </button>
 
                                     <div
                                         style="margin-top: 16px; display:flex; gap:18px; align-items:center; flex-wrap:wrap;">

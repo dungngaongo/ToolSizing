@@ -353,10 +353,23 @@ const SIZING_REQUIRED_SELECTOR_GROUPS = {
         '#k8s-baseline-table-body .k8s-cint-input',
         '#k8s-input-config-table-body .k8s-cpu-load-input',
         '#k8s-input-config-table-body .k8s-ram-load-input',
-        '#k8s-input-config-table-body .k8s-disk-load-input'
+        '#k8s-storage-input-table-body .k8s-storage-ip-input',
+        '#k8s-storage-input-table-body .k8s-storage-partition-input',
+        '#k8s-storage-input-table-body .k8s-storage-used-input'
     ],
     'Khác': [
-        '#custom-baseline-table-body .qty-input'
+        'select[id^="custom-input-row-select"]',
+        '#custom-baseline-table-body .ip-input',
+        '#custom-baseline-table-body .qty-input',
+        '#custom-baseline-table-body .cpu-input',
+        '#custom-baseline-table-body .ram-input',
+        '#custom-baseline-table-body .disk-input',
+        '#custom-baseline-table-body .cint-input',
+        '#custom-input-config-table-body .cpu-load-input',
+        '#custom-input-config-table-body .ram-load-input',
+        '#custom-storage-input-table-body .custom-storage-ip-input',
+        '#custom-storage-input-table-body .custom-storage-partition-input',
+        '#custom-storage-input-table-body .custom-storage-used-input'
     ],
     'LB/FW': [
         'select[id^="lbfw-input-row-select"]',
@@ -1587,11 +1600,13 @@ function resetAllForms() {
         'baseline-table-body',
         'input-config-table-body',
         'storage-input-table-body',
+        'custom-storage-input-table-body',
         'mariadb-ref-table-body',
         'redis-config-table-body',
         'kafka-linear-table-body',
         'k8s-baseline-table-body',
-        'k8s-input-config-table-body'
+        'k8s-input-config-table-body',
+        'k8s-storage-input-table-body'
     ].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = '';
@@ -1629,10 +1644,11 @@ function resetAllForms() {
     [
         'total-ram', 'total-disk', 'total-cint',
         'total-cint-used', 'total-ram-used',
+        'custom-total-cint-used', 'custom-total-ram-used',
         'redis-total-master-ram', 'redis-total-capacity',
         'kafka-linear-total-cpu', 'kafka-linear-total-ram', 'kafka-linear-total-disk',
         'k8s-total-ram', 'k8s-total-disk', 'k8s-total-cint',
-        'k8s-total-cint-used', 'k8s-total-ram-used', 'k8s-total-disk-used'
+        'k8s-total-cint-used', 'k8s-total-ram-used'
     ].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerText = '0';
@@ -2661,6 +2677,14 @@ function populatePocSizingDropdowns() {
     });
 }
 
+function getSelectedInputRowLabel(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select || select.selectedIndex < 0 || !select.value) return '';
+
+    const option = select.options[select.selectedIndex];
+    return option?.textContent?.trim() || '';
+}
+
 // Called when user selects a row from combined POC & Sizing dropdown
 function onInputRowSelect(selectEl, pocInputId, sizingInputId) {
     const normalizedSelectEl = (() => {
@@ -3554,8 +3578,13 @@ function aggregateSizingResults() {
 
         if (instance.moduleType === 'App') {
             const appData = runInInstanceContext(instanceKey, () => {
-                const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
-                return parseAppSizingResult(appResult);
+                const container = document.getElementById('sizing-result-container');
+                if (container) syncTextareasInContainer(container);
+                return resolveEffectiveAppProposalResult({
+                    sizingResult: container?.innerHTML || '',
+                    selectedProposalSource: getAppSelectedProposalSource(container),
+                    customProposalTable: collectAppCustomProposalTableData(container)
+                });
             });
             if (appData) {
                 results.push({
@@ -3572,8 +3601,12 @@ function aggregateSizingResults() {
 
         if (instance.moduleType === 'MariaDB') {
             const mariaData = runInInstanceContext(instanceKey, () => {
-                const mariaResult = document.getElementById('mariadb-result-container')?.innerHTML || '';
-                return parseMariaDBSizingResult(mariaResult);
+                const mariaContainer = document.getElementById('mariadb-result-container');
+                return resolveEffectiveMariaDBProposalResult({
+                    resultHTML: mariaContainer?.innerHTML || '',
+                    selectedProposalSource: getMariaDBSelectedProposalSource(mariaContainer),
+                    customProposalTable: collectMariaDBCustomProposalTableData(mariaContainer)
+                });
             });
             if (mariaData) {
                 const instanceName = getModuleInstanceDisplayName(instance);
@@ -3613,10 +3646,14 @@ function aggregateSizingResults() {
             const redisData = runInInstanceContext(instanceKey, () => {
                 const redisKeyBtn = document.getElementById('redis-method-key');
                 const isKeyMethodSelected = redisKeyBtn?.classList.contains('active') === true;
-                const redisResult = isKeyMethodSelected
-                    ? (document.getElementById('redis-key-result-container')?.innerHTML || '')
-                    : (document.getElementById('redis-config-result-container')?.innerHTML || '');
-                return parseRedisSizingResult(redisResult);
+                const activeContainer = isKeyMethodSelected
+                    ? document.getElementById('redis-key-result-container')
+                    : document.getElementById('redis-config-result-container');
+                return resolveEffectiveRedisProposalResult({
+                    resultHTML: activeContainer?.innerHTML || '',
+                    selectedProposalSource: getRedisSelectedProposalSource(activeContainer),
+                    customProposalTable: collectRedisCustomProposalTableData(activeContainer)
+                });
             });
             if (redisData) {
                 results.push({
@@ -3635,10 +3672,14 @@ function aggregateSizingResults() {
             const kafkaData = runInInstanceContext(instanceKey, () => {
                 const kafkaMethodThroughputBtn = document.getElementById('kafka-method-throughput');
                 const isThroughputMethodSelected = kafkaMethodThroughputBtn?.classList.contains('active') === true;
-                const kafkaResult = isThroughputMethodSelected
-                    ? (document.getElementById('kafka-throughput-result-container')?.innerHTML || '')
-                    : (document.getElementById('kafka-linear-result-container')?.innerHTML || '');
-                return parseKafkaSizingResult(kafkaResult);
+                const kafkaContainer = isThroughputMethodSelected
+                    ? document.getElementById('kafka-throughput-result-container')
+                    : document.getElementById('kafka-linear-result-container');
+                return resolveEffectiveKafkaProposalResult({
+                    resultHTML: kafkaContainer?.innerHTML || '',
+                    selectedProposalSource: getKafkaSelectedProposalSource(kafkaContainer),
+                    customProposalTable: collectKafkaCustomProposalTableData(kafkaContainer)
+                });
             });
             if (kafkaData) {
                 const instanceName = getModuleInstanceDisplayName(instance);
@@ -3666,8 +3707,12 @@ function aggregateSizingResults() {
 
         if (instance.moduleType === 'K8S') {
             const k8sData = runInInstanceContext(instanceKey, () => {
-                const k8sResult = document.getElementById('k8s-result-container')?.innerHTML || '';
-                return parseK8SSizingResult(k8sResult);
+                const k8sContainer = document.getElementById('k8s-result-container');
+                return resolveEffectiveK8SProposalResult({
+                    resultHTML: k8sContainer?.innerHTML || '',
+                    selectedProposalSource: getK8SSelectedProposalSource(k8sContainer),
+                    customProposalTable: collectK8SCustomProposalTableData(k8sContainer)
+                });
             });
             if (k8sData && Array.isArray(k8sData)) {
                 const instanceName = getModuleInstanceDisplayName(instance);
@@ -3687,8 +3732,12 @@ function aggregateSizingResults() {
 
         if (instance.moduleType === 'LB/FW') {
             const lbfwData = runInInstanceContext(instanceKey, () => {
-                const lbfwResult = document.getElementById('lbfw-result-container')?.innerHTML || '';
-                return parseLBFWSizingResult(lbfwResult);
+                const lbfwContainer = document.getElementById('lbfw-result-container');
+                return resolveEffectiveLBFWProposalResult({
+                    resultHTML: lbfwContainer?.innerHTML || '',
+                    selectedProposalSource: getLBFWSelectedProposalSource(lbfwContainer),
+                    customProposalTable: collectLBFWCustomProposalTableData(lbfwContainer)
+                });
             });
             if (lbfwData) {
                 results.push({
@@ -3723,7 +3772,7 @@ function aggregateSizingResults() {
             const instanceName = getModuleInstanceDisplayName(instance);
 
             if (customData.selectedMethod === 'linearEquivalentApp') {
-                const parsed = parseAppSizingResult(customData.linearEquivalentApp?.sizingResult || '');
+                const parsed = resolveAppEffectiveProposalResult(customData.linearEquivalentApp || {});
                 if (parsed) {
                     results.push({
                         stt: stt++,
@@ -3845,29 +3894,43 @@ function collectCustomInputConfigTableData() {
     const rows = document.querySelectorAll('#custom-input-config-table-body tr');
     const data = [];
     rows.forEach((row, index) => {
-        const inputs = row.querySelectorAll('input');
-        const ip = inputs[0]?.value || '';
-        const cpuLoad = inputs[1]?.value || '0';
-        const ramLoad = inputs[2]?.value || '0';
-        const diskLoad = inputs[3]?.value || '0';
-        const cintUsed = inputs[4]?.value || '0';
-        const ramUsed = inputs[5]?.value || '0';
-        const diskUsed = inputs[6]?.value || '0';
+        const ip = row.querySelector('.ip-config-input')?.value || '';
+        const cpuLoad = row.querySelector('.cpu-load-input')?.value || '0';
+        const ramLoad = row.querySelector('.ram-load-input')?.value || '0';
+        const cintUsed = row.querySelector('.cint-used-input')?.value || '0';
+        const ramUsed = row.querySelector('.ram-used-input')?.value || '0';
 
         const evidenceImages = collectInlineEvidenceFromScope(row);
 
-        const adminEval = row.querySelector('.admin-eval-select')?.value || '';
-        const adminNote = row.querySelector('.admin-note')?.value || '';
+        const adminEval = row.querySelector('.custom-input-config-eval')?.value || '';
+        const adminNote = row.querySelector('.custom-input-config-note')?.value || '';
 
-        if (ip || cpuLoad !== '0' || ramLoad !== '0' || diskLoad !== '0') {
+        if (ip || cpuLoad !== '0' || ramLoad !== '0') {
             data.push({
                 stt: index + 1,
-                ip, cpuLoad, ramLoad, diskLoad, cintUsed, ramUsed, diskUsed,
+                ip, cpuLoad, ramLoad, cintUsed, ramUsed,
                 evidenceImages,
-                adminRating: adminEval,
+                adminEval,
                 adminNote
             });
         }
+    });
+    return data.length > 0 ? data : null;
+}
+
+function collectCustomStorageInputTableData() {
+    const rows = document.querySelectorAll('#custom-storage-input-table-body tr');
+    const data = [];
+    rows.forEach((row, index) => {
+        data.push({
+            stt: index + 1,
+            ip: row.querySelector('.custom-storage-ip-input')?.value || '',
+            partition: row.querySelector('.custom-storage-partition-input')?.value || '',
+            used: row.querySelector('.custom-storage-used-input')?.value || '',
+            note: row.querySelector('.custom-storage-note-input')?.value || '',
+            adminEval: row.querySelector('.custom-storage-eval')?.value || '',
+            adminNote: row.querySelector('.custom-storage-admin-note')?.value || ''
+        });
     });
     return data.length > 0 ? data : null;
 }
@@ -3883,7 +3946,7 @@ function addCustomBaselineRow() {
     // Build instance-aware event handlers
     const syncIpHandler = buildInstanceAwareHandler('updateCustomIPToInputConfig(this)');
     const baselineRamHandler = buildInstanceAwareHandler('updateCustomBaselineTotal(); recalculateCustomInputConfigRow(this)');
-    const baselineDiskHandler = buildInstanceAwareHandler('updateCustomBaselineTotal(); recalculateCustomInputConfigRow(this)');
+    const baselineDiskHandler = buildInstanceAwareHandler('updateCustomBaselineTotal()');
     const baselineCintHandler = buildInstanceAwareHandler('updateCustomBaselineTotal(); recalculateCustomInputConfigRow(this)');
     const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
     const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
@@ -3947,10 +4010,8 @@ function addCustomInputConfigRow() {
         <td><input type="text" class="input-full text-center ip-config-input" placeholder="10.x.x.x"></td>
         <td><input type="number" class="input-full text-center cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}"></td>
         <td><input type="number" class="input-full text-center ram-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}"></td>
-        <td><input type="number" class="input-full text-center disk-load-input" value="0" min="0" max="100" step="0.01" oninput="${calcHandler}"></td>
         <td><input type="number" class="input-full text-center cint-used-input" value="0" min="0" readonly style="background-color:#f0f0f0;"></td>
         <td><input type="number" class="input-full text-center ram-used-input" value="0" min="0" readonly style="background-color:#f0f0f0;"></td>
-        <td><input type="number" class="input-full text-center disk-used-input" value="0" min="0" readonly style="background-color:#f0f0f0;"></td>
         <td>
             <div class="inline-evidence-cell">
                 <input type="file" accept="image/*" multiple class="input-config-evidence-input" onchange="${uploadHandler}" style="display:none">
@@ -3976,6 +4037,46 @@ function addCustomInputConfigRow() {
     `;
     tbody.appendChild(tr);
     try { applyRolePermissions(); } catch (e) {}
+}
+
+function addCustomStorageInputRow() {
+    const tbody = document.getElementById('custom-storage-input-table-body');
+    if (!tbody) return;
+
+    const rowCount = tbody.rows.length + 1;
+    const tr = document.createElement('tr');
+    const deleteRowHandler = buildInstanceAwareHandler('deleteCustomStorageInputRow(this)');
+
+    tr.innerHTML = `
+        <td class="text-center stt-cell">${rowCount}</td>
+        <td><input type="text" class="input-full text-center custom-storage-ip-input" placeholder="10.x.x.x"></td>
+        <td><input type="text" class="input-full text-center custom-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
+        <td><input type="number" class="input-full text-center custom-storage-used-input" value="0" min="0" step="0.01"></td>
+        <td><input type="text" class="input-full custom-storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
+        <td class="admin-cell">
+            <select class="admin-eval-select custom-storage-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note custom-storage-admin-note" placeholder="Nhận xét...">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn-delete" onclick="${deleteRowHandler}">×</button>
+        </td>
+    `;
+
+    tbody.appendChild(tr);
+    try { applyRolePermissions(); } catch (e) {}
+}
+
+function deleteCustomStorageInputRow(btn) {
+    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
+        btn.closest('tr').remove();
+        updateCustomStorageInputRowNumbers();
+    }
 }
 
 // Update custom baseline total
@@ -4009,23 +4110,20 @@ function updateCustomBaselineTotal() {
 function updateCustomInputConfigTotal() {
     const totalCintUsedEl = document.getElementById('custom-total-cint-used');
     const totalRamUsedEl = document.getElementById('custom-total-ram-used');
-    const totalDiskUsedEl = document.getElementById('custom-total-disk-used');
 
-    if (!totalCintUsedEl || !totalRamUsedEl || !totalDiskUsedEl) return;
+    if (!totalCintUsedEl || !totalRamUsedEl) return;
 
     const tbody = document.getElementById('custom-input-config-table-body');
     if (!tbody) return;
 
-    let totalCintUsed = 0, totalRamUsed = 0, totalDiskUsed = 0;
+    let totalCintUsed = 0, totalRamUsed = 0;
     tbody.querySelectorAll('tr').forEach(row => {
         totalCintUsed += parseFloat(row.querySelector('.cint-used-input')?.value) || 0;
         totalRamUsed += parseFloat(row.querySelector('.ram-used-input')?.value) || 0;
-        totalDiskUsed += parseFloat(row.querySelector('.disk-used-input')?.value) || 0;
     });
 
     totalCintUsedEl.innerText = totalCintUsed.toFixed(2);
     totalRamUsedEl.innerText = totalRamUsed.toFixed(2);
-    totalDiskUsedEl.innerText = totalDiskUsed.toFixed(2);
 }
 
 // Sync IP to input config for custom module
@@ -4050,63 +4148,116 @@ function calculateCustomInputConfigRow(cpuLoadInput) {
     const baselineRow = baselineTbody.rows[rowIndex];
     const cintUsedInput = row.querySelector('.cint-used-input');
     const ramUsedInput = row.querySelector('.ram-used-input');
-    const diskUsedInput = row.querySelector('.disk-used-input');
 
-    if (!cintUsedInput || !ramUsedInput || !diskUsedInput) return;
+    if (!cintUsedInput || !ramUsedInput) return;
 
     const baselineCint = parseFloat(baselineRow.querySelector('.cint-input').value) || 0;
     const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
-    const baselineDisk = parseFloat(baselineRow.querySelector('.disk-input').value) || 0;
     const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
     const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
     const ramLoad = parseFloat(row.querySelector('.ram-load-input')?.value) || 0;
-    const diskLoad = parseFloat(row.querySelector('.disk-load-input')?.value) || 0;
 
     const cintUsed = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
     const ramUsed = (baselineRam * quantity * ramLoad / 100).toFixed(2);
-    const diskUsed = (baselineDisk * quantity * diskLoad / 100).toFixed(2);
 
     cintUsedInput.value = cintUsed;
     ramUsedInput.value = ramUsed;
-    diskUsedInput.value = diskUsed;
 
     updateCustomInputConfigTotal();
 }
 
-// Calculate recommended flavors (shared by App and Custom modules)
-function calculateRecommendedFlavors(cintAfterKPI, ramAfterKPI, diskAfterKPI, mode, vcpu, ram) {
-    const ketqua = mode === 'vcpu'
-        ? Math.ceil(cintAfterKPI / vcpu)
-        : Math.ceil(ramAfterKPI / ram);
+function getCustomStorageTotalsByPartition() {
+    const partitionMap = new Map();
 
-    const cintPerServer = Math.ceil(cintAfterKPI / ketqua);
-    const ramPerServer = Math.ceil(ramAfterKPI / ketqua);
-    const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
+    document.querySelectorAll('#custom-storage-input-table-body tr').forEach(row => {
+        const partition = (row.querySelector('.custom-storage-partition-input')?.value || '').trim();
+        const used = parseFloat(row.querySelector('.custom-storage-used-input')?.value) || 0;
+        if (!partition || used <= 0) return;
 
-    return {
-        ketqua,
-        cintPerServer,
-        ramPerServer,
-        diskPerServer
-    };
+        const key = partition.toLowerCase();
+        const current = partitionMap.get(key) || { name: partition, totalUsed: 0 };
+        current.totalUsed += used;
+        partitionMap.set(key, current);
+    });
+
+    return Array.from(partitionMap.values());
 }
 
-// Generate sizing result HTML (shared by App and Custom modules)
-function generateSizingResultHTML(data) {
+function updateCustomStorageInputRowNumbers() {
+    document.querySelectorAll('#custom-storage-input-table-body tr').forEach((row, index) => {
+        const sttCell = row.querySelector('.stt-cell');
+        if (sttCell) sttCell.innerText = index + 1;
+    });
+}
+
+function generateCustomLinearSizingResultHTML(data) {
     const {
-        totalCint, totalRam, totalDisk,
+        totalCint, totalRam,
         poc, sizing, factor,
-        cintForTPS, ramForTPS, diskForTPS,
-        cintAfterKPI, ramAfterKPI, diskAfterKPI,
-        virtualization, recommendedFlavors
+        cintForTPS, ramForTPS,
+        cintAfterKPI, ramAfterKPI,
+        virtualization, ketqua, storageAfterKPI
     } = data;
 
-    let html = '';
+    const machineRows = [
+        {
+            label: 'Cintrate cần cho hệ thống',
+            value: cintForTPS.toFixed(2),
+            note: `= ${totalCint.toFixed(2)} x (${sizing} / ${poc}) = ${totalCint.toFixed(2)} x ${factor.toFixed(4)}`
+        },
+        {
+            label: 'RAM (GB) cần cho hệ thống',
+            value: ramForTPS.toFixed(2),
+            note: `= ${totalRam.toFixed(2)} x (${sizing} / ${poc}) = ${totalRam.toFixed(2)} x ${factor.toFixed(4)}`
+        }
+    ];
 
-    // ==================== BẢNG 1: Thông số Máy chủ Tiến trình ====================
+    storageAfterKPI.forEach(item => {
+        machineRows.push({
+            label: `${item.name} (GB) cần cho hệ thống`,
+            value: item.forTPS.toFixed(2),
+            note: `= ${item.totalUsed.toFixed(2)} x (${sizing} / ${poc}) = ${item.totalUsed.toFixed(2)} x ${factor.toFixed(4)}`
+        });
+    });
+
+    machineRows.push(
+        {
+            label: 'Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI',
+            value: cintAfterKPI.toFixed(2),
+            note: `= ${cintForTPS.toFixed(2)} / 0.75 x 1.1. KPI 75%, Sai số 1.1`
+        },
+        {
+            label: 'RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI',
+            value: ramAfterKPI.toFixed(2),
+            note: `= ${ramForTPS.toFixed(2)} / 0.9 x 1.1. KPI 90%, Sai số 1.1`
+        }
+    );
+
+    storageAfterKPI.forEach(item => {
+        machineRows.push({
+            label: `${item.name} cần sau khi nhân hệ số dự phòng và đảm bảo KPI`,
+            value: item.afterKPI.toFixed(2),
+            note: `= ${item.forTPS.toFixed(2)} / 0.8 x 1.1. KPI 80%, Sai số 1.1`
+        });
+    });
+
+    const recommendationFormula = virtualization.mode === 'vcpu'
+        ? `N = ${cintAfterKPI.toFixed(2)} / ${virtualization.vcpu}`
+        : `N = ${ramAfterKPI.toFixed(2)} / ${virtualization.ram}`;
+    const recommendationTarget = virtualization.mode === 'vcpu'
+        ? `theo vCPU <strong>${virtualization.selectedLabel}</strong>`
+        : `theo RAM <strong>${virtualization.selectedLabel}</strong>`;
+    const cintPerServer = Math.ceil(cintAfterKPI / ketqua);
+    const ramPerServer = Math.ceil(ramAfterKPI / ketqua);
+    const storagePerServer = storageAfterKPI.map(item => ({
+        name: item.name,
+        perServer: Math.ceil(item.afterKPI / ketqua)
+    }));
+
+    let html = '';
     html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán Máy chủ Tiến trình</h4>`;
-    html += `<table class="sizing-table" style="margin-top:8px;">
+    html += `<table class="sizing-table app-machine-table" data-app-machine-table="1" style="margin-top:8px;">
                 <thead>
                     <tr>
                         <th style="width:50px;">STT</th>
@@ -4115,72 +4266,30 @@ function generateSizingResultHTML(data) {
                         <th>Ghi chú</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td class="text-center">1</td>
-                        <td>Cintrate cần cho hệ thống</td>
-                        <td class="text-center">${cintForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalCint.toFixed(2)} × (${sizing} / ${poc}) = ${totalCint.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">2</td>
-                        <td>RAM (GB) cần cho hệ thống</td>
-                        <td class="text-center">${ramForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalRam.toFixed(2)} × (${sizing} / ${poc}) = ${totalRam.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">3</td>
-                        <td>Disk (GB) cần cho hệ thống</td>
-                        <td class="text-center">${diskForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalDisk.toFixed(2)} × (${sizing} / ${poc}) = ${totalDisk.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">4</td>
-                        <td>Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
-                        <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${cintForTPS.toFixed(2)} / 0.75 × 1.1. KPI 75%, Sai số 1.1</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">5</td>
-                        <td>RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
-                        <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${ramForTPS.toFixed(2)} / 0.9 × 1.1. KPI 90%, Sai số 1.1</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">6</td>
-                        <td>Disk cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
-                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${diskForTPS.toFixed(2)} / 0.8 × 1.1. KPI 80%, Sai số 1.1</textarea></td>
-                    </tr>
-                </tbody>
-            </table>`;
+                <tbody>`;
+    machineRows.forEach((row, index) => {
+        html += `<tr>
+                    <td class="text-center">${index + 1}</td>
+                    <td>${escapeHtml(row.label)}</td>
+                    <td class="text-center">${row.value}</td>
+                    <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">${row.note}</textarea></td>
+                </tr>`;
+    });
+    html += `</tbody></table>`;
 
-    // ==================== ĐỀ XUẤT ====================
-    const recommendationFormula = virtualization.mode === 'vcpu'
-        ? `N = ${cintAfterKPI.toFixed(2)} / ${virtualization.vcpu}`
-        : `N = ${ramAfterKPI.toFixed(2)} / ${virtualization.ram}`;
-    const recommendationTarget = virtualization.mode === 'vcpu'
-        ? `theo vCPU <strong>${virtualization.selectedLabel}</strong>`
-        : `theo RAM <strong>${virtualization.selectedLabel}</strong>`;
-
-    html += `<div style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
+    html += `<div data-app-recommendation="1" style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
                 <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa ${recommendationTarget}, lựa chọn số N theo mode đã chọn:
-                ${recommendationFormula} ≈ <strong>${recommendedFlavors.ketqua}</strong>
+                ${recommendationFormula} = <strong>${ketqua}</strong>
             </div>`;
 
-    // ==================== BẢNG 2: Giá trị N với Cint/RAM/Disk ====================
-    const nValues = [
-        { label: 'Ketqua', value: recommendedFlavors.ketqua },
-    ];
-
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Bảng phân bổ theo số lượng N</h4>`;
-    html += `<table class="sizing-table" style="margin-top:8px;">
+    html += `<table class="sizing-table app-n-table" data-app-n-table="1" style="margin-top:8px;">
                 <thead>
                     <tr>
                         <th style="width:120px;">Giá trị N</th>
                         <th>Cint CPU yêu cầu</th>
                         <th>RAM yêu cầu</th>
-                        <th>Disk yêu cầu</th>
+                        ${storageAfterKPI.map(item => `<th>${escapeHtml(item.name)} yêu cầu</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
@@ -4188,28 +4297,19 @@ function generateSizingResultHTML(data) {
                         <td class="text-center">1</td>
                         <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
                         <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
-                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
-                    </tr>`;
+                        ${storageAfterKPI.map(item => `<td class="text-center">${item.afterKPI.toFixed(2)}</td>`).join('')}
+                    </tr>
+                    <tr style="background:#e6ffed; font-weight:600;">
+                        <td class="text-center">${ketqua}</td>
+                        <td class="text-center">${(cintAfterKPI / ketqua).toFixed(2)}</td>
+                        <td class="text-center">${(ramAfterKPI / ketqua).toFixed(2)}</td>
+                        ${storageAfterKPI.map(item => `<td class="text-center">${(item.afterKPI / ketqua).toFixed(2)}</td>`).join('')}
+                    </tr>
+                </tbody>
+            </table>`;
 
-    nValues.forEach(item => {
-        const cintPerN = cintAfterKPI / item.value;
-        const ramPerN = ramAfterKPI / item.value;
-        const diskPerN = diskAfterKPI / item.value;
-        const isMain = item.label === 'Ketqua';
-
-        html += `<tr${isMain ? ' style="background:#e6ffed; font-weight:600;"' : ''}>
-                    <td class="text-center">${item.value}</td>
-                    <td class="text-center">${cintPerN.toFixed(2)}</td>
-                    <td class="text-center">${ramPerN.toFixed(2)}</td>
-                    <td class="text-center">${diskPerN.toFixed(2)}</td>
-                </tr>`;
-    });
-
-    html += `</tbody></table>`;
-
-    // ==================== BẢNG 3: Đề xuất cấu hình ====================
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
-    html += `<table class="sizing-table" style="margin-top:8px;">
+    html += `<table class="sizing-table app-proposal-table" data-app-proposal-table="1" style="margin-top:8px;">
                 <thead>
                     <tr>
                         <th style="width:250px;">Cấu hình</th>
@@ -4220,13 +4320,13 @@ function generateSizingResultHTML(data) {
                 <tbody>
                     <tr style="background:#e6ffed;">
                         <td>
-                            <ul style="margin:0; padding-left:20px;">
-                                <li>CPU: = ${recommendedFlavors.cintPerServer} Cint</li>
-                                <li>RAM: = ${recommendedFlavors.ramPerServer} GB</li>
-                                <li>DISK: = ${recommendedFlavors.diskPerServer} GB</li>
+                            <ul data-app-config-list="1" style="margin:0; padding-left:20px;">
+                                <li>CPU: = ${cintPerServer} Cint</li>
+                                <li>RAM: = ${ramPerServer} GB</li>
+                                ${storagePerServer.map(item => `<li>${escapeHtml(item.name)}: = ${item.perServer} GB</li>`).join('')}
                             </ul>
                         </td>
-                        <td class="text-center"><strong>${recommendedFlavors.ketqua + 1}</strong></td>
+                        <td class="text-center"><strong>${ketqua + 1}</strong></td>
                         <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">Dự phòng N+1</textarea></td>
                     </tr>
                 </tbody>
@@ -4246,9 +4346,15 @@ function calculateCustomSizingRecommendations() {
 
     const totalCint = parseFloat(document.getElementById('custom-total-cint-used')?.innerText) || 0;
     const totalRam = parseFloat(document.getElementById('custom-total-ram-used')?.innerText) || 0;
-    const totalDisk = parseFloat(document.getElementById('custom-total-disk-used')?.innerText) || 0;
+    const storageTotals = getCustomStorageTotalsByPartition();
+    if (storageTotals.length === 0) {
+        showToast('Vui lòng nhập ít nhất một phân vùng trong "THÔNG TIN LƯU TRỮ ĐẦU VÀO".', 'warning');
+        return;
+    }
 
     const factor = sizing / poc;
+    const resultContainer = document.getElementById('sizing-result-container');
+    const existingProposalState = getCurrentAppProposalState(resultContainer);
 
     const cintForTPS = totalCint * factor;
     const ramForTPS = totalRam * factor;
@@ -4268,20 +4374,22 @@ function calculateCustomSizingRecommendations() {
         return;
     }
 
-    const recommendedFlavors = calculateRecommendedFlavors(
-        cintAfterKPI, ramAfterKPI, diskAfterKPI, virtualization.mode, virtualization.vcpu, virtualization.ram
-    );
+    const ketqua = Math.max(1, virtualization.mode === 'vcpu'
+        ? Math.ceil(cintAfterKPI / virtualization.vcpu)
+        : Math.ceil(ramAfterKPI / virtualization.ram));
 
-    const resultContainer = document.getElementById('sizing-result-container');
     if (!resultContainer) return;
 
-    resultContainer.innerHTML = generateSizingResultHTML({
+    resultContainer.innerHTML = generateCustomLinearSizingResultHTML({
         poc, sizing,
-        totalCint, totalRam, totalDisk,
-        factor, cintForTPS, ramForTPS, diskForTPS,
-        cintAfterKPI, ramAfterKPI, diskAfterKPI,
-        virtualization, recommendedFlavors
+        totalCint, totalRam,
+        factor, cintForTPS, ramForTPS,
+        cintAfterKPI, ramAfterKPI,
+        virtualization, ketqua, storageAfterKPI
     });
+
+    resultContainer.innerHTML += buildAppCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
+    ensureAppProposalSelectionUI(resultContainer, existingProposalState);
 }
 
 function onCustomMethodChanged() {
@@ -4368,10 +4476,16 @@ function collectCustomModuleData() {
     const editor = getCustomDocEditor();
     const html = stripUnsafeHtml(editor?.innerHTML || '');
     const text = (editor?.innerText || '').trim();
+    const resultContainer = document.getElementById('sizing-result-container');
+    if (resultContainer) syncTextareasInContainer(resultContainer);
+    const linearCustomProposalTable = collectAppCustomProposalTableData(resultContainer);
+    const linearSelectedProposalSource = normalizeAppProposalSource(getAppSelectedProposalSource(resultContainer), linearCustomProposalTable);
     const linearEquivalentApp = {
         baselineTable: collectCustomBaselineTableData(),
         inputConfigTable: collectCustomInputConfigTableData(),
+        storageInputTable: collectCustomStorageInputTableData(),
         selectedInputRow: document.getElementById('custom-input-row-select')?.value || '',
+        selectedInputRowLabel: getSelectedInputRowLabel('custom-input-row-select'),
         pocValue: document.getElementById('custom-poc-value')?.value || '',
         sizingValue: document.getElementById('custom-sizing-value')?.value || '',
         virtualizationMode: document.getElementById('custom-virtualization-mode')?.value || 'ram',
@@ -4379,7 +4493,9 @@ function collectCustomModuleData() {
         ramFlavor: document.getElementById('custom-ram-flavor')?.value || '32',
         flavorEval: '',
         flavorNote: '',
-        sizingResult: document.getElementById('sizing-result-container')?.innerHTML || ''
+        selectedProposalSource: linearSelectedProposalSource,
+        customProposalTable: linearCustomProposalTable,
+        sizingResult: resultContainer?.innerHTML || ''
     };
     return {
         selectedMethod,
@@ -4448,8 +4564,10 @@ function loadCustomLinearLikeApp(moduleApp) {
     if (!moduleApp) return;
     const baselineBody = document.getElementById('custom-baseline-table-body');
     const inputBody = document.getElementById('custom-input-config-table-body');
+    const storageBody = document.getElementById('custom-storage-input-table-body');
     if (baselineBody) baselineBody.innerHTML = '';
     if (inputBody) inputBody.innerHTML = '';
+    if (storageBody) storageBody.innerHTML = '';
 
     if (Array.isArray(moduleApp.baselineTable)) {
         moduleApp.baselineTable.forEach(row => {
@@ -4484,22 +4602,41 @@ function loadCustomLinearLikeApp(moduleApp) {
             const ipInput = lastRow.querySelector('.ip-config-input');
             const cpuLoadInput = lastRow.querySelector('.cpu-load-input');
             const ramLoadInput = lastRow.querySelector('.ram-load-input');
-            const diskLoadInput = lastRow.querySelector('.disk-load-input');
             const cintUsedInput = lastRow.querySelector('.cint-used-input');
             const ramUsedInput = lastRow.querySelector('.ram-used-input');
-            const diskUsedInput = lastRow.querySelector('.disk-used-input');
             if (ipInput) ipInput.value = row.ip || '';
             if (cpuLoadInput) cpuLoadInput.value = row.cpuLoad || '';
             if (ramLoadInput) ramLoadInput.value = row.ramLoad || '';
-            if (diskLoadInput) diskLoadInput.value = row.diskLoad || '';
             if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
             if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
-            if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
             const imgs = getEvidenceImagesFromRowData(row);
             if (imgs.length > 0) {
                 const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
                 if (evidenceCell) loadInlineEvidence(evidenceCell, imgs);
             }
+        });
+    }
+
+    if (Array.isArray(moduleApp.storageInputTable)) {
+        moduleApp.storageInputTable.forEach(row => {
+            addCustomStorageInputRow();
+            const lastRow = storageBody?.lastElementChild;
+            if (!lastRow) return;
+            const ipInput = lastRow.querySelector('.custom-storage-ip-input');
+            const partitionInput = lastRow.querySelector('.custom-storage-partition-input');
+            const usedInput = lastRow.querySelector('.custom-storage-used-input');
+            const noteInput = lastRow.querySelector('.custom-storage-note-input');
+            const evalSelect = lastRow.querySelector('.custom-storage-eval');
+            const adminNoteInput = lastRow.querySelector('.custom-storage-admin-note');
+            if (ipInput) ipInput.value = row.ip || '';
+            if (partitionInput) partitionInput.value = row.partition || '';
+            if (usedInput) usedInput.value = row.used || '';
+            if (noteInput) noteInput.value = row.note || '';
+            if (evalSelect) {
+                evalSelect.value = row.adminEval || '';
+                styleAdminSelect(evalSelect);
+            }
+            if (adminNoteInput) adminNoteInput.value = row.adminNote || '';
         });
     }
 
@@ -4515,7 +4652,13 @@ function loadCustomLinearLikeApp(moduleApp) {
     setValue('custom-ram-flavor', moduleApp.ramFlavor || '32');
     onVirtualizationModeChange('custom');
     const result = document.getElementById('sizing-result-container');
-    if (result) result.innerHTML = moduleApp.sizingResult || '';
+    if (result) {
+        result.innerHTML = moduleApp.sizingResult || '';
+        ensureAppProposalSelectionUI(result, {
+            selectedProposalSource: moduleApp.selectedProposalSource || 'auto',
+            customProposalTable: moduleApp.customProposalTable || getEmptyAppCustomProposalTable()
+        });
+    }
 }
 
 function loadCustomModuleData(data) {
@@ -4542,7 +4685,24 @@ function handleCustomDocPaste(event) {
             reader.onload = (e) => {
                 const src = e.target?.result || '';
                 if (!src) return;
-                document.execCommand('insertHTML', false, `<img src="${src}" alt="Pasted Image" style="max-width:100%; height:auto;">`);
+                const probe = new Image();
+                probe.onload = () => {
+                    const naturalWidth = probe.naturalWidth || '';
+                    const naturalHeight = probe.naturalHeight || '';
+                    document.execCommand(
+                        'insertHTML',
+                        false,
+                        `<img src="${src}" alt="Pasted Image" data-origin-width="${naturalWidth}" data-origin-height="${naturalHeight}" style="max-width:100%; height:auto; display:block; margin:12px auto;">`
+                    );
+                };
+                probe.onerror = () => {
+                    document.execCommand(
+                        'insertHTML',
+                        false,
+                        `<img src="${src}" alt="Pasted Image" style="max-width:100%; height:auto; display:block; margin:12px auto;">`
+                    );
+                };
+                probe.src = src;
             };
             reader.readAsDataURL(file);
             return;
@@ -4728,6 +4888,264 @@ function parseMariaDBSizingResult(html) {
     return result;
 }
 
+function getDefaultMariaDBCustomProposalTable() {
+    return [
+        {
+            component: 'MaxScale',
+            configurationText: '4 vCPU\n8 GB RAM\n/u01: 100 GB',
+            quantity: '2',
+            note: 'Cấu hình tối thiểu +1 VIP'
+        },
+        { component: 'MariaDB', configurationText: '', quantity: '', note: '' },
+        { component: 'NAS', configurationText: '', quantity: '', note: '' }
+    ];
+}
+
+function normalizeMariaDBCustomProposalTable(rows) {
+    const defaults = getDefaultMariaDBCustomProposalTable();
+    if (!Array.isArray(rows)) return defaults;
+
+    const rowMap = new Map();
+    rows.forEach(row => {
+        const component = String(row?.component || '').trim();
+        if (component) {
+            rowMap.set(component.toLowerCase(), {
+                component,
+                configurationText: String(row?.configurationText || ''),
+                quantity: String(row?.quantity || ''),
+                note: String(row?.note || '')
+            });
+        }
+    });
+
+    return defaults.map(defaultRow => {
+        const current = rowMap.get(defaultRow.component.toLowerCase()) || {};
+        const isLocked = defaultRow.component === 'MaxScale';
+        return {
+            component: defaultRow.component,
+            configurationText: isLocked
+                ? String(defaultRow.configurationText || '')
+                : String(current.configurationText || ''),
+            quantity: isLocked
+                ? String(defaultRow.quantity || '')
+                : String(current.quantity || ''),
+            note: isLocked
+                ? String(defaultRow.note || '')
+                : String(current.note || '')
+        };
+    });
+}
+
+function isMariaDBCustomProposalTableFilled(customProposalTable) {
+    return normalizeMariaDBCustomProposalTable(customProposalTable)
+        .some(row => row.component === 'MariaDB' && row.configurationText.trim());
+}
+
+function normalizeMariaDBProposalSource(source, customProposalTable) {
+    return source === 'custom' && isMariaDBCustomProposalTableFilled(customProposalTable) ? 'custom' : 'auto';
+}
+
+function collectMariaDBCustomProposalTableData(container) {
+    if (!container) return getDefaultMariaDBCustomProposalTable();
+    const rows = [];
+    container.querySelectorAll('.mariadb-custom-proposal-row').forEach(row => {
+        rows.push({
+            component: row.dataset.component || '',
+            configurationText: row.querySelector('.mariadb-custom-proposal-config')?.value || '',
+            quantity: row.querySelector('.mariadb-custom-proposal-qty')?.value || '',
+            note: row.querySelector('.mariadb-custom-proposal-note')?.value || ''
+        });
+    });
+    return normalizeMariaDBCustomProposalTable(rows);
+}
+
+function getMariaDBSelectedProposalSource(container) {
+    const value = container?.querySelector('.mariadb-proposal-source-select')?.value || 'auto';
+    return value === 'custom' ? 'custom' : 'auto';
+}
+
+function getCurrentMariaDBProposalState(container) {
+    return {
+        selectedProposalSource: getMariaDBSelectedProposalSource(container),
+        customProposalTable: collectMariaDBCustomProposalTableData(container)
+    };
+}
+
+function updateMariaDBProposalSourceUI(container, selectedSource = 'auto') {
+    if (!container) return;
+
+    const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const select = container.querySelector('.mariadb-proposal-source-select');
+    const toolHeading = container.querySelector('.mariadb-tool-proposal-heading');
+    const customHeading = container.querySelector('.mariadb-custom-proposal-heading');
+    const autoTable = container.querySelector('[data-mariadb-proposal-table="1"]');
+    const customTable = container.querySelector('[data-mariadb-custom-proposal-table="1"]');
+
+    if (select) select.value = normalizedSource;
+    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+        ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
+        : 'Đề xuất cấu hình do tool tạo';
+    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+        ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
+        : 'Đề xuất cấu hình tùy chỉnh';
+
+    if (autoTable) {
+        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+    }
+    if (customTable) {
+        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+    }
+}
+
+function handleMariaDBProposalSourceChange(selectEl) {
+    const container = selectEl?.closest('#mariadb-result-container');
+    if (!container) return;
+
+    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
+    const customProposalTable = collectMariaDBCustomProposalTableData(container);
+    if (selectedSource === 'custom' && !isMariaDBCustomProposalTableFilled(customProposalTable)) {
+        showToast('Vui lòng nhập cấu hình tùy chỉnh cho dòng MariaDB trước khi chọn sử dụng.', 'warning');
+        selectedSource = 'auto';
+    }
+
+    updateMariaDBProposalSourceUI(container, selectedSource);
+    try { aggregateSizingResults(); } catch (e) { }
+}
+
+function buildMariaDBCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
+    const normalizedRows = normalizeMariaDBCustomProposalTable(customProposalTable);
+    const normalizedSource = normalizeMariaDBProposalSource(selectedProposalSource, normalizedRows);
+
+    return `
+        <div class="mariadb-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <select class="input-full mariadb-proposal-source-select" onchange="handleMariaDBProposalSourceChange(this)">
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+            </select>
+        </div>
+        <h4 class="mariadb-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+        <table class="sizing-table mariadb-custom-proposal-table" data-mariadb-custom-proposal-table="1" style="margin-top:8px;">
+            <thead>
+                <tr>
+                    <th style="width:120px;">Thành phần</th>
+                    <th style="width:250px;">Cấu hình đề xuất</th>
+                    <th style="width:100px;">Số lượng</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${normalizedRows.map(row => {
+                    const isLocked = row.component === 'MaxScale';
+                    const readOnlyAttr = isLocked ? 'readonly' : '';
+                    const lockedStyle = isLocked ? 'background:#f8fafc;color:#475569;' : '';
+                    return `
+                    <tr class="mariadb-custom-proposal-row" data-component="${escapeHtml(row.component)}">
+                        <td><strong>${escapeHtml(row.component)}</strong></td>
+                        <td><textarea class="input-full mariadb-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;${lockedStyle}" placeholder="Mỗi dòng là một thông số cấu hình" ${readOnlyAttr}>${escapeHtml(row.configurationText)}</textarea></td>
+                        <td class="text-center"><input type="text" class="input-full text-center mariadb-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng" style="${lockedStyle}" ${readOnlyAttr}></td>
+                        <td><textarea class="input-full mariadb-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;${lockedStyle}" placeholder="Ghi chú" ${readOnlyAttr}>${escapeHtml(row.note)}</textarea></td>
+                    </tr>
+                `;
+                }).join('')}
+            </tbody>
+        </table>`;
+}
+
+function ensureMariaDBProposalSelectionUI(container, options = {}) {
+    if (!container) return;
+
+    const autoTable = container.querySelector('[data-mariadb-proposal-table="1"]');
+    if (!autoTable) return;
+
+    const toolHeading = autoTable.previousElementSibling;
+    if (toolHeading && toolHeading.tagName === 'H4') {
+        toolHeading.classList.add('mariadb-tool-proposal-heading');
+    }
+
+    if (!container.querySelector('[data-mariadb-custom-proposal-table="1"]')) {
+        autoTable.insertAdjacentHTML(
+            'afterend',
+            buildMariaDBCustomProposalSectionHtml(
+                options.selectedProposalSource || 'auto',
+                options.customProposalTable || getDefaultMariaDBCustomProposalTable()
+            )
+        );
+    }
+
+    const normalizedRows = normalizeMariaDBCustomProposalTable(options.customProposalTable || collectMariaDBCustomProposalTableData(container));
+    container.querySelectorAll('.mariadb-custom-proposal-row').forEach(row => {
+        const component = row.dataset.component || '';
+        const rowData = normalizedRows.find(item => item.component === component) || { configurationText: '', quantity: '', note: '' };
+        const configInput = row.querySelector('.mariadb-custom-proposal-config');
+        const qtyInput = row.querySelector('.mariadb-custom-proposal-qty');
+        const noteInput = row.querySelector('.mariadb-custom-proposal-note');
+        if (configInput) configInput.value = rowData.configurationText;
+        if (qtyInput) qtyInput.value = rowData.quantity;
+        if (noteInput) noteInput.value = rowData.note;
+    });
+
+    updateMariaDBProposalSourceUI(container, normalizeMariaDBProposalSource(options.selectedProposalSource || 'auto', normalizedRows));
+}
+
+function buildEffectiveMariaDBCustomProposalData(customProposalTable) {
+    const normalizedRows = normalizeMariaDBCustomProposalTable(customProposalTable);
+    const toConfigHtml = (text) => text
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => `- ${escapeHtml(line)}`)
+        .join('<br>');
+    const getRow = (component) => normalizedRows.find(row => row.component === component) || null;
+    const mariaRow = getRow('MariaDB');
+
+    if (!mariaRow || !mariaRow.configurationText.trim()) return null;
+
+    const result = {
+        cauHinh: toConfigHtml(mariaRow.configurationText),
+        soLuong: mariaRow.quantity.trim(),
+        ghiChu: mariaRow.note.trim()
+    };
+
+    const maxScaleRow = getRow('MaxScale');
+    if (maxScaleRow && maxScaleRow.configurationText.trim()) {
+        result.maxScale = {
+            cauHinh: toConfigHtml(maxScaleRow.configurationText),
+            soLuong: maxScaleRow.quantity.trim(),
+            ghiChu: maxScaleRow.note.trim()
+        };
+    }
+
+    const nasRow = getRow('NAS');
+    if (nasRow && nasRow.configurationText.trim()) {
+        result.nas = {
+            cauHinh: toConfigHtml(nasRow.configurationText),
+            soLuong: nasRow.quantity.trim(),
+            ghiChu: nasRow.note.trim()
+        };
+    }
+
+    return result;
+}
+
+function resolveEffectiveMariaDBProposalResult(mariaState = {}) {
+    const resultHTML = mariaState.resultHTML || '';
+    const autoParsed = parseMariaDBSizingResult(resultHTML);
+    const customProposalTable = normalizeMariaDBCustomProposalTable(mariaState.customProposalTable);
+    const selectedProposalSource = normalizeMariaDBProposalSource(mariaState.selectedProposalSource || 'auto', customProposalTable);
+
+    if (selectedProposalSource === 'custom') {
+        const customParsed = buildEffectiveMariaDBCustomProposalData(customProposalTable);
+        if (customParsed) {
+            return customParsed;
+        }
+    }
+
+    return autoParsed;
+}
+
 // Parse kết quả Module Redis
 function parseRedisSizingResult(html) {
     if (!html || html.trim() === '') return null;
@@ -4754,6 +5172,199 @@ function parseRedisSizingResult(html) {
         soLuong: soLuongMatch ? soLuongMatch[1] : '',
         ghiChu: ghiChu
     };
+}
+
+function getEmptyRedisCustomProposalTable() {
+    return {
+        component: '',
+        configurationText: '',
+        quantity: '',
+        note: ''
+    };
+}
+
+function normalizeRedisCustomProposalTable(data) {
+    const empty = getEmptyRedisCustomProposalTable();
+    if (!data || typeof data !== 'object') return empty;
+    return {
+        component: String(data.component || ''),
+        configurationText: String(data.configurationText || ''),
+        quantity: String(data.quantity || ''),
+        note: String(data.note || '')
+    };
+}
+
+function isRedisCustomProposalTableFilled(customProposalTable) {
+    return !!normalizeRedisCustomProposalTable(customProposalTable).configurationText.trim();
+}
+
+function normalizeRedisProposalSource(source, customProposalTable) {
+    return source === 'custom' && isRedisCustomProposalTableFilled(customProposalTable) ? 'custom' : 'auto';
+}
+
+function collectRedisCustomProposalTableData(container) {
+    if (!container) return getEmptyRedisCustomProposalTable();
+    return normalizeRedisCustomProposalTable({
+        component: container.querySelector('.redis-custom-proposal-component')?.value || '',
+        configurationText: container.querySelector('.redis-custom-proposal-config')?.value || '',
+        quantity: container.querySelector('.redis-custom-proposal-qty')?.value || '',
+        note: container.querySelector('.redis-custom-proposal-note')?.value || ''
+    });
+}
+
+function getRedisSelectedProposalSource(container) {
+    const value = container?.querySelector('.redis-proposal-source-select')?.value || 'auto';
+    return value === 'custom' ? 'custom' : 'auto';
+}
+
+function getCurrentRedisProposalState(container) {
+    return {
+        selectedProposalSource: getRedisSelectedProposalSource(container),
+        customProposalTable: collectRedisCustomProposalTableData(container)
+    };
+}
+
+function updateRedisProposalSourceUI(container, selectedSource = 'auto') {
+    if (!container) return;
+
+    const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const select = container.querySelector('.redis-proposal-source-select');
+    const toolHeading = container.querySelector('.redis-tool-proposal-heading');
+    const customHeading = container.querySelector('.redis-custom-proposal-heading');
+    const autoTable = container.querySelector('[data-redis-proposal-table="1"]');
+    const customTable = container.querySelector('[data-redis-custom-proposal-table="1"]');
+
+    if (select) select.value = normalizedSource;
+    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+        ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
+        : 'Đề xuất cấu hình do tool tạo';
+    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+        ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
+        : 'Đề xuất cấu hình tùy chỉnh';
+
+    if (autoTable) {
+        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+    }
+    if (customTable) {
+        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+    }
+}
+
+function handleRedisProposalSourceChange(selectEl) {
+    const container = selectEl?.closest('#redis-key-result-container, #redis-config-result-container');
+    if (!container) return;
+
+    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
+    const customProposalTable = collectRedisCustomProposalTableData(container);
+    if (selectedSource === 'custom' && !isRedisCustomProposalTableFilled(customProposalTable)) {
+        showToast('Vui lòng nhập cấu hình đề xuất tùy chỉnh trước khi chọn sử dụng.', 'warning');
+        selectedSource = 'auto';
+    }
+
+    updateRedisProposalSourceUI(container, selectedSource);
+    try { aggregateSizingResults(); } catch (e) { }
+}
+
+function buildRedisCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
+    const normalizedTable = normalizeRedisCustomProposalTable(customProposalTable);
+    const normalizedSource = normalizeRedisProposalSource(selectedProposalSource, normalizedTable);
+    return `
+        <div class="redis-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <select class="input-full redis-proposal-source-select" onchange="handleRedisProposalSourceChange(this)">
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+            </select>
+        </div>
+        <h4 class="redis-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+        <table class="sizing-table redis-custom-proposal-table" data-redis-custom-proposal-table="1" style="margin-top:8px;">
+            <thead>
+                <tr>
+                    <th style="width:150px;">Thành phần</th>
+                    <th style="width:200px;">Cấu hình đề xuất</th>
+                    <th style="width:100px;">Số lượng</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="text" class="input-full redis-custom-proposal-component" value="${escapeHtml(normalizedTable.component)}" placeholder="Redis"></td>
+                    <td><textarea class="input-full redis-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;16 vCPU&#10;64 GB RAM&#10;256 GB DISK">${escapeHtml(normalizedTable.configurationText)}</textarea></td>
+                    <td class="text-center"><input type="text" class="input-full text-center redis-custom-proposal-qty" value="${escapeHtml(normalizedTable.quantity)}" placeholder="Số lượng"></td>
+                    <td><textarea class="input-full redis-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedTable.note)}</textarea></td>
+                </tr>
+            </tbody>
+        </table>`;
+}
+
+function ensureRedisProposalSelectionUI(container, options = {}) {
+    if (!container) return;
+
+    const autoTable = container.querySelector('[data-redis-proposal-table="1"]');
+    if (!autoTable) return;
+
+    const toolHeading = autoTable.previousElementSibling;
+    if (toolHeading && toolHeading.tagName === 'H4') {
+        toolHeading.classList.add('redis-tool-proposal-heading');
+    }
+
+    if (!container.querySelector('[data-redis-custom-proposal-table="1"]')) {
+        autoTable.insertAdjacentHTML(
+            'afterend',
+            buildRedisCustomProposalSectionHtml(
+                options.selectedProposalSource || 'auto',
+                options.customProposalTable || getEmptyRedisCustomProposalTable()
+            )
+        );
+    }
+
+    const normalizedTable = normalizeRedisCustomProposalTable(options.customProposalTable || collectRedisCustomProposalTableData(container));
+    const componentInput = container.querySelector('.redis-custom-proposal-component');
+    const configInput = container.querySelector('.redis-custom-proposal-config');
+    const qtyInput = container.querySelector('.redis-custom-proposal-qty');
+    const noteInput = container.querySelector('.redis-custom-proposal-note');
+
+    if (componentInput) componentInput.value = normalizedTable.component;
+    if (configInput) configInput.value = normalizedTable.configurationText;
+    if (qtyInput) qtyInput.value = normalizedTable.quantity;
+    if (noteInput) noteInput.value = normalizedTable.note;
+
+    updateRedisProposalSourceUI(container, normalizeRedisProposalSource(options.selectedProposalSource || 'auto', normalizedTable));
+}
+
+function buildEffectiveRedisCustomProposalData(customProposalTable) {
+    const normalizedTable = normalizeRedisCustomProposalTable(customProposalTable);
+    const lines = normalizedTable.configurationText
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+    if (lines.length === 0) return null;
+
+    return {
+        component: normalizedTable.component.trim() || 'Redis',
+        cauHinh: lines.map(line => `- ${escapeHtml(line)}`).join('<br>'),
+        soLuong: normalizedTable.quantity.trim(),
+        ghiChu: normalizedTable.note.trim()
+    };
+}
+
+function resolveEffectiveRedisProposalResult(methodState = {}) {
+    const resultHTML = methodState.resultHTML || '';
+    const autoParsed = parseRedisSizingResult(resultHTML);
+    const customProposalTable = normalizeRedisCustomProposalTable(methodState.customProposalTable);
+    const selectedProposalSource = normalizeRedisProposalSource(methodState.selectedProposalSource || 'auto', customProposalTable);
+
+    if (selectedProposalSource === 'custom') {
+        const customParsed = buildEffectiveRedisCustomProposalData(customProposalTable);
+        if (customParsed) {
+            return customParsed;
+        }
+    }
+
+    return autoParsed;
 }
 
 // Parse kết quả Module Kafka
@@ -4826,6 +5437,255 @@ function parseKafkaSizingResult(html) {
         ghiChu: soLuong ? `${soLuong} Broker` : 'Kafka Cluster',
         zookeeper: zookeeper
     };
+}
+
+function getDefaultKafkaCustomProposalTable() {
+    return [
+        {
+            component: 'Kafka Broker',
+            quantity: '',
+            vcpu: '',
+            ram: '',
+            disk: ''
+        },
+        {
+            component: 'Zookeeper/KRaft',
+            quantity: '3',
+            vcpu: '4',
+            ram: '8 GB',
+            disk: '100 GB'
+        }
+    ];
+}
+
+function normalizeKafkaCustomProposalTable(customProposalTable) {
+    const defaults = getDefaultKafkaCustomProposalTable();
+    const rows = Array.isArray(customProposalTable) ? customProposalTable : [];
+    return defaults.map(defaultRow => {
+        const matchedRow = rows.find(row => (row?.component || '').trim() === defaultRow.component) || {};
+        if (defaultRow.component === 'Zookeeper/KRaft') {
+            return { ...defaultRow };
+        }
+        return {
+            component: defaultRow.component,
+            quantity: matchedRow.quantity || '',
+            vcpu: matchedRow.vcpu || '',
+            ram: matchedRow.ram || '',
+            disk: matchedRow.disk || ''
+        };
+    });
+}
+
+function isKafkaCustomProposalTableFilled(customProposalTable) {
+    const brokerRow = normalizeKafkaCustomProposalTable(customProposalTable)
+        .find(row => row.component === 'Kafka Broker');
+    return !!(brokerRow && brokerRow.quantity.trim() && brokerRow.vcpu.trim() && brokerRow.ram.trim() && brokerRow.disk.trim());
+}
+
+function normalizeKafkaProposalSource(source, customProposalTable) {
+    return source === 'custom' && isKafkaCustomProposalTableFilled(customProposalTable) ? 'custom' : 'auto';
+}
+
+function collectKafkaCustomProposalTableData(container) {
+    const normalizedDefaults = getDefaultKafkaCustomProposalTable();
+    if (!container) return normalizedDefaults;
+
+    return normalizeKafkaCustomProposalTable(normalizedDefaults.map(defaultRow => {
+        const row = container.querySelector(`.kafka-custom-proposal-row[data-component="${defaultRow.component}"]`);
+        if (!row || defaultRow.component === 'Zookeeper/KRaft') {
+            return { ...defaultRow };
+        }
+        return {
+            component: defaultRow.component,
+            quantity: row.querySelector('.kafka-custom-proposal-qty')?.value || '',
+            vcpu: row.querySelector('.kafka-custom-proposal-vcpu')?.value || '',
+            ram: row.querySelector('.kafka-custom-proposal-ram')?.value || '',
+            disk: row.querySelector('.kafka-custom-proposal-disk')?.value || ''
+        };
+    }));
+}
+
+function getKafkaSelectedProposalSource(container) {
+    const value = container?.querySelector('.kafka-proposal-source-select')?.value || 'auto';
+    return value === 'custom' ? 'custom' : 'auto';
+}
+
+function getCurrentKafkaProposalState(container) {
+    return {
+        selectedProposalSource: getKafkaSelectedProposalSource(container),
+        customProposalTable: collectKafkaCustomProposalTableData(container)
+    };
+}
+
+function updateKafkaProposalSourceUI(container, selectedSource = 'auto') {
+    if (!container) return;
+
+    const select = container.querySelector('.kafka-proposal-source-select');
+    const toolHeading = container.querySelector('.kafka-tool-proposal-heading');
+    const customHeading = container.querySelector('.kafka-custom-proposal-heading');
+    const autoTable = container.querySelector('[data-kafka-proposal-table="1"]');
+    const customTable = container.querySelector('[data-kafka-custom-proposal-table="1"]');
+
+    if (select) select.value = selectedSource;
+    if (toolHeading) toolHeading.innerText = selectedSource === 'auto'
+        ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
+        : 'Đề xuất cấu hình do tool tạo';
+    if (customHeading) customHeading.innerText = selectedSource === 'custom'
+        ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
+        : 'Đề xuất cấu hình tùy chỉnh';
+
+    if (autoTable) {
+        autoTable.style.opacity = selectedSource === 'auto' ? '1' : '0.7';
+        autoTable.style.border = selectedSource === 'auto' ? '2px solid #38a169' : '';
+    }
+    if (customTable) {
+        customTable.style.opacity = selectedSource === 'custom' ? '1' : '0.7';
+        customTable.style.border = selectedSource === 'custom' ? '2px solid #38a169' : '';
+    }
+}
+
+function handleKafkaProposalSourceChange(selectEl) {
+    const container = selectEl?.closest('#kafka-throughput-result-container, #kafka-linear-result-container');
+    if (!container) return;
+
+    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
+    const customProposalTable = collectKafkaCustomProposalTableData(container);
+    if (selectedSource === 'custom' && !isKafkaCustomProposalTableFilled(customProposalTable)) {
+        showToast('Vui lòng nhập đầy đủ cấu hình cho dòng Kafka Broker trước khi dùng cấu hình tùy chỉnh.', 'warning');
+        selectedSource = 'auto';
+    }
+
+    updateKafkaProposalSourceUI(container, selectedSource);
+    try { aggregateSizingResults(); } catch (e) { }
+}
+
+function buildKafkaCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
+    const normalizedRows = normalizeKafkaCustomProposalTable(customProposalTable);
+    const normalizedSource = normalizeKafkaProposalSource(selectedProposalSource, normalizedRows);
+
+    return `
+        <div class="kafka-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <select class="input-full kafka-proposal-source-select" onchange="handleKafkaProposalSourceChange(this)">
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+            </select>
+        </div>
+        <h4 class="kafka-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+        <table class="sizing-table kafka-custom-proposal-table" data-kafka-custom-proposal-table="1" style="margin-top:8px;">
+            <thead>
+                <tr>
+                    <th style="width: 150px;">Thành phần</th>
+                    <th style="width: 100px;">Số lượng Node</th>
+                    <th style="width: 100px;">vCPU/Node</th>
+                    <th style="width: 100px;">RAM/Node</th>
+                    <th style="width: 150px;">Disk/Node (SSD)</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${normalizedRows.map(row => {
+                    const isLocked = row.component === 'Zookeeper/KRaft';
+                    const readOnlyAttr = isLocked ? 'readonly' : '';
+                    const lockedStyle = isLocked ? 'background:#f8fafc; color:#475569; cursor:not-allowed;' : '';
+                    const rowStyle = isLocked ? 'background:#fff3cd;' : 'background:#eefbf3;';
+                    return `
+                        <tr class="kafka-custom-proposal-row" data-component="${escapeHtml(row.component)}" style="${rowStyle}">
+                            <td><strong>${escapeHtml(row.component)}</strong></td>
+                            <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng" style="${lockedStyle}" ${readOnlyAttr}></td>
+                            <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-vcpu" value="${escapeHtml(row.vcpu)}" placeholder="vCPU" style="${lockedStyle}" ${readOnlyAttr}></td>
+                            <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-ram" value="${escapeHtml(row.ram)}" placeholder="RAM" style="${lockedStyle}" ${readOnlyAttr}></td>
+                            <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-disk" value="${escapeHtml(row.disk)}" placeholder="Disk" style="${lockedStyle}" ${readOnlyAttr}></td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>`;
+}
+
+function ensureKafkaProposalSelectionUI(container, options = {}) {
+    if (!container) return;
+
+    let autoTable = container.querySelector('[data-kafka-proposal-table="1"]');
+    if (!autoTable) {
+        const tables = container.querySelectorAll('table.sizing-table');
+        autoTable = tables.length ? tables[tables.length - 1] : null;
+        if (autoTable) {
+            autoTable.setAttribute('data-kafka-proposal-table', '1');
+        }
+    }
+    if (!autoTable) return;
+
+    const toolHeading = autoTable.previousElementSibling;
+    if (toolHeading && toolHeading.tagName === 'H4') {
+        toolHeading.classList.add('kafka-tool-proposal-heading');
+    }
+
+    if (!container.querySelector('[data-kafka-custom-proposal-table="1"]')) {
+        autoTable.insertAdjacentHTML(
+            'afterend',
+            buildKafkaCustomProposalSectionHtml(
+                options.selectedProposalSource || 'auto',
+                options.customProposalTable || getDefaultKafkaCustomProposalTable()
+            )
+        );
+    }
+
+    const normalizedRows = normalizeKafkaCustomProposalTable(options.customProposalTable || collectKafkaCustomProposalTableData(container));
+    container.querySelectorAll('.kafka-custom-proposal-row').forEach(row => {
+        const component = row.dataset.component || '';
+        const rowData = normalizedRows.find(item => item.component === component) || { quantity: '', vcpu: '', ram: '', disk: '' };
+        const qtyInput = row.querySelector('.kafka-custom-proposal-qty');
+        const vcpuInput = row.querySelector('.kafka-custom-proposal-vcpu');
+        const ramInput = row.querySelector('.kafka-custom-proposal-ram');
+        const diskInput = row.querySelector('.kafka-custom-proposal-disk');
+        if (qtyInput) qtyInput.value = rowData.quantity;
+        if (vcpuInput) vcpuInput.value = rowData.vcpu;
+        if (ramInput) ramInput.value = rowData.ram;
+        if (diskInput) diskInput.value = rowData.disk;
+    });
+
+    updateKafkaProposalSourceUI(container, normalizeKafkaProposalSource(options.selectedProposalSource || 'auto', normalizedRows));
+}
+
+function buildKafkaConfigurationTextFromRow(row) {
+    const lines = [];
+    if (row.vcpu) lines.push(`- vCPU = ${row.vcpu}`);
+    if (row.ram) lines.push(`- RAM = ${row.ram}`);
+    if (row.disk) lines.push(`- Disk = ${row.disk}`);
+    return lines.join('<br>');
+}
+
+function buildEffectiveKafkaCustomProposalData(customProposalTable) {
+    const normalizedRows = normalizeKafkaCustomProposalTable(customProposalTable);
+    const brokerRow = normalizedRows.find(row => row.component === 'Kafka Broker');
+    const zkRow = normalizedRows.find(row => row.component === 'Zookeeper/KRaft');
+
+    if (!brokerRow || !brokerRow.quantity.trim() || !brokerRow.vcpu.trim() || !brokerRow.ram.trim() || !brokerRow.disk.trim()) {
+        return null;
+    }
+
+    return {
+        cauHinh: buildKafkaConfigurationTextFromRow(brokerRow),
+        soLuong: brokerRow.quantity.trim(),
+        ghiChu: `${brokerRow.quantity.trim()} Broker`,
+        zookeeper: zkRow ? {
+            cauHinh: buildKafkaConfigurationTextFromRow(zkRow),
+            soLuong: zkRow.quantity.trim(),
+            ghiChu: 'Zookeeper/KRaft Controller'
+        } : null
+    };
+}
+
+function resolveEffectiveKafkaProposalResult(kafkaState = {}) {
+    const customProposalTable = normalizeKafkaCustomProposalTable(kafkaState.customProposalTable);
+    const selectedProposalSource = normalizeKafkaProposalSource(kafkaState.selectedProposalSource || 'auto', customProposalTable);
+
+    if (selectedProposalSource === 'custom') {
+        const customParsed = buildEffectiveKafkaCustomProposalData(customProposalTable);
+        if (customParsed) return customParsed;
+    }
+
+    return parseKafkaSizingResult(kafkaState.resultHTML || '');
 }
 
 async function saveTongHop() {
@@ -5995,16 +6855,15 @@ function collectAllSizingData() {
     const collectByTypeInContext = (moduleType) => {
         if (moduleType === 'App') {
             const container = document.getElementById('sizing-result-container');
-            if (container) {
-                container.querySelectorAll('textarea').forEach(ta => {
-                    ta.textContent = ta.value;
-                });
-            }
+            if (container) syncTextareasInContainer(container);
+            const customProposalTable = collectAppCustomProposalTableData(container);
+            const selectedProposalSource = normalizeAppProposalSource(getAppSelectedProposalSource(container), customProposalTable);
             return {
                 baselineTable: collectBaselineTableData(),
                 inputConfigTable: collectInputConfigTableData(),
                 storageInputTable: collectStorageInputTableData(),
                 selectedInputRow: document.getElementById('app-input-row-select')?.value || '',
+                selectedInputRowLabel: getSelectedInputRowLabel('app-input-row-select'),
                 pocValue: document.getElementById('poc-value')?.value || '',
                 sizingValue: document.getElementById('sizing-value')?.value || '',
                 virtualizationMode: document.getElementById('app-virtualization-mode')?.value || 'ram',
@@ -6012,6 +6871,8 @@ function collectAllSizingData() {
                 ramFlavor: document.getElementById('app-ram-flavor')?.value || '32',
                 flavorEval: document.getElementById('app-flavor-eval')?.value || '',
                 flavorNote: document.getElementById('app-flavor-note')?.value || '',
+                selectedProposalSource,
+                customProposalTable,
                 sizingResult: container?.innerHTML || ''
             };
         }
@@ -6170,6 +7031,7 @@ function collectSizingAdminReviewData() {
                     });
                     return reviews;
                 })(),
+                storageRowReviews: collectK8SStorageAdminReviewData(),
                 flavorReview: {
                     eval: document.getElementById('k8s-flavor-eval')?.value || '',
                     note: document.getElementById('k8s-flavor-note')?.value || ''
@@ -6186,13 +7048,32 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'Khác') {
             return {
-                baselineRowReviews: collectBaselineAdminReviewData(),
+                baselineRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#custom-baseline-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.admin-eval-select')?.value || '',
+                            note: row.querySelector('.admin-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })(),
                 inputConfigRowReviews: (() => {
                     const reviews = [];
-                    document.querySelectorAll('#input-config-table-body tr').forEach(row => {
+                    document.querySelectorAll('#custom-input-config-table-body tr').forEach(row => {
                         reviews.push({
-                            eval: row.querySelector('.input-config-eval')?.value || '',
-                            note: row.querySelector('.input-config-note')?.value || ''
+                            eval: row.querySelector('.custom-input-config-eval')?.value || '',
+                            note: row.querySelector('.custom-input-config-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })(),
+                storageRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#custom-storage-input-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.custom-storage-eval')?.value || '',
+                            note: row.querySelector('.custom-storage-admin-note')?.value || ''
                         });
                     });
                     return reviews;
@@ -6478,6 +7359,10 @@ function loadAppSizingModuleData(moduleApp) {
 
     if (document.getElementById('sizing-result-container')) {
         document.getElementById('sizing-result-container').innerHTML = moduleApp.sizingResult || '';
+        ensureAppProposalSelectionUI({
+            selectedProposalSource: moduleApp.selectedProposalSource || 'auto',
+            customProposalTable: moduleApp.customProposalTable || getEmptyAppCustomProposalTable()
+        });
     }
 
     if (moduleApp.pocValue || moduleApp.sizingValue || moduleApp.sizingResult ||
@@ -6865,6 +7750,22 @@ function loadSizingAdminReview(adminReview) {
                     }
                 });
             }
+            if (adminReview.moduleK8S.storageRowReviews) {
+                const rows = document.querySelectorAll('#k8s-storage-input-table-body tr');
+                adminReview.moduleK8S.storageRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.k8s-storage-eval');
+                        const adminNote = rows[index].querySelector('.k8s-storage-admin-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) {
+                            adminNote.value = review.note || '';
+                        }
+                    }
+                });
+            }
 
             if (adminReview.moduleK8S.flavorReview) {
                 const flavorReview = adminReview.moduleK8S.flavorReview;
@@ -6895,7 +7796,7 @@ function loadSizingAdminReview(adminReview) {
         // Load module Khac admin review
         if (adminReview.moduleCustom) {
             if (adminReview.moduleCustom.baselineRowReviews) {
-                const rows = document.querySelectorAll('#baseline-table-body tr');
+                const rows = document.querySelectorAll('#custom-baseline-table-body tr');
                 adminReview.moduleCustom.baselineRowReviews.forEach((review, index) => {
                     if (rows[index]) {
                         const adminEval = rows[index].querySelector('.admin-eval-select');
@@ -6910,11 +7811,26 @@ function loadSizingAdminReview(adminReview) {
             }
 
             if (adminReview.moduleCustom.inputConfigRowReviews) {
-                const rows = document.querySelectorAll('#input-config-table-body tr');
+                const rows = document.querySelectorAll('#custom-input-config-table-body tr');
                 adminReview.moduleCustom.inputConfigRowReviews.forEach((review, index) => {
                     if (rows[index]) {
-                        const adminEval = rows[index].querySelector('.input-config-eval');
-                        const adminNote = rows[index].querySelector('.input-config-note');
+                        const adminEval = rows[index].querySelector('.custom-input-config-eval');
+                        const adminNote = rows[index].querySelector('.custom-input-config-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) adminNote.value = review.note || '';
+                    }
+                });
+            }
+
+            if (adminReview.moduleCustom.storageRowReviews) {
+                const rows = document.querySelectorAll('#custom-storage-input-table-body tr');
+                adminReview.moduleCustom.storageRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.custom-storage-eval');
+                        const adminNote = rows[index].querySelector('.custom-storage-admin-note');
                         if (adminEval) {
                             adminEval.value = review.eval || '';
                             styleAdminSelect(adminEval);
@@ -7278,6 +8194,211 @@ function getVirtualizationChoice(prefix) {
     };
 }
 
+function syncTextareasInContainer(container) {
+    if (!container) return;
+    container.querySelectorAll('textarea').forEach(ta => {
+        ta.textContent = ta.value;
+    });
+}
+
+function getEmptyAppCustomProposalTable() {
+    return {
+        configurationText: '',
+        quantity: '',
+        note: ''
+    };
+}
+
+function normalizeAppCustomProposalTable(data) {
+    const empty = getEmptyAppCustomProposalTable();
+    if (!data || typeof data !== 'object') return empty;
+    return {
+        configurationText: String(data.configurationText || ''),
+        quantity: String(data.quantity || ''),
+        note: String(data.note || '')
+    };
+}
+
+function isAppCustomProposalTableFilled(customProposalTable) {
+    return !!normalizeAppCustomProposalTable(customProposalTable).configurationText.trim();
+}
+
+function normalizeAppProposalSource(source, customProposalTable) {
+    return source === 'custom' && isAppCustomProposalTableFilled(customProposalTable) ? 'custom' : 'auto';
+}
+
+function collectAppCustomProposalTableData(container = document.getElementById('sizing-result-container')) {
+    if (!container) return getEmptyAppCustomProposalTable();
+    return normalizeAppCustomProposalTable({
+        configurationText: container.querySelector('.app-custom-proposal-config')?.value || '',
+        quantity: container.querySelector('.app-custom-proposal-qty')?.value || '',
+        note: container.querySelector('.app-custom-proposal-note')?.value || ''
+    });
+}
+
+function getAppSelectedProposalSource(container = document.getElementById('sizing-result-container')) {
+    const value = container?.querySelector('.app-proposal-source-select')?.value || 'auto';
+    return value === 'custom' ? 'custom' : 'auto';
+}
+
+function getCurrentAppProposalState(container = document.getElementById('sizing-result-container')) {
+    return {
+        selectedProposalSource: getAppSelectedProposalSource(container),
+        customProposalTable: collectAppCustomProposalTableData(container)
+    };
+}
+
+function updateAppProposalSourceUI(container = document.getElementById('sizing-result-container'), selectedSource = 'auto') {
+    if (!container) return;
+
+    const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const select = container.querySelector('.app-proposal-source-select');
+    const toolHeading = container.querySelector('.app-tool-proposal-heading');
+    const customHeading = container.querySelector('.app-custom-proposal-heading');
+    const autoTable = container.querySelector('[data-app-proposal-table="1"]');
+    const customTable = container.querySelector('[data-app-custom-proposal-table="1"]');
+
+    if (select) select.value = normalizedSource;
+    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+        ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
+        : 'Đề xuất cấu hình do tool tạo';
+    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+        ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
+        : 'Đề xuất cấu hình tùy chỉnh';
+
+    if (autoTable) {
+        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+    }
+    if (customTable) {
+        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+    }
+}
+
+function handleAppProposalSourceChange(selectEl) {
+    const container = document.getElementById('sizing-result-container');
+    if (!container) return;
+
+    const select = (selectEl && typeof selectEl === 'object' && typeof selectEl.tagName === 'string')
+        ? selectEl
+        : container.querySelector('.app-proposal-source-select');
+    if (!select) return;
+
+    let selectedSource = select.value === 'custom' ? 'custom' : 'auto';
+    const customProposalTable = collectAppCustomProposalTableData(container);
+    if (selectedSource === 'custom' && !isAppCustomProposalTableFilled(customProposalTable)) {
+        showToast('Vui lòng nhập cấu hình đề xuất tùy chỉnh trước khi chọn sử dụng.', 'warning');
+        selectedSource = 'auto';
+    }
+
+    updateAppProposalSourceUI(container, selectedSource);
+    try { aggregateSizingResults(); } catch (e) { }
+}
+
+function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
+    const normalizedTable = normalizeAppCustomProposalTable(customProposalTable);
+    const normalizedSource = normalizeAppProposalSource(selectedProposalSource, normalizedTable);
+    return `
+        <div class="app-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <select class="input-full app-proposal-source-select" onchange="handleAppProposalSourceChange(this)">
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+            </select>
+        </div>
+        <h4 class="app-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+        <table class="sizing-table app-custom-proposal-table" data-app-custom-proposal-table="1" style="margin-top:8px;">
+            <thead>
+                <tr>
+                    <th style="width:250px;">Cấu hình</th>
+                    <th style="width:100px;">Số lượng</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <textarea class="input-full app-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(normalizedTable.configurationText)}</textarea>
+                    </td>
+                    <td class="text-center">
+                        <input type="text" class="input-full text-center app-custom-proposal-qty" value="${escapeHtml(normalizedTable.quantity)}" placeholder="Số lượng">
+                    </td>
+                    <td>
+                        <textarea class="input-full app-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedTable.note)}</textarea>
+                    </td>
+                </tr>
+            </tbody>
+        </table>`;
+}
+
+function ensureAppProposalSelectionUI(options = {}) {
+    const container = document.getElementById('sizing-result-container');
+    if (!container) return;
+
+    const autoTable = container.querySelector('[data-app-proposal-table="1"]');
+    if (!autoTable) return;
+
+    const toolHeading = autoTable.previousElementSibling;
+    if (toolHeading && toolHeading.tagName === 'H4') {
+        toolHeading.classList.add('app-tool-proposal-heading');
+    }
+
+    if (!container.querySelector('[data-app-custom-proposal-table="1"]')) {
+        autoTable.insertAdjacentHTML(
+            'afterend',
+            buildAppCustomProposalSectionHtml(
+                options.selectedProposalSource || 'auto',
+                options.customProposalTable || getEmptyAppCustomProposalTable()
+            )
+        );
+    }
+
+    const normalizedTable = normalizeAppCustomProposalTable(options.customProposalTable || collectAppCustomProposalTableData(container));
+    const configInput = container.querySelector('.app-custom-proposal-config');
+    const qtyInput = container.querySelector('.app-custom-proposal-qty');
+    const noteInput = container.querySelector('.app-custom-proposal-note');
+
+    if (configInput) configInput.value = normalizedTable.configurationText;
+    if (qtyInput) qtyInput.value = normalizedTable.quantity;
+    if (noteInput) noteInput.value = normalizedTable.note;
+
+    updateAppProposalSourceUI(container, normalizeAppProposalSource(options.selectedProposalSource || 'auto', normalizedTable));
+}
+
+function buildAppEffectiveCustomProposalData(customProposalTable) {
+    const normalizedTable = normalizeAppCustomProposalTable(customProposalTable);
+    const lines = normalizedTable.configurationText
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+    if (lines.length === 0) return null;
+
+    return {
+        cauHinh: lines.map(line => `- ${escapeHtml(line)}`).join('<br>'),
+        soLuong: normalizedTable.quantity.trim(),
+        ghiChu: normalizedTable.note.trim()
+    };
+}
+
+function resolveEffectiveAppProposalResult(appState = {}) {
+    const sizingResult = appState.sizingResult || '';
+    const autoParsed = parseAppSizingResult(sizingResult);
+    const customProposalTable = normalizeAppCustomProposalTable(appState.customProposalTable);
+    const selectedProposalSource = normalizeAppProposalSource(appState.selectedProposalSource || 'auto', customProposalTable);
+
+    if (selectedProposalSource === 'custom') {
+        const customParsed = buildAppEffectiveCustomProposalData(customProposalTable);
+        if (customParsed) {
+            if (autoParsed?.fwlb) customParsed.fwlb = autoParsed.fwlb;
+            return customParsed;
+        }
+    }
+
+    return autoParsed;
+}
+
 function calculateSizingRecommendations() {
     const poc = parseFloat(document.getElementById('poc-value')?.value) || 0;
     const sizing = parseFloat(document.getElementById('sizing-value')?.value) || 0;
@@ -7296,6 +8417,7 @@ function calculateSizingRecommendations() {
         }
 
         const factorNew = sizing / poc;
+        const existingProposalState = getCurrentAppProposalState();
         const cintForTPSNew = totalCintNew * factorNew;
         const ramForTPSNew = totalRamNew * factorNew;
         const cintAfterKPINew = cintForTPSNew / 0.75 * 1.1;
@@ -7422,7 +8544,7 @@ function calculateSizingRecommendations() {
                             </tr>
                         </tbody>
                     </table>`;
-        htmlNew += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
+        htmlNew += `<h4 class="app-tool-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình do tool tạo</h4>`;
         htmlNew += `<table class="sizing-table app-proposal-table" data-app-proposal-table="1" style="margin-top:8px;">
                         <thead>
                             <tr>
@@ -7445,9 +8567,13 @@ function calculateSizingRecommendations() {
                             </tr>
                         </tbody>
                     </table>`;
+        htmlNew += buildAppCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
 
         const containerNew = document.getElementById('sizing-result-container');
-        if (containerNew) containerNew.innerHTML = htmlNew;
+        if (containerNew) {
+            containerNew.innerHTML = htmlNew;
+            ensureAppProposalSelectionUI(existingProposalState);
+        }
         return;
     }
 
@@ -7636,7 +8762,7 @@ function calculateSizingRecommendations() {
     const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
 
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
-    html += `<table class="sizing-table" style="margin-top:8px;">
+    html += `<table class="sizing-table" data-lbfw-proposal-table="1" style="margin-top:8px;">
                 <thead>
                     <tr>
                         <th style="width:250px;">Cấu hình</th>
@@ -7677,6 +8803,12 @@ function getK8SInputConfigRows() {
     return Array.from(tbody.querySelectorAll('tr'));
 }
 
+function getK8SStorageInputRows() {
+    const tbody = document.getElementById('k8s-storage-input-table-body');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr'));
+}
+
 function addK8SBaselineRow() {
     const tbody = document.getElementById('k8s-baseline-table-body');
     const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
@@ -7686,7 +8818,7 @@ function addK8SBaselineRow() {
     const tr = document.createElement('tr');
     const syncIpHandler = buildInstanceAwareHandler('syncK8SIPToInputConfig(this)');
     const baselineRamHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
-    const baselineDiskHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
+    const baselineDiskHandler = buildInstanceAwareHandler('updateK8SBaselineTotal()');
     const baselineCintHandler = buildInstanceAwareHandler('updateK8SBaselineTotal(); recalculateK8SInputConfigForRow(this)');
     const baselineUploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
     const baselineUploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
@@ -7749,10 +8881,8 @@ function addK8SInputConfigRow() {
         <td><input type="text" class="input-full text-center k8s-ip-config-input" placeholder="10.x.x.x"></td>
         <td><input type="number" class="input-full text-center k8s-cpu-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
         <td><input type="number" class="input-full text-center k8s-ram-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
-        <td><input type="number" class="input-full text-center k8s-disk-load-input" value="0" min="0" max="100" step="0.01" oninput="${calculateRowHandler}"></td>
         <td><input type="number" class="input-full text-center k8s-cint-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td><input type="number" class="input-full text-center k8s-ram-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
-        <td><input type="number" class="input-full text-center k8s-disk-used-input" value="0" min="0" readonly style="background-color: #f0f0f0;"></td>
         <td>
             <div class="inline-evidence-cell">
                 <input type="file" accept="image/*" multiple class="k8s-input-config-evidence-input" onchange="${uploadHandler}" style="display:none">
@@ -7789,7 +8919,6 @@ function calculateK8SInputConfigRow(input) {
     const ramLoadInput = row.querySelector('.k8s-ram-load-input');
     const cintUsedInput = row.querySelector('.k8s-cint-used-input');
     const ramUsedInput = row.querySelector('.k8s-ram-used-input');
-    const diskUsedInput = row.querySelector('.k8s-disk-used-input');
 
     const baselineRows = getK8SBaselineRows();
     const rowIndex = Array.from(row.parentNode.children).indexOf(row);
@@ -7798,16 +8927,13 @@ function calculateK8SInputConfigRow(input) {
         const baselineRow = baselineRows[rowIndex];
         const baselineCint = parseFloat(baselineRow.querySelector('.k8s-cint-input').value) || 0;
         const baselineRam = parseFloat(baselineRow.querySelector('.k8s-ram-input').value) || 0;
-        const baselineDisk = parseFloat(baselineRow.querySelector('.k8s-disk-input').value) || 0;
         const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
         const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
         const ramLoad = parseFloat(ramLoadInput.value) || 0;
-        const diskLoad = parseFloat(row.querySelector('.k8s-disk-load-input')?.value) || 0;
 
         cintUsedInput.value = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
         ramUsedInput.value = (baselineRam * quantity * ramLoad / 100).toFixed(2);
-        diskUsedInput.value = (baselineDisk * quantity * diskLoad / 100).toFixed(2);
     }
 
     updateK8SInputConfigTotal();
@@ -7880,20 +9006,83 @@ function updateK8SBaselineTotal() {
 function updateK8SInputConfigTotal() {
     const totalCintUsedEl = document.getElementById('k8s-total-cint-used');
     const totalRamUsedEl = document.getElementById('k8s-total-ram-used');
-    const totalDiskUsedEl = document.getElementById('k8s-total-disk-used');
-    if (!totalCintUsedEl || !totalRamUsedEl || !totalDiskUsedEl) return;
+    if (!totalCintUsedEl || !totalRamUsedEl) return;
 
-    let totalCintUsed = 0, totalRamUsed = 0, totalDiskUsed = 0;
+    let totalCintUsed = 0, totalRamUsed = 0;
 
     getK8SInputConfigRows().forEach(row => {
         totalCintUsed += parseFloat(row.querySelector('.k8s-cint-used-input')?.value) || 0;
         totalRamUsed += parseFloat(row.querySelector('.k8s-ram-used-input')?.value) || 0;
-        totalDiskUsed += parseFloat(row.querySelector('.k8s-disk-used-input')?.value) || 0;
     });
 
     totalCintUsedEl.innerText = totalCintUsed.toFixed(2);
     totalRamUsedEl.innerText = totalRamUsed.toFixed(2);
-    totalDiskUsedEl.innerText = totalDiskUsed.toFixed(2);
+}
+
+function addK8SStorageInputRow() {
+    const tbody = document.getElementById('k8s-storage-input-table-body');
+    if (!tbody) return;
+
+    const rowCount = tbody.rows.length + 1;
+    const tr = document.createElement('tr');
+    const deleteRowHandler = buildInstanceAwareHandler('deleteK8SStorageInputRow(this)');
+
+    tr.innerHTML = `
+        <td class="text-center stt-cell">${rowCount}</td>
+        <td><input type="text" class="input-full text-center k8s-storage-ip-input" placeholder="10.x.x.x"></td>
+        <td><input type="text" class="input-full text-center k8s-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
+        <td><input type="number" class="input-full text-center k8s-storage-used-input" value="0" min="0" step="0.01"></td>
+        <td><input type="text" class="input-full k8s-storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
+        <td class="admin-cell">
+            <select class="admin-eval-select k8s-storage-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note k8s-storage-admin-note" placeholder="Nhận xét...">
+        </td>
+        <td class="text-center">
+            <button class="btn-delete-row-item" onclick="${deleteRowHandler}">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(tr);
+    applyRolePermissions();
+}
+
+function deleteK8SStorageInputRow(btn) {
+    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
+        btn.closest('tr').remove();
+        updateK8SStorageInputRowNumbers();
+    }
+}
+
+function updateK8SStorageInputRowNumbers() {
+    getK8SStorageInputRows().forEach((row, index) => {
+        const sttCell = row.querySelector('.stt-cell');
+        if (sttCell) sttCell.innerText = index + 1;
+    });
+}
+
+function getK8SStorageTotalsByPartition() {
+    const partitionMap = new Map();
+
+    getK8SStorageInputRows().forEach(row => {
+        const partition = (row.querySelector('.k8s-storage-partition-input')?.value || '').trim();
+        const used = parseFloat(row.querySelector('.k8s-storage-used-input')?.value) || 0;
+        if (!partition || used <= 0) return;
+
+        const key = partition.toLowerCase();
+        const current = partitionMap.get(key) || { name: partition, totalUsed: 0 };
+        current.totalUsed += used;
+        partitionMap.set(key, current);
+    });
+
+    return Array.from(partitionMap.values());
 }
 
 function syncK8SIPToInputConfig(ipInput) {
@@ -7928,17 +9117,27 @@ function calculateK8SSizing() {
 
     const totalCint = parseFloat(document.getElementById('k8s-total-cint-used')?.innerText) || 0;
     const totalRam = parseFloat(document.getElementById('k8s-total-ram-used')?.innerText) || 0;
-    const totalDisk = parseFloat(document.getElementById('k8s-total-disk-used')?.innerText) || 0;
+    const storageTotals = getK8SStorageTotalsByPartition();
+    if (storageTotals.length === 0) {
+        showToast('Vui lòng nhập ít nhất một phân vùng trong "THÔNG TIN LƯU TRỮ ĐẦU VÀO".', 'warning');
+        return;
+    }
 
     const factor = sizing / poc;
+    const container = document.getElementById('k8s-result-container');
+    const existingProposalState = getCurrentK8SProposalState(container);
 
     const cintForTPS = totalCint * factor;
     const ramForTPS = totalRam * factor;
-    const diskForTPS = totalDisk * factor;
+    const storageAfterKPI = storageTotals.map(item => ({
+        name: item.name,
+        totalUsed: item.totalUsed,
+        forTPS: item.totalUsed * factor,
+        afterKPI: item.totalUsed * factor / 0.8 * 1.1
+    }));
 
     const cintAfterKPI = cintForTPS / 0.75 * 1.1;
     const ramAfterKPI = ramForTPS / 0.9 * 1.1;
-    const diskAfterKPI = diskForTPS / 0.8 * 1.1;
 
     const virtualization = getVirtualizationChoice('k8s');
     if (!virtualization.selectedValue) {
@@ -7951,10 +9150,50 @@ function calculateK8SSizing() {
         : Math.ceil(ramAfterKPI / virtualization.ram);
 
     let html = '';
+    const machineRows = [
+        {
+            label: 'Cintrate cần cho hệ thống',
+            value: cintForTPS.toFixed(2),
+            note: `= ${totalCint.toFixed(2)} x (${sizing} / ${poc}) = ${totalCint.toFixed(2)} x ${factor.toFixed(4)}`
+        },
+        {
+            label: 'RAM (GB) cần cho hệ thống',
+            value: ramForTPS.toFixed(2),
+            note: `= ${totalRam.toFixed(2)} x (${sizing} / ${poc}) = ${totalRam.toFixed(2)} x ${factor.toFixed(4)}`
+        }
+    ];
 
-    // Bảng 1: Thông số
+    storageAfterKPI.forEach(item => {
+        machineRows.push({
+            label: `${item.name} (GB) cần cho hệ thống`,
+            value: item.forTPS.toFixed(2),
+            note: `= ${item.totalUsed.toFixed(2)} x (${sizing} / ${poc}) = ${item.totalUsed.toFixed(2)} x ${factor.toFixed(4)}`
+        });
+    });
+
+    machineRows.push(
+        {
+            label: 'Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI',
+            value: cintAfterKPI.toFixed(2),
+            note: `= ${cintForTPS.toFixed(2)} / 0.75 x 1.1. KPI 75%, Sai số 1.1`
+        },
+        {
+            label: 'RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI',
+            value: ramAfterKPI.toFixed(2),
+            note: `= ${ramForTPS.toFixed(2)} / 0.9 x 1.1. KPI 90%, Sai số 1.1`
+        }
+    );
+
+    storageAfterKPI.forEach(item => {
+        machineRows.push({
+            label: `${item.name} cần sau khi nhân hệ số dự phòng và đảm bảo KPI`,
+            value: item.afterKPI.toFixed(2),
+            note: `= ${item.forTPS.toFixed(2)} / 0.8 x 1.1. KPI 80%, Sai số 1.1`
+        });
+    });
+
     html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán K8S Worker</h4>`;
-    html += `<table class="sizing-table" style="margin-top:8px;">
+    html += `<table class="sizing-table k8s-worker-table" data-k8s-worker-table="1" style="margin-top:8px;">
                 <thead>
                     <tr>
                         <th style="width:50px;">STT</th>
@@ -7963,47 +9202,18 @@ function calculateK8SSizing() {
                         <th>Ghi chú</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td class="text-center">1</td>
-                        <td>Cintrate cần cho hệ thống</td>
-                        <td class="text-center">${cintForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalCint.toFixed(2)} × (${sizing} / ${poc}) = ${totalCint.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">2</td>
-                        <td>RAM (GB) cần cho hệ thống</td>
-                        <td class="text-center">${ramForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalRam.toFixed(2)} × (${sizing} / ${poc}) = ${totalRam.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">3</td>
-                        <td>Disk (GB) cần cho hệ thống</td>
-                        <td class="text-center">${diskForTPS.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${totalDisk.toFixed(2)} × (${sizing} / ${poc}) = ${totalDisk.toFixed(2)} × ${factor.toFixed(4)}</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">4</td>
-                        <td>Cint cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
-                        <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${cintForTPS.toFixed(2)} / 0.75 × 1.1. KPI 75%, Sai số 1.1</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">5</td>
-                        <td>RAM cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
-                        <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${ramForTPS.toFixed(2)} / 0.9 × 1.1. KPI 90%, Sai số 1.1</textarea></td>
-                    </tr>
-                    <tr>
-                        <td class="text-center">6</td>
-                        <td>Disk cần sau khi nhân hệ số dự phòng và đảm bảo KPI</td>
-                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
-                        <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">= ${diskForTPS.toFixed(2)} / 0.8 × 1.1. KPI 80%, Sai số 1.1</textarea></td>
-                    </tr>
-                </tbody>
+                <tbody>`;
+    machineRows.forEach((row, index) => {
+        html += `<tr>
+                    <td class="text-center">${index + 1}</td>
+                    <td>${escapeHtml(row.label)}</td>
+                    <td class="text-center">${row.value}</td>
+                    <td><textarea class="input-full sizing-note" rows="1" style="resize:vertical;min-height:30px;">${row.note}</textarea></td>
+                </tr>`;
+    });
+    html += `</tbody>
             </table>`;
 
-    // Đề xuất
     const recommendationFormula = virtualization.mode === 'vcpu'
         ? `N = ${cintAfterKPI.toFixed(2)} / ${virtualization.vcpu}`
         : `N = ${ramAfterKPI.toFixed(2)} / ${virtualization.ram}`;
@@ -8011,24 +9221,19 @@ function calculateK8SSizing() {
         ? `theo vCPU <strong>${virtualization.selectedLabel}</strong>`
         : `theo RAM <strong>${virtualization.selectedLabel}</strong>`;
 
-    html += `<div style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
+    html += `<div data-k8s-recommendation="1" style="margin-top:16px; padding:12px; background:#e6fffa; border-left:4px solid #38b2ac; border-radius:4px;">
                 <strong>Đề xuất:</strong> Lựa chọn cấu hình ảo hóa ${recommendationTarget}, lựa chọn số N theo mode đã chọn: 
                 ${recommendationFormula} ≈ <strong>${ketqua}</strong>
             </div>`;
 
-    // Bảng 2: Phân bổ theo N
-    const nValues = [
-        { label: 'Ketqua', value: ketqua },
-    ];
-
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Bảng phân bổ theo số lượng N</h4>`;
-    html += `<table class="sizing-table" style="margin-top:8px;">
+    html += `<table class="sizing-table k8s-n-table" data-k8s-n-table="1" style="margin-top:8px;">
                 <thead>
                     <tr>
                         <th style="width:120px;">Giá trị N</th>
                         <th>Cint CPU yêu cầu</th>
                         <th>RAM yêu cầu</th>
-                        <th>Disk yêu cầu</th>
+                        ${storageAfterKPI.map(item => `<th>${escapeHtml(item.name)} yêu cầu</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
@@ -8036,32 +9241,25 @@ function calculateK8SSizing() {
                         <td class="text-center">1</td>
                         <td class="text-center">${cintAfterKPI.toFixed(2)}</td>
                         <td class="text-center">${ramAfterKPI.toFixed(2)}</td>
-                        <td class="text-center">${diskAfterKPI.toFixed(2)}</td>
-                    </tr>`;
+                        ${storageAfterKPI.map(item => `<td class="text-center">${item.afterKPI.toFixed(2)}</td>`).join('')}
+                    </tr>
+                    <tr style="background:#e6ffed; font-weight:600;">
+                        <td class="text-center">${ketqua}</td>
+                        <td class="text-center">${(cintAfterKPI / ketqua).toFixed(2)}</td>
+                        <td class="text-center">${(ramAfterKPI / ketqua).toFixed(2)}</td>
+                        ${storageAfterKPI.map(item => `<td class="text-center">${(item.afterKPI / ketqua).toFixed(2)}</td>`).join('')}
+                    </tr>
+                </tbody></table>`;
 
-    nValues.forEach(item => {
-        const cintPerN = cintAfterKPI / item.value;
-        const ramPerN = ramAfterKPI / item.value;
-        const diskPerN = diskAfterKPI / item.value;
-        const isMain = item.label === 'Ketqua';
-
-        html += `<tr${isMain ? ' style="background:#e6ffed; font-weight:600;"' : ''}>
-                    <td class="text-center">${item.value}</td>
-                    <td class="text-center">${cintPerN.toFixed(2)}</td>
-                    <td class="text-center">${ramPerN.toFixed(2)}</td>
-                    <td class="text-center">${diskPerN.toFixed(2)}</td>
-                </tr>`;
-    });
-
-    html += `</tbody></table>`;
-
-    // Bảng 3: Đề xuất cấu hình K8S (3 dòng: K8S Master, K8S Worker, K8S ETCD)
     const cintPerServer = Math.ceil(cintAfterKPI / ketqua);
     const ramPerServer = Math.ceil(ramAfterKPI / ketqua);
-    const diskPerServer = Math.ceil(diskAfterKPI / ketqua);
+    const storagePerServer = storageAfterKPI.map(item => ({
+        name: item.name,
+        perServer: Math.ceil(item.afterKPI / ketqua)
+    }));
 
     html += `<h4 style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình</h4>`;
-    html += `<table class="sizing-table" style="margin-top:8px;">
+    html += `<table class="sizing-table k8s-proposal-table" data-k8s-proposal-table="1" style="margin-top:8px;">
                 <thead>
                     <tr>
                         <th style="width:150px;">Thành phần</th>
@@ -8089,7 +9287,7 @@ function calculateK8SSizing() {
                             <ul style="margin:0; padding-left:20px;">
                                 <li>CPU: = ${cintPerServer} Cint</li>
                                 <li>RAM: = ${ramPerServer} GB</li>
-                                <li>DISK: = ${diskPerServer} GB</li>
+                                ${storagePerServer.map(item => `<li>${escapeHtml(item.name)}: = ${item.perServer} GB</li>`).join('')}
                             </ul>
                         </td>
                         <td class="text-center"><strong>${ketqua + 1}</strong></td>
@@ -8110,8 +9308,12 @@ function calculateK8SSizing() {
                 </tbody>
             </table>`;
 
-    const container = document.getElementById('k8s-result-container');
-    if (container) container.innerHTML = html;
+    html += buildK8SCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
+
+    if (container) {
+        container.innerHTML = html;
+        ensureK8SProposalSelectionUI(container, existingProposalState);
+    }
 }
 
 function collectK8SBaselineTableData() {
@@ -8144,10 +9346,8 @@ function collectK8SInputConfigTableData() {
             ip: row.querySelector('.k8s-ip-config-input')?.value || '',
             cpuLoad: row.querySelector('.k8s-cpu-load-input')?.value || '',
             ramLoad: row.querySelector('.k8s-ram-load-input')?.value || '',
-            diskLoad: row.querySelector('.k8s-disk-load-input')?.value || '',
             cintUsed: row.querySelector('.k8s-cint-used-input')?.value || '',
             ramUsed: row.querySelector('.k8s-ram-used-input')?.value || '',
-            diskUsed: row.querySelector('.k8s-disk-used-input')?.value || '',
             evidenceImage: evidenceImages[0] || '',
             evidenceImages: evidenceImages,
             adminEval: row.querySelector('.k8s-input-config-eval')?.value || '',
@@ -8157,11 +9357,48 @@ function collectK8SInputConfigTableData() {
     return data;
 }
 
+function collectK8SStorageInputTableData() {
+    const rows = getK8SStorageInputRows();
+    const data = [];
+    rows.forEach((row, index) => {
+        data.push({
+            stt: index + 1,
+            ip: row.querySelector('.k8s-storage-ip-input')?.value || '',
+            partition: row.querySelector('.k8s-storage-partition-input')?.value || '',
+            used: row.querySelector('.k8s-storage-used-input')?.value || '',
+            note: row.querySelector('.k8s-storage-note-input')?.value || '',
+            adminEval: row.querySelector('.k8s-storage-eval')?.value || '',
+            adminNote: row.querySelector('.k8s-storage-admin-note')?.value || ''
+        });
+    });
+    return data;
+}
+
+function collectK8SStorageAdminReviewData() {
+    const rows = getK8SStorageInputRows();
+    const data = [];
+    rows.forEach((row, index) => {
+        data.push({
+            rowIndex: index,
+            eval: row.querySelector('.k8s-storage-eval')?.value || '',
+            note: row.querySelector('.k8s-storage-admin-note')?.value || ''
+        });
+    });
+    return data;
+}
+
 function collectK8SData() {
+    const resultContainer = document.getElementById('k8s-result-container');
+    syncTextareasInContainer(resultContainer);
+    const customProposalTable = collectK8SCustomProposalTableData(resultContainer);
+    const selectedProposalSource = normalizeK8SProposalSource(getK8SSelectedProposalSource(resultContainer), customProposalTable);
+
     return {
         baselineTable: collectK8SBaselineTableData(),
         inputConfigTable: collectK8SInputConfigTableData(),
+        storageInputTable: collectK8SStorageInputTableData(),
         selectedInputRow: document.getElementById('k8s-input-row-select')?.value || '',
+        selectedInputRowLabel: getSelectedInputRowLabel('k8s-input-row-select'),
         pocValue: document.getElementById('k8s-poc-value')?.value || '',
         sizingValue: document.getElementById('k8s-sizing-value')?.value || '',
         virtualizationMode: document.getElementById('k8s-virtualization-mode')?.value || 'ram',
@@ -8169,11 +9406,11 @@ function collectK8SData() {
         ramFlavor: document.getElementById('k8s-ram-flavor')?.value || '32',
         flavorEval: document.getElementById('k8s-flavor-eval')?.value || '',
         flavorNote: document.getElementById('k8s-flavor-note')?.value || '',
+        selectedProposalSource: selectedProposalSource,
+        customProposalTable: customProposalTable,
         sizingResult: (() => {
-            const container = document.getElementById('k8s-result-container');
-            if (container) {
-                container.querySelectorAll('textarea').forEach(ta => { ta.textContent = ta.value; });
-                return container.innerHTML;
+            if (resultContainer) {
+                return resultContainer.innerHTML;
             }
             return '';
         })()
@@ -8183,12 +9420,18 @@ function collectK8SData() {
 function loadK8SData(data) {
     if (!data) return;
 
+    const baselineTbody = document.getElementById('k8s-baseline-table-body');
+    const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
+    const storageTbody = document.getElementById('k8s-storage-input-table-body');
+    if (baselineTbody) baselineTbody.innerHTML = '';
+    if (inputConfigTbody) inputConfigTbody.innerHTML = '';
+    if (storageTbody) storageTbody.innerHTML = '';
+
     // Load baseline table
     if (data.baselineTable && Array.isArray(data.baselineTable) && data.baselineTable.length > 0) {
-        const tbody = document.getElementById('k8s-baseline-table-body');
+        const tbody = baselineTbody;
         if (tbody) {
             tbody.innerHTML = '';
-            const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
             if (inputConfigTbody) inputConfigTbody.innerHTML = '';
 
             data.baselineTable.forEach(row => {
@@ -8228,22 +9471,16 @@ function loadK8SData(data) {
                 const lastRow = tbody.lastElementChild;
                 if (lastRow) {
                     const ipInput = lastRow.querySelector('.k8s-ip-config-input');
-                    const qtyInput = lastRow.querySelector('.qty-input');
                     const cpuLoadInput = lastRow.querySelector('.k8s-cpu-load-input');
                     const ramLoadInput = lastRow.querySelector('.k8s-ram-load-input');
-                    const diskLoadInput = lastRow.querySelector('.k8s-disk-load-input');
                     const cintUsedInput = lastRow.querySelector('.k8s-cint-used-input');
                     const ramUsedInput = lastRow.querySelector('.k8s-ram-used-input');
-                    const diskUsedInput = lastRow.querySelector('.k8s-disk-used-input');
 
                     if (ipInput) ipInput.value = row.ip || '';
-                    if (qtyInput) qtyInput.value = row.quantity || '1';
                     if (cpuLoadInput) cpuLoadInput.value = row.cpuLoad || '';
                     if (ramLoadInput) ramLoadInput.value = row.ramLoad || '';
-                    if (diskLoadInput) diskLoadInput.value = row.diskLoad || '';
                     if (cintUsedInput) cintUsedInput.value = row.cintUsed || '';
                     if (ramUsedInput) ramUsedInput.value = row.ramUsed || '';
-                    if (diskUsedInput) diskUsedInput.value = row.diskUsed || '';
 
                     const k8sInputEvidenceImages = getEvidenceImagesFromRowData(row);
                     if (k8sInputEvidenceImages.length > 0) {
@@ -8259,6 +9496,32 @@ function loadK8SData(data) {
             });
             updateK8SInputConfigTotal();
         }
+    }
+
+    if (storageTbody) storageTbody.innerHTML = '';
+    if (data.storageInputTable && Array.isArray(data.storageInputTable) && data.storageInputTable.length > 0) {
+        data.storageInputTable.forEach(row => {
+            addK8SStorageInputRow();
+            const lastRow = storageTbody.lastElementChild;
+            if (!lastRow) return;
+
+            const ipInput = lastRow.querySelector('.k8s-storage-ip-input');
+            const partitionInput = lastRow.querySelector('.k8s-storage-partition-input');
+            const usedInput = lastRow.querySelector('.k8s-storage-used-input');
+            const noteInput = lastRow.querySelector('.k8s-storage-note-input');
+            const evalSelect = lastRow.querySelector('.k8s-storage-eval');
+            const adminNoteInput = lastRow.querySelector('.k8s-storage-admin-note');
+
+            if (ipInput) ipInput.value = row.ip || '';
+            if (partitionInput) partitionInput.value = row.partition || '';
+            if (usedInput) usedInput.value = row.used || '';
+            if (noteInput) noteInput.value = row.note || '';
+            if (evalSelect && row.adminEval) {
+                evalSelect.value = row.adminEval;
+                styleAdminSelect(evalSelect);
+            }
+            if (adminNoteInput) adminNoteInput.value = row.adminNote || '';
+        });
     }
 
     // Load POC and Sizing values
@@ -8293,12 +9556,19 @@ function loadK8SData(data) {
 
     // Load sizing result
     if (data.sizingResult && document.getElementById('k8s-result-container')) {
-        document.getElementById('k8s-result-container').innerHTML = data.sizingResult;
+        const container = document.getElementById('k8s-result-container');
+        container.innerHTML = data.sizingResult;
+        ensureK8SProposalSelectionUI(container, {
+            selectedProposalSource: data.selectedProposalSource || 'auto',
+            customProposalTable: data.customProposalTable || getDefaultK8SCustomProposalTable()
+        });
     }
 
     // Auto expand if has data
     if (data.pocValue || data.sizingValue || data.sizingResult ||
-        (data.baselineTable && data.baselineTable.length > 0)) {
+        (data.baselineTable && data.baselineTable.length > 0) ||
+        (data.inputConfigTable && data.inputConfigTable.length > 0) ||
+        (data.storageInputTable && data.storageInputTable.length > 0)) {
         const content = document.getElementById('module-k8s-content');
         const header = content?.previousElementSibling;
         if (content && !content.classList.contains('expanded')) {
@@ -8390,6 +9660,8 @@ function calculateLBFWSizing() {
     }
 
     const factor = sizing / poc;
+    const container = document.getElementById('lbfw-result-container');
+    const existingProposalState = getCurrentLBFWProposalState(container);
     const scaledUpload = peakUpload * factor;
     const scaledDownload = peakDownload * factor;
     const totalBandwidth = scaledUpload + scaledDownload;
@@ -8398,7 +9670,7 @@ function calculateLBFWSizing() {
     let html = '';
 
     html += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán băng thông</h4>`;
-    html += `<table class="sizing-table" style="margin-top:8px;">
+    html += `<table class="sizing-table" data-lbfw-proposal-table="1" style="margin-top:8px;">
                 <thead>
                     <tr>
                         <th style="width:50px;">STT</th>
@@ -8449,23 +9721,33 @@ function calculateLBFWSizing() {
                 </tbody>
             </table>`;
 
-    const container = document.getElementById('lbfw-result-container');
-    if (container) container.innerHTML = html;
+    html += buildLBFWCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
+
+    if (container) {
+        container.innerHTML = html;
+        ensureLBFWProposalSelectionUI(container, existingProposalState);
+    }
 }
 
 function collectLBFWData() {
+    const resultContainer = document.getElementById('lbfw-result-container');
+    syncTextareasInContainer(resultContainer);
+    const customProposalTable = collectLBFWCustomProposalTableData(resultContainer);
+    const selectedProposalSource = normalizeLBFWProposalSource(getLBFWSelectedProposalSource(resultContainer), customProposalTable);
+
     return {
         evidenceImages: collectLBFWEvidenceData(),
         peakUpload: document.getElementById('lbfw-peak-upload')?.value || '',
         peakDownload: document.getElementById('lbfw-peak-download')?.value || '',
         selectedInputRow: document.getElementById('lbfw-input-row-select')?.value || '',
+        selectedInputRowLabel: getSelectedInputRowLabel('lbfw-input-row-select'),
         pocValue: document.getElementById('lbfw-poc-value')?.value || '',
         sizingValue: document.getElementById('lbfw-sizing-value')?.value || '',
+        selectedProposalSource: selectedProposalSource,
+        customProposalTable: customProposalTable,
         sizingResult: (() => {
-            const container = document.getElementById('lbfw-result-container');
-            if (container) {
-                container.querySelectorAll('textarea').forEach(ta => { ta.textContent = ta.value; });
-                return container.innerHTML;
+            if (resultContainer) {
+                return resultContainer.innerHTML;
             }
             return '';
         })()
@@ -8525,7 +9807,12 @@ function loadLBFWData(data) {
 
     // Load sizing result
     if (data.sizingResult && document.getElementById('lbfw-result-container')) {
-        document.getElementById('lbfw-result-container').innerHTML = data.sizingResult;
+        const container = document.getElementById('lbfw-result-container');
+        container.innerHTML = data.sizingResult;
+        ensureLBFWProposalSelectionUI(container, {
+            selectedProposalSource: data.selectedProposalSource || 'auto',
+            customProposalTable: data.customProposalTable || getDefaultLBFWCustomProposalTable()
+        });
     }
 
     // Auto expand if has data
@@ -8540,11 +9827,479 @@ function loadLBFWData(data) {
     }
 }
 
+function getDefaultK8SCustomProposalTable() {
+    return [
+        {
+            component: 'K8S Master',
+            configurationText: '',
+            quantity: '',
+            note: ''
+        },
+        {
+            component: 'K8S Worker',
+            configurationText: '',
+            quantity: '',
+            note: ''
+        },
+        {
+            component: 'K8S ETCD',
+            configurationText: '',
+            quantity: '',
+            note: ''
+        }
+    ];
+}
+
+function normalizeK8SCustomProposalTable(rows) {
+    const defaults = getDefaultK8SCustomProposalTable();
+    if (!Array.isArray(rows)) return defaults;
+
+    const rowMap = new Map();
+    rows.forEach(row => {
+        const component = String(row?.component || '').trim();
+        if (component) {
+            rowMap.set(component.toLowerCase(), {
+                component,
+                configurationText: String(row?.configurationText || ''),
+                quantity: String(row?.quantity || ''),
+                note: String(row?.note || '')
+            });
+        }
+    });
+
+    return defaults.map(defaultRow => {
+        const current = rowMap.get(defaultRow.component.toLowerCase()) || {};
+        return {
+            component: defaultRow.component,
+            configurationText: String(current.configurationText || ''),
+            quantity: String(current.quantity || ''),
+            note: String(current.note || '')
+        };
+    });
+}
+
+function isK8SCustomProposalTableFilled(customProposalTable) {
+    return normalizeK8SCustomProposalTable(customProposalTable)
+        .some(row => row.configurationText.trim());
+}
+
+function normalizeK8SProposalSource(source, customProposalTable) {
+    return source === 'custom' && isK8SCustomProposalTableFilled(customProposalTable) ? 'custom' : 'auto';
+}
+
+function collectK8SCustomProposalTableData(container) {
+    if (!container) return getDefaultK8SCustomProposalTable();
+    const rows = [];
+    container.querySelectorAll('.k8s-custom-proposal-row').forEach(row => {
+        rows.push({
+            component: row.dataset.component || '',
+            configurationText: row.querySelector('.k8s-custom-proposal-config')?.value || '',
+            quantity: row.querySelector('.k8s-custom-proposal-qty')?.value || '',
+            note: row.querySelector('.k8s-custom-proposal-note')?.value || ''
+        });
+    });
+    return normalizeK8SCustomProposalTable(rows);
+}
+
+function getK8SSelectedProposalSource(container) {
+    const value = container?.querySelector('.k8s-proposal-source-select')?.value || 'auto';
+    return value === 'custom' ? 'custom' : 'auto';
+}
+
+function getCurrentK8SProposalState(container) {
+    return {
+        selectedProposalSource: getK8SSelectedProposalSource(container),
+        customProposalTable: collectK8SCustomProposalTableData(container)
+    };
+}
+
+function updateK8SProposalSourceUI(container, selectedSource = 'auto') {
+    if (!container) return;
+
+    const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const select = container.querySelector('.k8s-proposal-source-select');
+    const toolHeading = container.querySelector('.k8s-tool-proposal-heading');
+    const customHeading = container.querySelector('.k8s-custom-proposal-heading');
+    const autoTable = container.querySelector('[data-k8s-proposal-table="1"]');
+    const customTable = container.querySelector('[data-k8s-custom-proposal-table="1"]');
+
+    if (select) select.value = normalizedSource;
+    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+        ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
+        : 'Đề xuất cấu hình do tool tạo';
+    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+        ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
+        : 'Đề xuất cấu hình tùy chỉnh';
+
+    if (autoTable) {
+        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+    }
+    if (customTable) {
+        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+    }
+}
+
+function handleK8SProposalSourceChange(selectEl) {
+    const container = selectEl?.closest('#k8s-result-container');
+    if (!container) return;
+
+    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
+    const customProposalTable = collectK8SCustomProposalTableData(container);
+    if (selectedSource === 'custom' && !isK8SCustomProposalTableFilled(customProposalTable)) {
+        showToast('Vui lòng nhập ít nhất một dòng cấu hình tùy chỉnh trước khi chọn sử dụng.', 'warning');
+        selectedSource = 'auto';
+    }
+
+    updateK8SProposalSourceUI(container, selectedSource);
+    try { aggregateSizingResults(); } catch (e) { }
+}
+
+function buildK8SCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
+    const normalizedRows = normalizeK8SCustomProposalTable(customProposalTable);
+    const normalizedSource = normalizeK8SProposalSource(selectedProposalSource, normalizedRows);
+
+    return `
+        <div class="k8s-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <select class="input-full k8s-proposal-source-select" onchange="handleK8SProposalSourceChange(this)">
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+            </select>
+        </div>
+        <h4 class="k8s-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+        <table class="sizing-table k8s-custom-proposal-table" data-k8s-custom-proposal-table="1" style="margin-top:8px;">
+            <thead>
+                <tr>
+                    <th style="width:150px;">Thành phần</th>
+                    <th style="width:250px;">Cấu hình</th>
+                    <th style="width:100px;">Số lượng</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${normalizedRows.map(row => `
+                    <tr class="k8s-custom-proposal-row" data-component="${escapeHtml(row.component)}">
+                        <td><strong>${escapeHtml(row.component)}</strong></td>
+                        <td><textarea class="input-full k8s-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình">${escapeHtml(row.configurationText)}</textarea></td>
+                        <td class="text-center"><input type="text" class="input-full text-center k8s-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng"></td>
+                        <td><textarea class="input-full k8s-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(row.note)}</textarea></td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>`;
+}
+
+function ensureK8SProposalSelectionUI(container, options = {}) {
+    if (!container) return;
+
+    let autoTable = container.querySelector('[data-k8s-proposal-table="1"]');
+    if (!autoTable) {
+        const tables = container.querySelectorAll('table.sizing-table');
+        autoTable = tables.length ? tables[tables.length - 1] : null;
+        if (autoTable) {
+            autoTable.setAttribute('data-k8s-proposal-table', '1');
+        }
+    }
+    if (!autoTable) return;
+
+    const toolHeading = autoTable.previousElementSibling;
+    if (toolHeading && toolHeading.tagName === 'H4') {
+        toolHeading.classList.add('k8s-tool-proposal-heading');
+    }
+
+    if (!container.querySelector('[data-k8s-custom-proposal-table="1"]')) {
+        autoTable.insertAdjacentHTML(
+            'afterend',
+            buildK8SCustomProposalSectionHtml(
+                options.selectedProposalSource || 'auto',
+                options.customProposalTable || getDefaultK8SCustomProposalTable()
+            )
+        );
+    }
+
+    const normalizedRows = normalizeK8SCustomProposalTable(options.customProposalTable || collectK8SCustomProposalTableData(container));
+    container.querySelectorAll('.k8s-custom-proposal-row').forEach(row => {
+        const component = row.dataset.component || '';
+        const rowData = normalizedRows.find(item => item.component === component) || { configurationText: '', quantity: '', note: '' };
+        const configInput = row.querySelector('.k8s-custom-proposal-config');
+        const qtyInput = row.querySelector('.k8s-custom-proposal-qty');
+        const noteInput = row.querySelector('.k8s-custom-proposal-note');
+        if (configInput) configInput.value = rowData.configurationText;
+        if (qtyInput) qtyInput.value = rowData.quantity;
+        if (noteInput) noteInput.value = rowData.note;
+    });
+
+    updateK8SProposalSourceUI(container, normalizeK8SProposalSource(options.selectedProposalSource || 'auto', normalizedRows));
+}
+
+function buildEffectiveK8SCustomProposalData(customProposalTable) {
+    const normalizedRows = normalizeK8SCustomProposalTable(customProposalTable);
+    const results = [];
+
+    normalizedRows.forEach(row => {
+        const lines = row.configurationText
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(Boolean);
+        if (lines.length === 0) return;
+
+        results.push({
+            module: row.component,
+            cauHinh: lines.map(line => `- ${escapeHtml(line)}`).join('<br>'),
+            soLuong: row.quantity.trim(),
+            ghiChu: row.note.trim()
+        });
+    });
+
+    return results.length > 0 ? results : null;
+}
+
+function resolveEffectiveK8SProposalResult(k8sState = {}) {
+    const resultHTML = k8sState.resultHTML || '';
+    const autoParsed = parseK8SSizingResult(resultHTML);
+    const customProposalTable = normalizeK8SCustomProposalTable(k8sState.customProposalTable);
+    const selectedProposalSource = normalizeK8SProposalSource(k8sState.selectedProposalSource || 'auto', customProposalTable);
+
+    if (selectedProposalSource === 'custom') {
+        const customParsed = buildEffectiveK8SCustomProposalData(customProposalTable);
+        if (customParsed) {
+            return customParsed;
+        }
+    }
+
+    return autoParsed;
+}
+
+function getDefaultLBFWCustomProposalTable() {
+    return {
+        component: 'FW/LB',
+        configurationText: '',
+        quantity: '',
+        note: ''
+    };
+}
+
+function normalizeLBFWCustomProposalTable(data) {
+    const defaults = getDefaultLBFWCustomProposalTable();
+    if (!data || typeof data !== 'object') return defaults;
+    return {
+        component: defaults.component,
+        configurationText: String(data.configurationText || ''),
+        quantity: String(data.quantity || ''),
+        note: String(data.note || '')
+    };
+}
+
+function isLBFWCustomProposalTableFilled(customProposalTable) {
+    return !!normalizeLBFWCustomProposalTable(customProposalTable).configurationText.trim();
+}
+
+function normalizeLBFWProposalSource(source, customProposalTable) {
+    return source === 'custom' && isLBFWCustomProposalTableFilled(customProposalTable) ? 'custom' : 'auto';
+}
+
+function collectLBFWCustomProposalTableData(container) {
+    if (!container) return getDefaultLBFWCustomProposalTable();
+    return normalizeLBFWCustomProposalTable({
+        configurationText: container.querySelector('.lbfw-custom-proposal-config')?.value || '',
+        quantity: container.querySelector('.lbfw-custom-proposal-qty')?.value || '',
+        note: container.querySelector('.lbfw-custom-proposal-note')?.value || ''
+    });
+}
+
+function getLBFWSelectedProposalSource(container) {
+    const value = container?.querySelector('.lbfw-proposal-source-select')?.value || 'auto';
+    return value === 'custom' ? 'custom' : 'auto';
+}
+
+function getCurrentLBFWProposalState(container) {
+    return {
+        selectedProposalSource: getLBFWSelectedProposalSource(container),
+        customProposalTable: collectLBFWCustomProposalTableData(container)
+    };
+}
+
+function updateLBFWProposalSourceUI(container, selectedSource = 'auto') {
+    if (!container) return;
+
+    const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const select = container.querySelector('.lbfw-proposal-source-select');
+    const toolHeading = container.querySelector('.lbfw-tool-proposal-heading');
+    const customHeading = container.querySelector('.lbfw-custom-proposal-heading');
+    const autoTable = container.querySelector('[data-lbfw-proposal-table="1"]');
+    const customTable = container.querySelector('[data-lbfw-custom-proposal-table="1"]');
+
+    if (select) select.value = normalizedSource;
+    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+        ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
+        : 'Đề xuất cấu hình do tool tạo';
+    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+        ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
+        : 'Đề xuất cấu hình tùy chỉnh';
+
+    if (autoTable) {
+        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+    }
+    if (customTable) {
+        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+    }
+}
+
+function handleLBFWProposalSourceChange(selectEl) {
+    const container = selectEl?.closest('#lbfw-result-container');
+    if (!container) return;
+
+    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
+    const customProposalTable = collectLBFWCustomProposalTableData(container);
+    if (selectedSource === 'custom' && !isLBFWCustomProposalTableFilled(customProposalTable)) {
+        showToast('Vui lòng nhập thông lượng tùy chỉnh trước khi chọn sử dụng.', 'warning');
+        selectedSource = 'auto';
+    }
+
+    updateLBFWProposalSourceUI(container, selectedSource);
+    try { aggregateSizingResults(); } catch (e) { }
+}
+
+function buildLBFWCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
+    const normalizedTable = normalizeLBFWCustomProposalTable(customProposalTable);
+    const normalizedSource = normalizeLBFWProposalSource(selectedProposalSource, normalizedTable);
+
+    return `
+        <div class="lbfw-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <select class="input-full lbfw-proposal-source-select" onchange="handleLBFWProposalSourceChange(this)">
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+            </select>
+        </div>
+        <h4 class="lbfw-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+        <table class="sizing-table lbfw-custom-proposal-table" data-lbfw-custom-proposal-table="1" style="margin-top:8px;">
+            <thead>
+                <tr>
+                    <th style="width:150px;">Thành phần</th>
+                    <th style="width:250px;">Thông lượng</th>
+                    <th style="width:100px;">Số lượng</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>FW/LB</strong></td>
+                    <td><textarea class="input-full lbfw-custom-proposal-config" rows="3" style="resize:vertical;min-height:72px;" placeholder="Ví dụ: Thông lượng < 2.5000 Gbps">${escapeHtml(normalizedTable.configurationText)}</textarea></td>
+                    <td class="text-center"><input type="text" class="input-full text-center lbfw-custom-proposal-qty" value="${escapeHtml(normalizedTable.quantity)}" placeholder="Số lượng"></td>
+                    <td><textarea class="input-full lbfw-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedTable.note)}</textarea></td>
+                </tr>
+            </tbody>
+        </table>`;
+}
+
+function ensureLBFWProposalSelectionUI(container, options = {}) {
+    if (!container) return;
+
+    let autoTable = container.querySelector('[data-lbfw-proposal-table="1"]');
+    if (!autoTable) {
+        const tables = container.querySelectorAll('table.sizing-table');
+        autoTable = tables.length ? tables[tables.length - 1] : null;
+        if (autoTable) {
+            autoTable.setAttribute('data-lbfw-proposal-table', '1');
+        }
+    }
+    if (!autoTable) return;
+
+    const toolHeading = autoTable.previousElementSibling;
+    if (toolHeading && toolHeading.tagName === 'H4') {
+        toolHeading.classList.add('lbfw-tool-proposal-heading');
+    }
+
+    if (!container.querySelector('[data-lbfw-custom-proposal-table="1"]')) {
+        autoTable.insertAdjacentHTML(
+            'afterend',
+            buildLBFWCustomProposalSectionHtml(
+                options.selectedProposalSource || 'auto',
+                options.customProposalTable || getDefaultLBFWCustomProposalTable()
+            )
+        );
+    }
+
+    const normalizedTable = normalizeLBFWCustomProposalTable(options.customProposalTable || collectLBFWCustomProposalTableData(container));
+    const configInput = container.querySelector('.lbfw-custom-proposal-config');
+    const qtyInput = container.querySelector('.lbfw-custom-proposal-qty');
+    const noteInput = container.querySelector('.lbfw-custom-proposal-note');
+    if (configInput) configInput.value = normalizedTable.configurationText;
+    if (qtyInput) qtyInput.value = normalizedTable.quantity;
+    if (noteInput) noteInput.value = normalizedTable.note;
+
+    updateLBFWProposalSourceUI(container, normalizeLBFWProposalSource(options.selectedProposalSource || 'auto', normalizedTable));
+}
+
+function buildEffectiveLBFWCustomProposalData(customProposalTable) {
+    const normalizedTable = normalizeLBFWCustomProposalTable(customProposalTable);
+    if (!normalizedTable.configurationText.trim()) return null;
+    return {
+        cauHinh: escapeHtml(normalizedTable.configurationText).replace(/\r?\n/g, '<br>'),
+        soLuong: normalizedTable.quantity.trim(),
+        ghiChu: normalizedTable.note.trim()
+    };
+}
+
+function resolveEffectiveLBFWProposalResult(lbfwState = {}) {
+    const resultHTML = lbfwState.resultHTML || '';
+    const autoParsed = parseLBFWSizingResult(resultHTML);
+    const customProposalTable = normalizeLBFWCustomProposalTable(lbfwState.customProposalTable);
+    const selectedProposalSource = normalizeLBFWProposalSource(lbfwState.selectedProposalSource || 'auto', customProposalTable);
+
+    if (selectedProposalSource === 'custom') {
+        const customParsed = buildEffectiveLBFWCustomProposalData(customProposalTable);
+        if (customParsed) {
+            return customParsed;
+        }
+    }
+
+    return autoParsed;
+}
+
 // Parse kết quả Module K8S
 function parseK8SSizingResult(html) {
     if (!html || html.trim() === '') return null;
 
     const cleanText = (raw) => (raw || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const toDisplayLines = (raw) => {
+        const listItems = Array.from((raw || '').matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)).map(m => cleanText(m[1])).filter(Boolean);
+        if (listItems.length > 0) {
+            return listItems.map(item => `- ${item}`).join('<br>');
+        }
+        return cleanText(raw).replace(/\n/g, '<br>');
+    };
+
+    const proposalTableMatch = html.match(/<table[^>]*data-k8s-proposal-table="1"[^>]*>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>[\s\S]*?<\/table>/i);
+    if (proposalTableMatch) {
+        const rowMatches = Array.from(proposalTableMatch[1].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi));
+        const results = [];
+
+        rowMatches.forEach(match => {
+            const tdMatches = Array.from(match[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map(m => m[1]);
+            if (tdMatches.length < 4) return;
+
+            const componentName = cleanText(tdMatches[0]);
+            if (!componentName) return;
+
+            const quantityText = cleanText(tdMatches[2]);
+            results.push({
+                module: componentName,
+                cauHinh: toDisplayLines(tdMatches[1]),
+                soLuong: (quantityText.match(/\d+/) || [quantityText])[0] || '',
+                ghiChu: cleanText(tdMatches[3])
+            });
+        });
+
+        if (results.length > 0) {
+            return results;
+        }
+    }
 
     const configTableMatch = html.match(/Đề xuất cấu hình[\s\S]*?<table[^>]*>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>[\s\S]*?<\/table>/i);
     if (!configTableMatch) return null;
@@ -8859,6 +10614,8 @@ function calculateMariaDBSizing() {
     // NAS = chỉ /backup cần
     const nasTotal = backupNeeded;
 
+    const container = document.getElementById('mariadb-result-container');
+    const existingProposalState = getCurrentMariaDBProposalState(container);
     let html = '';
 
     // ==================== CÔNG THỨC TÍNH ====================
@@ -8875,11 +10632,11 @@ function calculateMariaDBSizing() {
     </div>`;
 
     // ==================== BẢNG KẾT QUẢ ====================
-    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+    html += `<h4 class="mariadb-tool-proposal-heading" style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
     </h4>`;
 
-    html += `<table class="sizing-table" style="margin-top: 10px;">
+    html += `<table class="sizing-table" data-mariadb-proposal-table="1" style="margin-top: 10px;">
         <thead>
             <tr>
                 <th style="width: 120px;">Thành phần</th>
@@ -8923,8 +10680,12 @@ function calculateMariaDBSizing() {
         </tbody>
     </table>`;
 
-    const container = document.getElementById('mariadb-result-container');
-    if (container) container.innerHTML = html;
+    html += buildMariaDBCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
+
+    if (container) {
+        container.innerHTML = html;
+        ensureMariaDBProposalSelectionUI(container, existingProposalState);
+    }
 }
 
 // Load dữ liệu MariaDB từ DB
@@ -8998,7 +10759,13 @@ function loadMariaDBData(data) {
     // Load result if exists
     if (data.resultHTML) {
         const container = document.getElementById('mariadb-result-container');
-        if (container) container.innerHTML = data.resultHTML;
+        if (container) {
+            container.innerHTML = data.resultHTML;
+            ensureMariaDBProposalSelectionUI(container, {
+                selectedProposalSource: data.selectedProposalSource || 'auto',
+                customProposalTable: data.customProposalTable || getDefaultMariaDBCustomProposalTable()
+            });
+        }
     }
 
     // Apply role permissions
@@ -9040,15 +10807,23 @@ function loadMariaDBRefEvidence(data) {
 
 // Thu thập dữ liệu MariaDB để lưu (user data only)
 function collectMariaDBData() {
+    const resultContainer = document.getElementById('mariadb-result-container');
+    syncTextareasInContainer(resultContainer);
+    const customProposalTable = collectMariaDBCustomProposalTableData(resultContainer);
+    const selectedProposalSource = normalizeMariaDBProposalSource(getMariaDBSelectedProposalSource(resultContainer), customProposalTable);
+
     return {
         refTable: collectMariaDBRefTableData(),
         storage: collectMariaDBStorageData(),
         note: document.getElementById('mariadb-note')?.value || '',
         replicationModel: document.getElementById('mariadb-replication-model')?.value || 'asynchronous',
         selectedInputRow: document.getElementById('mariadb-input-row-select')?.value || '',
+        selectedInputRowLabel: getSelectedInputRowLabel('mariadb-input-row-select'),
         inputCCU: document.getElementById('mariadb-input-ccu')?.value || '',
         sizingCCU: document.getElementById('mariadb-sizing-ccu')?.value || '',
-        resultHTML: document.getElementById('mariadb-result-container')?.innerHTML || ''
+        selectedProposalSource: selectedProposalSource,
+        customProposalTable: customProposalTable,
+        resultHTML: resultContainer?.innerHTML || ''
     };
 }
 
@@ -9500,6 +11275,8 @@ function calculateRedisKeyMethod() {
     const totalCapEl = document.getElementById('redis-total-capacity');
     if (totalCapEl) totalCapEl.innerText = C.toFixed(4);
 
+    const container = document.getElementById('redis-key-result-container');
+    const existingProposalState = getCurrentRedisProposalState(container);
     let html = '';
     let model = '';
     let vcpu = 0;
@@ -9564,11 +11341,11 @@ function calculateRedisKeyMethod() {
     </div>`;
 
     // Bảng kết quả
-    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+    html += `<h4 class="redis-tool-proposal-heading" style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
     </h4>`;
 
-    html += `<table class="sizing-table" style="margin-top: 10px;">
+    html += `<table class="sizing-table" data-redis-proposal-table="1" style="margin-top: 10px;">
         <thead>
             <tr>
                 <th style="width: 150px;">Thành phần</th>
@@ -9593,8 +11370,12 @@ function calculateRedisKeyMethod() {
         </tbody>
     </table>`;
 
-    const container = document.getElementById('redis-key-result-container');
-    if (container) container.innerHTML = html;
+    html += buildRedisCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
+
+    if (container) {
+        container.innerHTML = html;
+        ensureRedisProposalSelectionUI(container, existingProposalState);
+    }
 }
 
 // Tính toán theo phương pháp cấu hình hiện có
@@ -9626,6 +11407,8 @@ function calculateRedisConfigMethod() {
     // Sau đó áp dụng công thức tương tự phương pháp Key
     const C = ramNeeded;
 
+    const container = document.getElementById('redis-config-result-container');
+    const existingProposalState = getCurrentRedisProposalState(container);
     let html = '';
     let model = '';
     let vcpu = 0;
@@ -9686,11 +11469,11 @@ function calculateRedisConfigMethod() {
     </div>`;
 
     // Bảng kết quả
-    html += `<h4 style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
+    html += `<h4 class="redis-tool-proposal-heading" style="margin-top: 20px; margin-bottom: 10px; color: #2c5282;">
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình
     </h4>`;
 
-    html += `<table class="sizing-table" style="margin-top: 10px;">
+    html += `<table class="sizing-table" data-redis-proposal-table="1" style="margin-top: 10px;">
         <thead>
             <tr>
                 <th style="width: 150px;">Thành phần</th>
@@ -9715,8 +11498,12 @@ function calculateRedisConfigMethod() {
         </tbody>
     </table>`;
 
-    const container = document.getElementById('redis-config-result-container');
-    if (container) container.innerHTML = html;
+    html += buildRedisCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
+
+    if (container) {
+        container.innerHTML = html;
+        ensureRedisProposalSelectionUI(container, existingProposalState);
+    }
 }
 
 // Thu thập dữ liệu Redis để lưu
@@ -9724,30 +11511,44 @@ function collectRedisData() {
     // Xác định phương pháp đang chọn
     const keyBtn = document.getElementById('redis-method-key');
     const selectedMethod = keyBtn?.classList.contains('active') ? 'key' : 'config';
+    const keyResultContainer = document.getElementById('redis-key-result-container');
+    const configResultContainer = document.getElementById('redis-config-result-container');
+    syncTextareasInContainer(keyResultContainer);
+    syncTextareasInContainer(configResultContainer);
+    const keyCustomProposalTable = collectRedisCustomProposalTableData(keyResultContainer);
+    const keySelectedProposalSource = normalizeRedisProposalSource(getRedisSelectedProposalSource(keyResultContainer), keyCustomProposalTable);
+    const configCustomProposalTable = collectRedisCustomProposalTableData(configResultContainer);
+    const configSelectedProposalSource = normalizeRedisProposalSource(getRedisSelectedProposalSource(configResultContainer), configCustomProposalTable);
 
     return {
         selectedMethod: selectedMethod,
         // Phương pháp Key
         keyMethod: {
             selectedInputRow: document.getElementById('redis-key-input-row-select')?.value || '',
+            selectedInputRowLabel: getSelectedInputRowLabel('redis-key-input-row-select'),
             pocValue: document.getElementById('redis-key-poc')?.value || '',
             sizingValue: document.getElementById('redis-key-sizing')?.value || '',
             keyCountPoc: document.getElementById('redis-key-count-poc')?.value || '',
             keyCount: document.getElementById('redis-key-count')?.value || '',
             recordSize: document.getElementById('redis-record-size')?.value || '',
             importance: document.getElementById('redis-key-importance')?.value || 'normal',
+            selectedProposalSource: keySelectedProposalSource,
+            customProposalTable: keyCustomProposalTable,
             evidenceImages: collectRedisKeyEvidenceData(),
-            resultHTML: document.getElementById('redis-key-result-container')?.innerHTML || ''
+            resultHTML: keyResultContainer?.innerHTML || ''
         },
         // Phương pháp Config
         configMethod: {
             currentModel: document.getElementById('redis-current-model')?.value || 'cluster',
             configTable: collectRedisConfigTableData(),
             selectedInputRow: document.getElementById('redis-config-input-row-select')?.value || '',
+            selectedInputRowLabel: getSelectedInputRowLabel('redis-config-input-row-select'),
             inputCCU: document.getElementById('redis-config-input-ccu')?.value || '',
             sizingCCU: document.getElementById('redis-config-sizing-ccu')?.value || '',
             importance: document.getElementById('redis-config-importance')?.value || 'normal',
-            resultHTML: document.getElementById('redis-config-result-container')?.innerHTML || ''
+            selectedProposalSource: configSelectedProposalSource,
+            customProposalTable: configCustomProposalTable,
+            resultHTML: configResultContainer?.innerHTML || ''
         }
     };
 }
@@ -9799,7 +11600,13 @@ function loadRedisData(data) {
         // Load kết quả
         if (km.resultHTML) {
             const container = document.getElementById('redis-key-result-container');
-            if (container) container.innerHTML = km.resultHTML;
+            if (container) {
+                container.innerHTML = km.resultHTML;
+                ensureRedisProposalSelectionUI(container, {
+                    selectedProposalSource: km.selectedProposalSource || 'auto',
+                    customProposalTable: km.customProposalTable || getEmptyRedisCustomProposalTable()
+                });
+            }
         }
     }
 
@@ -9840,7 +11647,13 @@ function loadRedisData(data) {
         // Load kết quả
         if (cm.resultHTML) {
             const container = document.getElementById('redis-config-result-container');
-            if (container) container.innerHTML = cm.resultHTML;
+            if (container) {
+                container.innerHTML = cm.resultHTML;
+                ensureRedisProposalSelectionUI(container, {
+                    selectedProposalSource: cm.selectedProposalSource || 'auto',
+                    customProposalTable: cm.customProposalTable || getEmptyRedisCustomProposalTable()
+                });
+            }
         }
     }
 }
@@ -10194,6 +12007,8 @@ function calculateKafkaThroughputMethod() {
 
     // vCPU: A < 50MB/s: 8 vCPU; A >= 50MB/s: 16 vCPU
     const vCPU = A < 50 ? 8 : 16;
+    const container = document.getElementById('kafka-throughput-result-container');
+    const existingProposalState = getCurrentKafkaProposalState(container);
 
     let html = '';
 
@@ -10226,7 +12041,7 @@ function calculateKafkaThroughputMethod() {
         <i class="fa-solid fa-table"></i> Bảng phân bổ theo số lượng Broker (N)
     </h4>`;
 
-    html += `<table class="sizing-table" style="margin-top: 10px;">
+    html += `<table class="sizing-table" data-kafka-proposal-table="1" style="margin-top: 10px;">
         <thead>
             <tr>
                 <th style="width: 80px;">N (Broker)</th>
@@ -10258,7 +12073,7 @@ function calculateKafkaThroughputMethod() {
         <i class="fa-solid fa-clipboard-check"></i> Kết quả đề xuất cấu hình (N = ${optimalN})
     </h4>`;
 
-    html += `<table class="sizing-table" style="margin-top: 10px;">
+    html += `<table class="sizing-table" data-kafka-proposal-table="1" style="margin-top: 10px;">
         <thead>
             <tr>
                 <th style="width: 150px;">Thành phần</th>
@@ -10294,8 +12109,15 @@ function calculateKafkaThroughputMethod() {
         </p>
     </div>`;
 
-    const container = document.getElementById('kafka-throughput-result-container');
-    if (container) container.innerHTML = html;
+    html += buildKafkaCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
+
+    if (container) {
+        container.innerHTML = html;
+        const tables = container.querySelectorAll('table.sizing-table');
+        if (tables[0]) tables[0].removeAttribute('data-kafka-proposal-table');
+        if (tables[1]) tables[1].setAttribute('data-kafka-proposal-table', '1');
+        ensureKafkaProposalSelectionUI(container, existingProposalState);
+    }
 }
 
 // Tính toán theo phương pháp Linear (Existing System)
@@ -10355,6 +12177,8 @@ function calculateKafkaLinearMethod() {
     const cpuPerNode = Math.ceil(cpuNeeded / optimalN);
     const ramPerNode = Math.ceil(ramNeeded / optimalN);
     const diskPerNode = Math.ceil(diskNeeded / optimalN);
+    const container = document.getElementById('kafka-linear-result-container');
+    const existingProposalState = getCurrentKafkaProposalState(container);
 
     let html = '';
 
@@ -10449,20 +12273,34 @@ function calculateKafkaLinearMethod() {
         </tfoot>
     </table>`;
 
-    const container = document.getElementById('kafka-linear-result-container');
-    if (container) container.innerHTML = html;
+    html += buildKafkaCustomProposalSectionHtml(existingProposalState.selectedProposalSource, existingProposalState.customProposalTable);
+
+    if (container) {
+        container.innerHTML = html;
+        const tables = container.querySelectorAll('table.sizing-table');
+        if (tables[0]) tables[0].removeAttribute('data-kafka-proposal-table');
+        if (tables[1]) tables[1].setAttribute('data-kafka-proposal-table', '1');
+        ensureKafkaProposalSelectionUI(container, existingProposalState);
+    }
 }
 
 // Thu thập dữ liệu Kafka để lưu
 function collectKafkaData() {
     const throughputBtn = document.getElementById('kafka-method-throughput');
     const selectedMethod = throughputBtn?.classList.contains('active') ? 'throughput' : 'linear';
+    const throughputResultContainer = document.getElementById('kafka-throughput-result-container');
+    const linearResultContainer = document.getElementById('kafka-linear-result-container');
+    const throughputCustomProposalTable = collectKafkaCustomProposalTableData(throughputResultContainer);
+    const throughputSelectedProposalSource = normalizeKafkaProposalSource(getKafkaSelectedProposalSource(throughputResultContainer), throughputCustomProposalTable);
+    const linearCustomProposalTable = collectKafkaCustomProposalTableData(linearResultContainer);
+    const linearSelectedProposalSource = normalizeKafkaProposalSource(getKafkaSelectedProposalSource(linearResultContainer), linearCustomProposalTable);
 
     return {
         selectedMethod: selectedMethod,
         // Phương pháp Throughput
         throughputMethod: {
             selectedInputRow: document.getElementById('kafka-throughput-input-row-select')?.value || '',
+            selectedInputRowLabel: getSelectedInputRowLabel('kafka-throughput-input-row-select'),
             inputCCU: document.getElementById('kafka-throughput-input-ccu')?.value || '',
             sizingCCU: document.getElementById('kafka-throughput-sizing-ccu')?.value || '',
             throughputA: document.getElementById('kafka-throughput-a')?.value || '',
@@ -10471,7 +12309,9 @@ function collectKafkaData() {
             compression: document.getElementById('kafka-compression')?.value || '0.5',
             throughputEvidence: collectKafkaEvidenceData('kafka-throughput-evidence-grid'),
             compressionEvidence: collectKafkaEvidenceData('kafka-compression-evidence-grid'),
-            resultHTML: document.getElementById('kafka-throughput-result-container')?.innerHTML || '',
+            selectedProposalSource: throughputSelectedProposalSource,
+            customProposalTable: throughputCustomProposalTable,
+            resultHTML: throughputResultContainer?.innerHTML || '',
             // Helper tool data
             helperMsgCount: document.getElementById('kafka-helper-msg-count')?.value || '',
             helperMsgSize: document.getElementById('kafka-helper-msg-size')?.value || '',
@@ -10482,9 +12322,12 @@ function collectKafkaData() {
         linearMethod: {
             linearTable: collectKafkaLinearTableData(),
             selectedInputRow: document.getElementById('kafka-linear-input-row-select')?.value || '',
+            selectedInputRowLabel: getSelectedInputRowLabel('kafka-linear-input-row-select'),
             inputCCU: document.getElementById('kafka-linear-input-ccu')?.value || '',
             sizingCCU: document.getElementById('kafka-linear-sizing-ccu')?.value || '',
-            resultHTML: document.getElementById('kafka-linear-result-container')?.innerHTML || ''
+            selectedProposalSource: linearSelectedProposalSource,
+            customProposalTable: linearCustomProposalTable,
+            resultHTML: linearResultContainer?.innerHTML || ''
         }
     };
 }
@@ -10528,7 +12371,13 @@ function loadKafkaData(data) {
         // Load kết quả
         if (tm.resultHTML) {
             const container = document.getElementById('kafka-throughput-result-container');
-            if (container) container.innerHTML = tm.resultHTML;
+            if (container) {
+                container.innerHTML = tm.resultHTML;
+                ensureKafkaProposalSelectionUI(container, {
+                    selectedProposalSource: tm.selectedProposalSource || 'auto',
+                    customProposalTable: tm.customProposalTable || getDefaultKafkaCustomProposalTable()
+                });
+            }
         }
     }
 
@@ -10570,7 +12419,13 @@ function loadKafkaData(data) {
         // Load kết quả
         if (lm.resultHTML) {
             const container = document.getElementById('kafka-linear-result-container');
-            if (container) container.innerHTML = lm.resultHTML;
+            if (container) {
+                container.innerHTML = lm.resultHTML;
+                ensureKafkaProposalSelectionUI(container, {
+                    selectedProposalSource: lm.selectedProposalSource || 'auto',
+                    customProposalTable: lm.customProposalTable || getDefaultKafkaCustomProposalTable()
+                });
+            }
         }
     }
 }
@@ -11863,6 +13718,131 @@ function renderSizingDiff(snapshot, prevSnapshot) {
     if (kafkaHtml) {
         html += `<div style="margin-bottom:20px; padding:12px; background:#f0fdf4; border-radius:8px; border-left:4px solid #22c55e;">
             <h4 style="margin:0 0 10px 0; color:#166534;"><i class="fa-solid fa-stream"></i> Module Kafka</h4>${kafkaHtml}</div>`;
+    }
+
+    // ===================== MODULE K8S =====================
+    const moduleK8S = data.moduleK8S || {};
+    const prevModuleK8S = prevData.moduleK8S || {};
+    let k8sHtml = '';
+
+    const k8sPocVal = moduleK8S.pocValue || '';
+    const k8sSizVal = moduleK8S.sizingValue || '';
+    if (k8sPocVal || k8sSizVal) {
+        k8sHtml += `<div class="diff-item"><strong>Tải hệ thống POC:</strong> ${prevSnapshot ? renderTextDiff(k8sPocVal, prevModuleK8S.pocValue) : (k8sPocVal || '-')} &nbsp; | &nbsp; <strong>Định cỡ:</strong> ${prevSnapshot ? renderTextDiff(k8sSizVal, prevModuleK8S.sizingValue) : (k8sSizVal || '-')}</div>`;
+    }
+
+    const k8sBaselineRows = moduleK8S.baselineTable || [];
+    const k8sBaselineReviews = ((adminReview.moduleK8S || {}).baselineRowReviews) || [];
+    if (k8sBaselineRows.length > 0) {
+        const prevK8SBaselineRows = prevModuleK8S.baselineTable || [];
+        const baselineRowsHtml = k8sBaselineRows.map((row, i) => {
+            const prev = prevK8SBaselineRows[i] || {};
+            const ar = k8sBaselineReviews[i] || {};
+            return `<tr>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.ip, prev.ip) : (row.ip || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.cpu, prev.cpu) : (row.cpu || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.ram, prev.ram) : (row.ram || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.disk, prev.disk) : (row.disk || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.cintRate, prev.cintRate) : (row.cintRate || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(ar.eval, null)}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${ar.note || '-'}</td>
+            </tr>`;
+        }).join('');
+        k8sHtml += `<div class="diff-item"><strong>Hệ thống tham chiếu</strong>
+            <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
+                <thead><tr style="background:#f1f5f9;">
+                    <th style="padding:6px; border:1px solid #e2e8f0;">STT</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">IP</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">CPU</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">RAM</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Disk</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Cint</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
+                </tr></thead>
+                <tbody>${baselineRowsHtml}</tbody>
+            </table></div>`;
+    }
+
+    const k8sInputConfigRows = moduleK8S.inputConfigTable || [];
+    const k8sInputReviews = ((adminReview.moduleK8S || {}).inputConfigRowReviews) || [];
+    if (k8sInputConfigRows.length > 0) {
+        const prevK8SInputRows = prevModuleK8S.inputConfigTable || [];
+        const inputRowsHtml = k8sInputConfigRows.map((row, i) => {
+            const prev = prevK8SInputRows[i] || {};
+            const ar = k8sInputReviews[i] || {};
+            const evalVal = ar.eval || row.adminEval || '';
+            const noteVal = ar.note || row.adminNote || '';
+            return `<tr>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.ip, prev.ip) : (row.ip || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.cpuLoad, prev.cpuLoad) : (row.cpuLoad || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.ramLoad, prev.ramLoad) : (row.ramLoad || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.cintUsed || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${row.ramUsed || '-'}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(evalVal, null)}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${noteVal || '-'}</td>
+            </tr>`;
+        }).join('');
+        k8sHtml += `<div class="diff-item"><strong>Thông tin tải đầu vào</strong>
+            <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
+                <thead><tr style="background:#f1f5f9;">
+                    <th style="padding:6px; border:1px solid #e2e8f0;">STT</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">IP</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">CPU Load %</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">RAM Load %</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Cint used</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">RAM used</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
+                </tr></thead>
+                <tbody>${inputRowsHtml}</tbody>
+            </table></div>`;
+    }
+
+    const k8sStorageRows = moduleK8S.storageInputTable || [];
+    const k8sStorageReviews = ((adminReview.moduleK8S || {}).storageRowReviews) || [];
+    if (k8sStorageRows.length > 0) {
+        const prevK8SStorageRows = prevModuleK8S.storageInputTable || [];
+        const storageRowsHtml = k8sStorageRows.map((row, i) => {
+            const prev = prevK8SStorageRows[i] || {};
+            const ar = k8sStorageReviews[i] || {};
+            const evalVal = ar.eval || row.adminEval || '';
+            const noteVal = ar.note || row.adminNote || '';
+            return `<tr>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.ip, prev.ip) : (row.ip || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.partition, prev.partition) : (row.partition || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.used, prev.used) : (row.used || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.note, prev.note) : (row.note || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(evalVal, null)}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${noteVal || '-'}</td>
+            </tr>`;
+        }).join('');
+        k8sHtml += `<div class="diff-item"><strong>Thông tin lưu trữ đầu vào</strong>
+            <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
+                <thead><tr style="background:#f1f5f9;">
+                    <th style="padding:6px; border:1px solid #e2e8f0;">STT</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">IP</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Phân vùng</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Used</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Ghi chú</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
+                </tr></thead>
+                <tbody>${storageRowsHtml}</tbody>
+            </table></div>`;
+    }
+
+    const k8sFlavorReview = (adminReview.moduleK8S || {}).flavorReview || {};
+    if (k8sFlavorReview.eval || k8sFlavorReview.note) {
+        k8sHtml += `<div class="diff-item"><strong>Đánh giá flavor:</strong> ${renderEvalDiff(k8sFlavorReview.eval, null)} <span style="color:#6366f1; font-style:italic;">${k8sFlavorReview.note || ''}</span></div>`;
+    }
+
+    if (k8sHtml) {
+        html += `<div style="margin-bottom:20px; padding:12px; background:#eff6ff; border-radius:8px; border-left:4px solid #2563eb;">
+            <h4 style="margin:0 0 10px 0; color:#1d4ed8;"><i class="fa-brands fa-kubernetes"></i> Module K8S</h4>${k8sHtml}</div>`;
     }
 
     if (!html.trim()) {
