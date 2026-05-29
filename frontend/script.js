@@ -3772,7 +3772,7 @@ function aggregateSizingResults() {
             const instanceName = getModuleInstanceDisplayName(instance);
 
             if (customData.selectedMethod === 'linearEquivalentApp') {
-                const parsed = resolveAppEffectiveProposalResult(customData.linearEquivalentApp || {});
+                const parsed = resolveEffectiveAppProposalResult(customData.linearEquivalentApp || {});
                 if (parsed) {
                     results.push({
                         stt: stt++,
