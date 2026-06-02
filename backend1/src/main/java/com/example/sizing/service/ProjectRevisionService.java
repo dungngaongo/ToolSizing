@@ -30,6 +30,7 @@ public class ProjectRevisionService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final ProjectDataAssetMigrationService projectDataAssetMigrationService;
 
     // Sau mỗi MAX_INCREMENTALS incremental revisions, tự động tạo baseline mới
     private static final int MAX_INCREMENTALS_BEFORE_BASELINE = 10;
@@ -45,12 +46,14 @@ public class ProjectRevisionService {
                                   ProjectDataRepository projectDataRepository,
                                   ProjectRepository projectRepository,
                                   UserRepository userRepository,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  ProjectDataAssetMigrationService projectDataAssetMigrationService) {
         this.projectRevisionRepository = projectRevisionRepository;
         this.projectDataRepository = projectDataRepository;
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
+        this.projectDataAssetMigrationService = projectDataAssetMigrationService;
     }
 
     /**
@@ -66,6 +69,13 @@ public class ProjectRevisionService {
         // Lấy ProjectData hiện tại
         ProjectData projectData = projectDataRepository.findFirstByProjectId(request.getProjectId())
                 .orElseThrow(() -> new ResourceNotFoundException("ProjectData", "projectId", request.getProjectId()));
+        ProjectDataAssetMigrationService.SanitizedProjectData sanitizedProjectData =
+                projectDataAssetMigrationService.sanitizeProjectData(projectData);
+        if (sanitizedProjectData.changed()) {
+            projectData = projectDataRepository.save(sanitizedProjectData.projectData());
+        } else {
+            projectData = sanitizedProjectData.projectData();
+        }
 
         // Tạo JSON snapshot đầy đủ từ ProjectData hiện tại
         String currentFullSnapshot;

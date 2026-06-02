@@ -31,17 +31,20 @@ public class ProjectService {
     private final ProjectRevisionRepository projectRevisionRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final ProjectAssetService projectAssetService;
 
     public ProjectService(ProjectRepository projectRepository,
                           ProjectDataRepository projectDataRepository,
                           ProjectRevisionRepository projectRevisionRepository,
                           UserRepository userRepository,
-                          ActivityLogService activityLogService) {
+                          ActivityLogService activityLogService,
+                          ProjectAssetService projectAssetService) {
         this.projectRepository = projectRepository;
         this.projectDataRepository = projectDataRepository;
         this.projectRevisionRepository = projectRevisionRepository;
         this.userRepository = userRepository;
         this.activityLogService = activityLogService;
+        this.projectAssetService = projectAssetService;
     }
 
     @Transactional
@@ -171,6 +174,7 @@ public class ProjectService {
         Project project = projectRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
         // Backward compatible cleanup for environments where FK cascade is not yet active.
+        projectAssetService.deleteProjectAssets(id);
         projectDataRepository.deleteByProjectId(id);
         projectRevisionRepository.deleteByProjectId(id);
         projectRepository.deleteById(id);
@@ -275,16 +279,19 @@ public class ProjectService {
         User currentUser = userRepository.findByUsername(username).orElse(null);
         if (currentUser == null) return false;
 
-        String role = currentUser.getRole() == null ? "user" : currentUser.getRole().toLowerCase();
-        if ("admin2".equals(role)) return true;
-
-        Project project = projectRepository.findById(projectId).orElse(null);
-        if (project == null) return false;
-
-        if ("admin1".equals(role)) {
-            return currentUser.getId().equals(project.getAssignedAdmin1Id());
+        boolean isAdmin2 = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN2".equalsIgnoreCase(a.getAuthority()));
+        if (isAdmin2) {
+            return true;
         }
-        return currentUser.getId().equals(project.getUserId());
+
+        boolean isAdmin1 = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN1".equalsIgnoreCase(a.getAuthority()));
+        if (isAdmin1) {
+            return projectRepository.existsByIdAndAssignedAdmin1_Id(projectId, currentUser.getId());
+        }
+
+        return projectRepository.existsByIdAndOwner_Id(projectId, currentUser.getId());
     }
 
     /**

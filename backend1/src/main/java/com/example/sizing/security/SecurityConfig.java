@@ -47,6 +47,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/", "/index.html", "/frontend/**", "/static/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/assets/*/content").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/projects/admin1-users").hasRole("ADMIN2")
                         .requestMatchers(HttpMethod.PUT, "/api/projects/*/assign-reviewer").hasRole("ADMIN2")

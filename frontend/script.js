@@ -24,6 +24,7 @@ const SLUG_TAB_MAP = Object.fromEntries(
     Object.entries(TAB_SLUG_MAP).map(([k, v]) => [v, k])
 );
 const TAB_FLOW_ORDER = ['page-request', 'page-input', 'page-model', 'page-sizing', 'page-summary'];
+let loadedProjectSections = new Set();
 
 /**
  * Tạo hash URL từ trạng thái hiện tại
@@ -1411,17 +1412,17 @@ async function openProject(projectId, options = {}) {
 
     // Hiển thị tab được chỉ định hoặc page-request mặc định
     const targetTab = options.tab || 'page-request';
-    showSection(targetTab, document.querySelector(`.side-menu a[onclick*="${targetTab}"]`), { skipPushState: true });
-
     currentProjectDataId = null;
     localStorage.removeItem('currentProjectDataId');
     revisionCheckedForSession = false; // Reset revision check cho project mới
 
     // Reset toàn bộ form trước khi load dữ liệu mới để tránh hiển thị dữ liệu cũ từ dự án trước
     resetAllForms();
+    loadedProjectSections.clear();
+    showSection(targetTab, document.querySelector(`.side-menu a[onclick*="${targetTab}"]`), { skipPushState: true, skipDataLoad: true });
 
     try {
-        await loadAllDataFromDB();
+        await loadAllDataFromDB({ targetSectionId: targetTab, force: true, resetLoadedSections: true });
 
         // Kiểm tra session editor: nếu account mới mở project -> tạo revision cho account cũ
         const user = getCurrentUser();
@@ -1525,7 +1526,8 @@ async function startNewProject() {
             document.getElementById('btn-back-to-list').style.display = 'inline-block';
 
             resetAllForms();
-            await loadAllDataFromDB();
+            loadedProjectSections.clear();
+            await loadAllDataFromDB({ targetSectionId: 'page-request', force: true, resetLoadedSections: true });
 
             // Cập nhật URL/history cho dự án mới
             pushAppState('project', project.id, 'page-request');
@@ -1682,11 +1684,21 @@ function resetAllForms() {
     if (document.getElementById('k8s-ram-flavor')) {
         document.getElementById('k8s-ram-flavor').value = '32';
     }
+    if (document.getElementById('custom-virtualization-mode')) {
+        document.getElementById('custom-virtualization-mode').value = 'ram';
+    }
+    if (document.getElementById('custom-vcpu-flavor')) {
+        document.getElementById('custom-vcpu-flavor').value = '8';
+    }
+    if (document.getElementById('custom-ram-flavor')) {
+        document.getElementById('custom-ram-flavor').value = '32';
+    }
     if (document.getElementById('mariadb-replication-model')) {
         document.getElementById('mariadb-replication-model').value = 'asynchronous';
     }
     onVirtualizationModeChange('app');
     onVirtualizationModeChange('k8s');
+    onVirtualizationModeChange('custom');
 
     // Clear all inline evidence previews (e.g. mariadb storage, etc.)
     document.querySelectorAll('.inline-evidence-preview').forEach(el => {
@@ -1725,6 +1737,128 @@ function resetAllForms() {
 
     // Always restore fixed sizing rule after global reset.
     applyFixedSizingRule();
+}
+
+function getProjectSectionApiName(sectionId) {
+    return TAB_SLUG_MAP[sectionId] || 'request';
+}
+
+function getSectionsToLoad(targetSectionId) {
+    const safeTarget = targetSectionId || 'page-request';
+    const targetIndex = TAB_FLOW_ORDER.indexOf(safeTarget);
+    if (targetIndex === -1) {
+        return ['page-request'];
+    }
+    return TAB_FLOW_ORDER.slice(0, targetIndex + 1);
+}
+
+function applyProjectSectionData(sectionId, sectionData) {
+    if (!sectionData) return;
+    if (sectionData.id) {
+        saveProjectDataIdToStorage(sectionData.id);
+    }
+
+    const content = sectionData.content;
+    const reviewJson = sectionData.reviewJson;
+
+    if (sectionId === 'page-request' && content) {
+        let parsed = JSON.parse(content);
+        if (reviewJson) {
+            try { parsed.adminReview = JSON.parse(reviewJson); } catch (e) { }
+        }
+        loadYeuCauBaiToan(parsed);
+        return;
+    }
+
+    if (sectionId === 'page-input') {
+        if (content) {
+            let parsed = JSON.parse(content);
+            if (reviewJson) {
+                try { parsed.adminReview = JSON.parse(reviewJson); } catch (e) { }
+            }
+            loadThongTinDauVao(parsed);
+        }
+        populatePocSizingDropdowns();
+        attachInputTableChangeListeners();
+        return;
+    }
+
+    if (sectionId === 'page-model' && (content || reviewJson)) {
+        const parsedContent = content ? JSON.parse(content) : {};
+        let parsedReview = null;
+        if (reviewJson) {
+            try {
+                parsedReview = JSON.parse(reviewJson);
+            } catch (e) {
+                parsedReview = { _raw: reviewJson };
+            }
+        }
+        loadMoHinhHeThong(parsedContent, parsedReview);
+        return;
+    }
+
+    if (sectionId === 'page-sizing') {
+        if (content) {
+            loadSizingData(content);
+        }
+        if (reviewJson) {
+            try {
+                loadSizingAdminReview(JSON.parse(reviewJson));
+            } catch (e) {
+                Logger.error('Error parsing sizing admin review:', e);
+            }
+        }
+        return;
+    }
+
+    if (sectionId === 'page-summary' && content) {
+        loadTongHop(JSON.parse(content));
+    }
+}
+
+async function loadProjectInfo() {
+    const projectResponse = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`);
+    if (projectResponse.ok) {
+        const project = await projectResponse.json();
+        currentProjectStatus = project.status || 'SIZING';
+        currentProjectStatusRound = project.statusRound || 1;
+        updateProjectStatusDisplay();
+    }
+
+    const sizingIframe = document.getElementById('sizing-iframe');
+    if (sizingIframe && currentProjectId) {
+        const baseUrl = sizingIframe.src.split('?')[0];
+        sizingIframe.src = `${baseUrl}?projectId=${currentProjectId}`;
+    }
+}
+
+async function loadProjectSection(sectionId, options = {}) {
+    if (!currentProjectId) return;
+
+    const force = !!options.force;
+    if (!force && loadedProjectSections.has(sectionId)) {
+        return;
+    }
+
+    const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}/section/${getProjectSectionApiName(sectionId)}`);
+    if (response.ok) {
+        const sectionData = await response.json();
+        applyProjectSectionData(sectionId, sectionData);
+    } else if (response.status !== 404) {
+        throw new Error(`Khong the tai du lieu ${getProjectSectionApiName(sectionId)} (${response.status})`);
+    }
+
+    loadedProjectSections.add(sectionId);
+}
+
+async function ensureSectionsLoadedFor(targetSectionId, options = {}) {
+    const sectionsToLoad = getSectionsToLoad(targetSectionId);
+    for (const sectionId of sectionsToLoad) {
+        await loadProjectSection(sectionId, options);
+    }
+    if (targetSectionId === 'page-summary') {
+        aggregateSizingResults();
+    }
 }
 
 // ==================== LOAD DATA FROM DATABASE ====================
@@ -1834,6 +1968,38 @@ async function loadAllDataFromDB() {
         });
     });
     // Fallback: setTimeout để xử lý trường hợp DOM render chậm (ảnh, bảng lớn)
+    setTimeout(() => {
+        window.scrollTo(scrollX, scrollY);
+    }, 150);
+}
+
+async function loadAllDataFromDB(options = {}) {
+    const scrollY = window.scrollY || window.pageYOffset;
+    const scrollX = window.scrollX || window.pageXOffset;
+    const targetSectionId = options.targetSectionId || document.querySelector('.page-section.active')?.id || 'page-request';
+    const force = options.force !== false;
+    const resetLoadedSections = options.resetLoadedSections !== false;
+
+    if (resetLoadedSections) {
+        loadedProjectSections.clear();
+    }
+
+    try {
+        await loadProjectInfo();
+        await ensureSectionsLoadedFor(targetSectionId, { force });
+        Logger.debug('Da tai du lieu project theo chuoi section thanh cong');
+    } catch (error) {
+        Logger.error('Loi khi tai du lieu:', error);
+        showToast('Loi khi tai du lieu du an: ' + error.message, 'error', 5000);
+    }
+
+    applyFixedSizingRule();
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            window.scrollTo(scrollX, scrollY);
+        });
+    });
     setTimeout(() => {
         window.scrollTo(scrollX, scrollY);
     }, 150);
@@ -2324,12 +2490,22 @@ function createInputTableRow(stt, data = {}) {
 
     // --- 1. XỬ LÝ ẢNH (POC) ---
     // Support multiple images per row: data.taiHeThongPOC = { text: '', pocEvidenceImages: [ {base64}, ... ] }
+    const normalizeRowImageList = (images) => (images || []).map(img => {
+        if (!img) return null;
+        if (typeof img === 'string') return { base64: img, dataUrl: img, url: img };
+        const src = resolveAssetSrc(img);
+        return Object.assign({}, img, {
+            base64: img.base64 || src,
+            dataUrl: img.dataUrl || src,
+            url: img.url || src
+        });
+    }).filter(Boolean);
     const pocText = (data.taiHeThongPOC && typeof data.taiHeThongPOC === 'object' && typeof data.taiHeThongPOC.text === 'string') ? data.taiHeThongPOC.text : '';
-    const pocImages = (data.taiHeThongPOC && Array.isArray(data.taiHeThongPOC.pocEvidenceImages)) ? data.taiHeThongPOC.pocEvidenceImages : (data.pocImage ? [{ base64: data.pocImage }] : []);
+    const pocImages = normalizeRowImageList((data.taiHeThongPOC && Array.isArray(data.taiHeThongPOC.pocEvidenceImages)) ? data.taiHeThongPOC.pocEvidenceImages : (data.pocImage ? [data.pocImage] : []));
 
     // --- 2. XỬ LÝ ẢNH (ĐỊNH CỠ) ---
     const sizingText = (data.dinhCo && typeof data.dinhCo === 'object' && typeof data.dinhCo.text === 'string') ? data.dinhCo.text : (typeof data.dinhCo === 'string' ? data.dinhCo : '');
-    const sizingImages = (data.dinhCo && Array.isArray(data.dinhCo.sizingEvidenceImages)) ? data.dinhCo.sizingEvidenceImages : (data.sizingImage ? [{ base64: data.sizingImage }] : []);
+    const sizingImages = normalizeRowImageList((data.dinhCo && Array.isArray(data.dinhCo.sizingEvidenceImages)) ? data.dinhCo.sizingEvidenceImages : (data.sizingImage ? [data.sizingImage] : []));
     // Show custom input only when "Khác" is selected
     const showCustomInput = dauVaoType === 'Khác' || (!dauVaoType);
 
@@ -2520,16 +2696,15 @@ function collectThongTinDauVao() {
         const getRowImages = (cellIndex) => {
             const container = cells[cellIndex]?.querySelector('.row-evidence-container');
             if (!container) return [];
-            // Buttons that store base64 in data-base64
-            const btns = container.querySelectorAll('.btn-view-evidence');
             const results = [];
-            btns.forEach(b => {
-                const b64 = b.getAttribute('data-base64');
-                if (b64) results.push({ base64: b64 });
+            container.querySelectorAll('.stored-evidence-img, .btn-view-evidence, img').forEach(node => {
+                const stored = readStoredAssetFromNode(node);
+                if (stored && !results.some(item => resolveAssetSrc(item) === resolveAssetSrc(stored))) {
+                    results.push(stored);
+                } else if (!stored && node.src) {
+                    results.push({ base64: node.src, dataUrl: node.src, url: node.src });
+                }
             });
-            // Fallback: any <img> tags (older behavior)
-            const imgs = container.querySelectorAll('img');
-            imgs.forEach(i => { if (i.src) results.push({ base64: i.src }); });
             return results;
         };
 
@@ -3030,6 +3205,33 @@ function createArchTableRow(stt, data = {}) {
             </select>
         </td>
         <td><textarea rows="1" placeholder="Ví dụ: 02 VIP">${data.soLuongVIP || ''}</textarea></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="storage-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="k8s-storage-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="custom-storage-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td class="admin-cell">
             <select class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -3922,12 +4124,15 @@ function collectCustomStorageInputTableData() {
     const rows = document.querySelectorAll('#custom-storage-input-table-body tr');
     const data = [];
     rows.forEach((row, index) => {
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             stt: index + 1,
             ip: row.querySelector('.custom-storage-ip-input')?.value || '',
             partition: row.querySelector('.custom-storage-partition-input')?.value || '',
             used: row.querySelector('.custom-storage-used-input')?.value || '',
             note: row.querySelector('.custom-storage-note-input')?.value || '',
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages,
             adminEval: row.querySelector('.custom-storage-eval')?.value || '',
             adminNote: row.querySelector('.custom-storage-admin-note')?.value || ''
         });
@@ -4040,12 +4245,15 @@ function addCustomInputConfigRow() {
 }
 
 function addCustomStorageInputRow() {
+    ensureStorageEvidenceColumns();
     const tbody = document.getElementById('custom-storage-input-table-body');
     if (!tbody) return;
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
     const deleteRowHandler = buildInstanceAwareHandler('deleteCustomStorageInputRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
@@ -4053,6 +4261,15 @@ function addCustomStorageInputRow() {
         <td><input type="text" class="input-full text-center custom-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
         <td><input type="number" class="input-full text-center custom-storage-used-input" value="0" min="0" step="0.01"></td>
         <td><input type="text" class="input-full custom-storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="custom-storage-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td class="admin-cell">
             <select class="admin-eval-select custom-storage-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -4632,6 +4849,11 @@ function loadCustomLinearLikeApp(moduleApp) {
             if (partitionInput) partitionInput.value = row.partition || '';
             if (usedInput) usedInput.value = row.used || '';
             if (noteInput) noteInput.value = row.note || '';
+            const customStorageEvidenceImages = getEvidenceImagesFromRowData(row);
+            if (customStorageEvidenceImages.length > 0) {
+                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                if (evidenceCell) loadInlineEvidence(evidenceCell, customStorageEvidenceImages);
+            }
             if (evalSelect) {
                 evalSelect.value = row.adminEval || '';
                 styleAdminSelect(evalSelect);
@@ -5767,6 +5989,117 @@ function calculateBaselineTotal() {
 
 // ==================== IMAGE UPLOAD ====================
 
+function getSectionSlugFromElement(element) {
+    const page = element?.closest?.('#page-request, #page-input, #page-model, #page-sizing, #page-summary');
+    return page ? TAB_SLUG_MAP[page.id] : 'sizing';
+}
+
+function encodeAssetRef(asset) {
+    try {
+        return encodeURIComponent(JSON.stringify(asset));
+    } catch (e) {
+        return '';
+    }
+}
+
+function decodeAssetRef(encoded) {
+    if (!encoded) return null;
+    try {
+        return JSON.parse(decodeURIComponent(encoded));
+    } catch (e) {
+        return null;
+    }
+}
+
+function resolveAssetSrc(imageRef) {
+    if (!imageRef) return '';
+    if (typeof imageRef === 'string') return imageRef;
+    if (imageRef.url) return imageRef.url;
+    if (imageRef.dataUrl) return imageRef.dataUrl;
+    if (imageRef.base64) return imageRef.base64;
+    if (imageRef.assetId) return `${API_BASE_URL}/assets/${imageRef.assetId}/content`;
+    if (imageRef.id && !imageRef.filename && !imageRef.contentType) return `${API_BASE_URL}/assets/${imageRef.id}/content`;
+    return '';
+}
+
+function buildAssetMetaAttributes(imageRef) {
+    const src = resolveAssetSrc(imageRef);
+    const encoded = imageRef && typeof imageRef === 'object' ? encodeAssetRef(imageRef) : '';
+    return `${encoded ? ` data-asset="${escapeHtml(encoded)}"` : ''}${src ? ` data-src="${escapeHtml(src)}"` : ''}`;
+}
+
+function readStoredAssetFromNode(node) {
+    if (!node) return null;
+    const encoded = node.getAttribute?.('data-asset');
+    if (encoded) {
+        const decoded = decodeAssetRef(encoded);
+        if (decoded) return decoded;
+    }
+    const src = node.getAttribute?.('data-src') || node.src || '';
+    return src ? { url: src, dataUrl: src } : null;
+}
+
+function buildRowEvidenceItemMarkup(imageRef) {
+    const src = resolveAssetSrc(imageRef);
+    if (!src) return '';
+    return `<div class="row-evidence-item"><img src="${escapeHtml(src)}" alt="Evidence" style="display:none;" class="stored-evidence-img"${buildAssetMetaAttributes(imageRef)}><button type="button" class="btn-view-evidence"${buildAssetMetaAttributes(imageRef)} onclick="openModalFromElement(this)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh">✖</button></div>`;
+}
+
+function inferAssetGroupFromElement(element, fallback = 'images') {
+    if (!element) return fallback;
+    const row = element.closest('tr');
+    if (row && row.parentElement?.id === 'input-table-body') {
+        const rowIndex = Array.from(row.parentElement.children).indexOf(row);
+        if (fallback === 'poc') return `inputRows[${rowIndex}].taiHeThongPOC.pocEvidenceImages`;
+        if (fallback === 'sizing') return `inputRows[${rowIndex}].dinhCo.sizingEvidenceImages`;
+    }
+    const container = element.closest('[id^="container-"]');
+    if (container?.id) return container.id.replace('container-', '') + 'Images';
+    const rowIndex = row && row.parentElement ? Array.from(row.parentElement.children).indexOf(row) : 0;
+    const parentWithId = element.closest('[id]');
+    if (parentWithId?.id && row) return `${parentWithId.id}.row[${rowIndex}].${fallback}`;
+    if (parentWithId?.id) return `${parentWithId.id}.${fallback}`;
+    return fallback;
+}
+
+async function uploadImageAsset(file, section, assetGroup, assetOrder = 0) {
+    if (!currentProjectId) return null;
+    const formData = new FormData();
+    formData.append('section', section);
+    formData.append('assetGroup', assetGroup);
+    formData.append('assetOrder', String(assetOrder));
+    formData.append('file', file);
+    const response = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}/assets`, {
+        method: 'POST',
+        body: formData
+    }, { showError: true });
+    if (!response.ok) {
+        throw new Error(await response.text() || 'Không thể tải ảnh');
+    }
+    return response.json();
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+async function createStoredImageRef(file, section, assetGroup, assetOrder = 0) {
+    if (currentProjectId) {
+        try {
+            return await uploadImageAsset(file, section, assetGroup, assetOrder);
+        } catch (error) {
+            Logger.warn('Asset upload failed, fallback to data URL', error);
+        }
+    }
+    const dataUrl = await readFileAsDataUrl(file);
+    return { dataUrl, url: dataUrl, filename: file.name, contentType: file.type, sizeBytes: file.size };
+}
+
 // Hàm thu thập ảnh từ container (lấy base64)
 function collectImagesFromContainer(type) {
     const containerId = 'container-' + type;
@@ -5779,7 +6112,11 @@ function collectImagesFromContainer(type) {
     boxes.forEach(box => {
         const img = box.querySelector('.preview-area img');
         if (img && img.src) {
-            images.push({ id: box.id, base64: img.src });
+            const stored = readStoredAssetFromNode(img);
+            if (stored) {
+                if (!stored.id) stored.id = box.id;
+                images.push(stored);
+            }
         }
     });
 
@@ -5798,6 +6135,7 @@ function loadImagesToContainer(type, images) {
     // Tạo lại các box với ảnh đã lưu
     images.forEach(imgData => {
         const boxId = imgData.id || 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        const src = resolveAssetSrc(imgData);
         const div = document.createElement('div');
         div.className = 'upload-box';
         div.id = boxId;
@@ -5811,7 +6149,7 @@ function loadImagesToContainer(type, images) {
                 <button type="button" class="btn-remove-img" onclick="document.getElementById('${boxId}').remove()">✖</button>
             </div>
             <div class="preview-area" id="preview-${boxId}">
-                <img src="${imgData.base64}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">
+                <img src="${escapeHtml(src)}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)"${buildAssetMetaAttributes(imgData)}>
             </div>
         `;
         container.appendChild(div);
@@ -5864,19 +6202,33 @@ function addEvidenceSlot() {
     container.appendChild(div);
 }
 
-function previewModelImage(input, boxId) {
+async function previewModelImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
     if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)">`;
-        };
-        reader.readAsDataURL(input.files[0]);
+        const imageRef = await createStoredImageRef(
+            input.files[0],
+            getSectionSlugFromElement(input),
+            inferAssetGroupFromElement(input, 'modelImages'),
+            0
+        );
+        const src = resolveAssetSrc(imageRef);
+        previewArea.innerHTML = `<img src="${escapeHtml(src)}" alt="Preview" style="max-width: 100%; height: auto; margin-top: 10px; cursor: zoom-in;" onclick="openModal(this.src)"${buildAssetMetaAttributes(imageRef)}>`;
     }
 }
 
-function previewEvidenceImage(input, boxId) {
+async function previewEvidenceImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
+    if (input.files && input.files[0]) {
+        const imageRef = await createStoredImageRef(
+            input.files[0],
+            getSectionSlugFromElement(input),
+            inferAssetGroupFromElement(input, 'evidenceImages'),
+            0
+        );
+        const src = resolveAssetSrc(imageRef);
+        previewArea.innerHTML = `<img src="${escapeHtml(src)}" alt="Evidence" style="display:none;"${buildAssetMetaAttributes(imageRef)}><button type="button" class="btn-view-evidence"${buildAssetMetaAttributes(imageRef)} onclick="openModalFromElement(this)" title="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
+        return;
+    }
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function (e) {
@@ -5904,9 +6256,31 @@ function addEvidenceSizingSlot() {
     container.appendChild(div);
 }
 
-function previewEvidenceSizingImage(input, boxId) {
+async function previewEvidenceSizingImage(input, boxId) {
     const previewArea = document.getElementById(`preview-${boxId}`);
     const placeholder = document.querySelector(`#${boxId} .upload-placeholder`);
+    if (input.files && input.files[0]) {
+        const imageRef = await createStoredImageRef(
+            input.files[0],
+            getSectionSlugFromElement(input),
+            inferAssetGroupFromElement(input, 'evidenceImages'),
+            0
+        );
+        const src = resolveAssetSrc(imageRef);
+        previewArea.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px; padding: 8px;">
+                    <img src="${escapeHtml(src)}" alt="Evidence" style="display:none;"${buildAssetMetaAttributes(imageRef)}>
+                    <button type="button" class="btn-view-evidence"${buildAssetMetaAttributes(imageRef)} onclick="openModalFromElement(this)" title="Xem ảnh">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button type="button" class="btn-remove-evidence" onclick="deleteEvidenceSizingSlot(this)" title="Xóa ảnh">
+                        âœ–
+                    </button>
+                </div>
+            `;
+        if (placeholder) placeholder.style.display = 'none';
+        return;
+    }
 
     if (input.files && input.files[0]) {
         const reader = new FileReader();
@@ -5936,12 +6310,21 @@ function deleteEvidenceSizingSlot(btn) {
 }
 
 // Handle multiple images uploaded per input-table row (POC or sizing)
-function handleRowEvidenceUpload(input, kind) {
+async function handleRowEvidenceUpload(input, kind) {
     const files = input.files;
     if (!files || files.length === 0) return;
     const cellWrapper = input.closest('.cell-wrapper');
     const container = cellWrapper?.querySelector('.row-evidence-container');
     if (!container) return;
+    {
+        const file = files[0];
+        const imageRef = await createStoredImageRef(file, 'input', inferAssetGroupFromElement(input, kind), 0);
+        container.insertAdjacentHTML('beforeend', buildRowEvidenceItemMarkup(imageRef));
+        const label = cellWrapper.querySelector('.upload-icon-btn');
+        if (label) label.style.display = 'none';
+        input.value = '';
+        return;
+    }
     // Only accept the first file (single image per cell)
     const file = files[0];
     const reader = new FileReader();
@@ -6078,14 +6461,14 @@ async function evaluateSection(sectionKey) {
 
 // Open modal when clicking a 'Xem' button; read base64 from data attribute
 function openModalFromElement(el) {
-    const base64 = el.getAttribute('data-base64');
-    if (base64) {
-        openModal(base64);
-    } else {
-        // If an <img> exists inside (fallback), open its src
-        const img = el.querySelector && el.querySelector('img');
-        if (img && img.src) openModal(img.src);
+    const stored = readStoredAssetFromNode(el);
+    const src = resolveAssetSrc(stored) || el.getAttribute('data-base64');
+    if (src) {
+        openModal(src);
+        return;
     }
+    const img = el.closest('.row-evidence-item')?.querySelector('img') || (el.querySelector && el.querySelector('img'));
+    if (img && img.src) openModal(img.src);
 }
 
 // ==================== EXPORT TO WORD ====================
@@ -6162,6 +6545,7 @@ async function exportToWord() {
 document.addEventListener("DOMContentLoaded", async function () {
     Logger.debug('Current Project ID:', currentProjectId);
     applyFixedSizingRule();
+    ensureStorageEvidenceColumns();
 
     // Kiểm tra xem người dùng đã đăng nhập chưa
     const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -6178,6 +6562,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     initFirstRowGuards();
     onVirtualizationModeChange('app');
     onVirtualizationModeChange('k8s');
+    onVirtualizationModeChange('custom');
 
     // ===== URL-based routing: khôi phục trạng thái từ URL hash =====
     const initState = parseAppHash(location.hash);
@@ -6355,7 +6740,7 @@ function addBaselineRow() {
 }
 
 // Generic inline evidence upload handler for per-row image columns
-function handleInlineEvidenceUpload(input) {
+async function handleInlineEvidenceUpload(input) {
     const cell = input.closest('.inline-evidence-cell');
     if (!cell) return;
     const previewSpan = cell.querySelector('.inline-evidence-preview');
@@ -6364,24 +6749,29 @@ function handleInlineEvidenceUpload(input) {
     const files = Array.from(input.files || []);
     if (!previewSpan || files.length === 0) return;
 
-    files.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            previewSpan.insertAdjacentHTML('beforeend', createInlineEvidenceItemMarkup(e.target.result));
-        };
-        reader.readAsDataURL(file);
-    });
+    for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        const imageRef = await createStoredImageRef(
+            file,
+            getSectionSlugFromElement(input),
+            inferAssetGroupFromElement(input, 'evidenceImages'),
+            index
+        );
+        previewSpan.insertAdjacentHTML('beforeend', createInlineEvidenceItemMarkup(imageRef));
+    }
 
     // Keep upload button visible to allow appending more images.
     if (uploadBtn) uploadBtn.style.display = '';
     input.value = '';
 }
 
-function createInlineEvidenceItemMarkup(dataUrl) {
+function createInlineEvidenceItemMarkup(imageRef) {
+    const src = resolveAssetSrc(imageRef);
+    if (!src) return '';
     return `
         <span class="row-evidence-item">
-            <img src="${dataUrl}" alt="Evidence" style="display:none;" class="inline-evidence-img">
-            <button type="button" class="btn-view-evidence" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh">
+            <img src="${escapeHtml(src)}" alt="Evidence" style="display:none;" class="inline-evidence-img"${buildAssetMetaAttributes(imageRef)}>
+            <button type="button" class="btn-view-evidence" onclick="openModalFromElement(this)" title="Xem ảnh">
                 <i class="fa-solid fa-eye"></i>
             </button>
             <button type="button" class="btn-remove-evidence sizing-user-btn" onclick="removeInlineEvidence(this)" title="Xóa ảnh">
@@ -6426,7 +6816,7 @@ function getEvidenceImagesFromRowData(row) {
 function collectInlineEvidenceFromScope(scope) {
     if (!scope) return [];
     return Array.from(scope.querySelectorAll('.inline-evidence-preview .inline-evidence-img'))
-        .map(img => img.src)
+        .map(img => readStoredAssetFromNode(img) || img.src)
         .filter(Boolean);
 }
 
@@ -6441,13 +6831,41 @@ function loadInlineEvidence(cell, dataUrlOrList) {
     const images = Array.isArray(dataUrlOrList) ? dataUrlOrList.filter(Boolean) : [dataUrlOrList];
     if (images.length === 0) return;
 
-    images.forEach(dataUrl => {
-        previewSpan.insertAdjacentHTML('beforeend', createInlineEvidenceItemMarkup(dataUrl));
+    images.forEach(imageRef => {
+        previewSpan.insertAdjacentHTML('beforeend', createInlineEvidenceItemMarkup(imageRef));
     });
 
     if (uploadBtn) {
         uploadBtn.style.display = '';
     }
+}
+
+function ensureStorageEvidenceColumn(tbodyId) {
+    const tbody = document.getElementById(tbodyId);
+    const headerRow = tbody?.closest('table')?.querySelector('thead tr');
+    if (!headerRow) return;
+
+    if (headerRow.querySelector(`th[data-storage-evidence-header="${tbodyId}"]`)) {
+        return;
+    }
+
+    const th = document.createElement('th');
+    th.setAttribute('data-storage-evidence-header', tbodyId);
+    th.textContent = 'Ảnh sở cứ';
+    th.style.width = '120px';
+
+    const adminHeader = headerRow.querySelector('th.admin-cell');
+    if (adminHeader) {
+        headerRow.insertBefore(th, adminHeader);
+    } else {
+        headerRow.appendChild(th);
+    }
+}
+
+function ensureStorageEvidenceColumns() {
+    ensureStorageEvidenceColumn('storage-input-table-body');
+    ensureStorageEvidenceColumn('k8s-storage-input-table-body');
+    ensureStorageEvidenceColumn('custom-storage-input-table-body');
 }
 
 // Baseline Evidence Grid functions
@@ -6785,12 +7203,15 @@ function collectStorageInputTableData() {
     const data = [];
 
     rows.forEach((row, index) => {
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             stt: index + 1,
             ip: row.querySelector('.storage-ip-input')?.value || '',
             partition: row.querySelector('.storage-partition-input')?.value || '',
             used: row.querySelector('.storage-used-input')?.value || '',
             note: row.querySelector('.storage-note-input')?.value || '',
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages,
             adminEval: row.querySelector('.storage-eval')?.value || '',
             adminNote: row.querySelector('.storage-admin-note')?.value || ''
         });
@@ -7320,6 +7741,11 @@ function loadAppSizingModuleData(moduleApp) {
             if (partitionInput) partitionInput.value = row.partition || '';
             if (usedInput) usedInput.value = row.used || '';
             if (noteInput) noteInput.value = row.note || '';
+            const storageEvidenceImages = getEvidenceImagesFromRowData(row);
+            if (storageEvidenceImages.length > 0) {
+                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                if (evidenceCell) loadInlineEvidence(evidenceCell, storageEvidenceImages);
+            }
             if (evalSelect && row.adminEval) {
                 evalSelect.value = row.adminEval;
                 styleAdminSelect(evalSelect);
@@ -7921,9 +8347,67 @@ function showSection(sectionId, linkElement, options = {}) {
     }
 }
 
+function showSection(sectionId, linkElement, options = {}) {
+    const activeSection = document.querySelector('.page-section.active');
+    const activeSectionId = activeSection?.id;
+    const currentTabIndex = TAB_FLOW_ORDER.indexOf(activeSectionId);
+    const targetTabIndex = TAB_FLOW_ORDER.indexOf(sectionId);
+    const isKnownTabFlow = currentTabIndex !== -1 && targetTabIndex !== -1;
+    const isForwardNavigation = isKnownTabFlow && targetTabIndex > currentTabIndex;
+
+    if (!options.skipValidation && !options.skipPushState && activeSectionId && activeSectionId !== sectionId && isForwardNavigation && activeSectionId !== 'page-input') {
+        const validation = validateTabCompletion(activeSectionId, {
+            focusFirstInvalid: true,
+            showToastMessage: false
+        });
+        if (!validation.isValid) {
+            showToast('Khong the chuyen tab khi chua dien xong du lieu o tab hien tai.', 'warning');
+            return;
+        }
+    }
+
+    const sections = document.querySelectorAll('.page-section');
+    sections.forEach(sec => {
+        sec.classList.remove('active');
+        sec.style.display = 'none';
+    });
+
+    const target = document.getElementById(sectionId);
+    if (target) {
+        target.classList.add('active');
+        target.style.display = 'block';
+    } else {
+        Logger.error('Khong tim thay ID: ' + sectionId);
+    }
+
+    const menuLinks = document.querySelectorAll('.side-menu a');
+    menuLinks.forEach(link => link.classList.remove('active'));
+    if (linkElement) {
+        linkElement.classList.add('active');
+    }
+
+    if (!options.skipPushState && currentProjectId) {
+        pushAppState('project', currentProjectId, sectionId);
+    }
+
+    if (!options.skipDataLoad && currentProjectId) {
+        ensureSectionsLoadedFor(sectionId, { force: false })
+            .catch(error => {
+                Logger.error('Error loading section:', error);
+                showToast('Loi tai du lieu tab: ' + error.message, 'error');
+            });
+    } else if (sectionId === 'page-summary') {
+        aggregateSizingResults();
+    }
+}
+
 // Tự động thêm 1 dòng trắng khi load trang lần đầu
 document.addEventListener("DOMContentLoaded", function () {
     applyFixedSizingRule();
+    onVirtualizationModeChange('app');
+    onVirtualizationModeChange('k8s');
+    onVirtualizationModeChange('custom');
+    ensureStorageEvidenceColumns();
     const tbody = document.getElementById('baseline-table-body');
     if (tbody && tbody.children.length === 0) {
         addBaselineRow();
@@ -8092,12 +8576,15 @@ function updateInputConfigTotal() {
 
 // Tính toán đề xuất số server & hiển thị bảng kết quả (lấy POC/Định cỡ từ phần THÔNG TIN ĐẦU VÀO)
 function addStorageInputRow() {
+    ensureStorageEvidenceColumns();
     const tbody = document.getElementById('storage-input-table-body');
     if (!tbody) return;
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
     const deleteRowHandler = buildInstanceAwareHandler('deleteStorageInputRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
@@ -8105,6 +8592,15 @@ function addStorageInputRow() {
         <td><input type="text" class="input-full text-center storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
         <td><input type="number" class="input-full text-center storage-used-input" value="0" min="0" step="0.01"></td>
         <td><input type="text" class="input-full storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="storage-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td class="admin-cell">
             <select class="admin-eval-select storage-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -8168,8 +8664,8 @@ function onVirtualizationModeChange(prefix) {
     vcpuSelect.disabled = mode !== 'vcpu';
     ramSelect.disabled = mode !== 'ram';
 
-    const vcpuContainer = vcpuSelect.closest('div');
-    const ramContainer = ramSelect.closest('div');
+    const vcpuContainer = document.getElementById(`${prefix}-vcpu-flavor-wrapper`) || vcpuSelect.closest('div');
+    const ramContainer = document.getElementById(`${prefix}-ram-flavor-wrapper`) || ramSelect.closest('div');
     if (vcpuContainer && ramContainer) {
         vcpuContainer.style.display = mode === 'vcpu' ? '' : 'none';
         ramContainer.style.display = mode === 'ram' ? '' : 'none';
@@ -9020,12 +9516,15 @@ function updateK8SInputConfigTotal() {
 }
 
 function addK8SStorageInputRow() {
+    ensureStorageEvidenceColumns();
     const tbody = document.getElementById('k8s-storage-input-table-body');
     if (!tbody) return;
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
     const deleteRowHandler = buildInstanceAwareHandler('deleteK8SStorageInputRow(this)');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
@@ -9033,6 +9532,15 @@ function addK8SStorageInputRow() {
         <td><input type="text" class="input-full text-center k8s-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
         <td><input type="number" class="input-full text-center k8s-storage-used-input" value="0" min="0" step="0.01"></td>
         <td><input type="text" class="input-full k8s-storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="k8s-storage-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td class="admin-cell">
             <select class="admin-eval-select k8s-storage-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -9361,12 +9869,15 @@ function collectK8SStorageInputTableData() {
     const rows = getK8SStorageInputRows();
     const data = [];
     rows.forEach((row, index) => {
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             stt: index + 1,
             ip: row.querySelector('.k8s-storage-ip-input')?.value || '',
             partition: row.querySelector('.k8s-storage-partition-input')?.value || '',
             used: row.querySelector('.k8s-storage-used-input')?.value || '',
             note: row.querySelector('.k8s-storage-note-input')?.value || '',
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages,
             adminEval: row.querySelector('.k8s-storage-eval')?.value || '',
             adminNote: row.querySelector('.k8s-storage-admin-note')?.value || ''
         });
@@ -9516,6 +10027,11 @@ function loadK8SData(data) {
             if (partitionInput) partitionInput.value = row.partition || '';
             if (usedInput) usedInput.value = row.used || '';
             if (noteInput) noteInput.value = row.note || '';
+            const k8sStorageEvidenceImages = getEvidenceImagesFromRowData(row);
+            if (k8sStorageEvidenceImages.length > 0) {
+                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                if (evidenceCell) loadInlineEvidence(evidenceCell, k8sStorageEvidenceImages);
+            }
             if (evalSelect && row.adminEval) {
                 evalSelect.value = row.adminEval;
                 styleAdminSelect(evalSelect);

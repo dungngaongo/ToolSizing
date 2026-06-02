@@ -1,9 +1,7 @@
 package com.example.sizing.service;
 
 import com.example.sizing.model.ActivityLog;
-import com.example.sizing.model.User;
 import com.example.sizing.repository.ActivityLogRepository;
-import com.example.sizing.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,14 +19,11 @@ public class ActivityLogService {
     private static final Logger log = LoggerFactory.getLogger(ActivityLogService.class);
 
     private final ActivityLogRepository activityLogRepository;
-    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     public ActivityLogService(ActivityLogRepository activityLogRepository,
-                              UserRepository userRepository,
                               ObjectMapper objectMapper) {
         this.activityLogRepository = activityLogRepository;
-        this.userRepository = userRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -92,11 +87,13 @@ public class ActivityLogService {
         }
 
         String username = auth.getName();
-        User user = userRepository.findByUsername(username).orElse(null);
-        if (user == null) {
-            return new CurrentActor(username, null);
-        }
-        return new CurrentActor(user.getUsername(), user.getRole());
+        String role = auth.getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .filter(a -> a != null && a.startsWith("ROLE_"))
+                .findFirst()
+                .map(a -> a.substring("ROLE_".length()))
+                .orElse(null);
+        return new CurrentActor(username, role);
     }
 
     private record CurrentActor(String username, String role) {}

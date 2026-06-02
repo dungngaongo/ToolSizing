@@ -20,6 +20,8 @@ services:
     build:
       context: ./backend1
     restart: always
+    volumes:
+      - ./storage:/app/storage
     healthcheck:
   # TODO: đổi sang /actuator/health khi Nexus có spring-boot-starter-actuator
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081 2>&1 | grep -q '.' || exit 1"]

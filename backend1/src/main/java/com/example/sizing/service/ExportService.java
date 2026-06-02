@@ -1,6 +1,7 @@
 package com.example.sizing.service;
 
 import com.example.sizing.exception.ResourceNotFoundException;
+import com.example.sizing.dto.ProjectAssetResponse;
 import com.example.sizing.model.Project;
 import com.example.sizing.model.ProjectData;
 import com.example.sizing.repository.ProjectDataRepository;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,6 +40,8 @@ public class ExportService {
     private final ProjectRepository projectRepository;
     private final ProjectDataRepository projectDataRepository;
     private final ObjectMapper objectMapper;
+    private final ProjectAssetService projectAssetService;
+    private static final Pattern ASSET_URL_PATTERN = Pattern.compile("/api/assets/([a-f0-9\\-]{36})/content", Pattern.CASE_INSENSITIVE);
 
     private static class ModuleInstanceData {
         private final String moduleName;
@@ -81,10 +85,12 @@ public class ExportService {
 
     public ExportService(ProjectRepository projectRepository,
                          ProjectDataRepository projectDataRepository,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper,
+                         ProjectAssetService projectAssetService) {
         this.projectRepository = projectRepository;
         this.projectDataRepository = projectDataRepository;
         this.objectMapper = objectMapper;
+        this.projectAssetService = projectAssetService;
     }
 
     public byte[] exportToDocx(String projectId) throws IOException {
@@ -811,6 +817,34 @@ public class ExportService {
                 setCell(table, i + 1, 4, txt(r, "note"), false, null);
             }
             doc.createParagraph();
+
+            boolean hasStorageEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = storageInput.get(i);
+                JsonNode rowEvidenceImages = row.path("evidenceImages");
+                String rowEvidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = rowEvidenceImages.isArray() && rowEvidenceImages.size() > 0;
+                if (!hasCurrentEvidence && rowEvidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasStorageEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o:");
+                    hasStorageEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                String partition = txt(row, "partition").trim();
+                String detail = "D\u00f2ng " + (i + 1)
+                        + (ip.isEmpty() ? "" : (" - " + ip))
+                        + (partition.isEmpty() ? "" : (" - " + partition));
+                addSubHeading2(doc, detail);
+                if (hasCurrentEvidence) {
+                    addInlineImages(doc, rowEvidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o", detail));
+                } else {
+                    addInlineSingleImage(doc, rowEvidenceImage, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o", detail));
+                }
+            }
         }
 
         // Evidence images
@@ -2232,6 +2266,34 @@ public class ExportService {
                 setCell(table, i + 1, 4, txt(r, "note"), false, null);
             }
             doc.createParagraph();
+
+            boolean hasStorageEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = storageInput.get(i);
+                JsonNode rowEvidenceImages = row.path("evidenceImages");
+                String rowEvidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = rowEvidenceImages.isArray() && rowEvidenceImages.size() > 0;
+                if (!hasCurrentEvidence && rowEvidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasStorageEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o:");
+                    hasStorageEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                String partition = txt(row, "partition").trim();
+                String detail = "D\u00f2ng " + (i + 1)
+                        + (ip.isEmpty() ? "" : (" - " + ip))
+                        + (partition.isEmpty() ? "" : (" - " + partition));
+                addSubHeading2(doc, detail);
+                if (hasCurrentEvidence) {
+                    addInlineImages(doc, rowEvidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o", detail));
+                } else {
+                    addInlineSingleImage(doc, rowEvidenceImage, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o", detail));
+                }
+            }
         }
 
         // POC / Sizing
@@ -3134,16 +3196,9 @@ public class ExportService {
         if (imagesNode == null || !imagesNode.isArray()) return;
 
         for (JsonNode img : imagesNode) {
-            String base64 = "";
-            if (img.isObject()) {
-                if (img.has("base64")) base64 = img.get("base64").asText("");
-                else if (img.has("dataUrl")) base64 = img.get("dataUrl").asText("");
-            } else if (img.isTextual()) {
-                base64 = img.asText("");
-            }
-
-            if (base64 != null && !base64.isBlank()) {
-                addInlineSingleImage(doc, base64, caption);
+            ResolvedImage resolvedImage = resolveImageNode(img);
+            if (resolvedImage != null) {
+                addInlineSingleImage(doc, resolvedImage, caption);
             }
         }
     }
@@ -3151,9 +3206,9 @@ public class ExportService {
     /**
      * Embed a single base64 image inline in the document with a caption below.
      */
-    private void addInlineSingleImage(XWPFDocument doc, String base64String, String caption) {
-        if (base64String == null || base64String.isBlank()) return;
-        addBase64Image(doc, base64String);
+    private void addInlineSingleImage(XWPFDocument doc, ResolvedImage resolvedImage, String caption) {
+        if (resolvedImage == null || resolvedImage.bytes == null || resolvedImage.bytes.length == 0) return;
+        addResolvedImage(doc, resolvedImage);
         if (caption != null && !caption.isBlank()) {
             XWPFParagraph capP = doc.createParagraph();
             capP.setAlignment(ParagraphAlignment.CENTER);
@@ -3166,35 +3221,21 @@ public class ExportService {
         }
     }
 
-    private void addBase64Image(XWPFDocument doc, String base64String) {
+    private void addInlineSingleImage(XWPFDocument doc, String imageSource, String caption) {
+        addInlineSingleImage(doc, resolveImageSource(imageSource, null, null), caption);
+    }
+
+    private void addResolvedImage(XWPFDocument doc, ResolvedImage resolvedImage) {
         try {
-            String base64Data = base64String;
-            int pictureType = XWPFDocument.PICTURE_TYPE_PNG;
-
-            if (base64String.contains(",")) {
-                String[] parts = base64String.split(",", 2);
-                String header = parts[0].toLowerCase();
-                base64Data = parts[1];
-                if (header.contains("jpeg") || header.contains("jpg")) {
-                    pictureType = XWPFDocument.PICTURE_TYPE_JPEG;
-                } else if (header.contains("gif")) {
-                    pictureType = XWPFDocument.PICTURE_TYPE_GIF;
-                } else if (header.contains("bmp")) {
-                    pictureType = XWPFDocument.PICTURE_TYPE_BMP;
-                }
-            }
-
-            byte[] imageBytes = Base64.getDecoder().decode(base64Data);
-
             XWPFParagraph p = doc.createParagraph();
             p.setAlignment(ParagraphAlignment.CENTER);
             XWPFRun r = p.createRun();
 
-            try (ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes)) {
-                r.addPicture(bis, pictureType, "image", Units.toEMU(450), Units.toEMU(280));
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(resolvedImage.bytes)) {
+                r.addPicture(bis, resolvedImage.pictureType, "image", Units.toEMU(450), Units.toEMU(280));
             }
         } catch (Exception e) {
-            log.warn("Failed to add base64 image: {}", e.getMessage());
+            log.warn("Failed to add image: {}", e.getMessage());
         }
     }
 
@@ -3274,7 +3315,7 @@ public class ExportService {
             return fragments;
         }
 
-        String imgPattern = "<img\\b([^>]*?)src=[\"']data:image/([^;]+);base64,([^\"']+)[\"']([^>]*)>";
+        String imgPattern = "<img\\b([^>]*?)src=[\"']([^\"']+)[\"']([^>]*)>";
         java.util.regex.Pattern p = java.util.regex.Pattern.compile(imgPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
         java.util.regex.Matcher m = p.matcher(html);
 
@@ -3282,9 +3323,7 @@ public class ExportService {
         while (m.find()) {
             String beforeText = html.substring(lastEnd, m.start());
             String imgTag = m.group(0);
-            String imgType = m.group(2);
-            String base64 = m.group(3);
-            String fullUri = "data:image/" + imgType + ";base64," + base64;
+            String source = m.group(2);
             Integer widthPx = extractImageDimension(imgTag, "data-origin-width", "width");
             Integer heightPx = extractImageDimension(imgTag, "data-origin-height", "height");
 
@@ -3294,8 +3333,14 @@ public class ExportService {
                 fragments.add(HtmlFragment.text(textContent));
             }
 
-            // Add image
-            fragments.add(HtmlFragment.image(fullUri, widthPx, heightPx));
+            if (isSupportedImageSource(source)) {
+                fragments.add(HtmlFragment.image(source, widthPx, heightPx));
+            } else if (!imgTag.isBlank()) {
+                String textPlaceholder = stripOtherTags(imgTag);
+                if (!textPlaceholder.isEmpty()) {
+                    fragments.add(HtmlFragment.text(textPlaceholder));
+                }
+            }
 
             lastEnd = m.end();
         }
@@ -3310,30 +3355,17 @@ public class ExportService {
         return fragments;
     }
 
-    private void addInlineImage(XWPFParagraph paragraph, String base64Uri, Integer preferredWidthPx, Integer preferredHeightPx) {
+    private void addInlineImage(XWPFParagraph paragraph, String imageSource, Integer preferredWidthPx, Integer preferredHeightPx) {
         try {
-            String base64Data = base64Uri;
-            int pictureType = XWPFDocument.PICTURE_TYPE_PNG;
-
-            if (base64Uri.contains(",")) {
-                String[] parts = base64Uri.split(",", 2);
-                String header = parts[0].toLowerCase();
-                base64Data = parts[1];
-                if (header.contains("jpeg") || header.contains("jpg")) {
-                    pictureType = XWPFDocument.PICTURE_TYPE_JPEG;
-                } else if (header.contains("gif")) {
-                    pictureType = XWPFDocument.PICTURE_TYPE_GIF;
-                } else if (header.contains("bmp")) {
-                    pictureType = XWPFDocument.PICTURE_TYPE_BMP;
-                }
+            ResolvedImage resolvedImage = resolveImageSource(imageSource, preferredWidthPx, preferredHeightPx);
+            if (resolvedImage == null || resolvedImage.bytes == null || resolvedImage.bytes.length == 0) {
+                return;
             }
-
-            byte[] imageBytes = Base64.getDecoder().decode(base64Data);
             int displayWidthPx = preferredWidthPx != null ? preferredWidthPx : 0;
             int displayHeightPx = preferredHeightPx != null ? preferredHeightPx : 0;
 
             BufferedImage bufferedImage = null;
-            try (ByteArrayInputStream imageInput = new ByteArrayInputStream(imageBytes)) {
+            try (ByteArrayInputStream imageInput = new ByteArrayInputStream(resolvedImage.bytes)) {
                 bufferedImage = ImageIO.read(imageInput);
             } catch (Exception ignored) {
             }
@@ -3366,8 +3398,8 @@ public class ExportService {
             int finalHeightPx = Math.max(1, (int) Math.round(displayHeightPx * scale));
 
             XWPFRun imgRun = paragraph.createRun();
-            try (ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes)) {
-                imgRun.addPicture(bis, pictureType, "image", Units.toEMU(finalWidthPx), Units.toEMU(finalHeightPx));
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(resolvedImage.bytes)) {
+                imgRun.addPicture(bis, resolvedImage.pictureType, "image", Units.toEMU(finalWidthPx), Units.toEMU(finalHeightPx));
             }
         } catch (Exception e) {
             log.warn("Failed to add inline image: {}", e.getMessage());
@@ -3423,6 +3455,105 @@ public class ExportService {
                     paragraph = doc.createParagraph();
                 }
             }
+        }
+    }
+
+    private ResolvedImage resolveImageNode(JsonNode imgNode) {
+        if (imgNode == null || imgNode.isNull()) {
+            return null;
+        }
+        Integer width = imgNode.isObject() && imgNode.has("width") ? imgNode.get("width").asInt() : null;
+        Integer height = imgNode.isObject() && imgNode.has("height") ? imgNode.get("height").asInt() : null;
+        String source = null;
+        String contentType = null;
+        if (imgNode.isObject()) {
+            if (imgNode.has("base64")) source = imgNode.path("base64").asText("");
+            else if (imgNode.has("dataUrl")) source = imgNode.path("dataUrl").asText("");
+            else if (imgNode.has("url")) source = imgNode.path("url").asText("");
+            else if (imgNode.has("assetId")) source = "/api/assets/" + imgNode.path("assetId").asText("") + "/content";
+            contentType = imgNode.path("contentType").asText(null);
+        } else if (imgNode.isTextual()) {
+            source = imgNode.asText("");
+        }
+        return resolveImageSource(source, width, height, contentType);
+    }
+
+    private ResolvedImage resolveImageSource(String source, Integer preferredWidthPx, Integer preferredHeightPx) {
+        return resolveImageSource(source, preferredWidthPx, preferredHeightPx, null);
+    }
+
+    private ResolvedImage resolveImageSource(String source,
+                                             Integer preferredWidthPx,
+                                             Integer preferredHeightPx,
+                                             String explicitContentType) {
+        if (source == null || source.isBlank()) {
+            return null;
+        }
+        try {
+            if (source.startsWith("data:image/")) {
+                String[] parts = source.split(",", 2);
+                String header = parts.length > 1 ? parts[0].toLowerCase(Locale.ROOT) : "";
+                String base64Data = parts.length > 1 ? parts[1] : source;
+                return new ResolvedImage(
+                        Base64.getDecoder().decode(base64Data),
+                        resolvePictureType(header, explicitContentType),
+                        preferredWidthPx,
+                        preferredHeightPx
+                );
+            }
+            String assetId = extractAssetId(source);
+            if (assetId != null) {
+                ProjectAssetResponse asset = projectAssetService.getAsset(assetId);
+                return new ResolvedImage(
+                        projectAssetService.readAssetBytes(assetId),
+                        resolvePictureType(asset.getContentType(), explicitContentType),
+                        preferredWidthPx != null ? preferredWidthPx : asset.getWidth(),
+                        preferredHeightPx != null ? preferredHeightPx : asset.getHeight()
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to resolve image source for export: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private String extractAssetId(String source) {
+        Matcher matcher = ASSET_URL_PATTERN.matcher(source);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private boolean isSupportedImageSource(String source) {
+        return source != null && (source.startsWith("data:image/") || extractAssetId(source) != null);
+    }
+
+    private int resolvePictureType(String first, String second) {
+        String combined = ((first == null ? "" : first) + " " + (second == null ? "" : second)).toLowerCase(Locale.ROOT);
+        if (combined.contains("jpeg") || combined.contains("jpg")) {
+            return XWPFDocument.PICTURE_TYPE_JPEG;
+        }
+        if (combined.contains("gif")) {
+            return XWPFDocument.PICTURE_TYPE_GIF;
+        }
+        if (combined.contains("bmp")) {
+            return XWPFDocument.PICTURE_TYPE_BMP;
+        }
+        if (combined.contains("webp")) {
+            return XWPFDocument.PICTURE_TYPE_PNG;
+        }
+        return XWPFDocument.PICTURE_TYPE_PNG;
+    }
+
+    private static class ResolvedImage {
+        private final byte[] bytes;
+        private final int pictureType;
+        private final Integer widthPx;
+        private final Integer heightPx;
+
+        private ResolvedImage(byte[] bytes, int pictureType, Integer widthPx, Integer heightPx) {
+            this.bytes = bytes;
+            this.pictureType = pictureType;
+            this.widthPx = widthPx;
+            this.heightPx = heightPx;
         }
     }
 }
