@@ -806,6 +806,39 @@ public class ExportService {
                 setCell(table, i + 1, 4, txt(r, "note"), false, null);
             }
             doc.createParagraph();
+
+            boolean hasStorageEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = storageInput.get(i);
+                JsonNode rowEvidenceImages = row.path("evidenceImages");
+                String rowEvidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = rowEvidenceImages.isArray() && rowEvidenceImages.size() > 0;
+                if (!hasCurrentEvidence && rowEvidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasStorageEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o:");
+                    hasStorageEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                String partition = txt(row, "partition").trim();
+                String detail = "D\u00f2ng " + (i + 1);
+                if (!ip.isEmpty()) {
+                    detail += " - " + ip;
+                }
+                if (!partition.isEmpty()) {
+                    detail += " - " + partition;
+                }
+
+                addSubHeading2(doc, detail);
+                if (hasCurrentEvidence) {
+                    addInlineImages(doc, rowEvidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o", detail));
+                } else {
+                    addInlineSingleImage(doc, rowEvidenceImage, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o", detail));
+                }
+            }
         }
 
         // Evidence images
@@ -2419,10 +2452,10 @@ public class ExportService {
                 setCell(table, 0, 3, "Ghi chú", true, "D9E2F3");
                 for (int i = 0; i < rows.size(); i++) {
                     JsonNode row = rows.get(i);
-                    setCell(table, i + 1, 0, txt(row, "component"), false, null);
-                    setCell(table, i + 1, 1, txt(row, "configuration"), false, null);
-                    setCell(table, i + 1, 2, txt(row, "quantity"), false, null);
-                    setCell(table, i + 1, 3, txt(row, "note"), false, null);
+                    setCellWithLineBreaks(table, i + 1, 0, txt(row, "component"));
+                    setCellWithLineBreaks(table, i + 1, 1, txt(row, "configuration"));
+                    setCellWithLineBreaks(table, i + 1, 2, txt(row, "quantity"));
+                    setCellWithLineBreaks(table, i + 1, 3, txt(row, "note"));
                 }
             }
         }
@@ -2575,7 +2608,7 @@ public class ExportService {
                     String cauHinh = txt(r, "cauHinh").replaceAll("<br>", "\n").replaceAll("<[^>]+>", "");
                     setCellWithLineBreaks(table, i + 1, 3, cauHinh);
                     setCell(table, i + 1, 4, txt(r, "soLuong"), false, null);
-                    setCell(table, i + 1, 5, txt(r, "ghiChu"), false, null);
+                    setCellWithLineBreaks(table, i + 1, 5, txt(r, "ghiChu"));
                 }
             }
         }

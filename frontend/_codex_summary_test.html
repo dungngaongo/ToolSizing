@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summary Multiline Test</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body style="padding: 24px; background: #f3f4f6;">
+    <div class="form-container">
+        <h2 class="content-title">5. TỔNG HỢP VÀ ĐỀ XUẤT</h2>
+        <div class="table-responsive">
+            <table class="sizing-table" id="summary-aggregate-table">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">STT</th>
+                        <th style="width: 120px;">Loại module</th>
+                        <th style="width: 180px;">Tên module</th>
+                        <th>Cấu hình</th>
+                        <th style="width: 80px;">Số lượng</th>
+                        <th style="width: 200px;">Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody id="summary-table-body">
+                    <tr>
+                        <td>1</td>
+                        <td><strong>Khác</strong></td>
+                        <td>Test module</td>
+                        <td class="summary-config-cell">
+                            <div class="summary-multiline-cell">CPU: 8 vCPU
+RAM: 16 GB
+DISK: 200 GB</div>
+                        </td>
+                        <td class="text-center">1</td>
+                        <td class="summary-note-cell">
+                            <div class="summary-multiline-cell">Dòng 1
+Dòng 2
+Dòng 3</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

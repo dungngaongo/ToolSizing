@@ -893,6 +893,7 @@
                                                     <th style="width: 140px;">IP</th>
                                                     <th style="width: 140px;">Phân vùng</th>
                                                     <th style="width: 110px;">Used (GB)</th>
+                                                    <th style="width: 120px;">Ảnh sở cứ</th>
                                                     <th style="width: 180px;">Ghi chú</th>
                                                     <th class="admin-cell"
                                                         style="width: 80px; background-color: #fef3c7;">Đánh giá</th>
@@ -950,7 +951,7 @@
                                                     <option value="vcpu">Theo vCPU</option>
                                                 </select>
                                             </div>
-                                            <div style="min-width:180px;">
+                                            <div style="min-width:180px; display:none;">
                                                 <label
                                                     style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu
                                                     hình vCPU (Cint)</label>
@@ -1959,7 +1960,7 @@
                                                     <option value="vcpu">Theo vCPU</option>
                                                 </select>
                                             </div>
-                                            <div style="min-width:180px;">
+                                            <div style="min-width:180px; display:none;">
                                                 <label
                                                     style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu
                                                     hình vCPU (Cint)</label>
@@ -2231,6 +2232,38 @@
                                         </table>
                                     </div>
 
+                                    <div style="margin-top: 16px; border-top: 1px dashed #ccc; padding-top: 16px;">
+                                        <h3 class="model-header">
+                                            <i class="fa-solid fa-hard-drive" style="color: #ee0033;"></i>THÔNG TIN LƯU
+                                            TRỮ ĐẦU VÀO
+                                        </h3>
+                                        <div class="table-responsive">
+                                            <table class="sizing-table storage-input-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="width: 50px;">STT</th>
+                                                        <th style="width: 140px;">IP</th>
+                                                        <th style="width: 140px;">Phân vùng</th>
+                                                        <th style="width: 110px;">Used (GB)</th>
+                                                        <th style="width: 120px;">Ảnh sở cứ</th>
+                                                        <th style="width: 180px;">Ghi chú</th>
+                                                        <th class="admin-cell"
+                                                            style="width: 80px; background-color: #fef3c7;">Đánh giá</th>
+                                                        <th class="admin-cell"
+                                                            style="width: 130px; background-color: #fef3c7;">Ghi chú (Admin)
+                                                        </th>
+                                                        <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="custom-storage-input-table-body"></tbody>
+                                            </table>
+                                        </div>
+
+                                        <button type="button" class="btn-add sizing-user-btn" onclick="addCustomStorageInputRow()">
+                                            <i class="fa-solid fa-plus"></i> Thêm Server Tham chiếu
+                                        </button>
+                                    </div>
+
                                     <div
                                         style="margin-top: 16px; display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
                                         <div style="min-width:280px;">
@@ -2266,7 +2299,7 @@
                                                 <option value="vcpu">Theo vCPU</option>
                                             </select>
                                         </div>
-                                        <div style="min-width:180px;">
+                                        <div style="min-width:180px; display:none;">
                                             <label
                                                 style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Cấu
                                                 hình vCPU (Cint)</label>
