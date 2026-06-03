@@ -35,7 +35,6 @@ public class DefaultUserLoader implements CommandLineRunner {
     public void run(String... args) throws Exception {
         List<CreateUserRequest> defaultUsers = loadFromEnv();
 
-        // Set system authentication so UserService allows creating admin roles during bootstrap
         SecurityContext ctx = SecurityContextHolder.createEmptyContext();
         ctx.setAuthentication(new UsernamePasswordAuthenticationToken(
                 "system", null,
@@ -49,7 +48,6 @@ public class DefaultUserLoader implements CommandLineRunner {
                     userService.create(req);
                     log.info("Default user created: {}", req.getUsername());
                 } catch (RuntimeException e) {
-                    // Already exists or other validation error, skip
                     log.info("Skipping creating default user {}: {}", req.getUsername(), e.getMessage());
                 }
             }
@@ -58,32 +56,37 @@ public class DefaultUserLoader implements CommandLineRunner {
         }
     }
 
-    // Tries to read a .env entry DEFAULT_USERS in format: username:password,username2:password2
     private List<CreateUserRequest> loadFromEnv() {
         String line = null;
 
-        // Try classpath resource first
-        try (InputStream is = DefaultUserLoader.class.getResourceAsStream("/.env")) {
-            if (is != null) {
-                try (BufferedReader r = new BufferedReader(new InputStreamReader(is))) {
-                    String l;
-                    while ((l = r.readLine()) != null) {
-                        if (l.trim().startsWith("DEFAULT_USERS=")) {
-                            line = l.trim().substring("DEFAULT_USERS=".length());
-                            break;
+        String envVar = System.getenv("DEFAULT_USERS");
+        if (envVar != null && !envVar.isEmpty()) {
+            log.info("Loading DEFAULT_USERS from environment variable");
+            line = envVar;
+        }
+
+        if (line == null) {
+            try (InputStream is = DefaultUserLoader.class.getResourceAsStream("/.env")) {
+                if (is != null) {
+                    try (BufferedReader r = new BufferedReader(new InputStreamReader(is))) {
+                        String l;
+                        while ((l = r.readLine()) != null) {
+                            if (l.trim().startsWith("DEFAULT_USERS=")) {
+                                line = l.trim().substring("DEFAULT_USERS=".length());
+                                log.info("Loading DEFAULT_USERS from classpath .env");
+                                break;
+                            }
                         }
                     }
                 }
+            } catch (IOException e) {
+                log.debug("No classpath .env found: {}", e.getMessage());
             }
-        } catch (IOException e) {
-            log.debug("No classpath .env found: {}", e.getMessage());
         }
 
-        // If not found in classpath, try working directory .env
         if (line == null) {
             Path envPath = Paths.get(".env");
             if (!Files.exists(envPath)) {
-                // try backend1/.env (when running from workspace root)
                 envPath = Paths.get("backend1", ".env");
             }
             if (Files.exists(envPath)) {
@@ -92,6 +95,7 @@ public class DefaultUserLoader implements CommandLineRunner {
                     while ((l = r.readLine()) != null) {
                         if (l.trim().startsWith("DEFAULT_USERS=")) {
                             line = l.trim().substring("DEFAULT_USERS=".length());
+                            log.info("Loading DEFAULT_USERS from file .env");
                             break;
                         }
                     }
@@ -104,21 +108,19 @@ public class DefaultUserLoader implements CommandLineRunner {
         List<CreateUserRequest> list = new ArrayList<>();
 
         if (line == null || line.isEmpty()) {
-            // fallback: nothing to load
-            log.info("No DEFAULT_USERS entry found in .env; skipping default user creation");
+            log.info("No DEFAULT_USERS entry found; skipping default user creation");
             return list;
         }
 
-        // parse format username:password:role,username2:password2:role2
         String[] entries = line.split(",");
         for (String entry : entries) {
             String e = entry.trim();
             if (e.isEmpty()) continue;
-            String[] parts = e.split(":" , 3);
+            String[] parts = e.split(":", 3);
             if (parts.length < 2) continue;
             String username = parts[0].trim();
             String password = parts[1].trim();
-            String role = parts.length >=3 ? parts[2].trim() : "user";
+            String role = parts.length >= 3 ? parts[2].trim() : "user";
 
             CreateUserRequest req = new CreateUserRequest();
             req.setUsername(username);
