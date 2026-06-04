@@ -3809,7 +3809,7 @@ function aggregateSizingResults() {
                             stt: stt++,
                             moduleType: 'Khác',
                             moduleName: (row.component || '').trim() || instanceName,
-                            cauHinh: configuration ? configuration.replace(/\r?\n/g, '<br>') : 'Theo phương pháp khác (xem chi tiết)',
+                            cauHinh: row.configuration ? row.configuration.replace(/\r?\n/g, '<br>') : 'Theo phương pháp khác (xem chi tiết)',
                             soLuong: (row.quantity || '').trim(),
                             ghiChu: (row.note || '').trim() || (docText ? docText.split('\n').slice(0, 2).join(' ') : '')
                         });
