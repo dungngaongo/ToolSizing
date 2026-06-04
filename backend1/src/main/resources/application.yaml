@@ -2,10 +2,16 @@ spring:
   application:
     name: sizing
   datasource:
-    url: jdbc:mysql://10.207.252.12:33063/sizing?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://10.207.252.12:33063/sizing?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&maxAllowedPacket=67108864&connectTimeout=30000&socketTimeout=300000
     username: sizing
     password: Admin123@
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      maximum-pool-size: 10
+      minimum-idle: 5
   jpa:
     hibernate:
       ddl-auto: validate
