@@ -1682,11 +1682,21 @@ function resetAllForms() {
     if (document.getElementById('k8s-ram-flavor')) {
         document.getElementById('k8s-ram-flavor').value = '32';
     }
+    if (document.getElementById('custom-virtualization-mode')) {
+        document.getElementById('custom-virtualization-mode').value = 'ram';
+    }
+    if (document.getElementById('custom-vcpu-flavor')) {
+        document.getElementById('custom-vcpu-flavor').value = '8';
+    }
+    if (document.getElementById('custom-ram-flavor')) {
+        document.getElementById('custom-ram-flavor').value = '32';
+    }
     if (document.getElementById('mariadb-replication-model')) {
         document.getElementById('mariadb-replication-model').value = 'asynchronous';
     }
     onVirtualizationModeChange('app');
     onVirtualizationModeChange('k8s');
+    onVirtualizationModeChange('custom');
 
     // Clear all inline evidence previews (e.g. mariadb storage, etc.)
     document.querySelectorAll('.inline-evidence-preview').forEach(el => {
@@ -3529,15 +3539,19 @@ function createSummaryTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     const moduleType = escapeHtml(data.moduleType || data.module || '');
     const moduleName = escapeHtml(data.moduleName || '');
-    const escapedGhiChu = escapeHtml(data.ghiChu || '');
+    const escapedGhiChu = escapeHtml(data.ghiChu || '').replace(/\r?\n/g, '<br>');
+    const hasHtmlConfig = /<[^>]+>/.test(data.cauHinh || '');
+    const renderedCauHinh = hasHtmlConfig
+        ? `<div class="summary-multiline-cell">${data.cauHinh || ''}</div>`
+        : `<div class="summary-multiline-cell">${escapeHtml(data.cauHinh || '').replace(/\r?\n/g, '<br>')}</div>`;
 
     tr.innerHTML = `
         <td>${stt}</td>
         <td><strong>${moduleType}</strong></td>
         <td>${moduleName}</td>
-        <td>${data.cauHinh || ''}</td>
+        <td class="summary-config-cell">${renderedCauHinh}</td>
         <td class="text-center">${data.soLuong || ''}</td>
-        <td>${escapedGhiChu}</td>
+        <td class="summary-note-cell"><div class="summary-multiline-cell">${escapedGhiChu}</div></td>
     `;
     return tr;
 }
@@ -3551,9 +3565,9 @@ function collectTongHop() {
             summaryRows.push({
                 moduleType: cells[1]?.textContent?.trim() || '',
                 moduleName: cells[2]?.textContent?.trim() || '',
-                cauHinh: cells[3]?.innerHTML || '',
+                cauHinh: cells[3]?.innerText?.trim() || '',
                 soLuong: cells[4]?.textContent?.trim() || '',
-                ghiChu: cells[5]?.textContent?.trim() || ''
+                ghiChu: cells[5]?.innerText?.trim() || ''
             });
         }
     });
@@ -3795,7 +3809,7 @@ function aggregateSizingResults() {
                             stt: stt++,
                             moduleType: 'Khác',
                             moduleName: (row.component || '').trim() || instanceName,
-                            cauHinh: (row.configuration || '').trim() || 'Theo phương pháp khác (xem chi tiết)',
+                            cauHinh: configuration ? configuration.replace(/\r?\n/g, '<br>') : 'Theo phương pháp khác (xem chi tiết)',
                             soLuong: (row.quantity || '').trim(),
                             ghiChu: (row.note || '').trim() || (docText ? docText.split('\n').slice(0, 2).join(' ') : '')
                         });
@@ -4045,6 +4059,8 @@ function addCustomStorageInputRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
     const deleteRowHandler = buildInstanceAwareHandler('deleteCustomStorageInputRow(this)');
 
     tr.innerHTML = `
@@ -4052,6 +4068,15 @@ function addCustomStorageInputRow() {
         <td><input type="text" class="input-full text-center custom-storage-ip-input" placeholder="10.x.x.x"></td>
         <td><input type="text" class="input-full text-center custom-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
         <td><input type="number" class="input-full text-center custom-storage-used-input" value="0" min="0" step="0.01"></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="custom-storage-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td><input type="text" class="input-full custom-storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
         <td class="admin-cell">
             <select class="admin-eval-select custom-storage-eval" onchange="styleAdminSelect(this)">
@@ -4529,10 +4554,18 @@ function createCustomProposalRow(data = {}) {
     return tr;
 }
 
+function autoResizeCustomProposalTextarea(textarea) {
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.max(textarea.scrollHeight, 56)}px`;
+}
+
 function addCustomProposalRow(data = {}) {
     const tbody = document.getElementById('custom-proposal-table-body');
     if (!tbody) return;
-    tbody.appendChild(createCustomProposalRow(data));
+    const row = createCustomProposalRow(data);
+    tbody.appendChild(row);
+    autoResizeCustomProposalTextarea(row.querySelector('.custom-proposal-config'));
     try { applyRolePermissions(); } catch (e) { }
 }
 
@@ -4631,6 +4664,11 @@ function loadCustomLinearLikeApp(moduleApp) {
             if (ipInput) ipInput.value = row.ip || '';
             if (partitionInput) partitionInput.value = row.partition || '';
             if (usedInput) usedInput.value = row.used || '';
+            const imgs = getEvidenceImagesFromRowData(row);
+            if (imgs.length > 0) {
+                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                if (evidenceCell) loadInlineEvidence(evidenceCell, imgs);
+            }
             if (noteInput) noteInput.value = row.note || '';
             if (evalSelect) {
                 evalSelect.value = row.adminEval || '';
@@ -6178,6 +6216,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     initFirstRowGuards();
     onVirtualizationModeChange('app');
     onVirtualizationModeChange('k8s');
+    onVirtualizationModeChange('custom');
 
     // ===== URL-based routing: khôi phục trạng thái từ URL hash =====
     const initState = parseAppHash(location.hash);
@@ -6785,11 +6824,14 @@ function collectStorageInputTableData() {
     const data = [];
 
     rows.forEach((row, index) => {
+        const evidenceImages = collectInlineEvidenceFromScope(row);
         data.push({
             stt: index + 1,
             ip: row.querySelector('.storage-ip-input')?.value || '',
             partition: row.querySelector('.storage-partition-input')?.value || '',
             used: row.querySelector('.storage-used-input')?.value || '',
+            evidenceImage: evidenceImages[0] || '',
+            evidenceImages: evidenceImages,
             note: row.querySelector('.storage-note-input')?.value || '',
             adminEval: row.querySelector('.storage-eval')?.value || '',
             adminNote: row.querySelector('.storage-admin-note')?.value || ''
@@ -7319,6 +7361,11 @@ function loadAppSizingModuleData(moduleApp) {
             if (ipInput) ipInput.value = row.ip || '';
             if (partitionInput) partitionInput.value = row.partition || '';
             if (usedInput) usedInput.value = row.used || '';
+            const storageEvidenceImages = getEvidenceImagesFromRowData(row);
+            if (storageEvidenceImages.length > 0) {
+                const evidenceCell = lastRow.querySelector('.inline-evidence-cell');
+                if (evidenceCell) loadInlineEvidence(evidenceCell, storageEvidenceImages);
+            }
             if (noteInput) noteInput.value = row.note || '';
             if (evalSelect && row.adminEval) {
                 evalSelect.value = row.adminEval;
@@ -8097,6 +8144,8 @@ function addStorageInputRow() {
 
     const rowCount = tbody.rows.length + 1;
     const tr = document.createElement('tr');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
     const deleteRowHandler = buildInstanceAwareHandler('deleteStorageInputRow(this)');
 
     tr.innerHTML = `
@@ -8104,6 +8153,15 @@ function addStorageInputRow() {
         <td><input type="text" class="input-full text-center storage-ip-input" placeholder="10.x.x.x"></td>
         <td><input type="text" class="input-full text-center storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
         <td><input type="number" class="input-full text-center storage-used-input" value="0" min="0" step="0.01"></td>
+        <td>
+            <div class="inline-evidence-cell">
+                <input type="file" accept="image/*" multiple class="storage-evidence-input" onchange="${uploadHandler}" style="display:none">
+                <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="${uploadClickHandler}" title="Upload ảnh">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <span class="inline-evidence-preview"></span>
+            </div>
+        </td>
         <td><input type="text" class="input-full storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
         <td class="admin-cell">
             <select class="admin-eval-select storage-eval" onchange="styleAdminSelect(this)">
@@ -13502,26 +13560,32 @@ function renderSizingDiff(snapshot, prevSnapshot) {
             const ar = storageReviews[i] || {};
             const evalVal = ar.eval || row.adminEval || '';
             const noteVal = ar.note || row.adminNote || '';
+            const evidenceImgs = getEvidenceImagesFromRowData(row);
+            const evidenceHtml = evidenceImgs.length > 0
+                ? `<div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${evidenceImgs.map((img, idx) => `<img src="${img}" alt="storage-evidence-${idx}" onclick="openModal(this.src)" style="cursor:zoom-in; max-width:72px; max-height:52px; border-radius:4px; border:1px solid #e2e8f0;">`).join('')}</div>`
+                : '-';
             return `<tr>
                 <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.ip, prev.ip) : (row.ip || '-')}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.partition, prev.partition) : (row.partition || '-')}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${prevSnapshot ? renderTextDiff(row.used, prev.used) : (row.used || '-')}</td>
+                <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${evidenceHtml}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0;">${prevSnapshot ? renderTextDiff(row.note, prev.note) : (row.note || '-')}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0; text-align:center;">${renderEvalDiff(evalVal, null)}</td>
                 <td style="padding:6px; border:1px solid #e2e8f0; color:#6366f1; font-style:italic;">${noteVal || '-'}</td>
             </tr>`;
         }).join('');
-        appHtml += `<div class="diff-item"><strong>ThÃ´ng tin lÆ°u trá»¯ Ä‘áº§u vÃ o</strong>
+        appHtml += `<div class="diff-item"><strong>Thông tin lưu trữ đầu vào</strong>
             <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;">
                 <thead><tr style="background:#f1f5f9;">
                     <th style="padding:6px; border:1px solid #e2e8f0;">STT</th>
                     <th style="padding:6px; border:1px solid #e2e8f0;">IP</th>
-                    <th style="padding:6px; border:1px solid #e2e8f0;">PhÃ¢n vÃ¹ng</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Phân vùng</th>
                     <th style="padding:6px; border:1px solid #e2e8f0;">Used</th>
-                    <th style="padding:6px; border:1px solid #e2e8f0;">Ghi chÃº</th>
-                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">ÄÃ¡nh giÃ¡</th>
-                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chÃº</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Ảnh sở cứ</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0;">Ghi chú</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Đánh giá</th>
+                    <th style="padding:6px; border:1px solid #e2e8f0; background:#fef3c7;">Ghi chú</th>
                 </tr></thead>
                 <tbody>${storageRowsHtml}</tbody>
             </table></div>`;

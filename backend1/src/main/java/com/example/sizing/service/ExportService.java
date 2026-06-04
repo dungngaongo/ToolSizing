@@ -811,6 +811,39 @@ public class ExportService {
                 setCell(table, i + 1, 4, txt(r, "note"), false, null);
             }
             doc.createParagraph();
+
+            boolean hasStorageEvidence = false;
+            for (int i = 0; i < rows; i++) {
+                JsonNode row = storageInput.get(i);
+                JsonNode rowEvidenceImages = row.path("evidenceImages");
+                String rowEvidenceImage = txt(row, "evidenceImage");
+                boolean hasCurrentEvidence = rowEvidenceImages.isArray() && rowEvidenceImages.size() > 0;
+                if (!hasCurrentEvidence && rowEvidenceImage.isBlank()) {
+                    continue;
+                }
+
+                if (!hasStorageEvidence) {
+                    addSubHeading2(doc, "S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o:");
+                    hasStorageEvidence = true;
+                }
+
+                String ip = txt(row, "ip").trim();
+                String partition = txt(row, "partition").trim();
+                String detail = "D\u00f2ng " + (i + 1);
+                if (!ip.isEmpty()) {
+                    detail += " - " + ip;
+                }
+                if (!partition.isEmpty()) {
+                    detail += " - " + partition;
+                }
+
+                addSubHeading2(doc, detail);
+                if (hasCurrentEvidence) {
+                    addInlineImages(doc, rowEvidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o", detail));
+                } else {
+                    addInlineSingleImage(doc, rowEvidenceImage, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin l\u01b0u tr\u1eef \u0111\u1ea7u v\u00e0o", detail));
+                }
+            }
         }
 
         // Evidence images
@@ -820,9 +853,9 @@ public class ExportService {
             addInlineImages(doc, evidenceImages, buildCaption(heading + " - S\u1edf c\u1ee9 th\u00f4ng tin t\u1ea3i \u0111\u1ea7u v\u00e0o", null));
         }
 
-        String selectedInputRowLabel = resolveSelectedInputRowLabel(moduleApp, context);
-        if (!selectedInputRowLabel.isEmpty()) {
-            addLabelValue(doc, "Lấy thông số đầu vào theo ", selectedInputRowLabel);
+        String selectedInputRow = txt(moduleApp, "selectedInputRow");
+        if (!selectedInputRow.isEmpty()) {
+            addLabelValue(doc, "Lấy thông số đầu vào theo ", selectedInputRow);
         }
 
         String pocValue = txt(moduleApp, "pocValue");

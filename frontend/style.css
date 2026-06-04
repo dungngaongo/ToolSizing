@@ -543,6 +543,18 @@ body {
     background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,249,250,0.5) 100%);
 }
 
+#summary-aggregate-table .summary-config-cell,
+#summary-aggregate-table .summary-note-cell {
+    vertical-align: top;
+}
+
+#summary-aggregate-table .summary-multiline-cell {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.45;
+}
+
 /* Input/Textarea trong bảng */
 .sizing-table input[type="text"], 
 .sizing-table input[type="number"],
