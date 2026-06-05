@@ -945,15 +945,33 @@ public class ExportService {
                 List<List<String>> proposalRows = extractTableRows(proposalTableHtml);
                 String selectedProposalSource = txt(moduleApp, "selectedProposalSource").trim();
                 JsonNode customProposalTable = moduleApp.path("customProposalTable");
-                String customConfigurationText = txt(customProposalTable, "configurationText").trim();
-                String customQuantity = txt(customProposalTable, "quantity").trim();
-                String customNote = txt(customProposalTable, "note").trim();
 
-                String proposalConfig = "";
-                String proposalQuantity = "";
-                String proposalNote = "";
+                // Support both single object format and array format
+                List<Map<String, String>> customProposalData = new ArrayList<>();
+                if (customProposalTable.isArray() && customProposalTable.size() > 0) {
+                    // Array format (new multi-row support)
+                    for (JsonNode row : customProposalTable) {
+                        Map<String, String> rowData = new HashMap<>();
+                        rowData.put("config", txt(row, "configurationText").trim());
+                        rowData.put("qty", txt(row, "quantity").trim());
+                        rowData.put("note", txt(row, "note").trim());
+                        customProposalData.add(rowData);
+                    }
+                } else {
+                    // Single object format (legacy support)
+                    String config = txt(customProposalTable, "configurationText").trim();
+                    if (!config.isEmpty()) {
+                        Map<String, String> rowData = new HashMap<>();
+                        rowData.put("config", config);
+                        rowData.put("qty", txt(customProposalTable, "quantity").trim());
+                        rowData.put("note", txt(customProposalTable, "note").trim());
+                        customProposalData.add(rowData);
+                    }
+                }
 
-                if ("custom".equalsIgnoreCase(selectedProposalSource) && !customConfigurationText.isEmpty()) {
+                List<String[]> finalProposalRows = new ArrayList<>();
+
+                if ("custom".equalsIgnoreCase(selectedProposalSource) && !customProposalData.isEmpty()) {
                     String[] lines = customConfigurationText.split("\\r?\\n");
                     List<String> normalizedLines = new ArrayList<>();
                     for (String line : lines) {
