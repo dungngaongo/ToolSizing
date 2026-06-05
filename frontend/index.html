@@ -2382,6 +2382,24 @@
                                     <div id="custom-method-editor" class="custom-doc-editor sizing-user-input" contenteditable="true"
                                         onpaste="handleCustomDocPaste(event)"></div>
 
+                                    <div class="model-admin-box" style="margin-top: 16px;">
+                                        <div class="admin-grid-layout">
+                                            <div>
+                                                <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                                <select id="eval-custom-method" class="admin-eval">
+                                                    <option value="">--</option>
+                                                    <option value="OK" class="status-ok">OK</option>
+                                                    <option value="NOK" class="status-nok">NOK</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="admin-label">Ghi chú (Admin):</label>
+                                                <textarea id="note-custom-method" class="admin-note" rows="1" placeholder="Nhận xét..."
+                                                    style="resize: vertical;"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div style="margin-top: 20px;">
                                         <h4
                                             style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #333;">

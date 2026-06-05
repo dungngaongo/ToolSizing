@@ -7120,6 +7120,10 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'Khác') {
             return {
+                customMethodReview: {
+                    eval: document.getElementById('eval-custom-method')?.value || '',
+                    note: document.getElementById('note-custom-method')?.value || ''
+                },
                 baselineRowReviews: (() => {
                     const reviews = [];
                     document.querySelectorAll('#custom-baseline-table-body tr').forEach(row => {
@@ -7872,6 +7876,18 @@ function loadSizingAdminReview(adminReview) {
 
         // Load module Khac admin review
         if (adminReview.moduleCustom) {
+            // Load custom method review
+            if (adminReview.moduleCustom.customMethodReview) {
+                const customMethodReview = adminReview.moduleCustom.customMethodReview;
+                if (document.getElementById('eval-custom-method')) {
+                    document.getElementById('eval-custom-method').value = customMethodReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-custom-method'));
+                }
+                if (document.getElementById('note-custom-method')) {
+                    document.getElementById('note-custom-method').value = customMethodReview.note || '';
+                }
+            }
+
             if (adminReview.moduleCustom.baselineRowReviews) {
                 const rows = document.querySelectorAll('#custom-baseline-table-body tr');
                 adminReview.moduleCustom.baselineRowReviews.forEach((review, index) => {
