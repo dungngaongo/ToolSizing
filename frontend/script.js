@@ -5262,8 +5262,22 @@ function normalizeRedisCustomProposalTable(data) {
     };
 }
 
+// Normalize array of rows or single object to always return array
+function normalizeRedisCustomProposalTableList(data) {
+    if (!data) return [];
+
+    // If it's already an array, normalize each item
+    if (Array.isArray(data)) {
+        return data.map(item => normalizeRedisCustomProposalTable(item));
+    }
+
+    // If it's a single object, wrap in array
+    return [normalizeRedisCustomProposalTable(data)];
+}
+
 function isRedisCustomProposalTableFilled(customProposalTable) {
-    return !!normalizeRedisCustomProposalTable(customProposalTable).configurationText.trim();
+    const list = normalizeRedisCustomProposalTableList(customProposalTable);
+    return list.some(row => row.configurationText.trim() !== '');
 }
 
 function normalizeRedisProposalSource(source, customProposalTable) {
@@ -5272,12 +5286,32 @@ function normalizeRedisProposalSource(source, customProposalTable) {
 
 function collectRedisCustomProposalTableData(container) {
     if (!container) return getEmptyRedisCustomProposalTable();
-    return normalizeRedisCustomProposalTable({
-        component: container.querySelector('.redis-custom-proposal-component')?.value || '',
-        configurationText: container.querySelector('.redis-custom-proposal-config')?.value || '',
-        quantity: container.querySelector('.redis-custom-proposal-qty')?.value || '',
-        note: container.querySelector('.redis-custom-proposal-note')?.value || ''
+
+    const tbody = container.querySelector('.redis-custom-proposal-tbody');
+    if (!tbody) return getEmptyRedisCustomProposalTable();
+
+    const rows = [];
+    tbody.querySelectorAll('tr').forEach(row => {
+        const component = row.querySelector('.redis-custom-proposal-component')?.value || '';
+        const config = row.querySelector('.redis-custom-proposal-config')?.value || '';
+        const qty = row.querySelector('.redis-custom-proposal-qty')?.value || '';
+        const note = row.querySelector('.redis-custom-proposal-note')?.value || '';
+
+        // Only include rows that have some content
+        if (component.trim() || config.trim() || qty.trim() || note.trim()) {
+            rows.push({
+                component: component,
+                configurationText: config,
+                quantity: qty,
+                note: note
+            });
+        }
     });
+
+    // Return first row if only one row, otherwise return array
+    if (rows.length === 0) return getEmptyRedisCustomProposalTable();
+    if (rows.length === 1) return normalizeRedisCustomProposalTable(rows[0]);
+    return rows;
 }
 
 function getRedisSelectedProposalSource(container) {
@@ -5338,6 +5372,29 @@ function handleRedisProposalSourceChange(selectEl) {
 function buildRedisCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const normalizedTable = normalizeRedisCustomProposalTable(customProposalTable);
     const normalizedSource = normalizeRedisProposalSource(selectedProposalSource, normalizedTable);
+
+    // Support multiple rows if data is array
+    let rows = [];
+    if (Array.isArray(normalizedTable)) {
+        rows = normalizedTable.map(row => normalizeRedisCustomProposalTable(row));
+    } else {
+        rows = [normalizedTable];
+    }
+
+    const buildRows = () => rows.map(row => `
+        <tr>
+            <td><input type="text" class="input-full redis-custom-proposal-component sizing-user-input" value="${escapeHtml(row.component)}" placeholder="Redis"></td>
+            <td><textarea class="input-full redis-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;16 vCPU&#10;64 GB RAM&#10;256 GB DISK">${escapeHtml(row.configurationText)}</textarea></td>
+            <td class="text-center"><input type="text" class="input-full text-center redis-custom-proposal-qty sizing-user-input" value="${escapeHtml(row.quantity)}" placeholder="Số lượng"></td>
+            <td><textarea class="input-full redis-custom-proposal-note sizing-user-input" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(row.note)}</textarea></td>
+            <td class="text-center">
+                <button type="button" class="btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+
     return `
         <div class="redis-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
             <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
@@ -5354,17 +5411,16 @@ function buildRedisCustomProposalSectionHtml(selectedProposalSource, customPropo
                     <th style="width:200px;">Cấu hình đề xuất</th>
                     <th style="width:100px;">Số lượng</th>
                     <th>Ghi chú</th>
+                    <th style="width:50px;"><i class="fa-solid fa-trash-can"></i></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td><input type="text" class="input-full redis-custom-proposal-component" value="${escapeHtml(normalizedTable.component)}" placeholder="Redis"></td>
-                    <td><textarea class="input-full redis-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;16 vCPU&#10;64 GB RAM&#10;256 GB DISK">${escapeHtml(normalizedTable.configurationText)}</textarea></td>
-                    <td class="text-center"><input type="text" class="input-full text-center redis-custom-proposal-qty" value="${escapeHtml(normalizedTable.quantity)}" placeholder="Số lượng"></td>
-                    <td><textarea class="input-full redis-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedTable.note)}</textarea></td>
-                </tr>
+            <tbody class="redis-custom-proposal-tbody">
+                ${buildRows()}
             </tbody>
-        </table>`;
+        </table>
+        <button type="button" class="btn-add sizing-user-btn" onclick="addRedisProposalRow()" style="margin-top:10px;">
+            <i class="fa-solid fa-plus"></i> Thêm thành phần
+        </button>`;
 }
 
 function ensureRedisProposalSelectionUI(container, options = {}) {
@@ -5388,11 +5444,42 @@ function ensureRedisProposalSelectionUI(container, options = {}) {
         );
     }
 
-    const normalizedTable = normalizeRedisCustomProposalTable(options.customProposalTable || collectRedisCustomProposalTableData(container));
-    const componentInput = container.querySelector('.redis-custom-proposal-component');
-    const configInput = container.querySelector('.redis-custom-proposal-config');
-    const qtyInput = container.querySelector('.redis-custom-proposal-qty');
-    const noteInput = container.querySelector('.redis-custom-proposal-note');
+    // Ensure at least one row exists
+    const tbody = container.querySelector('.redis-custom-proposal-tbody');
+    if (tbody && tbody.children.length === 0) {
+        addRedisProposalRow();
+    }
+
+    // Load data into rows
+    const tableData = options.customProposalTable || collectRedisCustomProposalTableData(container);
+    const dataList = normalizeRedisCustomProposalTableList(tableData);
+
+    // Clear existing rows and rebuild
+    if (tbody) {
+        tbody.innerHTML = '';
+        dataList.forEach(rowData => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" class="input-full redis-custom-proposal-component sizing-user-input" value="${escapeHtml(rowData.component)}" placeholder="Redis"></td>
+                <td><textarea class="input-full redis-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;16 vCPU&#10;64 GB RAM&#10;256 GB DISK">${escapeHtml(rowData.configurationText)}</textarea></td>
+                <td class="text-center"><input type="text" class="input-full text-center redis-custom-proposal-qty sizing-user-input" value="${escapeHtml(rowData.quantity)}" placeholder="Số lượng"></td>
+                <td><textarea class="input-full redis-custom-proposal-note sizing-user-input" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(rowData.note)}</textarea></td>
+                <td class="text-center">
+                    <button type="button" class="btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này">
+                        <i class="fa-solid fa-times"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Apply permissions to new rows
+    try { applyRolePermissions(); } catch (e) { }
+
+    // Update source selection UI
+    updateRedisProposalSourceUI(container, normalizeRedisProposalSource(options.selectedProposalSource || 'auto', tableData));
+}
 
     if (componentInput) componentInput.value = normalizedTable.component;
     if (configInput) configInput.value = normalizedTable.configurationText;
@@ -5806,6 +5893,67 @@ function removeRow(btn) {
     const tbody = row.parentElement;
     row.remove();
     updateSTT(tbody);
+}
+
+// Add new row to App Custom Proposal table
+function addAppCustomProposalRow(data = {}) {
+    const container = document.getElementById('sizing-result-container');
+    if (!container) return;
+
+    const tbody = container.querySelector('.app-custom-proposal-tbody');
+    if (!tbody) return;
+
+    const normalizedData = normalizeAppCustomProposalTable(data);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>
+            <textarea class="input-full app-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(normalizedData.configurationText)}</textarea>
+        </td>
+        <td class="text-center">
+            <input type="text" class="input-full text-center app-custom-proposal-qty sizing-user-input" value="${escapeHtml(normalizedData.quantity)}" placeholder="Số lượng">
+        </td>
+        <td>
+            <textarea class="input-full app-custom-proposal-note sizing-user-input" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedData.note)}</textarea>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(tr);
+
+    // Apply role permissions to new row
+    try { applyRolePermissions(); } catch (e) { }
+}
+
+// Add new row to Redis Custom Proposal table
+function addRedisProposalRow(data = {}) {
+    const container = document.querySelector('#redis-key-result-container, #redis-config-result-container');
+    if (!container) return;
+
+    const tbody = container.querySelector('.redis-custom-proposal-tbody');
+    if (!tbody) return;
+
+    const normalizedData = normalizeRedisCustomProposalTable(data);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-full redis-custom-proposal-component sizing-user-input" value="${escapeHtml(normalizedData.component)}" placeholder="Redis"></td>
+        <td><textarea class="input-full redis-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;16 vCPU&#10;64 GB RAM&#10;256 GB DISK">${escapeHtml(normalizedData.configurationText)}</textarea></td>
+        <td class="text-center"><input type="text" class="input-full text-center redis-custom-proposal-qty sizing-user-input" value="${escapeHtml(normalizedData.quantity)}" placeholder="Số lượng"></td>
+        <td><textarea class="input-full redis-custom-proposal-note sizing-user-input" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedData.note)}</textarea></td>
+        <td class="text-center">
+            <button type="button" class="btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(tr);
+
+    // Apply role permissions to new row
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 function removeSummaryRow(btn) { removeRow(btn); }
@@ -8323,8 +8471,22 @@ function normalizeAppCustomProposalTable(data) {
     };
 }
 
+// Normalize array of rows or single object to always return array
+function normalizeAppCustomProposalTableList(data) {
+    if (!data) return [];
+
+    // If it's already an array, normalize each item
+    if (Array.isArray(data)) {
+        return data.map(item => normalizeAppCustomProposalTable(item));
+    }
+
+    // If it's a single object, wrap in array
+    return [normalizeAppCustomProposalTable(data)];
+}
+
 function isAppCustomProposalTableFilled(customProposalTable) {
-    return !!normalizeAppCustomProposalTable(customProposalTable).configurationText.trim();
+    const list = normalizeAppCustomProposalTableList(customProposalTable);
+    return list.some(row => row.configurationText.trim() !== '');
 }
 
 function normalizeAppProposalSource(source, customProposalTable) {
@@ -8333,11 +8495,30 @@ function normalizeAppProposalSource(source, customProposalTable) {
 
 function collectAppCustomProposalTableData(container = document.getElementById('sizing-result-container')) {
     if (!container) return getEmptyAppCustomProposalTable();
-    return normalizeAppCustomProposalTable({
-        configurationText: container.querySelector('.app-custom-proposal-config')?.value || '',
-        quantity: container.querySelector('.app-custom-proposal-qty')?.value || '',
-        note: container.querySelector('.app-custom-proposal-note')?.value || ''
+
+    const tbody = container.querySelector('.app-custom-proposal-tbody');
+    if (!tbody) return getEmptyAppCustomProposalTable();
+
+    const rows = [];
+    tbody.querySelectorAll('tr').forEach(row => {
+        const config = row.querySelector('.app-custom-proposal-config')?.value || '';
+        const qty = row.querySelector('.app-custom-proposal-qty')?.value || '';
+        const note = row.querySelector('.app-custom-proposal-note')?.value || '';
+
+        // Only include rows that have some content
+        if (config.trim() || qty.trim() || note.trim()) {
+            rows.push({
+                configurationText: config,
+                quantity: qty,
+                note: note
+            });
+        }
     });
+
+    // Return first row if only one row, otherwise return array
+    if (rows.length === 0) return getEmptyAppCustomProposalTable();
+    if (rows.length === 1) return normalizeAppCustomProposalTable(rows[0]);
+    return rows;
 }
 
 function getAppSelectedProposalSource(container = document.getElementById('sizing-result-container')) {
@@ -8403,6 +8584,34 @@ function handleAppProposalSourceChange(selectEl) {
 function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const normalizedTable = normalizeAppCustomProposalTable(customProposalTable);
     const normalizedSource = normalizeAppProposalSource(selectedProposalSource, normalizedTable);
+
+    // Support multiple rows if data is array
+    let rows = [];
+    if (Array.isArray(normalizedTable)) {
+        rows = normalizedTable.map(row => normalizeAppCustomProposalTable(row));
+    } else {
+        rows = [normalizedTable];
+    }
+
+    const buildRows = () => rows.map(row => `
+        <tr>
+            <td>
+                <textarea class="input-full app-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(row.configurationText)}</textarea>
+            </td>
+            <td class="text-center">
+                <input type="text" class="input-full text-center app-custom-proposal-qty sizing-user-input" value="${escapeHtml(row.quantity)}" placeholder="Số lượng">
+            </td>
+            <td>
+                <textarea class="input-full app-custom-proposal-note sizing-user-input" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(row.note)}</textarea>
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+
     return `
         <div class="app-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
             <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
@@ -8418,22 +8627,16 @@ function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposa
                     <th style="width:250px;">Cấu hình</th>
                     <th style="width:100px;">Số lượng</th>
                     <th>Ghi chú</th>
+                    <th style="width:50px;"><i class="fa-solid fa-trash-can"></i></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td>
-                        <textarea class="input-full app-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(normalizedTable.configurationText)}</textarea>
-                    </td>
-                    <td class="text-center">
-                        <input type="text" class="input-full text-center app-custom-proposal-qty" value="${escapeHtml(normalizedTable.quantity)}" placeholder="Số lượng">
-                    </td>
-                    <td>
-                        <textarea class="input-full app-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedTable.note)}</textarea>
-                    </td>
-                </tr>
+            <tbody class="app-custom-proposal-tbody">
+                ${buildRows()}
             </tbody>
-        </table>`;
+        </table>
+        <button type="button" class="btn-add sizing-user-btn" onclick="addAppCustomProposalRow()" style="margin-top:10px;">
+            <i class="fa-solid fa-plus"></i> Thêm thành phần
+        </button>`;
 }
 
 function ensureAppProposalSelectionUI(options = {}) {
@@ -8458,31 +8661,82 @@ function ensureAppProposalSelectionUI(options = {}) {
         );
     }
 
-    const normalizedTable = normalizeAppCustomProposalTable(options.customProposalTable || collectAppCustomProposalTableData(container));
-    const configInput = container.querySelector('.app-custom-proposal-config');
-    const qtyInput = container.querySelector('.app-custom-proposal-qty');
-    const noteInput = container.querySelector('.app-custom-proposal-note');
+    // Ensure at least one row exists
+    const tbody = container.querySelector('.app-custom-proposal-tbody');
+    if (tbody && tbody.children.length === 0) {
+        addAppCustomProposalRow();
+    }
 
-    if (configInput) configInput.value = normalizedTable.configurationText;
-    if (qtyInput) qtyInput.value = normalizedTable.quantity;
-    if (noteInput) noteInput.value = normalizedTable.note;
+    // Load data into rows
+    const tableData = options.customProposalTable || collectAppCustomProposalTableData(container);
+    const dataList = normalizeAppCustomProposalTableList(tableData);
 
-    updateAppProposalSourceUI(container, normalizeAppProposalSource(options.selectedProposalSource || 'auto', normalizedTable));
+    // Clear existing rows and rebuild
+    if (tbody) {
+        tbody.innerHTML = '';
+        dataList.forEach(rowData => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <textarea class="input-full app-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(rowData.configurationText)}</textarea>
+                </td>
+                <td class="text-center">
+                    <input type="text" class="input-full text-center app-custom-proposal-qty sizing-user-input" value="${escapeHtml(rowData.quantity)}" placeholder="Số lượng">
+                </td>
+                <td>
+                    <textarea class="input-full app-custom-proposal-note sizing-user-input" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(rowData.note)}</textarea>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này">
+                        <i class="fa-solid fa-times"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Apply permissions to new rows
+    try { applyRolePermissions(); } catch (e) { }
+
+    // Update source selection UI
+    updateAppProposalSourceUI(container, normalizeAppProposalSource(options.selectedProposalSource || 'auto', tableData));
 }
 
 function buildAppEffectiveCustomProposalData(customProposalTable) {
-    const normalizedTable = normalizeAppCustomProposalTable(customProposalTable);
-    const lines = normalizedTable.configurationText
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(Boolean);
+    const dataList = normalizeAppCustomProposalTableList(customProposalTable);
 
-    if (lines.length === 0) return null;
+    if (dataList.length === 0) return null;
+
+    // Build aggregated data from all rows
+    const cauHinhList = [];
+    let soLuong = '';
+    let ghiChu = '';
+
+    dataList.forEach(row => {
+        const lines = row.configurationText
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(Boolean);
+
+        lines.forEach(line => {
+            cauHinhList.push(`- ${escapeHtml(line)}`);
+        });
+
+        if (row.quantity.trim()) {
+            soLuong = row.quantity.trim();
+        }
+        if (row.note.trim()) {
+            ghiChu = row.note.trim();
+        }
+    });
+
+    if (cauHinhList.length === 0) return null;
 
     return {
-        cauHinh: lines.map(line => `- ${escapeHtml(line)}`).join('<br>'),
-        soLuong: normalizedTable.quantity.trim(),
-        ghiChu: normalizedTable.note.trim()
+        cauHinh: cauHinhList.join('<br>'),
+        soLuong: soLuong,
+        ghiChu: ghiChu
     };
 }
 
