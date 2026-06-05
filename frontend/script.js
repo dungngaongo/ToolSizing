@@ -3631,13 +3631,19 @@ function aggregateSizingResults() {
                 });
             });
             if (appData) {
-                results.push({
-                    stt: stt++,
-                    moduleType: 'App',
-                    moduleName: getModuleInstanceDisplayName(instance),
-                    cauHinh: appData.cauHinh,
-                    soLuong: appData.soLuong,
-                    ghiChu: appData.ghiChu
+                const instanceName = getModuleInstanceDisplayName(instance);
+                const appRows = Array.isArray(appData.rows) && appData.rows.length > 0
+                    ? appData.rows
+                    : [appData];
+                appRows.forEach(row => {
+                    results.push({
+                        stt: stt++,
+                        moduleType: 'App',
+                        moduleName: instanceName,
+                        cauHinh: row.cauHinh,
+                        soLuong: row.soLuong,
+                        ghiChu: row.ghiChu
+                    });
                 });
             }
             return;
@@ -3700,13 +3706,19 @@ function aggregateSizingResults() {
                 });
             });
             if (redisData) {
-                results.push({
-                    stt: stt++,
-                    moduleType: 'Redis',
-                    moduleName: getModuleInstanceDisplayName(instance),
-                    cauHinh: redisData.cauHinh,
-                    soLuong: redisData.soLuong,
-                    ghiChu: redisData.ghiChu
+                const instanceName = getModuleInstanceDisplayName(instance);
+                const redisRows = Array.isArray(redisData.rows) && redisData.rows.length > 0
+                    ? redisData.rows
+                    : [redisData];
+                redisRows.forEach(row => {
+                    results.push({
+                        stt: stt++,
+                        moduleType: 'Redis',
+                        moduleName: row.component ? `${instanceName} - ${row.component}` : instanceName,
+                        cauHinh: row.cauHinh,
+                        soLuong: row.soLuong,
+                        ghiChu: row.ghiChu
+                    });
                 });
             }
             return;
@@ -3818,13 +3830,18 @@ function aggregateSizingResults() {
             if (customData.selectedMethod === 'linearEquivalentApp') {
                 const parsed = resolveEffectiveAppProposalResult(customData.linearEquivalentApp || {});
                 if (parsed) {
-                    results.push({
-                        stt: stt++,
-                        moduleType: 'Khác',
-                        moduleName: instanceName,
-                        cauHinh: parsed.cauHinh,
-                        soLuong: parsed.soLuong,
-                        ghiChu: parsed.ghiChu
+                    const customRows = Array.isArray(parsed.rows) && parsed.rows.length > 0
+                        ? parsed.rows
+                        : [parsed];
+                    customRows.forEach(row => {
+                        results.push({
+                            stt: stt++,
+                            moduleType: 'Kh\u00e1c',
+                            moduleName: instanceName,
+                            cauHinh: row.cauHinh,
+                            soLuong: row.soLuong,
+                            ghiChu: row.ghiChu
+                        });
                     });
                 }
             } else {
@@ -5284,7 +5301,26 @@ function normalizeRedisProposalSource(source, customProposalTable) {
     return source === 'custom' && isRedisCustomProposalTableFilled(customProposalTable) ? 'custom' : 'auto';
 }
 
+function resolveRedisProposalContainer(source = null) {
+    const containerSelector = '[id="redis-key-result-container"], [id^="redis-key-result-container__inst_"], [id="redis-config-result-container"], [id^="redis-config-result-container__inst_"]';
+    if (source && typeof source === 'object') {
+        if (typeof source.matches === 'function' && source.matches(containerSelector)) {
+            return source;
+        }
+        if (typeof source.closest === 'function') {
+            const closestContainer = source.closest(containerSelector);
+            if (closestContainer) return closestContainer;
+        }
+        if (typeof source.querySelector === 'function' && source.querySelector('[data-redis-proposal-table="1"], [data-redis-custom-proposal-table="1"]')) {
+            return source;
+        }
+    }
+
+    return document.querySelector('#redis-key-result-container, #redis-config-result-container');
+}
+
 function collectRedisCustomProposalTableData(container) {
+    container = resolveRedisProposalContainer(container);
     if (!container) return getEmptyRedisCustomProposalTable();
 
     const tbody = container.querySelector('.redis-custom-proposal-tbody');
@@ -5315,11 +5351,13 @@ function collectRedisCustomProposalTableData(container) {
 }
 
 function getRedisSelectedProposalSource(container) {
+    container = resolveRedisProposalContainer(container);
     const value = container?.querySelector('.redis-proposal-source-select')?.value || 'auto';
     return value === 'custom' ? 'custom' : 'auto';
 }
 
 function getCurrentRedisProposalState(container) {
+    container = resolveRedisProposalContainer(container);
     return {
         selectedProposalSource: getRedisSelectedProposalSource(container),
         customProposalTable: collectRedisCustomProposalTableData(container)
@@ -5327,6 +5365,7 @@ function getCurrentRedisProposalState(container) {
 }
 
 function updateRedisProposalSourceUI(container, selectedSource = 'auto') {
+    container = resolveRedisProposalContainer(container);
     if (!container) return;
 
     const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
@@ -5355,7 +5394,7 @@ function updateRedisProposalSourceUI(container, selectedSource = 'auto') {
 }
 
 function handleRedisProposalSourceChange(selectEl) {
-    const container = selectEl?.closest('#redis-key-result-container, #redis-config-result-container');
+    const container = resolveRedisProposalContainer(selectEl);
     if (!container) return;
 
     let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
@@ -5372,6 +5411,9 @@ function handleRedisProposalSourceChange(selectEl) {
 function buildRedisCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const normalizedTable = normalizeRedisCustomProposalTable(customProposalTable);
     const normalizedSource = normalizeRedisProposalSource(selectedProposalSource, normalizedTable);
+    const sourceChangeHandler = buildInstanceAwareHandler('handleRedisProposalSourceChange(this)');
+    const addRowHandler = buildInstanceAwareHandler('addRedisProposalRow(this)');
+    const deleteRowHandler = buildInstanceAwareHandler('removeRow(this)');
 
     // Support multiple rows if data is array
     let rows = [];
@@ -5398,7 +5440,7 @@ function buildRedisCustomProposalSectionHtml(selectedProposalSource, customPropo
     return `
         <div class="redis-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
             <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
-            <select class="input-full redis-proposal-source-select" onchange="handleRedisProposalSourceChange(this)">
+            <select class="input-full redis-proposal-source-select" onchange="${sourceChangeHandler}">
                 <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
                 <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
             </select>
@@ -5418,7 +5460,7 @@ function buildRedisCustomProposalSectionHtml(selectedProposalSource, customPropo
                 ${buildRows()}
             </tbody>
         </table>
-        <button type="button" class="btn-add sizing-user-btn" onclick="addRedisProposalRow()" style="margin-top:10px;">
+        <button type="button" class="btn-add sizing-user-btn" onclick="${addRowHandler}" style="margin-top:10px;">
             <i class="fa-solid fa-plus"></i> Thêm thành phần
         </button>`;
 }
@@ -5447,7 +5489,7 @@ function ensureRedisProposalSelectionUI(container, options = {}) {
     // Ensure at least one row exists
     const tbody = container.querySelector('.redis-custom-proposal-tbody');
     if (tbody && tbody.children.length === 0) {
-        addRedisProposalRow();
+        addRedisProposalRow(container);
     }
 
     // Load data into rows
@@ -5481,35 +5523,43 @@ function ensureRedisProposalSelectionUI(container, options = {}) {
     updateRedisProposalSourceUI(container, normalizeRedisProposalSource(options.selectedProposalSource || 'auto', tableData));
 }
 
-    if (componentInput) componentInput.value = normalizedTable.component;
-    if (configInput) configInput.value = normalizedTable.configurationText;
-    if (qtyInput) qtyInput.value = normalizedTable.quantity;
-    if (noteInput) noteInput.value = normalizedTable.note;
-
-    updateRedisProposalSourceUI(container, normalizeRedisProposalSource(options.selectedProposalSource || 'auto', normalizedTable));
-}
-
 function buildEffectiveRedisCustomProposalData(customProposalTable) {
-    const normalizedTable = normalizeRedisCustomProposalTable(customProposalTable);
-    const lines = normalizedTable.configurationText
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(Boolean);
+    const dataList = normalizeRedisCustomProposalTableList(customProposalTable);
+    if (dataList.length === 0) return null;
 
-    if (lines.length === 0) return null;
+    const resultRows = [];
+    dataList.forEach(row => {
+        const lines = row.configurationText
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(Boolean);
+
+        if (lines.length === 0) return;
+
+        resultRows.push({
+            component: row.component.trim() || 'Redis',
+            cauHinh: lines.map(line => `- ${escapeHtml(line)}`).join('<br>'),
+            soLuong: row.quantity.trim(),
+            ghiChu: row.note.trim()
+        });
+    });
+
+    if (resultRows.length === 0) return null;
+    if (resultRows.length === 1) return resultRows[0];
 
     return {
-        component: normalizedTable.component.trim() || 'Redis',
-        cauHinh: lines.map(line => `- ${escapeHtml(line)}`).join('<br>'),
-        soLuong: normalizedTable.quantity.trim(),
-        ghiChu: normalizedTable.note.trim()
+        rows: resultRows,
+        component: resultRows[0].component,
+        cauHinh: resultRows.map(row => row.cauHinh).join('<br>'),
+        soLuong: resultRows[resultRows.length - 1].soLuong,
+        ghiChu: resultRows[resultRows.length - 1].ghiChu
     };
 }
 
 function resolveEffectiveRedisProposalResult(methodState = {}) {
     const resultHTML = methodState.resultHTML || '';
     const autoParsed = parseRedisSizingResult(resultHTML);
-    const customProposalTable = normalizeRedisCustomProposalTable(methodState.customProposalTable);
+    const customProposalTable = normalizeRedisCustomProposalTableList(methodState.customProposalTable);
     const selectedProposalSource = normalizeRedisProposalSource(methodState.selectedProposalSource || 'auto', customProposalTable);
 
     if (selectedProposalSource === 'custom') {
@@ -5896,13 +5946,19 @@ function removeRow(btn) {
 }
 
 // Add new row to App Custom Proposal table
-function addAppCustomProposalRow(data = {}) {
-    const container = document.getElementById('sizing-result-container');
+function addAppCustomProposalRow(sourceOrData = {}, rowData = null) {
+    const isElementSource = sourceOrData
+        && typeof sourceOrData === 'object'
+        && (typeof sourceOrData.matches === 'function'
+            || typeof sourceOrData.closest === 'function'
+            || typeof sourceOrData.querySelector === 'function');
+    const container = resolveAppProposalContainer(isElementSource ? sourceOrData : null);
     if (!container) return;
 
     const tbody = container.querySelector('.app-custom-proposal-tbody');
     if (!tbody) return;
-
+    
+    const data = isElementSource ? (rowData || {}) : sourceOrData;
     const normalizedData = normalizeAppCustomProposalTable(data);
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -5929,13 +5985,19 @@ function addAppCustomProposalRow(data = {}) {
 }
 
 // Add new row to Redis Custom Proposal table
-function addRedisProposalRow(data = {}) {
-    const container = document.querySelector('#redis-key-result-container, #redis-config-result-container');
+function addRedisProposalRow(sourceOrData = {}, rowData = null) {
+    const isElementSource = sourceOrData
+        && typeof sourceOrData === 'object'
+        && (typeof sourceOrData.matches === 'function'
+            || typeof sourceOrData.closest === 'function'
+            || typeof sourceOrData.querySelector === 'function');
+    const container = resolveRedisProposalContainer(isElementSource ? sourceOrData : null);
     if (!container) return;
 
     const tbody = container.querySelector('.redis-custom-proposal-tbody');
     if (!tbody) return;
-
+    
+    const data = isElementSource ? (rowData || {}) : sourceOrData;
     const normalizedData = normalizeRedisCustomProposalTable(data);
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -7363,12 +7425,17 @@ async function saveSizingData() {
     }
 
     try {
+        try { aggregateSizingResults(); } catch (e) { }
         const sizingData = collectAllSizingData();
+        const summaryData = collectTongHop();
 
         const response = await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ dinhCoHeThongContent: JSON.stringify(sizingData) })
+            body: JSON.stringify({
+                dinhCoHeThongContent: JSON.stringify(sizingData),
+                tongHopVaDeXuatContent: JSON.stringify(summaryData)
+            })
         });
 
         if (response.ok) {
@@ -8461,6 +8528,24 @@ function getEmptyAppCustomProposalTable() {
     };
 }
 
+function resolveAppProposalContainer(source = null) {
+    const containerSelector = '[id="sizing-result-container"], [id^="sizing-result-container__inst_"]';
+    if (source && typeof source === 'object') {
+        if (typeof source.matches === 'function' && source.matches(containerSelector)) {
+            return source;
+        }
+        if (typeof source.closest === 'function') {
+            const closestContainer = source.closest(containerSelector);
+            if (closestContainer) return closestContainer;
+        }
+        if (typeof source.querySelector === 'function' && source.querySelector('[data-app-proposal-table="1"], [data-app-custom-proposal-table="1"]')) {
+            return source;
+        }
+    }
+
+    return document.getElementById('sizing-result-container');
+}
+
 function normalizeAppCustomProposalTable(data) {
     const empty = getEmptyAppCustomProposalTable();
     if (!data || typeof data !== 'object') return empty;
@@ -8493,7 +8578,8 @@ function normalizeAppProposalSource(source, customProposalTable) {
     return source === 'custom' && isAppCustomProposalTableFilled(customProposalTable) ? 'custom' : 'auto';
 }
 
-function collectAppCustomProposalTableData(container = document.getElementById('sizing-result-container')) {
+function collectAppCustomProposalTableData(container = null) {
+    container = resolveAppProposalContainer(container);
     if (!container) return getEmptyAppCustomProposalTable();
 
     const tbody = container.querySelector('.app-custom-proposal-tbody');
@@ -8521,19 +8607,22 @@ function collectAppCustomProposalTableData(container = document.getElementById('
     return rows;
 }
 
-function getAppSelectedProposalSource(container = document.getElementById('sizing-result-container')) {
+function getAppSelectedProposalSource(container = null) {
+    container = resolveAppProposalContainer(container);
     const value = container?.querySelector('.app-proposal-source-select')?.value || 'auto';
     return value === 'custom' ? 'custom' : 'auto';
 }
 
-function getCurrentAppProposalState(container = document.getElementById('sizing-result-container')) {
+function getCurrentAppProposalState(container = null) {
+    container = resolveAppProposalContainer(container);
     return {
         selectedProposalSource: getAppSelectedProposalSource(container),
         customProposalTable: collectAppCustomProposalTableData(container)
     };
 }
 
-function updateAppProposalSourceUI(container = document.getElementById('sizing-result-container'), selectedSource = 'auto') {
+function updateAppProposalSourceUI(container = null, selectedSource = 'auto') {
+    container = resolveAppProposalContainer(container);
     if (!container) return;
 
     const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
@@ -8562,7 +8651,7 @@ function updateAppProposalSourceUI(container = document.getElementById('sizing-r
 }
 
 function handleAppProposalSourceChange(selectEl) {
-    const container = document.getElementById('sizing-result-container');
+    const container = resolveAppProposalContainer(selectEl);
     if (!container) return;
 
     const select = (selectEl && typeof selectEl === 'object' && typeof selectEl.tagName === 'string')
@@ -8582,18 +8671,14 @@ function handleAppProposalSourceChange(selectEl) {
 }
 
 function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
-    const normalizedTable = normalizeAppCustomProposalTable(customProposalTable);
-    const normalizedSource = normalizeAppProposalSource(selectedProposalSource, normalizedTable);
+    const rows = normalizeAppCustomProposalTableList(customProposalTable);
+    const normalizedSource = normalizeAppProposalSource(selectedProposalSource, customProposalTable);
+    const effectiveRows = rows.length > 0 ? rows : [getEmptyAppCustomProposalTable()];
+    const sourceChangeHandler = buildInstanceAwareHandler('handleAppProposalSourceChange(this)');
+    const addRowHandler = buildInstanceAwareHandler('addAppCustomProposalRow(this)');
+    const deleteRowHandler = buildInstanceAwareHandler('removeRow(this)');
 
-    // Support multiple rows if data is array
-    let rows = [];
-    if (Array.isArray(normalizedTable)) {
-        rows = normalizedTable.map(row => normalizeAppCustomProposalTable(row));
-    } else {
-        rows = [normalizedTable];
-    }
-
-    const buildRows = () => rows.map(row => `
+    const buildRows = () => effectiveRows.map(row => `
         <tr>
             <td>
                 <textarea class="input-full app-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(row.configurationText)}</textarea>
@@ -8615,7 +8700,7 @@ function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposa
     return `
         <div class="app-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
             <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
-            <select class="input-full app-proposal-source-select" onchange="handleAppProposalSourceChange(this)">
+            <select class="input-full app-proposal-source-select" onchange="${sourceChangeHandler}">
                 <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
                 <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
             </select>
@@ -8634,13 +8719,22 @@ function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposa
                 ${buildRows()}
             </tbody>
         </table>
-        <button type="button" class="btn-add sizing-user-btn" onclick="addAppCustomProposalRow()" style="margin-top:10px;">
+        <button type="button" class="btn-add sizing-user-btn" onclick="${addRowHandler}" style="margin-top:10px;">
             <i class="fa-solid fa-plus"></i> Thêm thành phần
         </button>`;
 }
 
-function ensureAppProposalSelectionUI(options = {}) {
-    const container = document.getElementById('sizing-result-container');
+function ensureAppProposalSelectionUI(containerOrOptions = {}, optionsArg = {}) {
+    const usingExplicitContainer = containerOrOptions
+        && typeof containerOrOptions === 'object'
+        && (typeof containerOrOptions.matches === 'function'
+            || typeof containerOrOptions.closest === 'function'
+            || typeof containerOrOptions.querySelector === 'function')
+        && !Array.isArray(containerOrOptions);
+    const container = usingExplicitContainer
+        ? resolveAppProposalContainer(containerOrOptions)
+        : resolveAppProposalContainer(containerOrOptions?.container || null);
+    const options = usingExplicitContainer ? (optionsArg || {}) : (containerOrOptions || {});
     if (!container) return;
 
     const autoTable = container.querySelector('[data-app-proposal-table="1"]');
@@ -8664,7 +8758,7 @@ function ensureAppProposalSelectionUI(options = {}) {
     // Ensure at least one row exists
     const tbody = container.querySelector('.app-custom-proposal-tbody');
     if (tbody && tbody.children.length === 0) {
-        addAppCustomProposalRow();
+        addAppCustomProposalRow(container);
     }
 
     // Load data into rows
@@ -8708,7 +8802,8 @@ function buildAppEffectiveCustomProposalData(customProposalTable) {
 
     if (dataList.length === 0) return null;
 
-    // Build aggregated data from all rows
+    // Keep per-row components for summary/export views that need one row per component.
+    const resultRows = [];
     const cauHinhList = [];
     let soLuong = '';
     let ghiChu = '';
@@ -8723,17 +8818,30 @@ function buildAppEffectiveCustomProposalData(customProposalTable) {
             cauHinhList.push(`- ${escapeHtml(line)}`);
         });
 
-        if (row.quantity.trim()) {
-            soLuong = row.quantity.trim();
+        const rowConfig = lines.map(line => `- ${escapeHtml(line)}`).join('<br>');
+        const rowQuantity = row.quantity.trim();
+        const rowNote = row.note.trim();
+
+        if (rowConfig) {
+            resultRows.push({
+                cauHinh: rowConfig,
+                soLuong: rowQuantity,
+                ghiChu: rowNote
+            });
         }
-        if (row.note.trim()) {
-            ghiChu = row.note.trim();
+
+        if (rowQuantity) {
+            soLuong = rowQuantity;
+        }
+        if (rowNote) {
+            ghiChu = rowNote;
         }
     });
 
     if (cauHinhList.length === 0) return null;
 
     return {
+        rows: resultRows,
         cauHinh: cauHinhList.join('<br>'),
         soLuong: soLuong,
         ghiChu: ghiChu
@@ -8743,7 +8851,7 @@ function buildAppEffectiveCustomProposalData(customProposalTable) {
 function resolveEffectiveAppProposalResult(appState = {}) {
     const sizingResult = appState.sizingResult || '';
     const autoParsed = parseAppSizingResult(sizingResult);
-    const customProposalTable = normalizeAppCustomProposalTable(appState.customProposalTable);
+    const customProposalTable = normalizeAppCustomProposalTableList(appState.customProposalTable);
     const selectedProposalSource = normalizeAppProposalSource(appState.selectedProposalSource || 'auto', customProposalTable);
 
     if (selectedProposalSource === 'custom') {

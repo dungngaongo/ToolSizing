@@ -20,10 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -972,38 +969,51 @@ public class ExportService {
                 List<String[]> finalProposalRows = new ArrayList<>();
 
                 if ("custom".equalsIgnoreCase(selectedProposalSource) && !customProposalData.isEmpty()) {
-                    String[] lines = customConfigurationText.split("\\r?\\n");
-                    List<String> normalizedLines = new ArrayList<>();
-                    for (String line : lines) {
-                        String trimmed = line == null ? "" : line.trim();
-                        if (!trimmed.isEmpty()) {
-                            normalizedLines.add("- " + trimmed);
+                    for (Map<String, String> customRow : customProposalData) {
+                        String configurationText = customRow.getOrDefault("config", "");
+                        List<String> normalizedLines = new ArrayList<>();
+                        String[] lines = configurationText.split("\\r?\\n");
+                        for (String line : lines) {
+                            String trimmed = line == null ? "" : line.trim();
+                            if (!trimmed.isEmpty()) {
+                                normalizedLines.add("- " + trimmed);
+                            }
+                        }
+                        if (!normalizedLines.isEmpty()) {
+                            finalProposalRows.add(new String[]{
+                                    String.join("\n", normalizedLines),
+                                    customRow.getOrDefault("qty", "").trim(),
+                                    customRow.getOrDefault("note", "").trim()
+                            });
                         }
                     }
-                    proposalConfig = String.join("\n", normalizedLines);
-                    proposalQuantity = customQuantity;
-                    proposalNote = customNote;
                 } else if (!proposalRows.isEmpty()) {
-                    List<String> proposalRow = proposalRows.get(0);
-                    if (proposalRow.size() >= 3) {
-                        proposalConfig = proposalRow.get(0);
-                        proposalQuantity = proposalRow.get(1);
-                        proposalNote = proposalRow.get(2);
+                    for (List<String> proposalRow : proposalRows) {
+                        if (proposalRow.size() >= 3) {
+                            finalProposalRows.add(new String[]{
+                                    proposalRow.get(0),
+                                    proposalRow.get(1),
+                                    proposalRow.get(2)
+                            });
+                        }
                     }
                 }
 
-                if (!proposalConfig.isEmpty() || !proposalQuantity.isEmpty() || !proposalNote.isEmpty()) {
+                if (!finalProposalRows.isEmpty()) {
                     addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t thi\u1ebft b\u1ecb");
-                    XWPFTable deviceTable = doc.createTable(2, 3);
+                    XWPFTable deviceTable = doc.createTable(finalProposalRows.size() + 1, 3);
                     styleTable(deviceTable);
 
                     setCell(deviceTable, 0, 0, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
                     setCell(deviceTable, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
                     setCell(deviceTable, 0, 2, "Ghi ch\u00fa", true, "D9E2F3");
 
-                    setCell(deviceTable, 1, 0, proposalConfig, false, "E6FFED");
-                    setCell(deviceTable, 1, 1, proposalQuantity, true, "E6FFED");
-                    setCell(deviceTable, 1, 2, proposalNote, false, "E6FFED");
+                    for (int i = 0; i < finalProposalRows.size(); i++) {
+                        String[] proposalRow = finalProposalRows.get(i);
+                        setCell(deviceTable, i + 1, 0, proposalRow[0], false, "E6FFED");
+                        setCell(deviceTable, i + 1, 1, proposalRow[1], true, "E6FFED");
+                        setCell(deviceTable, i + 1, 2, proposalRow[2], false, "E6FFED");
+                    }
                     doc.createParagraph();
                 }
                 return;
@@ -1763,37 +1773,60 @@ public class ExportService {
                 doc.createParagraph();
             }
 
-            String component = "";
-            String config = "";
-            String quantity = "";
-            String note = "";
+            List<String[]> proposalResultRows = new ArrayList<>();
 
             if (methodNode != null && !methodNode.isMissingNode()) {
                 String selectedProposalSource = txt(methodNode, "selectedProposalSource").trim();
                 JsonNode customProposalTable = methodNode.path("customProposalTable");
-                String customConfigurationText = txt(customProposalTable, "configurationText").trim();
-                if ("custom".equalsIgnoreCase(selectedProposalSource) && !customConfigurationText.isEmpty()) {
-                    String customComponent = txt(customProposalTable, "component").trim();
-                    String customQuantity = txt(customProposalTable, "quantity").trim();
-                    String customNote = txt(customProposalTable, "note").trim();
-                    String[] lines = customConfigurationText.split("\\r?\\n");
-                    List<String> normalizedLines = new ArrayList<>();
-                    for (String line : lines) {
-                        String trimmed = line == null ? "" : line.trim();
-                        if (!trimmed.isEmpty()) {
-                            normalizedLines.add("- " + trimmed);
+                if ("custom".equalsIgnoreCase(selectedProposalSource)) {
+                    if (customProposalTable.isArray() && customProposalTable.size() > 0) {
+                        for (JsonNode row : customProposalTable) {
+                            String customConfigurationText = txt(row, "configurationText").trim();
+                            if (customConfigurationText.isEmpty()) {
+                                continue;
+                            }
+                            String[] lines = customConfigurationText.split("\\r?\\n");
+                            List<String> normalizedLines = new ArrayList<>();
+                            for (String line : lines) {
+                                String trimmed = line == null ? "" : line.trim();
+                                if (!trimmed.isEmpty()) {
+                                    normalizedLines.add("- " + trimmed);
+                                }
+                            }
+                            if (!normalizedLines.isEmpty()) {
+                                proposalResultRows.add(new String[]{
+                                        txt(row, "component").trim().isEmpty() ? "Redis" : txt(row, "component").trim(),
+                                        String.join("\n", normalizedLines),
+                                        txt(row, "quantity").trim(),
+                                        txt(row, "note").trim()
+                                });
+                            }
                         }
-                    }
-                    if (!normalizedLines.isEmpty()) {
-                        component = customComponent.isEmpty() ? "Redis" : customComponent;
-                        config = String.join("\n", normalizedLines);
-                        quantity = customQuantity;
-                        note = customNote;
+                    } else {
+                        String customConfigurationText = txt(customProposalTable, "configurationText").trim();
+                        if (!customConfigurationText.isEmpty()) {
+                            String[] lines = customConfigurationText.split("\\r?\\n");
+                            List<String> normalizedLines = new ArrayList<>();
+                            for (String line : lines) {
+                                String trimmed = line == null ? "" : line.trim();
+                                if (!trimmed.isEmpty()) {
+                                    normalizedLines.add("- " + trimmed);
+                                }
+                            }
+                            if (!normalizedLines.isEmpty()) {
+                                proposalResultRows.add(new String[]{
+                                        txt(customProposalTable, "component").trim().isEmpty() ? "Redis" : txt(customProposalTable, "component").trim(),
+                                        String.join("\n", normalizedLines),
+                                        txt(customProposalTable, "quantity").trim(),
+                                        txt(customProposalTable, "note").trim()
+                                });
+                            }
+                        }
                     }
                 }
             }
 
-            if (config.isEmpty()) {
+            if (proposalResultRows.isEmpty()) {
                 String proposalTableHtml = extractTableHtmlByMarker(html, "data-redis-proposal-table=\"1\"");
                 List<List<String>> proposalRows = extractTableRows(proposalTableHtml);
 
@@ -1826,19 +1859,22 @@ public class ExportService {
                 }
 
                 if (!proposalRows.isEmpty()) {
-                    List<String> proposalRow = proposalRows.get(0);
-                    if (proposalRow.size() >= 4) {
-                        component = proposalRow.get(0);
-                        config = proposalRow.get(1);
-                        quantity = proposalRow.get(2);
-                        note = proposalRow.get(3);
+                    for (List<String> proposalRow : proposalRows) {
+                        if (proposalRow.size() >= 4) {
+                            proposalResultRows.add(new String[]{
+                                    proposalRow.get(0),
+                                    proposalRow.get(1),
+                                    proposalRow.get(2),
+                                    proposalRow.get(3)
+                            });
+                        }
                     }
                 }
             }
 
-            if (!component.isEmpty() || !config.isEmpty() || !quantity.isEmpty() || !note.isEmpty()) {
+            if (!proposalResultRows.isEmpty()) {
                 addSubHeading2(doc, "K\u1ebft qu\u1ea3 \u0111\u1ec1 xu\u1ea5t c\u1ea5u h\u00ecnh");
-                XWPFTable table = doc.createTable(2, 4);
+                XWPFTable table = doc.createTable(proposalResultRows.size() + 1, 4);
                 styleTable(table);
 
                 setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
@@ -1846,10 +1882,13 @@ public class ExportService {
                 setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
                 setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
 
-                setCell(table, 1, 0, component.isEmpty() ? "Redis" : component, true, "E6FFED");
-                setCell(table, 1, 1, config, false, "E6FFED");
-                setCell(table, 1, 2, quantity, true, "E6FFED");
-                setCell(table, 1, 3, note, false, "E6FFED");
+                for (int i = 0; i < proposalResultRows.size(); i++) {
+                    String[] proposalRow = proposalResultRows.get(i);
+                    setCell(table, i + 1, 0, proposalRow[0].isEmpty() ? "Redis" : proposalRow[0], true, "E6FFED");
+                    setCell(table, i + 1, 1, proposalRow[1], false, "E6FFED");
+                    setCell(table, i + 1, 2, proposalRow[2], true, "E6FFED");
+                    setCell(table, i + 1, 3, proposalRow[3], false, "E6FFED");
+                }
                 doc.createParagraph();
             }
         } catch (Exception e) {
