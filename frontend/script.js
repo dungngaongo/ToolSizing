@@ -7248,6 +7248,10 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'MariaDB') {
             return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-mariadb')?.value || '',
+                    note: document.getElementById('note-module-mariadb')?.value || ''
+                },
                 refRowReviews: collectMariaDBRefAdminReviewData(),
                 storageReview: {
                     eval: document.getElementById('eval-mariadb-storage')?.value || '',
@@ -7257,9 +7261,13 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'Redis') {
             return {
-                overallReview: {
-                    eval: document.getElementById('eval-module-redis')?.value || '',
-                    note: document.getElementById('note-module-redis')?.value || ''
+                keyMethodReview: {
+                    eval: document.getElementById('eval-redis-key-method')?.value || '',
+                    note: document.getElementById('note-redis-key-method')?.value || ''
+                },
+                configMethodReview: {
+                    eval: document.getElementById('eval-redis-config-method')?.value || '',
+                    note: document.getElementById('note-redis-config-method')?.value || ''
                 },
                 configRowReviews: (() => {
                     const reviews = [];
@@ -7275,9 +7283,13 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'Kafka') {
             return {
-                overallReview: {
-                    eval: document.getElementById('eval-module-kafka')?.value || '',
-                    note: document.getElementById('note-module-kafka')?.value || ''
+                throughputMethodReview: {
+                    eval: document.getElementById('eval-kafka-throughput-method')?.value || '',
+                    note: document.getElementById('note-kafka-throughput-method')?.value || ''
+                },
+                linearMethodReview: {
+                    eval: document.getElementById('eval-kafka-linear-method')?.value || '',
+                    note: document.getElementById('note-kafka-linear-method')?.value || ''
                 },
                 linearRowReviews: (() => {
                     const reviews = [];
@@ -7328,8 +7340,27 @@ function collectSizingAdminReviewData() {
                 }
             };
         }
+        if (moduleType === 'K8S') {
+            return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-k8s')?.value || '',
+                    note: document.getElementById('note-module-k8s')?.value || ''
+                },
+                baselineRowReviews: collectK8SBaselineAdminReviewData(),
+                inputConfigRowReviews: collectK8SInputConfigAdminReviewData(),
+                storageRowReviews: collectK8SStorageAdminReviewData(),
+                flavorReview: {
+                    eval: document.getElementById('k8s-flavor-eval')?.value || '',
+                    note: document.getElementById('k8s-flavor-note')?.value || ''
+                }
+            };
+        }
         if (moduleType === 'Khác') {
             return {
+                linearMethodReview: {
+                    eval: document.getElementById('eval-custom-linear-method')?.value || '',
+                    note: document.getElementById('note-custom-linear-method')?.value || ''
+                },
                 customMethodReview: {
                     eval: document.getElementById('eval-custom-method')?.value || '',
                     note: document.getElementById('note-custom-method')?.value || ''
@@ -7917,6 +7948,18 @@ function loadSizingAdminReview(adminReview) {
 
         // Load module MariaDB admin review
         if (adminReview.moduleMariaDB) {
+            // Load overall module evaluation
+            if (adminReview.moduleMariaDB.overallReview) {
+                const moduleReview = adminReview.moduleMariaDB.overallReview;
+                if (document.getElementById('eval-module-mariadb')) {
+                    document.getElementById('eval-module-mariadb').value = moduleReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-mariadb'));
+                }
+                if (document.getElementById('note-module-mariadb')) {
+                    document.getElementById('note-module-mariadb').value = moduleReview.note || '';
+                }
+            }
+
             // Load ref table row reviews
             if (adminReview.moduleMariaDB.refRowReviews) {
                 const rows = document.querySelectorAll('#mariadb-ref-table-body tr');
@@ -7950,14 +7993,27 @@ function loadSizingAdminReview(adminReview) {
 
         // Load module Redis admin review
         if (adminReview.moduleRedis) {
-            if (adminReview.moduleRedis.overallReview) {
-                const redisReview = adminReview.moduleRedis.overallReview;
-                if (document.getElementById('eval-module-redis')) {
-                    document.getElementById('eval-module-redis').value = redisReview.eval || '';
-                    styleAdminSelect(document.getElementById('eval-module-redis'));
+            // Load key method review
+            if (adminReview.moduleRedis.keyMethodReview) {
+                const keyReview = adminReview.moduleRedis.keyMethodReview;
+                if (document.getElementById('eval-redis-key-method')) {
+                    document.getElementById('eval-redis-key-method').value = keyReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-redis-key-method'));
                 }
-                if (document.getElementById('note-module-redis')) {
-                    document.getElementById('note-module-redis').value = redisReview.note || '';
+                if (document.getElementById('note-redis-key-method')) {
+                    document.getElementById('note-redis-key-method').value = keyReview.note || '';
+                }
+            }
+
+            // Load config method review
+            if (adminReview.moduleRedis.configMethodReview) {
+                const configReview = adminReview.moduleRedis.configMethodReview;
+                if (document.getElementById('eval-redis-config-method')) {
+                    document.getElementById('eval-redis-config-method').value = configReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-redis-config-method'));
+                }
+                if (document.getElementById('note-redis-config-method')) {
+                    document.getElementById('note-redis-config-method').value = configReview.note || '';
                 }
             }
 
@@ -7982,14 +8038,27 @@ function loadSizingAdminReview(adminReview) {
 
         // Load module Kafka admin review
         if (adminReview.moduleKafka) {
-            if (adminReview.moduleKafka.overallReview) {
-                const kafkaReview = adminReview.moduleKafka.overallReview;
-                if (document.getElementById('eval-module-kafka')) {
-                    document.getElementById('eval-module-kafka').value = kafkaReview.eval || '';
-                    styleAdminSelect(document.getElementById('eval-module-kafka'));
+            // Load throughput method review
+            if (adminReview.moduleKafka.throughputMethodReview) {
+                const throughputReview = adminReview.moduleKafka.throughputMethodReview;
+                if (document.getElementById('eval-kafka-throughput-method')) {
+                    document.getElementById('eval-kafka-throughput-method').value = throughputReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-kafka-throughput-method'));
                 }
-                if (document.getElementById('note-module-kafka')) {
-                    document.getElementById('note-module-kafka').value = kafkaReview.note || '';
+                if (document.getElementById('note-kafka-throughput-method')) {
+                    document.getElementById('note-kafka-throughput-method').value = throughputReview.note || '';
+                }
+            }
+
+            // Load linear method review
+            if (adminReview.moduleKafka.linearMethodReview) {
+                const linearReview = adminReview.moduleKafka.linearMethodReview;
+                if (document.getElementById('eval-kafka-linear-method')) {
+                    document.getElementById('eval-kafka-linear-method').value = linearReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-kafka-linear-method'));
+                }
+                if (document.getElementById('note-kafka-linear-method')) {
+                    document.getElementById('note-kafka-linear-method').value = linearReview.note || '';
                 }
             }
 
@@ -8014,6 +8083,18 @@ function loadSizingAdminReview(adminReview) {
 
         // Load module K8S admin review
         if (adminReview.moduleK8S) {
+            // Load overall module evaluation
+            if (adminReview.moduleK8S.overallReview) {
+                const moduleReview = adminReview.moduleK8S.overallReview;
+                if (document.getElementById('eval-module-k8s')) {
+                    document.getElementById('eval-module-k8s').value = moduleReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-k8s'));
+                }
+                if (document.getElementById('note-module-k8s')) {
+                    document.getElementById('note-module-k8s').value = moduleReview.note || '';
+                }
+            }
+
             if (adminReview.moduleK8S.baselineRowReviews) {
                 const rows = getK8SBaselineRows();
                 adminReview.moduleK8S.baselineRowReviews.forEach((review, index) => {
@@ -8085,6 +8166,36 @@ function loadSizingAdminReview(adminReview) {
                 }
                 if (document.getElementById('note-module-lbfw')) {
                     document.getElementById('note-module-lbfw').value = lbfwReview.note || '';
+                }
+            }
+        }
+
+        // Load module App admin review
+        if (adminReview.moduleApp) {
+            // Load overall module evaluation
+            if (adminReview.moduleApp.overallReview) {
+                const moduleReview = adminReview.moduleApp.overallReview;
+                if (document.getElementById('eval-module-app')) {
+                    document.getElementById('eval-module-app').value = moduleReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-app'));
+                }
+                if (document.getElementById('note-module-app')) {
+                    document.getElementById('note-module-app').value = moduleReview.note || '';
+                }
+            }
+        }
+
+        // Load module Custom admin review
+        if (adminReview.moduleCustom) {
+            // Load linear method review
+            if (adminReview.moduleCustom.linearMethodReview) {
+                const linearReview = adminReview.moduleCustom.linearMethodReview;
+                if (document.getElementById('eval-custom-linear-method')) {
+                    document.getElementById('eval-custom-linear-method').value = linearReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-custom-linear-method'));
+                }
+                if (document.getElementById('note-custom-linear-method')) {
+                    document.getElementById('note-custom-linear-method').value = linearReview.note || '';
                 }
             }
         }

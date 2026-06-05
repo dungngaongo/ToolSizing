@@ -1003,6 +1003,24 @@
                                         </div>
 
                                         <div id="sizing-result-container" style="margin-top:12px;"></div>
+
+                                <!-- Admin Evaluation Section for App Module -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-module-app" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-module-app" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module App..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
                                     </div>
                                 </div>
                             </div>
@@ -1182,6 +1200,24 @@
 
                                 <!-- Kết quả tính toán -->
                                 <div id="mariadb-result-container" style="margin-top: 20px;"></div>
+
+                                <!-- Admin Evaluation Section -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-module-mariadb" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-module-mariadb" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module MariaDB..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                         </div>
@@ -1349,6 +1385,24 @@
                                     </div>
 
                                     <div id="redis-key-result-container" style="margin-top: 20px;"></div>
+
+                                <!-- Admin Evaluation Section -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-redis-key-method" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-redis-key-method" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về phương án tính Redis theo Key..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
                                 </div>
 
                                 <!-- ==================== PHƯƠNG PHÁP 2: TÍNH THEO CẤU HÌNH HIỆN CÓ ==================== -->
@@ -1474,9 +1528,25 @@
                                     </div>
 
                                     <div id="redis-config-result-container" style="margin-top: 20px;"></div>
+
+                                <!-- Admin Evaluation Section -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-redis-config-method" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-redis-config-method" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về phương án tính Redis theo cấu hình hiện có..."></textarea>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
@@ -1697,6 +1767,24 @@
                                     </div>
 
                                     <div id="kafka-throughput-result-container" style="margin-top: 20px;"></div>
+
+                                <!-- Admin Evaluation Section for Kafka Throughput Method -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-kafka-throughput-method" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-kafka-throughput-method" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về phương án tính Kafka theo lưu lượng..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
                                 </div>
 
                                 <!-- ==================== PHƯƠNG ÁN B: TÍNH TUYẾN TÍNH ==================== -->
@@ -1807,9 +1895,25 @@
                                     </div>
 
                                     <div id="kafka-linear-result-container" style="margin-top: 20px;"></div>
+
+                                <!-- Admin Evaluation Section for Kafka Linear Method -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-kafka-linear-method" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-kafka-linear-method" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về phương án tính Kafka tuyến tính..."></textarea>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
@@ -2035,6 +2139,24 @@
                                             </div>
                                         </div>
                                         <div id="k8s-result-container" style="margin-top:12px;"></div>
+
+                                <!-- Admin Evaluation Section for K8S Module -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-module-k8s" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-module-k8s" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module K8S..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
                                     </div>
                                 </div>
                             </div>
@@ -2142,6 +2264,24 @@
                                             </div>
                                         </div>
                                         <div id="lbfw-result-container" style="margin-top:12px;"></div>
+
+                                <!-- Admin Evaluation Section for LB/FW Module -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-module-lbfw" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-module-lbfw" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module LB/FW..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
                                     </div>
                                 </div>
                             </div>
@@ -2352,6 +2492,24 @@
                                         </div>
                                     </div>
                                     <div id="sizing-result-container" style="margin-top:12px;"></div>
+
+                                <!-- Admin Evaluation Section for Custom Module Linear Method -->
+                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                    <div class="admin-grid-layout">
+                                        <div>
+                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                            <select id="eval-custom-linear-method" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                <option value="">-- Chọn --</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NOK">NOK</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="admin-label">Ghi chú (Admin):</label>
+                                            <textarea id="note-custom-linear-method" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về phương án định cỡ tuyến tính..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
                                 </div>
 
                                 <div id="custom-doc-wrapper" style="display:none; margin-top: 16px;">
