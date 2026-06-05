@@ -903,6 +903,21 @@ function applyRolePermissions() {
             btn.style.cursor = 'pointer';
         });
 
+        // Disable custom method editor for admin (read-only)
+        const customMethodEditor = document.getElementById('custom-method-editor');
+        if (customMethodEditor) {
+            customMethodEditor.contentEditable = 'false';
+            customMethodEditor.style.pointerEvents = 'none';
+            customMethodEditor.style.opacity = '0.7';
+        }
+
+        // Disable custom doc toolbar buttons for admin
+        document.querySelectorAll('.custom-doc-toolbar button').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        });
+
         // Disable file inputs (uploads) in those sections
         document.querySelectorAll('#page-request input[type="file"], #page-input input[type="file"], #page-model input[type="file"], #page-sizing input[type="file"]').forEach(fi => fi.disabled = true);
 
@@ -973,6 +988,21 @@ function applyRolePermissions() {
 
         // Enable user buttons on sizing page
         document.querySelectorAll('#page-sizing button.sizing-user-btn, #page-sizing button.btn-add, #page-sizing button.btn-add-img').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        });
+
+        // Enable custom method editor for user (editable)
+        const customMethodEditorForUser = document.getElementById('custom-method-editor');
+        if (customMethodEditorForUser) {
+            customMethodEditorForUser.contentEditable = 'true';
+            customMethodEditorForUser.style.pointerEvents = 'auto';
+            customMethodEditorForUser.style.opacity = '1';
+        }
+
+        // Enable custom doc toolbar buttons for user
+        document.querySelectorAll('.custom-doc-toolbar button').forEach(btn => {
             btn.disabled = false;
             btn.style.opacity = '1';
             btn.style.cursor = 'pointer';
@@ -4065,9 +4095,9 @@ function addCustomStorageInputRow() {
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
-        <td><input type="text" class="input-full text-center custom-storage-ip-input" placeholder="10.x.x.x"></td>
-        <td><input type="text" class="input-full text-center custom-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
-        <td><input type="number" class="input-full text-center custom-storage-used-input" value="0" min="0" step="0.01"></td>
+        <td><input type="text" class="input-full text-center sizing-user-input custom-storage-ip-input" placeholder="10.x.x.x"></td>
+        <td><input type="text" class="input-full text-center sizing-user-input custom-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
+        <td><input type="number" class="input-full text-center sizing-user-input custom-storage-used-input" value="0" min="0" step="0.01"></td>
         <td>
             <div class="inline-evidence-cell">
                 <input type="file" accept="image/*" multiple class="custom-storage-evidence-input" onchange="${uploadHandler}" style="display:none">
@@ -4077,7 +4107,7 @@ function addCustomStorageInputRow() {
                 <span class="inline-evidence-preview"></span>
             </div>
         </td>
-        <td><input type="text" class="input-full custom-storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
+        <td><input type="text" class="input-full sizing-user-input custom-storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
         <td class="admin-cell">
             <select class="admin-eval-select custom-storage-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -4089,7 +4119,7 @@ function addCustomStorageInputRow() {
             <input type="text" class="input-full admin-note custom-storage-admin-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button type="button" class="btn-delete" onclick="${deleteRowHandler}">×</button>
+            <button type="button" class="btn-delete sizing-user-btn" onclick="${deleteRowHandler}">×</button>
         </td>
     `;
 
@@ -4535,10 +4565,10 @@ function collectCustomModuleData() {
 function createCustomProposalRow(data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-        <td><input type="text" class="input-full custom-proposal-component" placeholder="Thành phần" value="${escapeHtml(data.component || '')}"></td>
-        <td><textarea rows="2" class="input-full custom-proposal-config" placeholder="Cấu hình đề xuất">${escapeHtml(data.configuration || '')}</textarea></td>
-        <td><input type="text" class="input-full custom-proposal-qty" placeholder="Số lượng" value="${escapeHtml(data.quantity || '')}"></td>
-        <td><input type="text" class="input-full custom-proposal-note" placeholder="Ghi chú" value="${escapeHtml(data.note || '')}"></td>
+        <td><input type="text" class="input-full sizing-user-input custom-proposal-component" placeholder="Thành phần" value="${escapeHtml(data.component || '')}"></td>
+        <td><textarea rows="2" class="input-full sizing-user-input custom-proposal-config" placeholder="Cấu hình đề xuất">${escapeHtml(data.configuration || '')}</textarea></td>
+        <td><input type="text" class="input-full sizing-user-input custom-proposal-qty" placeholder="Số lượng" value="${escapeHtml(data.quantity || '')}"></td>
+        <td><input type="text" class="input-full sizing-user-input custom-proposal-note" placeholder="Ghi chú" value="${escapeHtml(data.note || '')}"></td>
         <td class="admin-cell">
             <select class="admin-eval-select custom-proposal-eval" onchange="styleAdminSelect(this)">
                 <option value="">--</option>
@@ -4549,7 +4579,7 @@ function createCustomProposalRow(data = {}) {
         <td class="admin-cell">
             <input type="text" class="input-full admin-note custom-proposal-admin-note" placeholder="Nhận xét...">
         </td>
-        <td><button type="button" class="btn-delete" onclick="removeRow(this)">✖</button></td>
+        <td><button type="button" class="btn-delete sizing-user-btn" onclick="removeRow(this)">✖</button></td>
     `;
     return tr;
 }
