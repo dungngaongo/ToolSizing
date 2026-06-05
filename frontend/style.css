@@ -3265,33 +3265,3 @@ textarea {
     color: #b0b7c3 !important;
     font-style: italic;
 }
-
-/* ==================== SIZING MODULES LAYOUT FIX ==================== */
-  #sizing-modules-container {
-      display: flex;
-      flex-direction: column;
-      gap: 0; /* gap được control bởi margin-bottom của module-collapsible */
-      width: 100%;
-  }
-
-  .module-instance-wrapper {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      margin-bottom: 20px; /* Khoảng cách giữa các module bars */
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  }
-
-  .module-instance-wrapper .module-collapsible {
-      margin-bottom: 0; /* Reset margin vì đã có margin-bottom ở wrapper */
-      border: none;
-      border-radius: 0;
-      box-shadow: none;
-  }
-
-  .module-instance-wrapper:first-child {
-      margin-top: 20px; /* Khoảng cách với tiêu đề */
-  }
