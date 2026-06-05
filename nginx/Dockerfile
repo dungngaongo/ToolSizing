@@ -1,4 +1,4 @@
-FROM nginx:latest
+FROM registry-lab.kcntt.net/library/nginx:alpine
 
 # copy config
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
