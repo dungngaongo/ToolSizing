@@ -1,45 +1,31 @@
-FROM eclipse-temurin:21-jre-alpine
+# FROM eclipse-temurin:21-jre-alpine
+
+# WORKDIR /app
+
+# COPY target/sizing-*.jar app.jar
+
+# # Set timezone VN
+# RUN ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
+
+# EXPOSE 8081
+
+# RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# USER appuser
+
+# ENTRYPOINT ["java", "-jar", "app.jar"]
+
+FROM registry-lab.kcntt.net/library/eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-COPY target/sizing-*.jar app.jar
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Set timezone VN
-RUN ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
+# Vừa copy vừa phân quyền luôn, không cần cài tzdata của OS nữa
+COPY --chown=appuser:appgroup target/sizing-*.jar app.jar
 
 EXPOSE 8081
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
-
-
-## Stage 1: Build với Maven
-#FROM maven:3.9-eclipse-temurin-21 AS build
-#
-#WORKDIR /app
-#
-## Copy settings.xml vào container
-#COPY .m2/settings.xml /root/.m2/settings.xml
-#
-## Copy source code vào container
-#COPY . /app
-#
-## Build jar
-#RUN mvn -s /root/.m2/settings.xml clean package -DskipTests=true
-#
-## Stage 2: Chạy app
-#FROM eclipse-temurin:21-jre-alpine
-#
-#WORKDIR /app
-#
-## Copy jar từ stage 1
-#COPY --from=build /app/target/sizing-*.jar app.jar
-#
-## Set timezone VN
-#RUN ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
-#
-#EXPOSE 8081
-#
-#ENTRYPOINT ["java", "-jar", "app.jar"]
+# Ép Java chạy theo múi giờ VN bằng tham số -Duser.timezone
+ENTRYPOINT ["java", "-Duser.timezone=Asia/Ho_Chi_Minh", "-XX:+UseG1GC", "-Dfile.encoding=UTF-8", "-jar", "app.jar"]
