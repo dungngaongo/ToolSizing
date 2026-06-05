@@ -2,9 +2,9 @@ spring:
   application:
     name: sizing
   datasource:
-    url: jdbc:mysql://10.207.252.12:33063/sizing?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&maxAllowedPacket=67108864&connectTimeout=30000&socketTimeout=300000
-    username: sizing
-    password: Admin123@
+    url: jdbc:mysql://localhost:3306/sizing2?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&maxAllowedPacket=67108864&connectTimeout=30000&socketTimeout=300000
+    username: root
+    password: cungvay10
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       connection-timeout: 30000
@@ -18,7 +18,7 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MariaDBDialect
+        dialect: org.hibernate.dialect.MySQLDialect
   jackson:
     default-property-inclusion: non_null
     serialization:
