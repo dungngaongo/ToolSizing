@@ -2638,14 +2638,25 @@ public class ExportService {
     // ---------- Module LB/FW ----------
     private void writeModuleLBFW(XWPFDocument doc, JsonNode moduleLBFW, String heading, ExportContext context) {
         if (moduleLBFW.isMissingNode()) return;
+        String selectedMethod = txt(moduleLBFW, "selectedMethod");
+        if ("customMethod".equals(selectedMethod)) {
+            writeModuleLBFWCustomMethod(doc, moduleLBFW, heading);
+            return;
+        }
+
+        JsonNode bandwidthMethod = moduleLBFW.path("bandwidthMethod");
+        JsonNode exportNode = (bandwidthMethod != null && !bandwidthMethod.isMissingNode() && bandwidthMethod.size() > 0)
+                ? bandwidthMethod
+                : moduleLBFW;
+
         addSubHeading(doc, heading);
 
         // Evidence images
-        addInlineImages(doc, moduleLBFW.path("evidenceImages"), buildCaption(heading + " - S\u1edf c\u1ee9 LB/FW", null));
+        addInlineImages(doc, exportNode.path("evidenceImages"), buildCaption(heading + " - S\u1edf c\u1ee9 LB/FW", null));
 
         // Peak values
-        String peakUpload = txt(moduleLBFW, "peakUpload");
-        String peakDownload = txt(moduleLBFW, "peakDownload");
+        String peakUpload = txt(exportNode, "peakUpload");
+        String peakDownload = txt(exportNode, "peakDownload");
         if (!peakUpload.isEmpty() || !peakDownload.isEmpty()) {
             addSubHeading2(doc, "Th\u00f4ng tin b\u0103ng th\u00f4ng");
             addLabelValue(doc, "Peak Upload (Mbps):", peakUpload);
@@ -2653,18 +2664,18 @@ public class ExportService {
         }
 
         // POC / Sizing
-        String pocValue = txt(moduleLBFW, "pocValue");
-        String sizingValue = txt(moduleLBFW, "sizingValue");
+        String pocValue = txt(exportNode, "pocValue");
+        String sizingValue = txt(exportNode, "sizingValue");
         if (!pocValue.isEmpty() || !sizingValue.isEmpty()) {
             addLabelValue(doc, "T\u1ea3i h\u1ec7 th\u1ed1ng POC:", pocValue);
             addLabelValue(doc, "\u0110\u1ecbnh c\u1ee1:", sizingValue);
         }
 
         // Sizing result
-        String sizingResult = txt(moduleLBFW, "sizingResult");
+        String sizingResult = txt(exportNode, "sizingResult");
         if (!sizingResult.isEmpty()) {
             addSubHeading2(doc, "K\u1ebft qu\u1ea3 t\u00ednh to\u00e1n:");
-            parseAndWriteLBFWResult(doc, sizingResult, moduleLBFW);
+            parseAndWriteLBFWResult(doc, sizingResult, exportNode);
         }
 
         doc.createParagraph();
@@ -2786,6 +2797,51 @@ public class ExportService {
             String plainText = html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
             if (!plainText.isEmpty()) addNormalText(doc, plainText);
         }
+    }
+
+    private void writeModuleLBFWCustomMethod(XWPFDocument doc, JsonNode moduleLBFW, String heading) {
+        addSubHeading(doc, heading);
+        addLabelValue(doc, "Ph\u01b0\u01a1ng ph\u00e1p:", "\u0110\u1ecbnh c\u1ee1 theo ph\u01b0\u01a1ng ph\u00e1p kh\u00e1c");
+
+        String html = txt(moduleLBFW, "customMethodDocHtml");
+        if (html.isEmpty()) {
+            html = txt(moduleLBFW, "customMethodDocText");
+        }
+        List<HtmlFragment> fragments = parseHtmlWithImages(html);
+        if (!fragments.isEmpty()) {
+            addHtmlFragments(doc, fragments);
+        }
+
+        JsonNode proposalRows = moduleLBFW.path("customProposalTable");
+        if (proposalRows.isArray() && proposalRows.size() > 0) {
+            java.util.List<JsonNode> rows = new java.util.ArrayList<>();
+            for (int i = 0; i < proposalRows.size(); i++) {
+                JsonNode row = proposalRows.get(i);
+                if (!txt(row, "component").isBlank()
+                        || !txt(row, "configuration").isBlank()
+                        || !txt(row, "quantity").isBlank()
+                        || !txt(row, "note").isBlank()) {
+                    rows.add(row);
+                }
+            }
+            if (!rows.isEmpty()) {
+                addSubHeading(doc, "C\u1ea5u h\u00ecnh \u0111\u1ec1 xu\u1ea5t");
+                XWPFTable table = doc.createTable(rows.size() + 1, 4);
+                styleTable(table);
+                setCell(table, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                setCell(table, 0, 1, "C\u1ea5u h\u00ecnh \u0111\u1ec1 xu\u1ea5t", true, "D9E2F3");
+                setCell(table, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                setCell(table, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
+                for (int i = 0; i < rows.size(); i++) {
+                    JsonNode row = rows.get(i);
+                    setCell(table, i + 1, 0, txt(row, "component"), false, null);
+                    setCell(table, i + 1, 1, txt(row, "configuration"), false, null);
+                    setCell(table, i + 1, 2, txt(row, "quantity"), false, null);
+                    setCell(table, i + 1, 3, txt(row, "note"), false, null);
+                }
+            }
+        }
+        doc.createParagraph();
     }
 
     // ---------- Module Custom ----------

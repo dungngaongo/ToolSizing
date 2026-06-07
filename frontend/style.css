@@ -1332,12 +1332,6 @@ body.role-user .admin-note,
     max-width: 300px;
 }
 
-/* Always keep first row non-deletable in table bodies */
-tbody tr:first-child .btn-delete,
-tbody tr:first-child .btn-delete-row-item {
-    display: none !important;
-}
-
 /* ========================================= */
 /* STYLE CHO MỤC 3: MÔ HÌNH HỆ THỐNG (FIX)   */
 /* ========================================= */

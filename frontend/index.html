@@ -1021,6 +1021,7 @@
                                         </div>
                                     </div>
                                 </div>
+
                                     </div>
                                 </div>
                             </div>
@@ -1546,6 +1547,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1913,6 +1915,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2171,121 +2174,135 @@
                         </div>
                         <div class="module-collapsible-content" id="module-lbfw-content">
                             <div class="model-user-content">
-                                <h3 class="model-header">
-                                    <i class="fa-solid fa-image" style="color: #ee0033;"></i>ẢNH SỞ CỨ
-                                </h3>
-                                <div id="lbfw-evidence-grid" class="image-upload-grid" style="margin-top: 10px;"></div>
-                                <button type="button" class="btn-add-img sizing-user-btn"
-                                    onclick="addLBFWEvidenceSlot()" style="margin-top: 8px; font-size: 11px;">
-                                    <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
-                                </button>
-
-                                <div style="margin-top: 30px; border-top: 2px solid #ddd; padding-top: 20px;">
+                                <div style="margin-top: 12px;">
+                                    <label
+                                        style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Chọn
+                                        phương pháp định cỡ</label>
+                                    <select id="lbfw-method-select" class="input-full sizing-user-input"
+                                        onchange="onLBFWMethodChanged()">
+                                        <option value="bandwidthMethod">Định cỡ theo băng thông</option>
+                                        <option value="customMethod">Định cỡ theo phương pháp khác</option>
+                                    </select>
+                                </div>
+                                <div id="lbfw-linear-wrapper"
+                                    style="margin-top: 16px; padding: 14px; border: 1px solid #e6e6e6; border-radius: 6px; background: #fff;">
                                     <h3 class="model-header">
-                                        <i class="fa-solid fa-gauge-high" style="color: #ee0033;"></i>THÔNG TIN BĂNG
-                                        THÔNG
+                                        <i class="fa-solid fa-image" style="color: #ee0033;"></i>ẢNH SỞ CỨ
                                     </h3>
-                                    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px;">
-                                        <div style="flex: 1; min-width: 250px;">
-                                            <label
-                                                style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Peak
-                                                Upload (Mbps)</label>
-                                            <input id="lbfw-peak-upload" type="number" min="0" step="0.01"
-                                                class="input-full sizing-user-input" placeholder="Nhập peak upload...">
-                                        </div>
-                                        <div style="flex: 1; min-width: 250px;">
-                                            <label
-                                                style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Peak
-                                                Download (Mbps)</label>
-                                            <input id="lbfw-peak-download" type="number" min="0" step="0.01"
-                                                class="input-full sizing-user-input"
-                                                placeholder="Nhập peak download...">
-                                        </div>
-                                    </div>
-                                </div>
+                                    <div id="lbfw-evidence-grid" class="image-upload-grid" style="margin-top: 10px;"></div>
+                                    <button type="button" class="btn-add-img sizing-user-btn"
+                                        onclick="addLBFWEvidenceSlot()" style="margin-top: 8px; font-size: 11px;">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                    </button>
 
-                                <!-- Admin Evaluation Section -->
-                                <div class="model-admin-box"
-                                    style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
-                                    <div class="admin-grid-layout">
-                                        <div>
-                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh
-                                                giá:</label>
-                                            <select id="eval-module-lbfw" class="admin-eval admin-eval-select"
-                                                onchange="styleAdminSelect(this)">
-                                                <option value="">-- Chọn --</option>
-                                                <option value="OK">OK</option>
-                                                <option value="NOK">NOK</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="admin-label">Ghi chú (Admin):</label>
-                                            <textarea id="note-module-lbfw" class="admin-note input-full" rows="2"
-                                                placeholder="Nhận xét của admin về Module LB/FW..."></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div style="margin-top: 30px; border-top: 1px dashed #ccc; padding-top: 20px;">
-                                    <div
-                                        style="padding: 14px; border: 1px solid #e6e6e6; background-color: #fff; border-radius: 6px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);">
-                                        <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
-                                            <div style="min-width:280px;">
+                                    <div style="margin-top: 30px; border-top: 2px solid #ddd; padding-top: 20px;">
+                                        <h3 class="model-header">
+                                            <i class="fa-solid fa-gauge-high" style="color: #ee0033;"></i>THÔNG TIN BĂNG
+                                            THÔNG
+                                        </h3>
+                                        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px;">
+                                            <div style="flex: 1; min-width: 250px;">
                                                 <label
-                                                    style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn
-                                                    dòng đầu vào (POC & Định cỡ)</label>
-                                                <select id="lbfw-input-row-select" class="input-full sizing-user-input"
-                                                    onchange="onInputRowSelect(this, 'lbfw-poc-value', 'lbfw-sizing-value')">
-                                                    <option value="">-- Chọn từ bảng đầu vào --</option>
+                                                    style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Peak
+                                                    Upload (Mbps)</label>
+                                                <input id="lbfw-peak-upload" type="number" min="0" step="0.01"
+                                                    class="input-full sizing-user-input" placeholder="Nhập peak upload...">
+                                            </div>
+                                            <div style="flex: 1; min-width: 250px;">
+                                                <label
+                                                    style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Peak
+                                                    Download (Mbps)</label>
+                                                <input id="lbfw-peak-download" type="number" min="0" step="0.01"
+                                                    class="input-full sizing-user-input"
+                                                    placeholder="Nhập peak download...">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Admin Evaluation Section -->
+                                    <div class="model-admin-box"
+                                        style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                        <div class="admin-grid-layout">
+                                            <div>
+                                                <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh
+                                                    giá:</label>
+                                                <select id="eval-lbfw-linear-method" class="admin-eval admin-eval-select"
+                                                    onchange="styleAdminSelect(this)">
+                                                    <option value="">-- Chọn --</option>
+                                                    <option value="OK">OK</option>
+                                                    <option value="NOK">NOK</option>
                                                 </select>
                                             </div>
-                                            <div style="min-width:120px;">
-                                                <label
-                                                    style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải
-                                                    hệ thống POC</label>
-                                                <input id="lbfw-poc-value" type="text" class="input-full" readonly
-                                                    style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
-                                            </div>
-                                            <div style="min-width:120px;">
-                                                <label
-                                                    style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định
-                                                    cỡ</label>
-                                                <input id="lbfw-sizing-value" type="text" class="input-full" readonly
-                                                    style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
-                                            </div>
-                                            <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
-                                                <button type="button" class="btn-submit sizing-user-btn"
-                                                    onclick="calculateLBFWSizing()">
-                                                    <i class="fa-solid fa-calculator"></i> Tính toán
-                                                </button>
-                                                <button type="button" class="btn-outline sizing-user-btn"
-                                                    onclick="document.getElementById('lbfw-result-container').innerHTML='';">Xóa
-                                                    kết quả</button>
+                                            <div>
+                                                <label class="admin-label">Ghi chú (Admin):</label>
+                                                <textarea id="note-lbfw-linear-method" class="admin-note input-full" rows="2"
+                                                    placeholder="Nhận xét của admin về Module LB/FW..."></textarea>
                                             </div>
                                         </div>
-                                        <div id="lbfw-result-container" style="margin-top:12px;"></div>
+                                    </div>
 
-                                <!-- Admin Evaluation Section for LB/FW Module -->
-                                <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
-                                    <div class="admin-grid-layout">
-                                        <div>
-                                            <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
-                                            <select id="eval-module-lbfw" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
-                                                <option value="">-- Chọn --</option>
-                                                <option value="OK">OK</option>
-                                                <option value="NOK">NOK</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="admin-label">Ghi chú (Admin):</label>
-                                            <textarea id="note-module-lbfw" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module LB/FW..."></textarea>
+                                    <div style="margin-top: 30px; border-top: 1px dashed #ccc; padding-top: 20px;">
+                                        <div
+                                            style="padding: 14px; border: 1px solid #e6e6e6; background-color: #fff; border-radius: 6px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);">
+                                            <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
+                                                <div style="min-width:280px;">
+                                                    <label
+                                                        style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Chọn
+                                                        dòng đầu vào (POC & Định cỡ)</label>
+                                                    <select id="lbfw-input-row-select" class="input-full sizing-user-input"
+                                                        onchange="onInputRowSelect(this, 'lbfw-poc-value', 'lbfw-sizing-value')">
+                                                        <option value="">-- Chọn từ bảng đầu vào --</option>
+                                                    </select>
+                                                </div>
+                                                <div style="min-width:120px;">
+                                                    <label
+                                                        style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Tải
+                                                        hệ thống POC</label>
+                                                    <input id="lbfw-poc-value" type="text" class="input-full" readonly
+                                                        style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                                </div>
+                                                <div style="min-width:120px;">
+                                                    <label
+                                                        style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Định
+                                                        cỡ</label>
+                                                    <input id="lbfw-sizing-value" type="text" class="input-full" readonly
+                                                        style="background:#f0f9ff; cursor:not-allowed; font-weight:600;">
+                                                </div>
+                                                <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+                                                    <button type="button" class="btn-submit sizing-user-btn"
+                                                        onclick="calculateLBFWSizing()">
+                                                        <i class="fa-solid fa-calculator"></i> Tính toán
+                                                    </button>
+                                                    <button type="button" class="btn-outline sizing-user-btn"
+                                                        onclick="document.getElementById('lbfw-result-container').innerHTML='';">Xóa
+                                                        kết quả</button>
+                                                </div>
+                                            </div>
+                                            <div id="lbfw-result-container" style="margin-top:12px;"></div>
                                         </div>
                                     </div>
                                 </div>
+
+                                <div id="lbfw-doc-wrapper" style="display:none; margin-top: 16px;">
+                                    <!-- Admin Evaluation Section for LB/FW Module -->
+                                    <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                                        <div class="admin-grid-layout">
+                                            <div>
+                                                <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                                <select id="eval-lbfw-custom-method" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                                    <option value="">-- Chọn --</option>
+                                                    <option value="OK">OK</option>
+                                                    <option value="NOK">NOK</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="admin-label">Ghi chú (Admin):</label>
+                                                <textarea id="note-lbfw-custom-method" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về Module LB/FW..."></textarea>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
@@ -2620,11 +2637,12 @@
                                     <th>Cấu hình</th>
                                     <th style="width: 80px;">Số lượng</th>
                                     <th style="width: 200px;">Ghi chú</th>
+                                    <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
                                 </tr>
                             </thead>
                             <tbody id="summary-table-body">
                                 <tr>
-                                    <td colspan="6" class="text-center" style="color: #999; padding: 30px;">
+                                    <td colspan="7" class="text-center" style="color: #999; padding: 30px;">
                                         <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực
                                         hiện tính toán ở các module trước.
                                     </td>

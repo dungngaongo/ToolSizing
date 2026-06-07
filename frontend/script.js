@@ -1,4 +1,4 @@
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://localhost:8081/api';
 
 // Biến lưu Project ID và ProjectData ID hiện tại
 let currentProjectId = localStorage.getItem('currentProjectId') || null;
@@ -572,17 +572,6 @@ function initHelpTooltipSmartPositioning() {
     window.addEventListener('scroll', repositionVisible, { passive: true });
 }
 
-function updateFirstRowDeleteButtons(tbody) {
-    if (!tbody) return;
-
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    rows.forEach((row, index) => {
-        row.querySelectorAll('.btn-delete, .btn-delete-row-item').forEach(btn => {
-            btn.style.display = index === 0 ? 'none' : '';
-        });
-    });
-}
-
 function ensureFirstRowExists(tbodyId, addRowFn) {
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
@@ -590,8 +579,36 @@ function ensureFirstRowExists(tbodyId, addRowFn) {
     if (tbody.querySelectorAll('tr').length === 0 && typeof addRowFn === 'function') {
         addRowFn();
     }
+}
 
-    updateFirstRowDeleteButtons(tbody);
+function ensureDefaultAppSizingRows() {
+    ensureFirstRowExists('baseline-table-body', () => addBaselineRow());
+    ensureFirstRowExists('input-config-table-body', () => addInputConfigRow());
+    ensureFirstRowExists('storage-input-table-body', () => addStorageInputRow());
+}
+
+function ensureDefaultRedisConfigRows() {
+    ensureFirstRowExists('redis-config-table-body', () => addRedisConfigRow({}));
+}
+
+function ensureDefaultMariaDBRefRows() {
+    ensureFirstRowExists('mariadb-ref-table-body', () => addMariaDBRefRow({}));
+}
+
+function ensureDefaultKafkaLinearRows() {
+    ensureFirstRowExists('kafka-linear-table-body', () => addKafkaLinearRow({}));
+}
+
+function ensureDefaultK8SSizingRows() {
+    ensureFirstRowExists('k8s-baseline-table-body', () => addK8SBaselineRow());
+    ensureFirstRowExists('k8s-input-config-table-body', () => addK8SInputConfigRow());
+    ensureFirstRowExists('k8s-storage-input-table-body', () => addK8SStorageInputRow());
+}
+
+function ensureDefaultCustomLinearRows() {
+    ensureFirstRowExists('custom-baseline-table-body', () => addCustomBaselineRow());
+    ensureFirstRowExists('custom-input-config-table-body', () => addCustomInputConfigRow());
+    ensureFirstRowExists('custom-storage-input-table-body', () => addCustomStorageInputRow());
 }
 
 function initFirstRowGuards() {
@@ -605,6 +622,7 @@ function initFirstRowGuards() {
         { id: 'arch-table-body', add: () => addArchRow() },
         { id: 'baseline-table-body', add: () => addBaselineRow() },
         { id: 'input-config-table-body', add: () => addInputConfigRow() },
+        { id: 'storage-input-table-body', add: () => addStorageInputRow() },
         { id: 'mariadb-ref-table-body', add: () => addMariaDBRefRow({}) },
         { id: 'redis-config-table-body', add: () => addRedisConfigRow({}) },
         { id: 'kafka-linear-table-body', add: () => addKafkaLinearRow({}) },
@@ -614,15 +632,8 @@ function initFirstRowGuards() {
     ];
 
     managedTables.forEach(item => {
-        const tbody = document.getElementById(item.id);
-        if (!tbody) return;
-
+        // Seed default rows only once on startup; allow tables to become empty after deletion.
         ensureFirstRowExists(item.id, item.add);
-
-        const observer = new MutationObserver(() => {
-            ensureFirstRowExists(item.id, item.add);
-        });
-        observer.observe(tbody, { childList: true });
     });
 }
 
@@ -903,13 +914,12 @@ function applyRolePermissions() {
             btn.style.cursor = 'pointer';
         });
 
-        // Disable custom method editor for admin (read-only)
-        const customMethodEditor = document.getElementById('custom-method-editor');
-        if (customMethodEditor) {
-            customMethodEditor.contentEditable = 'false';
-            customMethodEditor.style.pointerEvents = 'none';
-            customMethodEditor.style.opacity = '0.7';
-        }
+        // Disable custom method editors for admin (read-only)
+        document.querySelectorAll('.custom-doc-editor').forEach(editor => {
+            editor.contentEditable = 'false';
+            editor.style.pointerEvents = 'none';
+            editor.style.opacity = '0.7';
+        });
 
         // Disable custom doc toolbar buttons for admin
         document.querySelectorAll('.custom-doc-toolbar button').forEach(btn => {
@@ -993,13 +1003,12 @@ function applyRolePermissions() {
             btn.style.cursor = 'pointer';
         });
 
-        // Enable custom method editor for user (editable)
-        const customMethodEditorForUser = document.getElementById('custom-method-editor');
-        if (customMethodEditorForUser) {
-            customMethodEditorForUser.contentEditable = 'true';
-            customMethodEditorForUser.style.pointerEvents = 'auto';
-            customMethodEditorForUser.style.opacity = '1';
-        }
+        // Enable custom method editors for user (editable)
+        document.querySelectorAll('.custom-doc-editor').forEach(editor => {
+            editor.contentEditable = 'true';
+            editor.style.pointerEvents = 'auto';
+            editor.style.opacity = '1';
+        });
 
         // Enable custom doc toolbar buttons for user
         document.querySelectorAll('.custom-doc-toolbar button').forEach(btn => {
@@ -1762,6 +1771,7 @@ function resetAllForms() {
     if (firstPage) firstPage.classList.add("active");
 
     try { updateModuleVisibility(); } catch (e) { }
+    ensureDefaultAppSizingRows();
 
     // Always restore fixed sizing rule after global reset.
     applyFixedSizingRule();
@@ -3269,8 +3279,8 @@ const MODULE_ICON_MAPPING = {
     'Redis': 'fa-solid fa-database',
     'MariaDB': 'fa-solid fa-database',
     'Kafka': 'fa-solid fa-stream',
-    'K8S': 'fa-brands fa-kubernetes',
-    'LB/FW': 'fa-solid fa-shield-halved',
+    'K8S': 'fa-solid fa-dharmachakra',
+    'LB/FW': 'fa-solid fa-shield-alt',
     'Khác': 'fa-solid fa-puzzle-piece'
 };
 
@@ -3348,6 +3358,34 @@ function rewriteInlineHandlersForInstance(root, instanceKey) {
     });
 }
 
+function applyModuleInstanceHeader(wrapper, moduleName, instance) {
+    if (!wrapper || !instance) return;
+
+    const header = wrapper.querySelector('.module-collapsible-header');
+    const titleSpan = header?.querySelector('span');
+    const displayName = getModuleInstanceDisplayName(instance);
+
+    if (titleSpan) {
+        const iconClass = MODULE_ICON_MAPPING[moduleName] || 'fa-solid fa-cube';
+        titleSpan.innerHTML = `<i class="${iconClass}"></i> Module ${escapeHtml(displayName)}`;
+    }
+
+    if (header) {
+        header.title = displayName;
+    }
+}
+
+function syncModuleWrapperState(wrapper) {
+    if (!wrapper) return;
+
+    const header = wrapper.querySelector('.module-collapsible-header');
+    const content = wrapper.querySelector('.module-collapsible-content');
+    if (!header || !content) return;
+
+    const isExpanded = content.classList.contains('expanded');
+    header.classList.toggle('active', isExpanded);
+}
+
 function createModuleCloneForInstance(moduleName, instance) {
     const registryItem = moduleTemplateRegistry[moduleName];
     if (!registryItem) return null;
@@ -3367,17 +3405,8 @@ function createModuleCloneForInstance(moduleName, instance) {
     });
 
     rewriteInlineHandlersForInstance(wrapper, instanceKey);
-
-    const header = wrapper.querySelector('.module-collapsible-header');
-    const titleSpan = header?.querySelector('span');
-    if (titleSpan) {
-        const iconClass = MODULE_ICON_MAPPING[moduleName] || 'fa-solid fa-cube';
-        titleSpan.innerHTML = `<i class="${iconClass}"></i> Module ${escapeHtml(getModuleInstanceDisplayName(instance))}`;
-    }
-
-    if (header) {
-        header.title = getModuleInstanceDisplayName(instance);
-    }
+    applyModuleInstanceHeader(wrapper, moduleName, instance);
+    syncModuleWrapperState(wrapper);
 
     if (moduleName === 'App' || moduleName === 'K8S') {
         const prefix = moduleName === 'App' ? 'app' : 'k8s';
@@ -3491,6 +3520,9 @@ function renderModuleInstances(moduleName, moduleInstances, preservedSnapshots =
             applyFormControlStates(clone, snapshot.controlStates);
         }
 
+        applyModuleInstanceHeader(clone, moduleName, instance);
+        syncModuleWrapperState(clone);
+
         cursor.after(clone);
         cursor = clone;
     });
@@ -3515,7 +3547,29 @@ function renderModuleInstancesInOrder(instances, preservedSnapshots = null) {
             applyFormControlStates(clone, snapshot.controlStates);
         }
 
+        applyModuleInstanceHeader(clone, moduleName, instance);
+        syncModuleWrapperState(clone);
+
         container.appendChild(clone);
+
+        if (moduleName === 'App') {
+            runInInstanceContext(instanceKey, () => ensureDefaultAppSizingRows());
+        }
+        if (moduleName === 'MariaDB') {
+            runInInstanceContext(instanceKey, () => ensureDefaultMariaDBRefRows());
+        }
+        if (moduleName === 'Redis') {
+            runInInstanceContext(instanceKey, () => ensureDefaultRedisConfigRows());
+        }
+        if (moduleName === 'Kafka') {
+            runInInstanceContext(instanceKey, () => ensureDefaultKafkaLinearRows());
+        }
+        if (moduleName === 'K8S') {
+            runInInstanceContext(instanceKey, () => ensureDefaultK8SSizingRows());
+        }
+        if (moduleName === 'Khác') {
+            runInInstanceContext(instanceKey, () => ensureDefaultCustomLinearRows());
+        }
     });
 }
 
@@ -3787,22 +3841,18 @@ function aggregateSizingResults() {
         }
 
         if (instance.moduleType === 'LB/FW') {
-            const lbfwData = runInInstanceContext(instanceKey, () => {
-                const lbfwContainer = document.getElementById('lbfw-result-container');
-                return resolveEffectiveLBFWProposalResult({
-                    resultHTML: lbfwContainer?.innerHTML || '',
-                    selectedProposalSource: getLBFWSelectedProposalSource(lbfwContainer),
-                    customProposalTable: collectLBFWCustomProposalTableData(lbfwContainer)
-                });
-            });
-            if (lbfwData) {
-                results.push({
-                    stt: stt++,
-                    moduleType: 'FW/LB',
-                    moduleName: getModuleInstanceDisplayName(instance),
-                    cauHinh: lbfwData.cauHinh,
-                    soLuong: lbfwData.soLuong,
-                    ghiChu: lbfwData.ghiChu
+            const instanceName = getModuleInstanceDisplayName(instance);
+            const summaryRows = runInInstanceContext(instanceKey, () => resolveLBFWSummaryRows(collectLBFWData(), instanceName));
+            if (Array.isArray(summaryRows) && summaryRows.length > 0) {
+                summaryRows.forEach(row => {
+                    results.push({
+                        stt: stt++,
+                        moduleType: row.moduleType,
+                        moduleName: row.moduleName,
+                        cauHinh: row.cauHinh,
+                        soLuong: row.soLuong,
+                        ghiChu: row.ghiChu
+                    });
                 });
             } else if (hasAppSelected) {
                 const appData = runInInstanceContext(instanceKey, () => {
@@ -3898,6 +3948,411 @@ function aggregateSizingResults() {
     return results;
 }
 
+let summaryDeletedRowKeys = new Set();
+let summaryManualOverrideActive = false;
+
+function resetSummaryManualOverrideState() {
+    summaryDeletedRowKeys = new Set();
+    summaryManualOverrideActive = false;
+}
+
+function getSummaryDeletedRowKeysArray() {
+    return Array.from(summaryDeletedRowKeys);
+}
+
+function normalizeSummaryKeyPart(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').replace(/[|]/g, '/');
+}
+
+function buildSummaryRowKey(parts, occurrence = 1) {
+    const normalizedParts = (Array.isArray(parts) ? parts : [parts])
+        .map(normalizeSummaryKeyPart)
+        .filter(Boolean);
+    normalizedParts.push(String(occurrence || 1));
+    return normalizedParts.join('::');
+}
+
+function renderSummaryEmptyState(tbody) {
+    if (!tbody) return;
+    tbody.innerHTML = `<tr>
+        <td colspan="7" class="text-center" style="color: #999; padding: 30px;">
+            <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực hiện tính toán ở các module trước.
+        </td>
+    </tr>`;
+}
+
+function renderSummaryResults(tbody, rows) {
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+        renderSummaryEmptyState(tbody);
+        return;
+    }
+
+    rows.forEach((row, index) => {
+        const tr = createSummaryTableRow(index + 1, row);
+        tbody.appendChild(tr);
+    });
+
+    try { applyRolePermissions(); } catch (e) { }
+}
+
+function loadTongHop(data) {
+    const tbody = document.getElementById('summary-table-body');
+    if (!tbody) return;
+
+    const deletedRowKeys = Array.isArray(data?.deletedRowKeys) ? data.deletedRowKeys : [];
+    summaryDeletedRowKeys = new Set(
+        deletedRowKeys
+            .map(key => String(key || '').trim())
+            .filter(Boolean)
+    );
+    summaryManualOverrideActive = data?.manualOverrideActive === true;
+
+    renderSummaryResults(tbody, Array.isArray(data?.summaryRows) ? data.summaryRows : []);
+}
+
+function createSummaryTableRow(stt, data = {}) {
+    const tr = document.createElement('tr');
+    const moduleType = escapeHtml(data.moduleType || data.module || '');
+    const moduleName = escapeHtml(data.moduleName || '');
+    const escapedGhiChu = escapeHtml(data.ghiChu || '').replace(/\r?\n/g, '<br>');
+    const hasHtmlConfig = /<[^>]+>/.test(data.cauHinh || '');
+    const rowKey = String(data.rowKey || '').trim();
+    const renderedCauHinh = hasHtmlConfig
+        ? `<div class="summary-multiline-cell">${data.cauHinh || ''}</div>`
+        : `<div class="summary-multiline-cell">${escapeHtml(data.cauHinh || '').replace(/\r?\n/g, '<br>')}</div>`;
+
+    if (rowKey) {
+        tr.dataset.rowKey = rowKey;
+    }
+
+    tr.innerHTML = `
+        <td>${stt}</td>
+        <td><strong>${moduleType}</strong></td>
+        <td>${moduleName}</td>
+        <td class="summary-config-cell">${renderedCauHinh}</td>
+        <td class="text-center">${data.soLuong || ''}</td>
+        <td class="summary-note-cell"><div class="summary-multiline-cell">${escapedGhiChu}</div></td>
+        <td class="text-center">
+            <button type="button" class="btn-delete sizing-user-btn" onclick="removeSummaryRow(this)" title="Xóa dòng này">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </td>
+    `;
+    return tr;
+}
+
+function collectTongHop() {
+    const summaryRows = [];
+    document.querySelectorAll('#summary-table-body tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 7 && !cells[0].hasAttribute('colspan')) {
+            summaryRows.push({
+                rowKey: row.dataset.rowKey || '',
+                moduleType: cells[1]?.textContent?.trim() || '',
+                moduleName: cells[2]?.textContent?.trim() || '',
+                cauHinh: cells[3]?.innerText?.trim() || '',
+                soLuong: cells[4]?.textContent?.trim() || '',
+                ghiChu: cells[5]?.innerText?.trim() || ''
+            });
+        }
+    });
+
+    return {
+        summaryRows,
+        deletedRowKeys: getSummaryDeletedRowKeysArray(),
+        manualOverrideActive: summaryManualOverrideActive
+    };
+}
+
+function aggregateSizingResults(options = {}) {
+    const tbody = document.getElementById('summary-table-body');
+    if (!tbody) return [];
+
+    const resetManualDeletes = options.resetManualDeletes === true;
+    if (resetManualDeletes) {
+        resetSummaryManualOverrideState();
+    }
+
+    const preserveDeletedRows = options.preserveDeletedRows ?? summaryManualOverrideActive;
+    const orderedInstances = getModuleInstancesFromArchTable();
+    const selectedModules = orderedInstances.map(instance => instance.moduleType);
+    const hasAppSelected = selectedModules.includes('App');
+
+    const results = [];
+    const rowKeyCounters = {};
+    let stt = 1;
+
+    const pushSummaryResult = (instanceKey, rowData, rowKeyParts = []) => {
+        const normalizedRow = {
+            stt: stt++,
+            moduleType: rowData.moduleType || '',
+            moduleName: rowData.moduleName || '',
+            cauHinh: rowData.cauHinh || '',
+            soLuong: rowData.soLuong || '',
+            ghiChu: rowData.ghiChu || ''
+        };
+        const baseParts = [
+            instanceKey,
+            normalizedRow.moduleType,
+            normalizedRow.moduleName,
+            ...rowKeyParts
+        ];
+        const counterKey = baseParts.map(normalizeSummaryKeyPart).join('::');
+        rowKeyCounters[counterKey] = (rowKeyCounters[counterKey] || 0) + 1;
+        normalizedRow.rowKey = buildSummaryRowKey(baseParts, rowKeyCounters[counterKey]);
+        results.push(normalizedRow);
+    };
+
+    orderedInstances.forEach(instance => {
+        const instanceKey = getModuleInstanceKey(instance);
+
+        if (instance.moduleType === 'App') {
+            const appData = runInInstanceContext(instanceKey, () => {
+                const container = document.getElementById('sizing-result-container');
+                if (container) syncTextareasInContainer(container);
+                return resolveEffectiveAppProposalResult({
+                    sizingResult: container?.innerHTML || '',
+                    selectedProposalSource: getAppSelectedProposalSource(container),
+                    customProposalTable: collectAppCustomProposalTableData(container)
+                });
+            });
+            if (appData) {
+                const instanceName = getModuleInstanceDisplayName(instance);
+                const appRows = Array.isArray(appData.rows) && appData.rows.length > 0 ? appData.rows : [appData];
+                appRows.forEach((row, rowIndex) => {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: 'App',
+                        moduleName: instanceName,
+                        cauHinh: row.cauHinh,
+                        soLuong: row.soLuong,
+                        ghiChu: row.ghiChu
+                    }, [row.component || '', rowIndex + 1]);
+                });
+            }
+            return;
+        }
+
+        if (instance.moduleType === 'MariaDB') {
+            const mariaData = runInInstanceContext(instanceKey, () => {
+                const mariaContainer = document.getElementById('mariadb-result-container');
+                return resolveEffectiveMariaDBProposalResult({
+                    resultHTML: mariaContainer?.innerHTML || '',
+                    selectedProposalSource: getMariaDBSelectedProposalSource(mariaContainer),
+                    customProposalTable: collectMariaDBCustomProposalTableData(mariaContainer)
+                });
+            });
+            if (mariaData) {
+                const instanceName = getModuleInstanceDisplayName(instance);
+                pushSummaryResult(instanceKey, {
+                    moduleType: 'MariaDB',
+                    moduleName: instanceName,
+                    cauHinh: mariaData.cauHinh,
+                    soLuong: mariaData.soLuong,
+                    ghiChu: mariaData.ghiChu
+                }, ['mariadb']);
+                if (mariaData.maxScale) {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: 'MaxScale',
+                        moduleName: instanceName,
+                        cauHinh: mariaData.maxScale.cauHinh,
+                        soLuong: mariaData.maxScale.soLuong,
+                        ghiChu: mariaData.maxScale.ghiChu
+                    }, ['maxscale']);
+                }
+                if (mariaData.nas) {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: 'NAS',
+                        moduleName: instanceName,
+                        cauHinh: mariaData.nas.cauHinh,
+                        soLuong: mariaData.nas.soLuong,
+                        ghiChu: mariaData.nas.ghiChu
+                    }, ['nas']);
+                }
+            }
+            return;
+        }
+
+        if (instance.moduleType === 'Redis') {
+            const redisData = runInInstanceContext(instanceKey, () => {
+                const redisKeyBtn = document.getElementById('redis-method-key');
+                const isKeyMethodSelected = redisKeyBtn?.classList.contains('active') === true;
+                const activeContainer = isKeyMethodSelected
+                    ? document.getElementById('redis-key-result-container')
+                    : document.getElementById('redis-config-result-container');
+                return resolveEffectiveRedisProposalResult({
+                    resultHTML: activeContainer?.innerHTML || '',
+                    selectedProposalSource: getRedisSelectedProposalSource(activeContainer),
+                    customProposalTable: collectRedisCustomProposalTableData(activeContainer)
+                });
+            });
+            if (redisData) {
+                const instanceName = getModuleInstanceDisplayName(instance);
+                const redisRows = Array.isArray(redisData.rows) && redisData.rows.length > 0 ? redisData.rows : [redisData];
+                redisRows.forEach(row => {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: 'Redis',
+                        moduleName: row.component ? `${instanceName} - ${row.component}` : instanceName,
+                        cauHinh: row.cauHinh,
+                        soLuong: row.soLuong,
+                        ghiChu: row.ghiChu
+                    }, [row.component || 'redis']);
+                });
+            }
+            return;
+        }
+
+        if (instance.moduleType === 'Kafka') {
+            const kafkaData = runInInstanceContext(instanceKey, () => {
+                const kafkaMethodThroughputBtn = document.getElementById('kafka-method-throughput');
+                const isThroughputMethodSelected = kafkaMethodThroughputBtn?.classList.contains('active') === true;
+                const kafkaContainer = isThroughputMethodSelected
+                    ? document.getElementById('kafka-throughput-result-container')
+                    : document.getElementById('kafka-linear-result-container');
+                return resolveEffectiveKafkaProposalResult({
+                    resultHTML: kafkaContainer?.innerHTML || '',
+                    selectedProposalSource: getKafkaSelectedProposalSource(kafkaContainer),
+                    customProposalTable: collectKafkaCustomProposalTableData(kafkaContainer)
+                });
+            });
+            if (kafkaData) {
+                const instanceName = getModuleInstanceDisplayName(instance);
+                pushSummaryResult(instanceKey, {
+                    moduleType: 'Kafka',
+                    moduleName: instanceName,
+                    cauHinh: kafkaData.cauHinh,
+                    soLuong: kafkaData.soLuong,
+                    ghiChu: kafkaData.ghiChu
+                }, ['kafka']);
+                if (kafkaData.zookeeper) {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: 'Zookeeper/KRaft',
+                        moduleName: instanceName,
+                        cauHinh: kafkaData.zookeeper.cauHinh,
+                        soLuong: kafkaData.zookeeper.soLuong,
+                        ghiChu: kafkaData.zookeeper.ghiChu
+                    }, ['zookeeper-kraft']);
+                }
+            }
+            return;
+        }
+
+        if (instance.moduleType === 'K8S') {
+            const k8sData = runInInstanceContext(instanceKey, () => {
+                const k8sContainer = document.getElementById('k8s-result-container');
+                return resolveEffectiveK8SProposalResult({
+                    resultHTML: k8sContainer?.innerHTML || '',
+                    selectedProposalSource: getK8SSelectedProposalSource(k8sContainer),
+                    customProposalTable: collectK8SCustomProposalTableData(k8sContainer)
+                });
+            });
+            if (k8sData && Array.isArray(k8sData)) {
+                const instanceName = getModuleInstanceDisplayName(instance);
+                k8sData.forEach(item => {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: item.module,
+                        moduleName: instanceName,
+                        cauHinh: item.cauHinh,
+                        soLuong: item.soLuong,
+                        ghiChu: item.ghiChu
+                    }, [item.module]);
+                });
+            }
+            return;
+        }
+
+        if (instance.moduleType === 'LB/FW') {
+            const instanceName = getModuleInstanceDisplayName(instance);
+            const summaryRows = runInInstanceContext(instanceKey, () => resolveLBFWSummaryRows(collectLBFWData(), instanceName));
+            if (Array.isArray(summaryRows) && summaryRows.length > 0) {
+                summaryRows.forEach((row, rowIndex) => {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: row.moduleType,
+                        moduleName: row.moduleName,
+                        cauHinh: row.cauHinh,
+                        soLuong: row.soLuong,
+                        ghiChu: row.ghiChu
+                    }, ['lbfw', row.moduleName || '', rowIndex + 1]);
+                });
+            } else if (hasAppSelected) {
+                const appData = runInInstanceContext(instanceKey, () => {
+                    const appResult = document.getElementById('sizing-result-container')?.innerHTML || '';
+                    return parseAppSizingResult(appResult);
+                });
+                if (appData && appData.fwlb) {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: 'FW/LB',
+                        moduleName: getModuleInstanceDisplayName(instance),
+                        cauHinh: appData.fwlb.cauHinh,
+                        soLuong: '',
+                        ghiChu: ''
+                    }, ['app-fallback-lbfw']);
+                }
+            }
+            return;
+        }
+
+        if (instance.moduleType === 'Khác') {
+            const customData = runInInstanceContext(instanceKey, () => collectCustomModuleData());
+            const instanceName = getModuleInstanceDisplayName(instance);
+
+            if (customData.selectedMethod === 'linearEquivalentApp') {
+                const parsed = resolveEffectiveAppProposalResult(customData.linearEquivalentApp || {});
+                if (parsed) {
+                    const customRows = Array.isArray(parsed.rows) && parsed.rows.length > 0 ? parsed.rows : [parsed];
+                    customRows.forEach((row, rowIndex) => {
+                        pushSummaryResult(instanceKey, {
+                            moduleType: 'Khác',
+                            moduleName: instanceName,
+                            cauHinh: row.cauHinh,
+                            soLuong: row.soLuong,
+                            ghiChu: row.ghiChu
+                        }, [row.component || '', rowIndex + 1]);
+                    });
+                }
+            } else {
+                const docText = (customData.customMethodDocText || '').trim();
+                const proposalRows = Array.isArray(customData.customProposalTable) ? customData.customProposalTable : [];
+                const nonEmptyRows = proposalRows.filter(r =>
+                    (r.component || '').trim() || (r.configuration || '').trim() || (r.quantity || '').trim() || (r.note || '').trim()
+                );
+                if (nonEmptyRows.length > 0) {
+                    nonEmptyRows.forEach(row => {
+                        pushSummaryResult(instanceKey, {
+                            moduleType: 'Khác',
+                            moduleName: (row.component || '').trim() || instanceName,
+                            cauHinh: row.configuration ? row.configuration.replace(/\r?\n/g, '<br>') : 'Theo phương pháp khác (xem chi tiết)',
+                            soLuong: (row.quantity || '').trim(),
+                            ghiChu: (row.note || '').trim() || (docText ? docText.split('\n').slice(0, 2).join(' ') : '')
+                        }, [(row.component || '').trim() || 'custom-proposal']);
+                    });
+                } else {
+                    pushSummaryResult(instanceKey, {
+                        moduleType: 'Khác',
+                        moduleName: instanceName,
+                        cauHinh: 'Theo phương pháp khác (xem chi tiết)',
+                        soLuong: '',
+                        ghiChu: docText ? docText.split('\n').slice(0, 2).join(' ') : ''
+                    }, ['custom-doc']);
+                }
+            }
+        }
+    });
+
+    const visibleResults = preserveDeletedRows
+        ? results.filter(row => !summaryDeletedRowKeys.has(row.rowKey))
+        : results;
+
+    visibleResults.forEach((row, index) => {
+        row.stt = index + 1;
+    });
+
+    renderSummaryResults(tbody, visibleResults);
+    return visibleResults;
+}
+
 function stripUnsafeHtml(rawHtml) {
     if (!rawHtml) return '';
     const parser = new DOMParser();
@@ -3918,6 +4373,10 @@ function stripUnsafeHtml(rawHtml) {
 
 function getCustomDocEditor() {
     return document.getElementById('custom-method-editor');
+}
+
+function getLBFWCustomDocEditor() {
+    return document.getElementById('lbfw-custom-method-editor');
 }
 
 // Collect custom baseline table data
@@ -4724,6 +5183,8 @@ function loadCustomLinearLikeApp(moduleApp) {
             if (adminNoteInput) adminNoteInput.value = row.adminNote || '';
         });
     }
+
+    ensureDefaultCustomLinearRows();
 
     updateCustomBaselineTotal();
     updateCustomInputConfigTotal();
@@ -6018,7 +6479,234 @@ function addRedisProposalRow(sourceOrData = {}, rowData = null) {
     try { applyRolePermissions(); } catch (e) { }
 }
 
-function removeSummaryRow(btn) { removeRow(btn); }
+function removeSummaryRow(btn) {
+    const row = btn?.closest('tr');
+    const tbody = row?.parentElement;
+    if (!row || !tbody) return;
+
+    const rowKey = String(row.dataset.rowKey || '').trim();
+    if (rowKey) {
+        summaryDeletedRowKeys.add(rowKey);
+    }
+
+    row.remove();
+    summaryManualOverrideActive = true;
+
+    const remainingRows = Array.from(tbody.querySelectorAll('tr')).filter(tr => {
+        const firstCell = tr.querySelector('td');
+        return firstCell && !firstCell.hasAttribute('colspan');
+    });
+
+    if (remainingRows.length === 0) {
+        renderSummaryEmptyState(tbody);
+    } else {
+        updateSTT(tbody);
+    }
+}
+
+function ensureLBFWCustomMethodUI() {
+    const wrapper = document.getElementById('lbfw-doc-wrapper');
+    if (!wrapper) return;
+
+    if (!wrapper.querySelector('.custom-doc-toolbar')) {
+        const adminBox = wrapper.querySelector('.model-admin-box');
+        const toolbarHtml = `
+            <div class="custom-doc-toolbar">
+                <button type="button" onclick="formatLBFWCustomDoc('undo')" title="Undo"><i class="fa-solid fa-rotate-left"></i></button>
+                <button type="button" onclick="formatLBFWCustomDoc('redo')" title="Redo"><i class="fa-solid fa-rotate-right"></i></button>
+                <button type="button" onclick="formatLBFWCustomDoc('bold')" title="Bold"><b>B</b></button>
+                <button type="button" onclick="formatLBFWCustomDoc('italic')" title="Italic"><i>I</i></button>
+                <button type="button" onclick="formatLBFWCustomDoc('underline')" title="Underline"><u>U</u></button>
+                <button type="button" onclick="formatLBFWCustomDoc('insertUnorderedList')" title="List"><i class="fa-solid fa-list-ul"></i></button>
+                <button type="button" onclick="formatLBFWCustomDoc('insertOrderedList')" title="Numbered"><i class="fa-solid fa-list-ol"></i></button>
+                <button type="button" onclick="formatLBFWCustomDoc('justifyLeft')" title="Align Left"><i class="fa-solid fa-align-left"></i></button>
+                <button type="button" onclick="formatLBFWCustomDoc('justifyCenter')" title="Align Center"><i class="fa-solid fa-align-center"></i></button>
+                <button type="button" onclick="formatLBFWCustomDoc('justifyRight')" title="Align Right"><i class="fa-solid fa-align-right"></i></button>
+                <button type="button" onclick="formatLBFWCustomDoc('createLink')" title="Link"><i class="fa-solid fa-link"></i></button>
+            </div>
+            <div id="lbfw-custom-method-editor" class="custom-doc-editor sizing-user-input" contenteditable="true"
+                onpaste="handleLBFWCustomDocPaste(event)"></div>
+        `;
+        if (adminBox) {
+            adminBox.insertAdjacentHTML('beforebegin', toolbarHtml);
+        } else {
+            wrapper.insertAdjacentHTML('afterbegin', toolbarHtml);
+        }
+    }
+
+    if (!document.getElementById('lbfw-custom-proposal-table-body')) {
+        const adminBox = wrapper.querySelector('.model-admin-box');
+        const tableHtml = `
+            <div style="margin-top: 20px;">
+                <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #333;">
+                    <i class="fa-solid fa-table" style="color: #ee0033;"></i> Cấu hình đề xuất
+                </h4>
+                <div class="table-responsive">
+                    <table class="sizing-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 180px;">Thành phần</th>
+                                <th>Cấu hình đề xuất</th>
+                                <th style="width: 120px;">Số lượng</th>
+                                <th style="width: 220px;">Ghi chú</th>
+                                <th class="admin-cell" style="width: 120px; background-color: #fef3c7;">Đánh giá</th>
+                                <th class="admin-cell" style="width: 200px; background-color: #fef3c7;">Ghi chú Admin</th>
+                                <th style="width: 50px;"><i class="fa-solid fa-trash-can"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="lbfw-custom-proposal-table-body"></tbody>
+                    </table>
+                </div>
+                <button type="button" class="btn-add sizing-user-btn" onclick="addLBFWCustomProposalRow()">
+                    <i class="fa-solid fa-plus"></i> Thêm dòng
+                </button>
+            </div>
+        `;
+        if (adminBox) {
+            adminBox.insertAdjacentHTML('afterend', tableHtml);
+        } else {
+            wrapper.insertAdjacentHTML('beforeend', tableHtml);
+        }
+    }
+}
+
+function onLBFWMethodChanged() {
+    const method = document.getElementById('lbfw-method-select')?.value || 'bandwidthMethod';
+    const linearBox = document.getElementById('lbfw-linear-wrapper');
+    const docBox = document.getElementById('lbfw-doc-wrapper');
+    if (linearBox) linearBox.style.display = method === 'bandwidthMethod' ? 'block' : 'none';
+    if (docBox) docBox.style.display = method === 'customMethod' ? 'block' : 'none';
+    if (method === 'customMethod') {
+        ensureLBFWCustomMethodUI();
+        const tbody = document.getElementById('lbfw-custom-proposal-table-body');
+        if (tbody && tbody.children.length === 0) addLBFWCustomProposalRow({});
+    }
+}
+
+function formatLBFWCustomDoc(command, value = null) {
+    const editor = getLBFWCustomDocEditor();
+    if (!editor) return;
+    editor.focus();
+    if (command === 'createLink') {
+        const url = prompt('Nhập URL');
+        if (!url) return;
+        document.execCommand(command, false, url);
+        return;
+    }
+    document.execCommand(command, false, value);
+}
+
+function handleLBFWCustomDocPaste(event) {
+    if (!event || !event.clipboardData) return;
+    const items = event.clipboardData.items || [];
+    for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+            event.preventDefault();
+            const file = item.getAsFile();
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const src = e.target?.result || '';
+                if (!src) return;
+                const probe = new Image();
+                probe.onload = () => {
+                    const naturalWidth = probe.naturalWidth || '';
+                    const naturalHeight = probe.naturalHeight || '';
+                    document.execCommand(
+                        'insertHTML',
+                        false,
+                        `<img src="${src}" alt="Pasted Image" data-origin-width="${naturalWidth}" data-origin-height="${naturalHeight}" style="max-width:100%; height:auto; display:block; margin:12px auto;">`
+                    );
+                };
+                probe.onerror = () => {
+                    document.execCommand(
+                        'insertHTML',
+                        false,
+                        `<img src="${src}" alt="Pasted Image" style="max-width:100%; height:auto; display:block; margin:12px auto;">`
+                    );
+                };
+                probe.src = src;
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+    }
+}
+
+function createLBFWCustomProposalRow(data = {}) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-full sizing-user-input lbfw-custom-proposal-component" placeholder="Thành phần" value="${escapeHtml(data.component || '')}"></td>
+        <td><textarea rows="2" class="input-full sizing-user-input lbfw-custom-proposal-config" placeholder="Cấu hình đề xuất">${escapeHtml(data.configuration || '')}</textarea></td>
+        <td><input type="text" class="input-full sizing-user-input lbfw-custom-proposal-qty" placeholder="Số lượng" value="${escapeHtml(data.quantity || '')}"></td>
+        <td><input type="text" class="input-full sizing-user-input lbfw-custom-proposal-note" placeholder="Ghi chú" value="${escapeHtml(data.note || '')}"></td>
+        <td class="admin-cell">
+            <select class="admin-eval-select lbfw-custom-proposal-eval" onchange="styleAdminSelect(this)">
+                <option value="">--</option>
+                <option value="OK">OK</option>
+                <option value="NOK">NOK</option>
+            </select>
+        </td>
+        <td class="admin-cell">
+            <input type="text" class="input-full admin-note lbfw-custom-proposal-admin-note" placeholder="Nhận xét...">
+        </td>
+        <td><button type="button" class="btn-delete sizing-user-btn" onclick="removeRow(this)">✖</button></td>
+    `;
+    return tr;
+}
+
+function addLBFWCustomProposalRow(data = {}) {
+    ensureLBFWCustomMethodUI();
+    const tbody = document.getElementById('lbfw-custom-proposal-table-body');
+    if (!tbody) return;
+    const row = createLBFWCustomProposalRow(data);
+    tbody.appendChild(row);
+    try { applyRolePermissions(); } catch (e) { }
+}
+
+function collectLBFWCustomMethodProposalTableData() {
+    const rows = [];
+    document.querySelectorAll('#lbfw-custom-proposal-table-body tr').forEach(row => {
+        rows.push({
+            component: row.querySelector('.lbfw-custom-proposal-component')?.value?.trim() || '',
+            configuration: row.querySelector('.lbfw-custom-proposal-config')?.value?.trim() || '',
+            quantity: row.querySelector('.lbfw-custom-proposal-qty')?.value?.trim() || '',
+            note: row.querySelector('.lbfw-custom-proposal-note')?.value?.trim() || ''
+        });
+    });
+    return rows;
+}
+
+function loadLBFWCustomMethodProposalTableData(rows) {
+    ensureLBFWCustomMethodUI();
+    const tbody = document.getElementById('lbfw-custom-proposal-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (Array.isArray(rows) && rows.length > 0) {
+        rows.forEach(row => addLBFWCustomProposalRow(row));
+    } else {
+        addLBFWCustomProposalRow({});
+    }
+}
+
+function collectLBFWCustomMethodData() {
+    ensureLBFWCustomMethodUI();
+    const editor = getLBFWCustomDocEditor();
+    const html = stripUnsafeHtml(editor?.innerHTML || '');
+    const text = (editor?.innerText || '').trim();
+    return {
+        customMethodDocHtml: html,
+        customMethodDocText: text,
+        customProposalTable: collectLBFWCustomMethodProposalTableData()
+    };
+}
+
+function loadLBFWCustomMethodData(data = {}) {
+    ensureLBFWCustomMethodUI();
+    const editor = getLBFWCustomDocEditor();
+    if (editor) editor.innerHTML = stripUnsafeHtml(data.customMethodDocHtml || '');
+    loadLBFWCustomMethodProposalTableData(data.customProposalTable);
+}
 function removeArchRow(btn) {
     removeRow(btn);
     updateModuleVisibility();
@@ -6381,7 +7069,12 @@ async function exportToWord() {
 
         // 1. Lưu full payload (bao gồm dữ liệu định cỡ + kết quả tổng hợp)
         // để DOCX luôn lấy đúng dữ liệu Kafka mới tính toán.
-        const payload = buildSavePayload();
+        const exportActiveSectionId = document.querySelector('.page-section.active')?.id || null;
+        const payload = buildSavePayload({
+            summaryAggregateOptions: exportActiveSectionId === 'page-sizing'
+                ? { resetManualDeletes: true }
+                : {}
+        });
         if (!payload) {
             throw new Error('Không thể tổng hợp dữ liệu để xuất báo cáo');
         }
@@ -7334,10 +8027,24 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'LB/FW') {
             return {
-                overallReview: {
-                    eval: document.getElementById('eval-module-lbfw')?.value || '',
-                    note: document.getElementById('note-module-lbfw')?.value || ''
-                }
+                linearMethodReview: {
+                    eval: document.getElementById('eval-lbfw-linear-method')?.value || '',
+                    note: document.getElementById('note-lbfw-linear-method')?.value || ''
+                },
+                customMethodReview: {
+                    eval: document.getElementById('eval-lbfw-custom-method')?.value || '',
+                    note: document.getElementById('note-lbfw-custom-method')?.value || ''
+                },
+                proposalRowReviews: (() => {
+                    const reviews = [];
+                    document.querySelectorAll('#lbfw-custom-proposal-table-body tr').forEach(row => {
+                        reviews.push({
+                            eval: row.querySelector('.lbfw-custom-proposal-eval')?.value || '',
+                            note: row.querySelector('.lbfw-custom-proposal-admin-note')?.value || ''
+                        });
+                    });
+                    return reviews;
+                })()
             };
         }
         if (moduleType === 'K8S') {
@@ -7456,7 +8163,7 @@ async function saveSizingData() {
     }
 
     try {
-        try { aggregateSizingResults(); } catch (e) { }
+        try { aggregateSizingResults({ resetManualDeletes: true }); } catch (e) { }
         const sizingData = collectAllSizingData();
         const summaryData = collectTongHop();
 
@@ -7587,6 +8294,7 @@ function loadAppSizingModuleData(moduleApp) {
             }
         });
     }
+    ensureDefaultAppSizingRows();
     updateBaselineTotal();
 
     if (inputConfigTbody) inputConfigTbody.innerHTML = '';
@@ -7654,6 +8362,7 @@ function loadAppSizingModuleData(moduleApp) {
             if (adminNoteInput) adminNoteInput.value = row.adminNote || '';
         });
     }
+    ensureDefaultAppSizingRows();
 
     if (moduleApp.selectedInputRow !== undefined && moduleApp.selectedInputRow !== '' && document.getElementById('app-input-row-select')) {
         document.getElementById('app-input-row-select').value = moduleApp.selectedInputRow;
@@ -8158,15 +8867,43 @@ function loadSizingAdminReview(adminReview) {
 
         // Load module LB/FW admin review
         if (adminReview.moduleLBFW) {
-            if (adminReview.moduleLBFW.overallReview) {
-                const lbfwReview = adminReview.moduleLBFW.overallReview;
-                if (document.getElementById('eval-module-lbfw')) {
-                    document.getElementById('eval-module-lbfw').value = lbfwReview.eval || '';
-                    styleAdminSelect(document.getElementById('eval-module-lbfw'));
+            const linearReview = adminReview.moduleLBFW.linearMethodReview || adminReview.moduleLBFW.overallReview;
+            if (linearReview) {
+                if (document.getElementById('eval-lbfw-linear-method')) {
+                    document.getElementById('eval-lbfw-linear-method').value = linearReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-lbfw-linear-method'));
                 }
-                if (document.getElementById('note-module-lbfw')) {
-                    document.getElementById('note-module-lbfw').value = lbfwReview.note || '';
+                if (document.getElementById('note-lbfw-linear-method')) {
+                    document.getElementById('note-lbfw-linear-method').value = linearReview.note || '';
                 }
+            }
+
+            if (adminReview.moduleLBFW.customMethodReview) {
+                ensureLBFWCustomMethodUI();
+                const customMethodReview = adminReview.moduleLBFW.customMethodReview;
+                if (document.getElementById('eval-lbfw-custom-method')) {
+                    document.getElementById('eval-lbfw-custom-method').value = customMethodReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-lbfw-custom-method'));
+                }
+                if (document.getElementById('note-lbfw-custom-method')) {
+                    document.getElementById('note-lbfw-custom-method').value = customMethodReview.note || '';
+                }
+            }
+
+            if (adminReview.moduleLBFW.proposalRowReviews) {
+                ensureLBFWCustomMethodUI();
+                const rows = document.querySelectorAll('#lbfw-custom-proposal-table-body tr');
+                adminReview.moduleLBFW.proposalRowReviews.forEach((review, index) => {
+                    if (rows[index]) {
+                        const adminEval = rows[index].querySelector('.lbfw-custom-proposal-eval');
+                        const adminNote = rows[index].querySelector('.lbfw-custom-proposal-admin-note');
+                        if (adminEval) {
+                            adminEval.value = review.eval || '';
+                            styleAdminSelect(adminEval);
+                        }
+                        if (adminNote) adminNote.value = review.note || '';
+                    }
+                });
             }
         }
 
@@ -8331,7 +9068,7 @@ function showSection(sectionId, linkElement, options = {}) {
 
     // 4. Khi chuyển sang trang Tổng hợp, tự động aggregate dữ liệu
     if (sectionId === 'page-summary') {
-        aggregateSizingResults();
+        aggregateSizingResults({ preserveDeletedRows: summaryManualOverrideActive });
     }
 
     // 5. Cập nhật URL/history khi chuyển tab (chỉ khi đang ở project detail)
@@ -8343,10 +9080,7 @@ function showSection(sectionId, linkElement, options = {}) {
 // Tự động thêm 1 dòng trắng khi load trang lần đầu
 document.addEventListener("DOMContentLoaded", function () {
     applyFixedSizingRule();
-    const tbody = document.getElementById('baseline-table-body');
-    if (tbody && tbody.children.length === 0) {
-        addBaselineRow();
-    }
+    ensureDefaultAppSizingRows();
     const connectionBody = document.getElementById('connection-info-table-body');
     if (connectionBody && connectionBody.children.length === 0) {
         connectionBody.appendChild(createConnectionTableRow(1, {}));
@@ -10101,6 +10835,8 @@ function loadK8SData(data) {
         });
     }
 
+    ensureDefaultK8SSizingRows();
+
     // Load POC and Sizing values
     if (data.selectedInputRow !== undefined && data.selectedInputRow !== '' && document.getElementById('k8s-input-row-select')) {
         document.getElementById('k8s-input-row-select').value = data.selectedInputRow;
@@ -10306,7 +11042,7 @@ function calculateLBFWSizing() {
     }
 }
 
-function collectLBFWData() {
+function collectLBFWBandwidthMethodData() {
     const resultContainer = document.getElementById('lbfw-result-container');
     syncTextareasInContainer(resultContainer);
     const customProposalTable = collectLBFWCustomProposalTableData(resultContainer);
@@ -10331,9 +11067,7 @@ function collectLBFWData() {
     };
 }
 
-function loadLBFWData(data) {
-    if (!data) return;
-
+function loadLBFWBandwidthMethodData(data = {}) {
     // Load evidence images
     if (data.evidenceImages && Array.isArray(data.evidenceImages) && data.evidenceImages.length > 0) {
         const grid = document.getElementById('lbfw-evidence-grid');
@@ -10402,6 +11136,45 @@ function loadLBFWData(data) {
             if (header) header.classList.add('active');
         }
     }
+}
+
+function normalizeLBFWLegacyData(data = {}) {
+    if (data && data.selectedMethod) {
+        return data;
+    }
+    return {
+        selectedMethod: 'bandwidthMethod',
+        bandwidthMethod: data || {},
+        customMethodDocHtml: '',
+        customMethodDocText: '',
+        customProposalTable: []
+    };
+}
+
+function collectLBFWData() {
+    const selectedMethod = document.getElementById('lbfw-method-select')?.value || 'bandwidthMethod';
+    const bandwidthMethod = collectLBFWBandwidthMethodData();
+    const customMethod = collectLBFWCustomMethodData();
+
+    return {
+        selectedMethod,
+        bandwidthMethod,
+        customMethodDocHtml: customMethod.customMethodDocHtml,
+        customMethodDocText: customMethod.customMethodDocText,
+        customProposalTable: customMethod.customProposalTable
+    };
+}
+
+function loadLBFWData(data) {
+    if (!data) return;
+
+    const normalizedData = normalizeLBFWLegacyData(data);
+    const select = document.getElementById('lbfw-method-select');
+    if (select) select.value = normalizedData.selectedMethod || 'bandwidthMethod';
+
+    loadLBFWBandwidthMethodData(normalizedData.bandwidthMethod || {});
+    loadLBFWCustomMethodData(normalizedData);
+    onLBFWMethodChanged();
 }
 
 function getDefaultK8SCustomProposalTable() {
@@ -10837,6 +11610,45 @@ function resolveEffectiveLBFWProposalResult(lbfwState = {}) {
     }
 
     return autoParsed;
+}
+
+function resolveLBFWSummaryRows(lbfwData = {}, instanceName = '') {
+    const normalizedData = normalizeLBFWLegacyData(lbfwData || {});
+    if ((normalizedData.selectedMethod || 'bandwidthMethod') === 'customMethod') {
+        const docText = (normalizedData.customMethodDocText || '').trim();
+        const proposalRows = Array.isArray(normalizedData.customProposalTable) ? normalizedData.customProposalTable : [];
+        const nonEmptyRows = proposalRows.filter(r =>
+            (r.component || '').trim() || (r.configuration || '').trim() || (r.quantity || '').trim() || (r.note || '').trim()
+        );
+
+        if (nonEmptyRows.length > 0) {
+            return nonEmptyRows.map(row => ({
+                moduleType: 'FW/LB',
+                moduleName: (row.component || '').trim() || instanceName,
+                cauHinh: row.configuration ? row.configuration.replace(/\r?\n/g, '<br>') : 'Theo phương pháp khác (xem chi tiết)',
+                soLuong: (row.quantity || '').trim(),
+                ghiChu: (row.note || '').trim() || (docText ? docText.split('\n').slice(0, 2).join(' ') : '')
+            }));
+        }
+
+        return [{
+            moduleType: 'FW/LB',
+            moduleName: instanceName,
+            cauHinh: 'Theo phương pháp khác (xem chi tiết)',
+            soLuong: '',
+            ghiChu: docText ? docText.split('\n').slice(0, 2).join(' ') : ''
+        }];
+    }
+
+    const bandwidthData = resolveEffectiveLBFWProposalResult(normalizedData.bandwidthMethod || normalizedData || {});
+    if (!bandwidthData) return [];
+    return [{
+        moduleType: 'FW/LB',
+        moduleName: instanceName,
+        cauHinh: bandwidthData.cauHinh,
+        soLuong: bandwidthData.soLuong,
+        ghiChu: bandwidthData.ghiChu
+    }];
 }
 
 // Parse kết quả Module K8S
@@ -11276,6 +12088,7 @@ function loadMariaDBData(data) {
     if (data.refTable && Array.isArray(data.refTable)) {
         data.refTable.forEach(row => addMariaDBRefRow(row));
     }
+    ensureDefaultMariaDBRefRows();
     syncMariaDBMasterRadioNames();
 
     // Load storage (direct input values)
@@ -11690,16 +12503,20 @@ function addRedisConfigRow(data = {}) {
     if (!tbody) return;
 
     const tr = document.createElement('tr');
+    const updateRamHandler = buildInstanceAwareHandler('updateRedisTotalMasterRAM()');
+    const uploadHandler = buildInstanceAwareHandler('handleInlineEvidenceUpload(this)');
+    const uploadClickHandler = buildInstanceAwareHandler("this.parentElement.querySelector('input[type=file]').click()");
+    const deleteRowHandler = buildInstanceAwareHandler("this.closest('tr').remove(); updateRedisTotalMasterRAM();");
     tr.innerHTML = `
         <td><input type="text" class="input-full sizing-user-input redis-config-ip" value="${data.ip || ''}" placeholder="192.168.x.x"></td>
-        <td><input type="number" class="input-full sizing-user-input redis-config-ram" value="${data.ram || ''}" placeholder="RAM (GB)" min="0" onchange="updateRedisTotalMasterRAM()"></td>
-        <td><input type="number" class="input-full sizing-user-input redis-config-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100" onchange="updateRedisTotalMasterRAM()"></td>
+        <td><input type="number" class="input-full sizing-user-input redis-config-ram" value="${data.ram || ''}" placeholder="RAM (GB)" min="0" onchange="${updateRamHandler}"></td>
+        <td><input type="number" class="input-full sizing-user-input redis-config-ram-load" value="${data.ramLoad || ''}" placeholder="%" min="0" max="100" onchange="${updateRamHandler}"></td>
         <td class="text-center">
-            <input type="checkbox" class="redis-master-checkbox" ${data.isMaster ? 'checked' : ''} onchange="updateRedisTotalMasterRAM()">
+            <input type="checkbox" class="redis-master-checkbox" ${data.isMaster ? 'checked' : ''} onchange="${updateRamHandler}">
         </td>
         <td>
             <div class="inline-evidence-cell">
-                <input type="file" accept="image/*" multiple class="redis-config-evidence-input" onchange="handleInlineEvidenceUpload(this)" style="display:none">
+                <input type="file" accept="image/*" multiple class="redis-config-evidence-input" onchange="${uploadHandler}" style="display:none">
                 <button type="button" class="btn-inline-evidence sizing-user-btn" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh">
                     <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -12220,6 +13037,7 @@ function loadRedisData(data) {
             });
             updateRedisTotalMasterRAM();
         }
+        ensureDefaultRedisConfigRows();
 
         // Load kết quả
         if (cm.resultHTML) {
@@ -12994,6 +13812,7 @@ function loadKafkaData(data) {
         }
 
         // Load kết quả
+        ensureDefaultKafkaLinearRows();
         if (lm.resultHTML) {
             const container = document.getElementById('kafka-linear-result-container');
             if (container) {
@@ -13911,6 +14730,50 @@ function renderModelDiff(snapshot, prevSnapshot) {
         `;
     }
 
+    const moduleLBFW = normalizeLBFWLegacyData(data.moduleLBFW || {});
+    const prevModuleLBFW = normalizeLBFWLegacyData(prevData.moduleLBFW || {});
+    const lbfwAdmin = adminReview.moduleLBFW || {};
+    let lbfwHtml = '';
+    const currentLBFWMethod = moduleLBFW.selectedMethod || 'bandwidthMethod';
+    const prevLBFWMethod = prevModuleLBFW.selectedMethod || 'bandwidthMethod';
+    lbfwHtml += `<div class="diff-item"><strong>Phương pháp:</strong> ${renderTextDiff(
+        currentLBFWMethod === 'customMethod' ? 'Phương pháp khác' : 'Theo băng thông',
+        prevLBFWMethod === 'customMethod' ? 'Phương pháp khác' : 'Theo băng thông'
+    )}</div>`;
+
+    if (currentLBFWMethod === 'customMethod') {
+        const currentRows = resolveLBFWSummaryRows(moduleLBFW, 'LB/FW');
+        const prevRows = resolveLBFWSummaryRows(prevModuleLBFW, 'LB/FW');
+        currentRows.forEach((row, index) => {
+            const prevRow = prevRows[index] || {};
+            lbfwHtml += `<div class="diff-item"><strong>${row.moduleName || 'FW/LB'}:</strong> ${renderTextDiff(row.cauHinh || '', prevRow.cauHinh || '')}</div>`;
+        });
+        const customReview = lbfwAdmin.customMethodReview || {};
+        if (customReview.eval || customReview.note) {
+            lbfwHtml += `<div class="diff-item"><strong>Admin đánh giá:</strong> ${renderEvalDiff(customReview.eval, null)} <span style="color:#6366f1; font-style:italic;">${customReview.note || ''}</span></div>`;
+        }
+    } else {
+        const bandwidth = moduleLBFW.bandwidthMethod || {};
+        const prevBandwidth = prevModuleLBFW.bandwidthMethod || {};
+        if (bandwidth.peakUpload || bandwidth.peakDownload) {
+            lbfwHtml += `<div class="diff-item"><strong>Peak Upload:</strong> ${renderTextDiff(bandwidth.peakUpload || '', prevBandwidth.peakUpload || '')} &nbsp; <strong>Peak Download:</strong> ${renderTextDiff(bandwidth.peakDownload || '', prevBandwidth.peakDownload || '')}</div>`;
+        }
+        const currentRows = resolveLBFWSummaryRows(moduleLBFW, 'LB/FW');
+        const prevRows = resolveLBFWSummaryRows(prevModuleLBFW, 'LB/FW');
+        if (currentRows[0]) {
+            lbfwHtml += `<div class="diff-item"><strong>Đề xuất:</strong> ${renderTextDiff(currentRows[0].cauHinh || '', prevRows[0]?.cauHinh || '')}</div>`;
+        }
+        const linearReview = lbfwAdmin.linearMethodReview || lbfwAdmin.overallReview || {};
+        if (linearReview.eval || linearReview.note) {
+            lbfwHtml += `<div class="diff-item"><strong>Admin đánh giá:</strong> ${renderEvalDiff(linearReview.eval, null)} <span style="color:#6366f1; font-style:italic;">${linearReview.note || ''}</span></div>`;
+        }
+    }
+
+    if (lbfwHtml) {
+        html += `<div style="margin-bottom:20px; padding:12px; background:#fff7ed; border-radius:8px; border-left:4px solid #f97316;">
+            <h4 style="margin:0 0 10px 0; color:#9a3412;"><i class="fa-solid fa-shield-halved"></i> Module LB/FW</h4>${lbfwHtml}</div>`;
+    }
+
     if (!html.trim()) {
         if (prevSnapshot) {
             return `
@@ -14651,7 +15514,7 @@ let isSaving = false;
 /**
  * Build payload chứa toàn bộ dữ liệu từ tất cả sections
  */
-function buildSavePayload() {
+function buildSavePayload(options = {}) {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
 
@@ -14689,7 +15552,7 @@ function buildSavePayload() {
 
         // === 5. TỔNG HỢP VÀ ĐỀ XUẤT ===
         // Trước khi collect, aggregate lại từ kết quả định cỡ (chỉ module được chọn)
-        aggregateSizingResults();
+        aggregateSizingResults(options.summaryAggregateOptions || {});
         const summaryData = collectTongHop();
         payload.tongHopVaDeXuatContent = JSON.stringify(summaryData);
     } catch (e) {
@@ -14735,7 +15598,11 @@ async function performManualSave() {
         const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
 
         // ========== BUILD PAYLOAD ==========
-        const payload = buildSavePayload();
+        const payload = buildSavePayload({
+            summaryAggregateOptions: activeSectionId === 'page-sizing'
+                ? { resetManualDeletes: true }
+                : {}
+        });
         if (!payload) {
             showSaveStatus('error');
             return;
