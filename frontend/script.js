@@ -4669,9 +4669,9 @@ function updateCustomIPToInputConfig(ipInput) {
 }
 
 // Calculate custom input config row
-function calculateCustomInputConfigRow(cpuLoadInput) {
-    if (!cpuLoadInput) return;
-    const row = cpuLoadInput.closest('tr');
+function calculateCustomInputConfigRow(inputElement) {
+    if (!inputElement) return;
+    const row = inputElement.closest('tr');
     const rowIndex = Array.from(row.parentNode.children).indexOf(row);
     const baselineTbody = document.getElementById('custom-baseline-table-body');
     if (!baselineTbody || !baselineTbody.rows[rowIndex]) return;
@@ -4686,7 +4686,7 @@ function calculateCustomInputConfigRow(cpuLoadInput) {
     const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
     const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
-    const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
+    const cpuLoad = parseFloat(row.querySelector('.cpu-load-input')?.value) || 0;
     const ramLoad = parseFloat(row.querySelector('.ram-load-input')?.value) || 0;
 
     const cintUsed = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
@@ -4696,7 +4696,7 @@ function calculateCustomInputConfigRow(cpuLoadInput) {
     ramUsedInput.value = ramUsed;
 
     updateCustomInputConfigTotal();
-}
+} 
 
 function getCustomStorageTotalsByPartition() {
     const partitionMap = new Map();
