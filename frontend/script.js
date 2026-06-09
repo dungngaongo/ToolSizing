@@ -3950,6 +3950,9 @@ function aggregateSizingResults() {
 
 let summaryDeletedRowKeys = new Set();
 let summaryManualOverrideActive = false;
+let summaryNeedsRefreshFromSizing = false;
+let summaryAutosaveTimer = null;
+const SUMMARY_AUTOSAVE_DELAY_MS = 500;
 
 function resetSummaryManualOverrideState() {
     summaryDeletedRowKeys = new Set();
@@ -3958,6 +3961,123 @@ function resetSummaryManualOverrideState() {
 
 function getSummaryDeletedRowKeysArray() {
     return Array.from(summaryDeletedRowKeys);
+}
+
+function cancelSummaryAutosave() {
+    if (summaryAutosaveTimer) {
+        clearTimeout(summaryAutosaveTimer);
+        summaryAutosaveTimer = null;
+    }
+}
+
+function setSummarySaveStatusMessage(html, clearAfterMs = 0) {
+    const statusDiv = document.getElementById('summary-save-status');
+    if (!statusDiv) return;
+
+    statusDiv.innerHTML = html || '';
+
+    if (clearAfterMs > 0 && html) {
+        setTimeout(() => {
+            if (statusDiv.innerHTML === html) {
+                statusDiv.innerHTML = '';
+            }
+        }, clearAfterMs);
+    }
+}
+
+function markSummaryNeedsSizingRefresh() {
+    summaryNeedsRefreshFromSizing = true;
+}
+
+function clearSummaryNeedsSizingRefresh() {
+    summaryNeedsRefreshFromSizing = false;
+}
+
+async function persistSummarySnapshot(options = {}) {
+    const {
+        showToastOnSuccess = false,
+        successMessage = 'Da luu bang tong hop thanh cong!',
+        savingMessage = 'Dang luu bang tong hop...',
+        savedMessage = 'Da tu luu thay doi bang tong hop.',
+        errorMessagePrefix = 'Loi khi luu bang tong hop: '
+    } = options;
+
+    cancelSummaryAutosave();
+
+    if (!currentProjectId) return false;
+
+    const summaryData = collectTongHop();
+    setSummarySaveStatusMessage(
+        `<span style="color: #b8860b; font-size: 12px;"><i class="fa-solid fa-spinner fa-spin"></i> ${savingMessage}</span>`
+    );
+
+    try {
+        const summaryPayload = {
+            tongHopVaDeXuatContent: JSON.stringify(summaryData)
+        };
+        const response = currentProjectDataId
+            ? await fetchAPI(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(summaryPayload)
+            })
+            : await fetchAPI(`${API_BASE_URL}/project-data`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    projectId: currentProjectId,
+                    ...summaryPayload
+                })
+            });
+
+        if (!response.ok) {
+            throw new Error(await response.text() || 'Save summary failed');
+        }
+
+        if (!currentProjectDataId && typeof response.json === 'function') {
+            try {
+                const result = await response.json();
+                if (result?.id) {
+                    saveProjectDataIdToStorage(result.id);
+                }
+            } catch (e) { }
+        }
+
+        setSummarySaveStatusMessage(
+            `<span style="color: green; font-size: 12px;"><i class="fa-solid fa-check"></i> ${savedMessage}</span>`,
+            4000
+        );
+
+        if (showToastOnSuccess) {
+            showToast(successMessage, 'success');
+        }
+
+        return true;
+    } catch (error) {
+        Logger.error('Error saving summary snapshot:', error);
+        setSummarySaveStatusMessage(
+            '<span style="color: red; font-size: 12px;"><i class="fa-solid fa-exclamation-triangle"></i> Loi khi tu luu bang tong hop</span>'
+        );
+        if (options.showToastOnError !== false) {
+            showToast(errorMessagePrefix + error.message, 'error');
+        }
+        return false;
+    }
+}
+
+function scheduleSummaryAutosave() {
+    cancelSummaryAutosave();
+
+    if (!currentProjectId) return;
+
+    summaryAutosaveTimer = setTimeout(() => {
+        persistSummarySnapshot({
+            savingMessage: 'Dang tu luu thay doi bang tong hop...',
+            savedMessage: 'Da tu luu thay doi bang tong hop.',
+            errorMessagePrefix: 'Loi khi tu luu bang tong hop: ',
+            showToastOnError: true
+        });
+    }, SUMMARY_AUTOSAVE_DELAY_MS);
 }
 
 function normalizeSummaryKeyPart(value) {
@@ -4009,6 +4129,8 @@ function loadTongHop(data) {
             .filter(Boolean)
     );
     summaryManualOverrideActive = data?.manualOverrideActive === true;
+    clearSummaryNeedsSizingRefresh();
+    cancelSummaryAutosave();
 
     renderSummaryResults(tbody, Array.isArray(data?.summaryRows) ? data.summaryRows : []);
 }
@@ -4350,6 +4472,7 @@ function aggregateSizingResults(options = {}) {
     });
 
     renderSummaryResults(tbody, visibleResults);
+    clearSummaryNeedsSizingRefresh();
     return visibleResults;
 }
 
@@ -5557,7 +5680,7 @@ function handleMariaDBProposalSourceChange(selectEl) {
     }
 
     updateMariaDBProposalSourceUI(container, selectedSource);
-    try { aggregateSizingResults(); } catch (e) { }
+    markSummaryNeedsSizingRefresh();
 }
 
 function buildMariaDBCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
@@ -5866,7 +5989,7 @@ function handleRedisProposalSourceChange(selectEl) {
     }
 
     updateRedisProposalSourceUI(container, selectedSource);
-    try { aggregateSizingResults(); } catch (e) { }
+    markSummaryNeedsSizingRefresh();
 }
 
 function buildRedisCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
@@ -6222,7 +6345,7 @@ function handleKafkaProposalSourceChange(selectEl) {
     }
 
     updateKafkaProposalSourceUI(container, selectedSource);
-    try { aggregateSizingResults(); } catch (e) { }
+    markSummaryNeedsSizingRefresh();
 }
 
 function buildKafkaCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
@@ -6389,6 +6512,31 @@ async function saveTongHop() {
     }
 }
 
+async function saveTongHop() {
+    if (!currentProjectId) { showToast('Vui long luu "Yeu cau bai toan" truoc!', 'warning'); return; }
+
+    const saved = await persistSummarySnapshot({
+        showToastOnSuccess: true,
+        successMessage: 'Da luu Tong hop va de xuat thanh cong!',
+        savingMessage: 'Dang luu bang tong hop...',
+        savedMessage: 'Da luu bang tong hop thanh cong.',
+        errorMessagePrefix: 'Loi khi luu bang tong hop: '
+    });
+    if (!saved) {
+        return;
+    }
+
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+    if (role === 'admin1') {
+        await updateProjectStatus('admin1_review');
+    } else if (role === 'admin2') {
+        await updateProjectStatus('admin2_review');
+    } else if (role === 'user' || !role) {
+        await updateProjectStatus('user_edit');
+    }
+}
+
 function addSummaryRow() {
     const tbody = document.getElementById('summary-table-body');
     const nextSTT = tbody.rows.length + 1;
@@ -6502,6 +6650,33 @@ function removeSummaryRow(btn) {
     } else {
         updateSTT(tbody);
     }
+}
+
+function removeSummaryRow(btn) {
+    const row = btn?.closest('tr');
+    const tbody = row?.parentElement;
+    if (!row || !tbody) return;
+
+    const rowKey = String(row.dataset.rowKey || '').trim();
+    if (rowKey) {
+        summaryDeletedRowKeys.add(rowKey);
+    }
+
+    row.remove();
+    summaryManualOverrideActive = true;
+
+    const remainingRows = Array.from(tbody.querySelectorAll('tr')).filter(tr => {
+        const firstCell = tr.querySelector('td');
+        return firstCell && !firstCell.hasAttribute('colspan');
+    });
+
+    if (remainingRows.length === 0) {
+        renderSummaryEmptyState(tbody);
+    } else {
+        updateSTT(tbody);
+    }
+
+    scheduleSummaryAutosave();
 }
 
 function ensureLBFWCustomMethodUI() {
@@ -7054,9 +7229,61 @@ function openModalFromElement(el) {
     }
 }
 
+async function exportSavedSnapshotToWord() {
+    const statusDiv = document.getElementById('summary-save-status');
+
+    if (!currentProjectId) {
+        showToast('Chua co du lieu de xuat! Vui long luu du lieu truoc.', 'warning');
+        return;
+    }
+
+    try {
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: blue;">Dang xuat file DOCX tu du lieu da luu...</span>';
+
+        const response = await fetchAPI(`${API_BASE_URL}/export/project/${currentProjectId}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            }
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `project-report-${currentProjectId}.docx`;
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (filenameMatch && filenameMatch[1]) {
+                    filename = filenameMatch[1].replace(/['"]/g, '');
+                }
+            }
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+
+            if (statusDiv) statusDiv.innerHTML = '<span style="color: green;">Xuat file DOCX thanh cong!</span>';
+        } else {
+            throw new Error('Khong the xuat file');
+        }
+    } catch (e) {
+        Logger.error('Export error:', e);
+        if (statusDiv) statusDiv.innerHTML = '<span style="color: red;">Loi xuat file!</span>';
+        showToast('Khong the xuat bao cao: ' + e.message, 'error');
+    }
+}
+
 // ==================== EXPORT TO WORD ====================
 
 async function exportToWord() {
+    return exportSavedSnapshotToWord();
+
     const statusDiv = document.getElementById('summary-save-status');
 
     if (!currentProjectId) {
@@ -7071,6 +7298,8 @@ async function exportToWord() {
         // để DOCX luôn lấy đúng dữ liệu Kafka mới tính toán.
         const exportActiveSectionId = document.querySelector('.page-section.active')?.id || null;
         const payload = buildSavePayload({
+            activeSectionId: exportActiveSectionId,
+            summaryMode: exportActiveSectionId === 'page-sizing' ? 'regenerate' : 'snapshot',
             summaryAggregateOptions: exportActiveSectionId === 'page-sizing'
                 ? { resetManualDeletes: true }
                 : {}
@@ -7186,7 +7415,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const addSummaryBtn = document.getElementById('addSummaryRowBtn');
     if (addSummaryBtn) addSummaryBtn.onclick = addSummaryRow;
     const exportBtn = document.getElementById('exportBtn');
-    if (exportBtn) exportBtn.onclick = exportToWord;
+    if (exportBtn) exportBtn.onclick = exportSavedSnapshotToWord;
     const addConnectionBtn = document.getElementById('addConnectionRowBtn');
     if (addConnectionBtn) addConnectionBtn.onclick = addConnectionRow;
 
@@ -9078,6 +9307,51 @@ function showSection(sectionId, linkElement, options = {}) {
 }
 
 // Tự động thêm 1 dòng trắng khi load trang lần đầu
+function showSection(sectionId, linkElement, options = {}) {
+    const activeSection = document.querySelector('.page-section.active');
+    const activeSectionId = activeSection?.id;
+    const currentTabIndex = TAB_FLOW_ORDER.indexOf(activeSectionId);
+    const targetTabIndex = TAB_FLOW_ORDER.indexOf(sectionId);
+    const isKnownTabFlow = currentTabIndex !== -1 && targetTabIndex !== -1;
+    const isForwardNavigation = isKnownTabFlow && targetTabIndex > currentTabIndex;
+
+    if (!options.skipValidation && !options.skipPushState && activeSectionId && activeSectionId !== sectionId && isForwardNavigation && activeSectionId !== 'page-input') {
+        const validation = validateTabCompletion(activeSectionId, {
+            focusFirstInvalid: true,
+            showToastMessage: false
+        });
+        if (!validation.isValid) {
+            showToast('Khong the chuyen tab khi chua dien xong du lieu o tab hien tai.', 'warning');
+            return;
+        }
+    }
+
+    const sections = document.querySelectorAll('.page-section');
+    sections.forEach(sec => {
+        sec.classList.remove('active');
+        sec.style.display = 'none';
+    });
+
+    const target = document.getElementById(sectionId);
+    if (target) {
+        target.classList.add('active');
+        target.style.display = 'block';
+    } else {
+        Logger.error('Khong tim thay ID: ' + sectionId);
+    }
+
+    const menuLinks = document.querySelectorAll('.side-menu a');
+    menuLinks.forEach(link => link.classList.remove('active'));
+
+    if (linkElement) {
+        linkElement.classList.add('active');
+    }
+
+    if (!options.skipPushState && currentProjectId) {
+        pushAppState('project', currentProjectId, sectionId);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     applyFixedSizingRule();
     ensureDefaultAppSizingRows();
@@ -9512,7 +9786,7 @@ function handleAppProposalSourceChange(selectEl) {
     }
 
     updateAppProposalSourceUI(container, selectedSource);
-    try { aggregateSizingResults(); } catch (e) { }
+    markSummaryNeedsSizingRefresh();
 }
 
 function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
@@ -11303,7 +11577,7 @@ function handleK8SProposalSourceChange(selectEl) {
     }
 
     updateK8SProposalSourceUI(container, selectedSource);
-    try { aggregateSizingResults(); } catch (e) { }
+    markSummaryNeedsSizingRefresh();
 }
 
 function buildK8SCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
@@ -11511,7 +11785,7 @@ function handleLBFWProposalSourceChange(selectEl) {
     }
 
     updateLBFWProposalSourceUI(container, selectedSource);
-    try { aggregateSizingResults(); } catch (e) { }
+    markSummaryNeedsSizingRefresh();
 }
 
 function buildLBFWCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
@@ -15567,6 +15841,62 @@ function buildSavePayload(options = {}) {
  * Thực hiện lưu thủ công: lưu TẤT CẢ dữ liệu + tạo revision
  * Được gọi khi user bấm nút Lưu ở bất kỳ section nào
  */
+function buildSavePayload(options = {}) {
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+    const activeSectionId = options.activeSectionId || document.querySelector('.page-section.active')?.id || null;
+
+    let payload = {};
+
+    try {
+        const requestData = collectYeuCauBaiToan();
+        if (role !== 'admin1' && role !== 'admin2') {
+            delete requestData.adminReview;
+        }
+        payload.yeuCauBaiToanContent = JSON.stringify(requestData);
+
+        const inputData = collectThongTinDauVao();
+        if (role !== 'admin1' && role !== 'admin2') {
+            inputData.inputRows = inputData.inputRows.map(r => {
+                const c = Object.assign({}, r);
+                delete c.adminEval;
+                delete c.adminNote;
+                return c;
+            });
+        }
+        payload.thongTinDauVaoContent = JSON.stringify(inputData);
+
+        const modelData = collectMoHinhHeThong();
+        payload.moHinhHeThongContent = JSON.stringify(modelData);
+
+        if (typeof collectAllSizingData === 'function') {
+            const sizingData = collectAllSizingData();
+            payload.dinhCoHeThongContent = JSON.stringify(sizingData);
+        }
+
+        const summaryMode = options.summaryMode || (
+            activeSectionId === 'page-sizing'
+                ? 'regenerate'
+                : (activeSectionId === 'page-summary' ? 'snapshot' : 'preserve')
+        );
+
+        if (summaryMode === 'regenerate') {
+            cancelSummaryAutosave();
+            aggregateSizingResults(options.summaryAggregateOptions || {});
+            payload.tongHopVaDeXuatContent = JSON.stringify(collectTongHop());
+            clearSummaryNeedsSizingRefresh();
+        } else if (summaryMode === 'snapshot') {
+            cancelSummaryAutosave();
+            payload.tongHopVaDeXuatContent = JSON.stringify(collectTongHop());
+        }
+    } catch (e) {
+        Logger.error('Error building save payload:', e);
+        return null;
+    }
+
+    return payload;
+}
+
 async function performManualSave() {
     if (isSaving || !currentProjectId) return;
     if (currentProjectStatus === 'HOAN_THANH') {
