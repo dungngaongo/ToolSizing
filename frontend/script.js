@@ -3693,7 +3693,7 @@ function aggregateSizingResults() {
                     results.push({
                         stt: stt++,
                         moduleType: 'App',
-                        moduleName: instanceName,
+                        moduleName: (row.component || '').trim() || instanceName,
                         cauHinh: row.cauHinh,
                         soLuong: row.soLuong,
                         ghiChu: row.ghiChu
@@ -4095,7 +4095,7 @@ function buildSummaryRowKey(parts, occurrence = 1) {
 function renderSummaryEmptyState(tbody) {
     if (!tbody) return;
     tbody.innerHTML = `<tr>
-        <td colspan="7" class="text-center" style="color: #999; padding: 30px;">
+        <td colspan="6" class="text-center" style="color: #999; padding: 30px;">
             <i class="fa-solid fa-info-circle"></i> Chưa có dữ liệu định cỡ. Vui lòng thực hiện tính toán ở các module trước.
         </td>
     </tr>`;
@@ -4137,7 +4137,7 @@ function loadTongHop(data) {
 
 function createSummaryTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
-    const moduleType = escapeHtml(data.moduleType || data.module || '');
+    const moduleType = String(data.moduleType || data.module || '').trim();
     const moduleName = escapeHtml(data.moduleName || '');
     const escapedGhiChu = escapeHtml(data.ghiChu || '').replace(/\r?\n/g, '<br>');
     const hasHtmlConfig = /<[^>]+>/.test(data.cauHinh || '');
@@ -4149,10 +4149,12 @@ function createSummaryTableRow(stt, data = {}) {
     if (rowKey) {
         tr.dataset.rowKey = rowKey;
     }
+    if (moduleType) {
+        tr.dataset.moduleType = moduleType;
+    }
 
     tr.innerHTML = `
         <td>${stt}</td>
-        <td><strong>${moduleType}</strong></td>
         <td>${moduleName}</td>
         <td class="summary-config-cell">${renderedCauHinh}</td>
         <td class="text-center">${data.soLuong || ''}</td>
@@ -4170,14 +4172,14 @@ function collectTongHop() {
     const summaryRows = [];
     document.querySelectorAll('#summary-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
-        if (cells.length >= 7 && !cells[0].hasAttribute('colspan')) {
+        if (cells.length >= 6 && !cells[0].hasAttribute('colspan')) {
             summaryRows.push({
                 rowKey: row.dataset.rowKey || '',
-                moduleType: cells[1]?.textContent?.trim() || '',
-                moduleName: cells[2]?.textContent?.trim() || '',
-                cauHinh: cells[3]?.innerText?.trim() || '',
-                soLuong: cells[4]?.textContent?.trim() || '',
-                ghiChu: cells[5]?.innerText?.trim() || ''
+                moduleType: row.dataset.moduleType || '',
+                moduleName: cells[1]?.textContent?.trim() || '',
+                cauHinh: cells[2]?.innerText?.trim() || '',
+                soLuong: cells[3]?.textContent?.trim() || '',
+                ghiChu: cells[4]?.innerText?.trim() || ''
             });
         }
     });
@@ -4247,7 +4249,7 @@ function aggregateSizingResults(options = {}) {
                 appRows.forEach((row, rowIndex) => {
                     pushSummaryResult(instanceKey, {
                         moduleType: 'App',
-                        moduleName: instanceName,
+                        moduleName: (row.component || '').trim() || instanceName,
                         cauHinh: row.cauHinh,
                         soLuong: row.soLuong,
                         ghiChu: row.ghiChu
@@ -5383,6 +5385,54 @@ function handleCustomDocPaste(event) {
 function parseAppSizingResult(html) {
     if (!html || html.trim() === '') return null;
 
+    const proposalTableRowsMatch = html.match(/<table[^>]*data-app-proposal-table="1"[^>]*>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>[\s\S]*?<\/table>/i);
+    if (proposalTableRowsMatch) {
+        const rowMatches = Array.from(proposalTableRowsMatch[1].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi));
+        const defaultComponentName = resolveCurrentModuleInstanceDisplayName('App');
+        const toText = (raw) => (raw || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').replace(/[ \t]+/g, ' ').trim();
+        const parsedRows = [];
+
+        rowMatches.forEach(match => {
+            const tdMatches = Array.from(match[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map(m => m[1]);
+            if (tdMatches.length < 4) return;
+
+            const componentText = toText(tdMatches[0]);
+            const configHtml = tdMatches[1];
+            const quantityText = toText(tdMatches[2]);
+            const noteText = toText(tdMatches[3]);
+            const listItems = Array.from(configHtml.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)).map(m => toText(m[1])).filter(Boolean);
+            const configLines = listItems.length > 0
+                ? listItems
+                : toText(configHtml).split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+
+            if (configLines.length === 0) return;
+
+            parsedRows.push({
+                component: componentText || defaultComponentName,
+                cauHinh: configLines.map(item => `- ${item}`).join('<br>'),
+                soLuong: (quantityText.match(/\d+/) || [quantityText])[0] || '',
+                ghiChu: noteText
+            });
+        });
+
+        if (parsedRows.length > 0) {
+            const throughputMatch = html.match(/Throughput[^:]*:\s*([\d.]+)\s*Gbps/i);
+            const result = {
+                rows: parsedRows,
+                component: parsedRows[0].component || defaultComponentName,
+                cauHinh: parsedRows[0].cauHinh,
+                soLuong: parsedRows[0].soLuong,
+                ghiChu: parsedRows[0].ghiChu
+            };
+            if (throughputMatch) {
+                result.fwlb = {
+                    cauHinh: `Thông lượng < ${throughputMatch[1]} Gbps`
+                };
+            }
+            return result;
+        }
+    }
+
     const proposalTableMatch = html.match(/<table[^>]*data-app-proposal-table="1"[^>]*>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>[\s\S]*?<\/table>/i);
     if (proposalTableMatch) {
         const rowMatch = proposalTableMatch[1].match(/<tr[^>]*>([\s\S]*?)<\/tr>/i);
@@ -5396,6 +5446,7 @@ function parseAppSizingResult(html) {
                 const throughputMatch = html.match(/Throughput[^:]*:\s*([\d.]+)\s*Gbps/i);
                 if (listItems.length > 0) {
                     const result = {
+                        component: resolveCurrentModuleInstanceDisplayName('App'),
                         cauHinh: listItems.map(item => `- ${item}`).join('<br>'),
                         soLuong: (quantityText.match(/\d+/) || [quantityText])[0] || '',
                         ghiChu: noteText
@@ -5456,6 +5507,7 @@ function parseAppSizingResult(html) {
     }
 
     const result = {
+        component: resolveCurrentModuleInstanceDisplayName('App'),
         cauHinh: cauHinh.replace(/\n/g, '<br>'),
         soLuong: soLuongMatch ? soLuongMatch[1] : '',
         ghiChu: ghiChuMatch ? `Dự phòng ${ghiChuMatch[1] || 'N+1'}` : ''
@@ -6571,6 +6623,9 @@ function addAppCustomProposalRow(sourceOrData = {}, rowData = null) {
     const normalizedData = normalizeAppCustomProposalTable(data);
     const tr = document.createElement('tr');
     tr.innerHTML = `
+        <td>
+            <input type="text" class="input-full app-custom-proposal-component sizing-user-input" value="${escapeHtml(normalizedData.component)}" placeholder="Tên thành phần">
+        </td>
         <td>
             <textarea class="input-full app-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(normalizedData.configurationText)}</textarea>
         </td>
@@ -9641,10 +9696,31 @@ function syncTextareasInContainer(container) {
 
 function getEmptyAppCustomProposalTable() {
     return {
+        component: '',
         configurationText: '',
         quantity: '',
         note: ''
     };
+}
+
+function resolveCurrentModuleInstanceDisplayName(fallbackModuleType = '') {
+    const activeInstanceKey = String(window.__activeInstanceKey || '').trim();
+    const instances = getModuleInstancesFromArchTable();
+    if (activeInstanceKey) {
+        const activeInstance = instances.find(instance => getModuleInstanceKey(instance) === activeInstanceKey);
+        if (activeInstance) {
+            return getModuleInstanceDisplayName(activeInstance);
+        }
+    }
+
+    if (fallbackModuleType) {
+        const fallbackInstance = instances.find(instance => instance.moduleType === fallbackModuleType);
+        if (fallbackInstance) {
+            return getModuleInstanceDisplayName(fallbackInstance);
+        }
+    }
+
+    return fallbackModuleType || '';
 }
 
 function resolveAppProposalContainer(source = null) {
@@ -9669,6 +9745,7 @@ function normalizeAppCustomProposalTable(data) {
     const empty = getEmptyAppCustomProposalTable();
     if (!data || typeof data !== 'object') return empty;
     return {
+        component: String(data.component || ''),
         configurationText: String(data.configurationText || ''),
         quantity: String(data.quantity || ''),
         note: String(data.note || '')
@@ -9706,13 +9783,15 @@ function collectAppCustomProposalTableData(container = null) {
 
     const rows = [];
     tbody.querySelectorAll('tr').forEach(row => {
+        const component = row.querySelector('.app-custom-proposal-component')?.value || '';
         const config = row.querySelector('.app-custom-proposal-config')?.value || '';
         const qty = row.querySelector('.app-custom-proposal-qty')?.value || '';
         const note = row.querySelector('.app-custom-proposal-note')?.value || '';
 
         // Only include rows that have some content
-        if (config.trim() || qty.trim() || note.trim()) {
+        if (component.trim() || config.trim() || qty.trim() || note.trim()) {
             rows.push({
+                component: component,
                 configurationText: config,
                 quantity: qty,
                 note: note
@@ -9800,6 +9879,9 @@ function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposa
     const buildRows = () => effectiveRows.map(row => `
         <tr>
             <td>
+                <input type="text" class="input-full app-custom-proposal-component sizing-user-input" value="${escapeHtml(row.component)}" placeholder="Tên thành phần">
+            </td>
+            <td>
                 <textarea class="input-full app-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(row.configurationText)}</textarea>
             </td>
             <td class="text-center">
@@ -9828,6 +9910,7 @@ function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposa
         <table class="sizing-table app-custom-proposal-table" data-app-custom-proposal-table="1" style="margin-top:8px;">
             <thead>
                 <tr>
+                    <th style="width:180px;">Thành phần</th>
                     <th style="width:250px;">Cấu hình</th>
                     <th style="width:100px;">Số lượng</th>
                     <th>Ghi chú</th>
@@ -9891,6 +9974,9 @@ function ensureAppProposalSelectionUI(containerOrOptions = {}, optionsArg = {}) 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>
+                    <input type="text" class="input-full app-custom-proposal-component sizing-user-input" value="${escapeHtml(rowData.component)}" placeholder="Tên thành phần">
+                </td>
+                <td>
                     <textarea class="input-full app-custom-proposal-config sizing-user-input" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình, ví dụ:&#10;CPU: = 16 Cint&#10;RAM: = 64 GB">${escapeHtml(rowData.configurationText)}</textarea>
                 </td>
                 <td class="text-center">
@@ -9918,6 +10004,7 @@ function ensureAppProposalSelectionUI(containerOrOptions = {}, optionsArg = {}) 
 
 function buildAppEffectiveCustomProposalData(customProposalTable) {
     const dataList = normalizeAppCustomProposalTableList(customProposalTable);
+    const defaultComponentName = resolveCurrentModuleInstanceDisplayName('App');
 
     if (dataList.length === 0) return null;
 
@@ -9928,6 +10015,7 @@ function buildAppEffectiveCustomProposalData(customProposalTable) {
     let ghiChu = '';
 
     dataList.forEach(row => {
+        const rowComponent = (row.component || '').trim();
         const lines = row.configurationText
             .split(/\r?\n/)
             .map(line => line.trim())
@@ -9943,6 +10031,7 @@ function buildAppEffectiveCustomProposalData(customProposalTable) {
 
         if (rowConfig) {
             resultRows.push({
+                component: rowComponent || defaultComponentName,
                 cauHinh: rowConfig,
                 soLuong: rowQuantity,
                 ghiChu: rowNote
@@ -10079,6 +10168,7 @@ function calculateSizingRecommendations() {
             perServer: Math.ceil(item.afterKPI / ketquaNew)
         }));
 
+        const appComponentNameNew = resolveCurrentModuleInstanceDisplayName('App');
         let htmlNew = '';
         htmlNew += `<h4 style="margin-top:16px; margin-bottom:8px; color:#2c5282;">Bảng tính toán Máy chủ Tiến trình</h4>`;
         htmlNew += `<table class="sizing-table app-machine-table" data-app-machine-table="1" style="margin-top:8px;">
@@ -10133,6 +10223,7 @@ function calculateSizingRecommendations() {
         htmlNew += `<table class="sizing-table app-proposal-table" data-app-proposal-table="1" style="margin-top:8px;">
                         <thead>
                             <tr>
+                                <th style="width:180px;">Thành phần</th>
                                 <th style="width:250px;">Cầu hình</th>
                                 <th style="width:100px;">Số lượng</th>
                                 <th>Ghi chú</th>
@@ -10140,6 +10231,7 @@ function calculateSizingRecommendations() {
                         </thead>
                         <tbody>
                             <tr style="background:#e6ffed;">
+                                <td>${escapeHtml(appComponentNameNew)}</td>
                                 <td>
                                     <ul data-app-config-list="1" style="margin:0; padding-left:20px;">
                                         <li>CPU: = ${cintPerServerNew} Cint</li>

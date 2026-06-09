@@ -949,6 +949,7 @@ public class ExportService {
                     // Array format (new multi-row support)
                     for (JsonNode row : customProposalTable) {
                         Map<String, String> rowData = new HashMap<>();
+                        rowData.put("component", txt(row, "component").trim());
                         rowData.put("config", txt(row, "configurationText").trim());
                         rowData.put("qty", txt(row, "quantity").trim());
                         rowData.put("note", txt(row, "note").trim());
@@ -959,6 +960,7 @@ public class ExportService {
                     String config = txt(customProposalTable, "configurationText").trim();
                     if (!config.isEmpty()) {
                         Map<String, String> rowData = new HashMap<>();
+                        rowData.put("component", txt(customProposalTable, "component").trim());
                         rowData.put("config", config);
                         rowData.put("qty", txt(customProposalTable, "quantity").trim());
                         rowData.put("note", txt(customProposalTable, "note").trim());
@@ -967,6 +969,7 @@ public class ExportService {
                 }
 
                 List<String[]> finalProposalRows = new ArrayList<>();
+                String defaultComponentName = "App";
 
                 if ("custom".equalsIgnoreCase(selectedProposalSource) && !customProposalData.isEmpty()) {
                     for (Map<String, String> customRow : customProposalData) {
@@ -981,6 +984,7 @@ public class ExportService {
                         }
                         if (!normalizedLines.isEmpty()) {
                             finalProposalRows.add(new String[]{
+                                    customRow.getOrDefault("component", "").trim().isEmpty() ? defaultComponentName : customRow.getOrDefault("component", "").trim(),
                                     String.join("\n", normalizedLines),
                                     customRow.getOrDefault("qty", "").trim(),
                                     customRow.getOrDefault("note", "").trim()
@@ -989,8 +993,16 @@ public class ExportService {
                     }
                 } else if (!proposalRows.isEmpty()) {
                     for (List<String> proposalRow : proposalRows) {
-                        if (proposalRow.size() >= 3) {
+                        if (proposalRow.size() >= 4) {
                             finalProposalRows.add(new String[]{
+                                    proposalRow.get(0),
+                                    proposalRow.get(1),
+                                    proposalRow.get(2),
+                                    proposalRow.get(3)
+                            });
+                        } else if (proposalRow.size() >= 3) {
+                            finalProposalRows.add(new String[]{
+                                    defaultComponentName,
                                     proposalRow.get(0),
                                     proposalRow.get(1),
                                     proposalRow.get(2)
@@ -1001,18 +1013,20 @@ public class ExportService {
 
                 if (!finalProposalRows.isEmpty()) {
                     addSubHeading2(doc, "\u0110\u1ec1 xu\u1ea5t thi\u1ebft b\u1ecb");
-                    XWPFTable deviceTable = doc.createTable(finalProposalRows.size() + 1, 3);
+                    XWPFTable deviceTable = doc.createTable(finalProposalRows.size() + 1, 4);
                     styleTable(deviceTable);
 
-                    setCell(deviceTable, 0, 0, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
-                    setCell(deviceTable, 0, 1, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-                    setCell(deviceTable, 0, 2, "Ghi ch\u00fa", true, "D9E2F3");
+                    setCell(deviceTable, 0, 0, "Th\u00e0nh ph\u1ea7n", true, "D9E2F3");
+                    setCell(deviceTable, 0, 1, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                    setCell(deviceTable, 0, 2, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                    setCell(deviceTable, 0, 3, "Ghi ch\u00fa", true, "D9E2F3");
 
                     for (int i = 0; i < finalProposalRows.size(); i++) {
                         String[] proposalRow = finalProposalRows.get(i);
                         setCell(deviceTable, i + 1, 0, proposalRow[0], false, "E6FFED");
-                        setCell(deviceTable, i + 1, 1, proposalRow[1], true, "E6FFED");
-                        setCell(deviceTable, i + 1, 2, proposalRow[2], false, "E6FFED");
+                        setCell(deviceTable, i + 1, 1, proposalRow[1], false, "E6FFED");
+                        setCell(deviceTable, i + 1, 2, proposalRow[2], true, "E6FFED");
+                        setCell(deviceTable, i + 1, 3, proposalRow[3], false, "E6FFED");
                     }
                     doc.createParagraph();
                 }
@@ -2963,12 +2977,14 @@ public class ExportService {
                     java.util.List<JsonNode> remaining = new java.util.ArrayList<>(filteredRows);
                     java.util.Map<String, Integer> counters = new java.util.HashMap<>();
 
-                    for (JsonNode row : archRows) {
+                    for (int archIndex = 0; archIndex < archRows.size(); archIndex++) {
+                        JsonNode row = archRows.get(archIndex);
                         String archType = txt(row, "loaiModule").trim();
                         if (archType.isEmpty()) continue;
 
                         int seq = counters.getOrDefault(archType, 0) + 1;
                         counters.put(archType, seq);
+                        String expectedInstanceKey = buildInstanceKey(archType, archIndex + 1);
 
                         String archName = txt(row, "moduleName").trim();
                         if (archName.isEmpty()) {
@@ -2977,6 +2993,14 @@ public class ExportService {
 
                         java.util.List<JsonNode> matches = new java.util.ArrayList<>();
                         for (JsonNode r : remaining) {
+                            String rowInstanceKey = extractSummaryRowInstanceKey(r);
+                            if (!rowInstanceKey.isEmpty()) {
+                                if (expectedInstanceKey.equals(rowInstanceKey)) {
+                                    matches.add(r);
+                                }
+                                continue;
+                            }
+
                             String rowType = txt(r, "moduleType").trim();
                             String rowLegacy = txt(r, "module").trim();
                             String rowResolvedType = !rowType.isEmpty() ? rowType : rowLegacy;
@@ -2997,6 +3021,14 @@ public class ExportService {
 
                         if (matches.isEmpty()) {
                             for (JsonNode r : remaining) {
+                                String rowInstanceKey = extractSummaryRowInstanceKey(r);
+                                if (!rowInstanceKey.isEmpty()) {
+                                    if (expectedInstanceKey.equals(rowInstanceKey)) {
+                                        matches.add(r);
+                                    }
+                                    continue;
+                                }
+
                                 String rowType = txt(r, "moduleType").trim();
                                 String rowLegacy = txt(r, "module").trim();
                                 String rowResolvedType = !rowType.isEmpty() ? rowType : rowLegacy;
@@ -3021,29 +3053,26 @@ public class ExportService {
             }
 
             if (!orderedRows.isEmpty()) {
-                XWPFTable table = doc.createTable(orderedRows.size() + 1, 6);
+                XWPFTable table = doc.createTable(orderedRows.size() + 1, 5);
                 styleTable(table);
 
                 setCell(table, 0, 0, "STT", true, "D9E2F3");
-                setCell(table, 0, 1, "Lo\u1ea1i module", true, "D9E2F3");
-                setCell(table, 0, 2, "T\u00ean module", true, "D9E2F3");
-                setCell(table, 0, 3, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
-                setCell(table, 0, 4, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
-                setCell(table, 0, 5, "Ghi ch\u00fa", true, "D9E2F3");
+                setCell(table, 0, 1, "T\u00ean module", true, "D9E2F3");
+                setCell(table, 0, 2, "C\u1ea5u h\u00ecnh", true, "D9E2F3");
+                setCell(table, 0, 3, "S\u1ed1 l\u01b0\u1ee3ng", true, "D9E2F3");
+                setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
 
                 for (int i = 0; i < orderedRows.size(); i++) {
                     JsonNode r = orderedRows.get(i);
                     String moduleType = txt(r, "moduleType");
                     String moduleLegacy = txt(r, "module");
                     String moduleName = txt(r, "moduleName");
-                    String resolvedModuleType = !moduleType.isEmpty() ? moduleType : moduleLegacy;
                     setCell(table, i + 1, 0, String.valueOf(i + 1), false, null);
-                    setCell(table, i + 1, 1, resolvedModuleType, false, null);
-                    setCell(table, i + 1, 2, moduleName, false, null);
+                    setCell(table, i + 1, 1, moduleName, false, null);
                     String cauHinh = txt(r, "cauHinh").replaceAll("<br>", "\n").replaceAll("<[^>]+>", "");
-                    setCellWithLineBreaks(table, i + 1, 3, cauHinh);
-                    setCell(table, i + 1, 4, txt(r, "soLuong"), false, null);
-                    setCell(table, i + 1, 5, txt(r, "ghiChu"), false, null);
+                    setCellWithLineBreaks(table, i + 1, 2, cauHinh);
+                    setCell(table, i + 1, 3, txt(r, "soLuong"), false, null);
+                    setCell(table, i + 1, 4, txt(r, "ghiChu"), false, null);
                 }
             }
         }
@@ -3068,6 +3097,18 @@ public class ExportService {
                 r.addBreak();
             }
         }
+    }
+
+    private String extractSummaryRowInstanceKey(JsonNode row) {
+        String rowKey = txt(row, "rowKey").trim();
+        if (rowKey.isEmpty()) {
+            return "";
+        }
+        int separatorIndex = rowKey.indexOf("::");
+        if (separatorIndex <= 0) {
+            return "";
+        }
+        return rowKey.substring(0, separatorIndex).trim();
     }
 
     // ======================== HELPER METHODS ========================
