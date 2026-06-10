@@ -39,6 +39,171 @@ function buildAppHash(view, projectId, tab) {
     return '#/projects';
 }
 
+function renderSummaryDiffLegacy(snapshot, prevSnapshot) {
+    const content = snapshot.tongHopVaDeXuatContent;
+    const hasAdminReview = snapshot.tongHopAdminReview;
+    if (!content && !hasAdminReview) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">KhÃ´ng cÃ³ dá»¯ liá»‡u cho pháº§n nÃ y</p>';
+    }
+
+    let data = { summaryRows: [] };
+    if (content) {
+        try {
+            data = typeof content === 'string' ? JSON.parse(content) : content;
+        } catch (e) {
+            return '<p style="color: red;">Lá»—i parse dá»¯ liá»‡u</p>';
+        }
+    }
+
+    let prevData = { summaryRows: [] };
+    if (prevSnapshot && prevSnapshot.tongHopVaDeXuatContent) {
+        try {
+            prevData = typeof prevSnapshot.tongHopVaDeXuatContent === 'string'
+                ? JSON.parse(prevSnapshot.tongHopVaDeXuatContent)
+                : prevSnapshot.tongHopVaDeXuatContent;
+        } catch (e) { /* ignore */ }
+    }
+
+    let adminReview = {};
+    if (snapshot.tongHopAdminReview) {
+        try {
+            adminReview = typeof snapshot.tongHopAdminReview === 'string'
+                ? JSON.parse(snapshot.tongHopAdminReview)
+                : snapshot.tongHopAdminReview;
+        } catch (e) { /* ignore */ }
+    }
+
+    let prevAdminReview = {};
+    if (prevSnapshot && prevSnapshot.tongHopAdminReview) {
+        try {
+            prevAdminReview = typeof prevSnapshot.tongHopAdminReview === 'string'
+                ? JSON.parse(prevSnapshot.tongHopAdminReview)
+                : prevSnapshot.tongHopAdminReview;
+        } catch (e) { /* ignore */ }
+    }
+
+    const adminReviewChanged =
+        (adminReview.eval || '') !== (prevAdminReview.eval || '') ||
+        (adminReview.note || '') !== (prevAdminReview.note || '');
+
+    const rows = Array.isArray(data.summaryRows) ? data.summaryRows : [];
+    const prevRows = prevData.summaryRows || [];
+    let changedRowsHtml = [];
+    let changeCount = 0;
+
+    rows.forEach((row, index) => {
+        const prevRow = prevRows[index] || {};
+        const fields = ['moduleType', 'moduleName', 'module', 'cauHinh', 'soLuong', 'ghiChu'];
+
+        let hasChange = false;
+        for (const f of fields) {
+            if ((row[f] || '').toString().trim() !== (prevRow[f] || '').toString().trim()) {
+                hasChange = true;
+            }
+        }
+
+        const isNewRow = index >= prevRows.length;
+        if (!hasChange && !isNewRow) return;
+
+        changeCount++;
+        const rowClass = isNewRow ? 'diff-row-added' : '';
+        const rowModuleType = row.moduleType || row.module || '';
+        const prevModuleType = prevRow.moduleType || prevRow.module || '';
+        const rowModuleName = row.moduleName || '';
+        const prevModuleName = prevRow.moduleName || '';
+        const rowCauHinh = row.cauHinh || row.volume || '';
+        const prevCauHinh = prevRow.cauHinh || prevRow.volume || '';
+
+        changedRowsHtml.push(`
+            <tr class="${rowClass}">
+                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${index + 1}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowModuleType, prevModuleType)}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowModuleName, prevModuleName)}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowCauHinh, prevCauHinh)}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${renderTextDiff(row.soLuong, prevRow.soLuong)}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(row.ghiChu, prevRow.ghiChu)}</td>
+            </tr>
+        `);
+    });
+
+    if (prevRows.length > rows.length) {
+        for (let i = rows.length; i < prevRows.length; i++) {
+            const prevRow = prevRows[i];
+            const prevModuleType = prevRow.moduleType || prevRow.module || '-';
+            const prevModuleName = prevRow.moduleName || '-';
+            const prevCauHinh = prevRow.cauHinh || prevRow.volume || '-';
+            changeCount++;
+            changedRowsHtml.push(`
+                <tr class="diff-row-removed">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${i + 1}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevModuleType}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevModuleName}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevCauHinh}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.soLuong || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.ghiChu || '-'}</div></td>
+                </tr>
+            `);
+        }
+    }
+
+    const adminReviewHtml = (adminReviewChanged || adminReview.eval || adminReview.note)
+        ? `
+            <div style="margin-top: 16px; padding: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Admin đánh giá</div>
+                <div><strong>Đánh giá:</strong> ${prevSnapshot ? renderEvalDiff(adminReview.eval || '', prevAdminReview.eval || '') : renderEvalDiff(adminReview.eval || '', null)}</div>
+                <div style="margin-top: 6px;"><strong>Ghi chú:</strong> ${prevSnapshot ? renderTextDiff(adminReview.note || '', prevAdminReview.note || '') : (adminReview.note || '-')}</div>
+            </div>
+        `
+        : '';
+
+    if (changedRowsHtml.length === 0 && !adminReviewHtml && prevSnapshot) {
+        return `
+            <div class="vp-section">
+                <div class="vp-no-changes">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>KhÃ´ng cÃ³ thay Ä‘á»•i trong pháº§n Tá»•ng há»£p</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (changedRowsHtml.length === 0 && adminReviewHtml) {
+        return `
+            <div class="vp-section">
+                <div class="vp-section-title">
+                    <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                    Thay Ä‘á»•i trong Tá»•ng há»£p Ä‘á» xuáº¥t
+                </div>
+                ${adminReviewHtml}
+            </div>
+        `;
+    }
+
+    return `
+        <div class="vp-section">
+            <div class="vp-section-title">
+                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                Thay Ä‘á»•i trong Tá»•ng há»£p Ä‘á» xuáº¥t 
+                <span class="diff-count">(${changeCount} dÃ²ng thay Ä‘á»•i)</span>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead>
+                    <tr style="background: #f1f5f9;">
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">STT</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Loáº¡i module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">TÃªn module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Cáº¥u hÃ¬nh</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Sá»‘ lÆ°á»£ng</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Ghi chÃº</th>
+                    </tr>
+                </thead>
+                <tbody>${changedRowsHtml.join('')}</tbody>
+            </table>
+            ${adminReviewHtml}
+        </div>
+    `;
+}
+
 /**
  * Parse hash URL thành trạng thái app
  */
@@ -914,6 +1079,24 @@ function applyRolePermissions() {
             btn.style.cursor = 'pointer';
         });
 
+        document.querySelectorAll('#page-summary input, #page-summary textarea, #page-summary select').forEach(el => {
+            if (el.classList.contains('admin-eval') || el.classList.contains('admin-note') || el.classList.contains('admin-eval-select')) {
+                el.disabled = false;
+            } else {
+                el.disabled = true;
+            }
+        });
+        document.querySelectorAll('#page-summary button.sizing-user-btn, #page-summary .btn-delete').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        });
+        document.querySelectorAll('#page-summary .btn-save-section, #page-summary #exportBtn').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        });
+
         // Disable custom method editors for admin (read-only)
         document.querySelectorAll('.custom-doc-editor').forEach(editor => {
             editor.contentEditable = 'false';
@@ -1023,6 +1206,20 @@ function applyRolePermissions() {
             btn.style.opacity = '0.5';
             btn.style.cursor = 'not-allowed';
             btn.title = 'Chỉ admin mới có quyền đánh giá';
+        });
+
+        document.querySelectorAll('#page-summary input, #page-summary textarea, #page-summary select').forEach(el => {
+            el.disabled = false;
+        });
+        document.querySelectorAll('#page-summary .admin-eval, #page-summary .admin-note, #page-summary .admin-eval-select').forEach(el => {
+            el.disabled = true;
+            el.classList.add('readonly-admin');
+        });
+        document.querySelectorAll('#page-summary button.sizing-user-btn, #page-summary .btn-delete, #page-summary .btn-save-section, #page-summary #exportBtn').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+            btn.title = '';
         });
 
         // Re-enable file inputs and buttons for regular users
@@ -1843,6 +2040,16 @@ async function loadAllDataFromDB() {
             }
             if (projectData.tongHopVaDeXuatContent) {
                 loadTongHop(JSON.parse(projectData.tongHopVaDeXuatContent));
+            }
+            if (projectData.tongHopAdminReview) {
+                try {
+                    loadSummaryAdminReview(JSON.parse(projectData.tongHopAdminReview));
+                } catch (e) {
+                    Logger.error('Error parsing summary admin review:', e);
+                    clearSummaryAdminReview();
+                }
+            } else {
+                clearSummaryAdminReview();
             }
 
             // Load sizing data (dinhCoHeThongContent)
@@ -3991,6 +4198,37 @@ function markSummaryNeedsSizingRefresh() {
 
 function clearSummaryNeedsSizingRefresh() {
     summaryNeedsRefreshFromSizing = false;
+}
+
+function loadSummaryAdminReview(reviewData = {}) {
+    const evalSelect = document.getElementById('eval-summary');
+    const noteInput = document.getElementById('note-summary');
+    const normalizedReview = reviewData && typeof reviewData === 'object' ? reviewData : {};
+
+    if (evalSelect) {
+        evalSelect.value = normalizedReview.eval || '';
+        styleAdminSelect(evalSelect);
+    }
+    if (noteInput) {
+        noteInput.value = normalizedReview.note || '';
+    }
+}
+
+function clearSummaryAdminReview() {
+    loadSummaryAdminReview({});
+}
+
+function collectSummaryAdminReview() {
+    return {
+        eval: document.getElementById('eval-summary')?.value || '',
+        note: document.getElementById('note-summary')?.value || ''
+    };
+}
+
+function markSummaryPendingManualSave(message = 'Có thay đổi chưa lưu. Vui lòng bấm "Lưu dữ liệu".') {
+    setSummarySaveStatusMessage(
+        `<span style="color: #b8860b; font-size: 12px;"><i class="fa-solid fa-circle-exclamation"></i> ${message}</span>`
+    );
 }
 
 async function persistSummarySnapshot(options = {}) {
@@ -6739,7 +6977,7 @@ function removeSummaryRow(btn) {
         updateSTT(tbody);
     }
 
-    scheduleSummaryAutosave();
+    markSummaryPendingManualSave();
 }
 
 function ensureLBFWCustomMethodUI() {
@@ -7236,6 +7474,8 @@ async function evaluateSection(sectionKey) {
         } else if (sectionKey === 'model') {
             // Use the new collectMoHinhAdminReview function
             reviewObj = collectMoHinhAdminReview();
+        } else if (sectionKey === 'summary') {
+            reviewObj = collectSummaryAdminReview();
         } else {
             reviewObj = { message: 'unsupported section' };
         }
@@ -9433,6 +9673,12 @@ document.addEventListener("DOMContentLoaded", function () {
     attachInputTableChangeListeners();
     initHelpTooltipSmartPositioning();
     initFirstRowGuards();
+    ['eval-summary', 'note-summary'].forEach(id => {
+        const element = document.getElementById(id);
+        if (!element) return;
+        const eventName = element.tagName === 'SELECT' ? 'change' : 'input';
+        element.addEventListener(eventName, () => markSummaryPendingManualSave());
+    });
 });
 // ==================== HELPER: Safe value assign to prevent [object Object] ====================
 function safeSetValue(element, value) {
@@ -15692,7 +15938,7 @@ function renderSizingDiff(snapshot, prevSnapshot) {
 /**
  * Render diff cho Tổng hợp và đề xuất
  */
-function renderSummaryDiff(snapshot, prevSnapshot) {
+function renderSummaryDiffBase(snapshot, prevSnapshot) {
     const content = snapshot.tongHopVaDeXuatContent;
     if (!content) {
         return '<p style="color: #999; text-align: center; padding: 40px;">Không có dữ liệu cho phần này</p>';
@@ -15816,6 +16062,171 @@ function renderSummaryDiff(snapshot, prevSnapshot) {
 /**
  * Đóng modal xem trước phiên bản
  */
+function renderSummaryDiff(snapshot, prevSnapshot) {
+    const content = snapshot.tongHopVaDeXuatContent;
+    const hasAdminReview = snapshot.tongHopAdminReview;
+    if (!content && !hasAdminReview) {
+        return '<p style="color: #999; text-align: center; padding: 40px;">KhÃ´ng cÃ³ dá»¯ liá»‡u cho pháº§n nÃ y</p>';
+    }
+
+    let data = { summaryRows: [] };
+    if (content) {
+        try {
+            data = typeof content === 'string' ? JSON.parse(content) : content;
+        } catch (e) {
+            return '<p style="color: red;">Lá»—i parse dá»¯ liá»‡u</p>';
+        }
+    }
+
+    let prevData = { summaryRows: [] };
+    if (prevSnapshot && prevSnapshot.tongHopVaDeXuatContent) {
+        try {
+            prevData = typeof prevSnapshot.tongHopVaDeXuatContent === 'string'
+                ? JSON.parse(prevSnapshot.tongHopVaDeXuatContent)
+                : prevSnapshot.tongHopVaDeXuatContent;
+        } catch (e) { /* ignore */ }
+    }
+
+    let adminReview = {};
+    if (snapshot.tongHopAdminReview) {
+        try {
+            adminReview = typeof snapshot.tongHopAdminReview === 'string'
+                ? JSON.parse(snapshot.tongHopAdminReview)
+                : snapshot.tongHopAdminReview;
+        } catch (e) { /* ignore */ }
+    }
+
+    let prevAdminReview = {};
+    if (prevSnapshot && prevSnapshot.tongHopAdminReview) {
+        try {
+            prevAdminReview = typeof prevSnapshot.tongHopAdminReview === 'string'
+                ? JSON.parse(prevSnapshot.tongHopAdminReview)
+                : prevSnapshot.tongHopAdminReview;
+        } catch (e) { /* ignore */ }
+    }
+
+    const adminReviewChanged =
+        (adminReview.eval || '') !== (prevAdminReview.eval || '') ||
+        (adminReview.note || '') !== (prevAdminReview.note || '');
+
+    const rows = Array.isArray(data.summaryRows) ? data.summaryRows : [];
+    const prevRows = prevData.summaryRows || [];
+    let changedRowsHtml = [];
+    let changeCount = 0;
+
+    rows.forEach((row, index) => {
+        const prevRow = prevRows[index] || {};
+        const fields = ['moduleType', 'moduleName', 'module', 'cauHinh', 'soLuong', 'ghiChu'];
+
+        let hasChange = false;
+        for (const f of fields) {
+            if ((row[f] || '').toString().trim() !== (prevRow[f] || '').toString().trim()) {
+                hasChange = true;
+            }
+        }
+
+        const isNewRow = index >= prevRows.length;
+        if (!hasChange && !isNewRow) return;
+
+        changeCount++;
+        const rowClass = isNewRow ? 'diff-row-added' : '';
+        const rowModuleType = row.moduleType || row.module || '';
+        const prevModuleType = prevRow.moduleType || prevRow.module || '';
+        const rowModuleName = row.moduleName || '';
+        const prevModuleName = prevRow.moduleName || '';
+        const rowCauHinh = row.cauHinh || row.volume || '';
+        const prevCauHinh = prevRow.cauHinh || prevRow.volume || '';
+
+        changedRowsHtml.push(`
+            <tr class="${rowClass}">
+                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${index + 1}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowModuleType, prevModuleType)}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowModuleName, prevModuleName)}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(rowCauHinh, prevCauHinh)}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${renderTextDiff(row.soLuong, prevRow.soLuong)}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${renderTextDiff(row.ghiChu, prevRow.ghiChu)}</td>
+            </tr>
+        `);
+    });
+
+    if (prevRows.length > rows.length) {
+        for (let i = rows.length; i < prevRows.length; i++) {
+            const prevRow = prevRows[i];
+            const prevModuleType = prevRow.moduleType || prevRow.module || '-';
+            const prevModuleName = prevRow.moduleName || '-';
+            const prevCauHinh = prevRow.cauHinh || prevRow.volume || '-';
+            changeCount++;
+            changedRowsHtml.push(`
+                <tr class="diff-row-removed">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${i + 1}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevModuleType}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevModuleName}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevCauHinh}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.soLuong || '-'}</div></td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;"><div class="diff-removed">${prevRow.ghiChu || '-'}</div></td>
+                </tr>
+            `);
+        }
+    }
+
+    const adminReviewHtml = (adminReviewChanged || adminReview.eval || adminReview.note)
+        ? `
+            <div style="margin-top: 16px; padding: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Admin đánh giá</div>
+                <div><strong>Đánh giá:</strong> ${prevSnapshot ? renderEvalDiff(adminReview.eval || '', prevAdminReview.eval || '') : renderEvalDiff(adminReview.eval || '', null)}</div>
+                <div style="margin-top: 6px;"><strong>Ghi chú:</strong> ${prevSnapshot ? renderTextDiff(adminReview.note || '', prevAdminReview.note || '') : (adminReview.note || '-')}</div>
+            </div>
+        `
+        : '';
+
+    if (changedRowsHtml.length === 0 && !adminReviewHtml && prevSnapshot) {
+        return `
+            <div class="vp-section">
+                <div class="vp-no-changes">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>KhÃ´ng cÃ³ thay Ä‘á»•i trong pháº§n Tá»•ng há»£p</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (changedRowsHtml.length === 0 && adminReviewHtml) {
+        return `
+            <div class="vp-section">
+                <div class="vp-section-title">
+                    <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                    Thay Ä‘á»•i trong Tá»•ng há»£p Ä‘á» xuáº¥t
+                </div>
+                ${adminReviewHtml}
+            </div>
+        `;
+    }
+
+    return `
+        <div class="vp-section">
+            <div class="vp-section-title">
+                <i class="fa-solid fa-code-compare" style="color: #10b981;"></i> 
+                Thay Ä‘á»•i trong Tá»•ng há»£p Ä‘á» xuáº¥t 
+                <span class="diff-count">(${changeCount} dÃ²ng thay Ä‘á»•i)</span>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead>
+                    <tr style="background: #f1f5f9;">
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">STT</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Loáº¡i module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">TÃªn module</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Cáº¥u hÃ¬nh</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Sá»‘ lÆ°á»£ng</th>
+                        <th style="padding: 10px; border: 1px solid #e2e8f0;">Ghi chÃº</th>
+                    </tr>
+                </thead>
+                <tbody>${changedRowsHtml.join('')}</tbody>
+            </table>
+            ${adminReviewHtml}
+        </div>
+    `;
+}
+
 function closeVersionPreview() {
     const modal = document.getElementById('version-preview-modal');
     if (modal) {
@@ -15904,6 +16315,8 @@ function getReviewSectionKeyByPage(sectionId) {
             return 'model';
         case 'page-sizing':
             return 'sizing';
+        case 'page-summary':
+            return 'summary';
         default:
             return null;
     }
@@ -15935,6 +16348,8 @@ function buildAdminReviewPayloadForSection(sectionKey, options = {}) {
             return collectMoHinhAdminReview();
         case 'sizing':
             return collectSizingAdminReviewData();
+        case 'summary':
+            return collectSummaryAdminReview();
         default:
             return null;
     }
@@ -16044,6 +16459,9 @@ function buildSectionSavePayload(options = {}) {
         if (summaryMode === 'regenerate') {
             cancelSummaryAutosave();
             aggregateSizingResults(options.summaryAggregateOptions || {});
+            clearSummaryAdminReview();
+            setSummarySaveStatusMessage('');
+            payload.tongHopAdminReview = '';
             payload.tongHopVaDeXuatContent = JSON.stringify(collectTongHop());
             clearSummaryNeedsSizingRefresh();
         } else if (summaryMode === 'snapshot' && activeSectionId === 'page-summary') {
@@ -16113,31 +16531,31 @@ async function performManualSave() {
         }
 
         // ========== CHẠY CÁC NETWORK REQUEST CẦN THIẾT CHO SECTION HIỆN TẠI ==========
-        const networkPromises = [];
+        // LÆ°u content trÆ°á»›c, lÆ°u admin review sau Ä‘á»ƒ trÃ¡nh ghi Ä‘Ã¨ cÃ¹ng 1 project_data row.
 
         // 1) Lưu dữ liệu chính của section hiện tại
         if (Object.keys(payload).length > 0) {
             if (!currentProjectDataId) {
                 payload.projectId = currentProjectId;
-                networkPromises.push(
-                    fetch(`${API_BASE_URL}/project-data`, {
-                        method: 'POST', headers,
-                        body: JSON.stringify(payload)
-                    }).then(resp => {
-                        if (resp.ok) return resp.json().then(result => saveProjectDataIdToStorage(result.id));
-                        else throw new Error('POST project-data failed: ' + resp.status);
-                    })
-                );
+                const createResp = await fetch(`${API_BASE_URL}/project-data`, {
+                    method: 'POST', headers,
+                    body: JSON.stringify(payload)
+                });
+                if (!createResp.ok) {
+                    throw new Error('POST project-data failed: ' + createResp.status);
+                }
+                const createResult = await createResp.json();
+                if (createResult?.id) {
+                    saveProjectDataIdToStorage(createResult.id);
+                }
             } else {
-                networkPromises.push(
-                    fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
-                        method: 'PUT', headers,
-                        body: JSON.stringify(payload)
-                    }).then(resp => {
-                        if (!resp.ok) throw new Error('PUT project-data failed: ' + resp.status);
-                        return resp;
-                    })
-                );
+                const updateResp = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}`, {
+                    method: 'PUT', headers,
+                    body: JSON.stringify(payload)
+                });
+                if (!updateResp.ok) {
+                    throw new Error('PUT project-data failed: ' + updateResp.status);
+                }
             }
         }
 
@@ -16147,25 +16565,22 @@ async function performManualSave() {
             if (reviewSection) {
                 try {
                     const reviewData = buildAdminReviewPayloadForSection(reviewSection, { requestData });
-                    networkPromises.push(
-                        fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
-                            method: 'POST', headers,
-                            body: JSON.stringify({ section: reviewSection, reviewJson: JSON.stringify(reviewData || {}) })
-                        }).catch(e => Logger.warn(`Admin review save failed [${reviewSection}]:`, e.message))
-                    );
+                    const reviewResp = await fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+                        method: 'POST', headers,
+                        body: JSON.stringify({ section: reviewSection, reviewJson: JSON.stringify(reviewData || {}) })
+                    });
+                    if (!reviewResp.ok) {
+                        throw new Error(`Admin review save failed [${reviewSection}]: ${reviewResp.status}`);
+                    }
                 } catch (e) {
-                    Logger.warn(`Failed to collect admin review for [${reviewSection}]`, e);
+                    Logger.warn(`Failed to save admin review for [${reviewSection}]`, e);
+                    throw e;
                 }
             }
         }
 
         // ========== CHỜ TẤT CẢ HOÀN TẤT ==========
-        const results = await Promise.allSettled(networkPromises);
 
-        const failedResults = results.filter(r => r.status === 'rejected');
-        if (failedResults.length > 0) {
-            Logger.warn(`Save: ${failedResults.length}/${results.length} requests failed`, failedResults);
-        }
 
         // ========== TẠO REVISION SAU KHI LƯU THÀNH CÔNG ==========
         const userName = user.displayName || user.username || 'User';

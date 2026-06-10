@@ -62,6 +62,9 @@ public class ProjectDataService {
             if (request.getTongHopVaDeXuatContent() != null) {
                 projectData.setTongHopVaDeXuatContent(request.getTongHopVaDeXuatContent());
             }
+            if (request.getTongHopAdminReview() != null) {
+                projectData.setTongHopAdminReview(request.getTongHopAdminReview());
+            }
                 ProjectData saved = projectDataRepository.save(projectData);
                     activityLogService.record(
                         "SAVE",
@@ -82,6 +85,7 @@ public class ProjectDataService {
         projectData.setMoHinhHeThongContent(request.getMoHinhHeThongContent());
         projectData.setDinhCoHeThongContent(request.getDinhCoHeThongContent());
         projectData.setTongHopVaDeXuatContent(request.getTongHopVaDeXuatContent());
+        projectData.setTongHopAdminReview(request.getTongHopAdminReview());
         ProjectData saved = projectDataRepository.save(projectData);
         activityLogService.record(
             "SAVE",
@@ -129,6 +133,9 @@ public class ProjectDataService {
         if (request.getTongHopVaDeXuatContent() != null) {
             projectData.setTongHopVaDeXuatContent(request.getTongHopVaDeXuatContent());
         }
+        if (request.getTongHopAdminReview() != null) {
+            projectData.setTongHopAdminReview(request.getTongHopAdminReview());
+        }
 
         ProjectData saved = projectDataRepository.save(projectData);
         activityLogService.record(
@@ -160,6 +167,9 @@ public class ProjectDataService {
                 break;
             case "sizing":
                 projectData.setDinhCoAdminReview(reviewJson);
+                break;
+            case "summary":
+                projectData.setTongHopAdminReview(reviewJson);
                 break;
             default:
                 throw new BadRequestException("Unknown section: " + section);
@@ -248,6 +258,7 @@ public class ProjectDataService {
             case "input" -> "Thông tin đầu vào";
             case "model" -> "Mô hình hệ thống";
             case "sizing" -> "Định cỡ hệ thống";
+            case "summary" -> "Tong hop va de xuat";
             default -> section;
         };
     }

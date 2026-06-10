@@ -38,7 +38,8 @@ public class ProjectRevisionService {
     private static final String[] CONTENT_FIELDS = {
         "yeuCauBaiToanContent", "thongTinDauVaoContent", "moHinhHeThongContent",
         "dinhCoHeThongContent", "tongHopVaDeXuatContent",
-        "yeuCauAdminReview", "thongTinAdminReview", "moHinhAdminReview", "dinhCoAdminReview"
+        "yeuCauAdminReview", "thongTinAdminReview", "moHinhAdminReview", "dinhCoAdminReview",
+        "tongHopAdminReview"
     };
 
     public ProjectRevisionService(ProjectRevisionRepository projectRevisionRepository,
@@ -287,6 +288,7 @@ public class ProjectRevisionService {
             projectData.setMoHinhHeThongContent(snapshot.getMoHinhHeThongContent());
             projectData.setDinhCoHeThongContent(snapshot.getDinhCoHeThongContent());
             projectData.setTongHopVaDeXuatContent(snapshot.getTongHopVaDeXuatContent());
+            projectData.setTongHopAdminReview(snapshot.getTongHopAdminReview());
             return projectDataRepository.save(projectData);
         } catch (JsonProcessingException e) {
             throw new BadRequestException("Failed to restore from snapshot: " + e.getMessage());

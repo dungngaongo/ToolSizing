@@ -81,6 +81,7 @@ public class ProjectDataController {
             log.info("dinhCoHeThongContent size: {} bytes ({} KB)", sizingSize, sizingSize / 1024);
         }
         if (request.getTongHopVaDeXuatContent() != null) totalSize += request.getTongHopVaDeXuatContent().length();
+        if (request.getTongHopAdminReview() != null) totalSize += request.getTongHopAdminReview().length();
         log.info("Total estimated payload size: {} bytes ({} KB)", totalSize, totalSize / 1024);
         // Log content lengths for debugging
         if (request.getYeuCauBaiToanContent() != null) {
@@ -97,6 +98,9 @@ public class ProjectDataController {
         }
         if (request.getTongHopVaDeXuatContent() != null) {
             log.debug("tongHopVaDeXuatContent length: {}", request.getTongHopVaDeXuatContent().length());
+        }
+        if (request.getTongHopAdminReview() != null) {
+            log.debug("tongHopAdminReview length: {}", request.getTongHopAdminReview().length());
         }
         // Kiểm tra quyền truy cập dự án
         if (!projectService.canAccessProject(projectId)) {

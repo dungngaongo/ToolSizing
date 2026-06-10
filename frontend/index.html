@@ -2650,10 +2650,32 @@
                         </table>
                     </div>
 
-                    <div style="margin-top: 30px; text-align: center;">
+                    <div class="model-admin-box" style="margin-top: 20px; border-top: 2px solid #e0d0ac; padding-top: 15px;">
+                        <div class="admin-grid-layout">
+                            <div>
+                                <label class="admin-label"><i class="fa-solid fa-user-shield"></i> Đánh giá:</label>
+                                <select id="eval-summary" class="admin-eval admin-eval-select" onchange="styleAdminSelect(this)">
+                                    <option value="">-- Chọn --</option>
+                                    <option value="OK">OK</option>
+                                    <option value="NOK">NOK</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="admin-label">Ghi chú (Admin):</label>
+                                <textarea id="note-summary" class="admin-note input-full" rows="2" placeholder="Nhận xét của admin về bảng tổng hợp và đề xuất..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 30px; text-align: center; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+                        <button type="button" class="btn-save-section" onclick="performManualSave()">
+                            <i class="fa-solid fa-floppy-disk"></i> LƯU DỮ LIỆU
+                        </button>
                         <button type="button" class="btn-submit" id="exportBtn">
                             <i class="fa-solid fa-file-word"></i> XUẤT BÁO CÁO (WORD)
                         </button>
+                    </div>
+                    <div style="margin-top: 10px; text-align: center;">
                         <div id="summary-save-status" style="margin-top: 10px;"></div>
                     </div>
                 </div>

@@ -41,6 +41,10 @@ public class ProjectData {
     @Lob
     private String tongHopVaDeXuatContent; // JSON string
 
+    @Column(name = "tonghop_admin_review", columnDefinition = "LONGTEXT")
+    @Lob
+    private String tongHopAdminReview; // JSON string containing admin evaluations/notes for Tổng hợp và đề xuất
+
     @Column(name = "yeu_cau_admin_review", columnDefinition = "LONGTEXT")
     @Lob
     private String yeuCauAdminReview; // JSON string containing admin evaluations/notes for Yêu cầu bài toán

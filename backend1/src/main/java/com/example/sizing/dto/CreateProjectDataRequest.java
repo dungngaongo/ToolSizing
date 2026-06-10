@@ -10,5 +10,6 @@ public class CreateProjectDataRequest {
     private String moHinhHeThongContent; // JSON string
     private String dinhCoHeThongContent; // JSON string
     private String tongHopVaDeXuatContent; // JSON string
+    private String tongHopAdminReview; // JSON string
 }
 
