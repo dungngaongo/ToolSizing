@@ -5696,27 +5696,33 @@ function updateMariaDBProposalSourceUI(container, selectedSource = 'auto') {
     if (!container) return;
 
     const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const effectiveSource = normalizeMariaDBProposalSource(normalizedSource, collectMariaDBCustomProposalTableData(container));
     const select = container.querySelector('.mariadb-proposal-source-select');
     const toolHeading = container.querySelector('.mariadb-tool-proposal-heading');
     const customHeading = container.querySelector('.mariadb-custom-proposal-heading');
+    const customSection = container.querySelector('.mariadb-custom-proposal-section');
     const autoTable = container.querySelector('[data-mariadb-proposal-table="1"]');
     const customTable = container.querySelector('[data-mariadb-custom-proposal-table="1"]');
 
     if (select) select.value = normalizedSource;
-    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+    if (toolHeading) toolHeading.textContent = effectiveSource === 'auto'
         ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
         : 'Đề xuất cấu hình do tool tạo';
-    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+    if (customHeading) customHeading.textContent = effectiveSource === 'custom'
         ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
         : 'Đề xuất cấu hình tùy chỉnh';
 
+    if (customSection) {
+        customSection.style.display = normalizedSource === 'custom' ? '' : 'none';
+    }
+
     if (autoTable) {
-        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
-        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+        autoTable.style.outline = effectiveSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = effectiveSource === 'auto' ? '2px' : '0';
     }
     if (customTable) {
-        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
-        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+        customTable.style.outline = effectiveSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = effectiveSource === 'custom' ? '2px' : '0';
     }
 }
 
@@ -5724,12 +5730,7 @@ function handleMariaDBProposalSourceChange(selectEl) {
     const container = selectEl?.closest('#mariadb-result-container');
     if (!container) return;
 
-    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
-    const customProposalTable = collectMariaDBCustomProposalTableData(container);
-    if (selectedSource === 'custom' && !isMariaDBCustomProposalTableFilled(customProposalTable)) {
-        showToast('Vui lòng nhập cấu hình tùy chỉnh cho dòng MariaDB trước khi chọn sử dụng.', 'warning');
-        selectedSource = 'auto';
-    }
+    const selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
 
     updateMariaDBProposalSourceUI(container, selectedSource);
     markSummaryNeedsSizingRefresh();
@@ -5737,42 +5738,44 @@ function handleMariaDBProposalSourceChange(selectEl) {
 
 function buildMariaDBCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const normalizedRows = normalizeMariaDBCustomProposalTable(customProposalTable);
-    const normalizedSource = normalizeMariaDBProposalSource(selectedProposalSource, normalizedRows);
+    const normalizedSource = selectedProposalSource === 'custom' ? 'custom' : 'auto';
 
     return `
         <div class="mariadb-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
-            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Bạn có muốn chỉnh sửa cấu hình không?</label>
             <select class="input-full mariadb-proposal-source-select" onchange="handleMariaDBProposalSourceChange(this)">
-                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
-                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Không</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Có</option>
             </select>
         </div>
-        <h4 class="mariadb-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
-        <table class="sizing-table mariadb-custom-proposal-table" data-mariadb-custom-proposal-table="1" style="margin-top:8px;">
-            <thead>
-                <tr>
-                    <th style="width:120px;">Thành phần</th>
-                    <th style="width:250px;">Cấu hình đề xuất</th>
-                    <th style="width:100px;">Số lượng</th>
-                    <th>Ghi chú</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${normalizedRows.map(row => {
-                    const isLocked = row.component === 'MaxScale';
-                    const readOnlyAttr = isLocked ? 'readonly' : '';
-                    const lockedStyle = isLocked ? 'background:#f8fafc;color:#475569;' : '';
-                    return `
-                    <tr class="mariadb-custom-proposal-row" data-component="${escapeHtml(row.component)}">
-                        <td><strong>${escapeHtml(row.component)}</strong></td>
-                        <td><textarea class="input-full mariadb-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;${lockedStyle}" placeholder="Mỗi dòng là một thông số cấu hình" ${readOnlyAttr}>${escapeHtml(row.configurationText)}</textarea></td>
-                        <td class="text-center"><input type="text" class="input-full text-center mariadb-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng" style="${lockedStyle}" ${readOnlyAttr}></td>
-                        <td><textarea class="input-full mariadb-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;${lockedStyle}" placeholder="Ghi chú" ${readOnlyAttr}>${escapeHtml(row.note)}</textarea></td>
+        <div class="mariadb-custom-proposal-section" style="${normalizedSource === 'custom' ? '' : 'display:none;'}">
+            <h4 class="mariadb-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+            <table class="sizing-table mariadb-custom-proposal-table" data-mariadb-custom-proposal-table="1" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:120px;">Thành phần</th>
+                        <th style="width:250px;">Cấu hình đề xuất</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
                     </tr>
-                `;
-                }).join('')}
-            </tbody>
-        </table>`;
+                </thead>
+                <tbody>
+                    ${normalizedRows.map(row => {
+                        const isLocked = row.component === 'MaxScale';
+                        const readOnlyAttr = isLocked ? 'readonly' : '';
+                        const lockedStyle = isLocked ? 'background:#f8fafc;color:#475569;' : '';
+                        return `
+                        <tr class="mariadb-custom-proposal-row" data-component="${escapeHtml(row.component)}">
+                            <td><strong>${escapeHtml(row.component)}</strong></td>
+                            <td><textarea class="input-full mariadb-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;${lockedStyle}" placeholder="Mỗi dòng là một thông số cấu hình" ${readOnlyAttr}>${escapeHtml(row.configurationText)}</textarea></td>
+                            <td class="text-center"><input type="text" class="input-full text-center mariadb-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng" style="${lockedStyle}" ${readOnlyAttr}></td>
+                            <td><textarea class="input-full mariadb-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;${lockedStyle}" placeholder="Ghi chú" ${readOnlyAttr}>${escapeHtml(row.note)}</textarea></td>
+                        </tr>
+                    `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>`;
 }
 
 function ensureMariaDBProposalSelectionUI(container, options = {}) {
@@ -5808,7 +5811,7 @@ function ensureMariaDBProposalSelectionUI(container, options = {}) {
         if (noteInput) noteInput.value = rowData.note;
     });
 
-    updateMariaDBProposalSourceUI(container, normalizeMariaDBProposalSource(options.selectedProposalSource || 'auto', normalizedRows));
+    updateMariaDBProposalSourceUI(container, options.selectedProposalSource || 'auto');
 }
 
 function buildEffectiveMariaDBCustomProposalData(customProposalTable) {
@@ -6005,27 +6008,32 @@ function updateRedisProposalSourceUI(container, selectedSource = 'auto') {
     if (!container) return;
 
     const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const effectiveSource = normalizeRedisProposalSource(normalizedSource, collectRedisCustomProposalTableData(container));
     const select = container.querySelector('.redis-proposal-source-select');
     const toolHeading = container.querySelector('.redis-tool-proposal-heading');
     const customHeading = container.querySelector('.redis-custom-proposal-heading');
+    const customSection = container.querySelector('.redis-custom-proposal-section');
     const autoTable = container.querySelector('[data-redis-proposal-table="1"]');
     const customTable = container.querySelector('[data-redis-custom-proposal-table="1"]');
 
     if (select) select.value = normalizedSource;
-    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+    if (toolHeading) toolHeading.textContent = effectiveSource === 'auto'
         ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
         : 'Đề xuất cấu hình do tool tạo';
-    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+    if (customHeading) customHeading.textContent = effectiveSource === 'custom'
         ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
         : 'Đề xuất cấu hình tùy chỉnh';
+    if (customSection) {
+        customSection.style.display = normalizedSource === 'custom' ? '' : 'none';
+    }
 
     if (autoTable) {
-        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
-        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+        autoTable.style.outline = effectiveSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = effectiveSource === 'auto' ? '2px' : '0';
     }
     if (customTable) {
-        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
-        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+        customTable.style.outline = effectiveSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = effectiveSource === 'custom' ? '2px' : '0';
     }
 }
 
@@ -6033,12 +6041,7 @@ function handleRedisProposalSourceChange(selectEl) {
     const container = resolveRedisProposalContainer(selectEl);
     if (!container) return;
 
-    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
-    const customProposalTable = collectRedisCustomProposalTableData(container);
-    if (selectedSource === 'custom' && !isRedisCustomProposalTableFilled(customProposalTable)) {
-        showToast('Vui lòng nhập cấu hình đề xuất tùy chỉnh trước khi chọn sử dụng.', 'warning');
-        selectedSource = 'auto';
-    }
+    const selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
 
     updateRedisProposalSourceUI(container, selectedSource);
     markSummaryNeedsSizingRefresh();
@@ -6046,7 +6049,7 @@ function handleRedisProposalSourceChange(selectEl) {
 
 function buildRedisCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const normalizedTable = normalizeRedisCustomProposalTable(customProposalTable);
-    const normalizedSource = normalizeRedisProposalSource(selectedProposalSource, normalizedTable);
+    const normalizedSource = selectedProposalSource === 'custom' ? 'custom' : 'auto';
     const sourceChangeHandler = buildInstanceAwareHandler('handleRedisProposalSourceChange(this)');
     const addRowHandler = buildInstanceAwareHandler('addRedisProposalRow(this)');
     const deleteRowHandler = buildInstanceAwareHandler('removeRow(this)');
@@ -6075,30 +6078,32 @@ function buildRedisCustomProposalSectionHtml(selectedProposalSource, customPropo
 
     return `
         <div class="redis-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
-            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Bạn có muốn chỉnh sửa cấu hình không?</label>
             <select class="input-full redis-proposal-source-select" onchange="${sourceChangeHandler}">
-                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
-                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Không</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Có</option>
             </select>
         </div>
-        <h4 class="redis-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
-        <table class="sizing-table redis-custom-proposal-table" data-redis-custom-proposal-table="1" style="margin-top:8px;">
-            <thead>
-                <tr>
-                    <th style="width:150px;">Thành phần</th>
-                    <th style="width:200px;">Cấu hình đề xuất</th>
-                    <th style="width:100px;">Số lượng</th>
-                    <th>Ghi chú</th>
-                    <th style="width:50px;"><i class="fa-solid fa-trash-can"></i></th>
-                </tr>
-            </thead>
-            <tbody class="redis-custom-proposal-tbody">
-                ${buildRows()}
-            </tbody>
-        </table>
-        <button type="button" class="btn-add sizing-user-btn" onclick="${addRowHandler}" style="margin-top:10px;">
-            <i class="fa-solid fa-plus"></i> Thêm thành phần
-        </button>`;
+        <div class="redis-custom-proposal-section" style="${normalizedSource === 'custom' ? '' : 'display:none;'}">
+            <h4 class="redis-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+            <table class="sizing-table redis-custom-proposal-table" data-redis-custom-proposal-table="1" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:150px;">Thành phần</th>
+                        <th style="width:200px;">Cấu hình đề xuất</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
+                        <th style="width:50px;"><i class="fa-solid fa-trash-can"></i></th>
+                    </tr>
+                </thead>
+                <tbody class="redis-custom-proposal-tbody">
+                    ${buildRows()}
+                </tbody>
+            </table>
+            <button type="button" class="btn-add sizing-user-btn" onclick="${addRowHandler}" style="margin-top:10px;">
+                <i class="fa-solid fa-plus"></i> Thêm thành phần
+            </button>
+        </div>`;
 }
 
 function ensureRedisProposalSelectionUI(container, options = {}) {
@@ -6156,7 +6161,7 @@ function ensureRedisProposalSelectionUI(container, options = {}) {
     try { applyRolePermissions(); } catch (e) { }
 
     // Update source selection UI
-    updateRedisProposalSourceUI(container, normalizeRedisProposalSource(options.selectedProposalSource || 'auto', tableData));
+    updateRedisProposalSourceUI(container, options.selectedProposalSource || 'auto');
 }
 
 function buildEffectiveRedisCustomProposalData(customProposalTable) {
@@ -6361,27 +6366,33 @@ function getCurrentKafkaProposalState(container) {
 function updateKafkaProposalSourceUI(container, selectedSource = 'auto') {
     if (!container) return;
 
+    const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const effectiveSource = normalizeKafkaProposalSource(normalizedSource, collectKafkaCustomProposalTableData(container));
     const select = container.querySelector('.kafka-proposal-source-select');
     const toolHeading = container.querySelector('.kafka-tool-proposal-heading');
     const customHeading = container.querySelector('.kafka-custom-proposal-heading');
+    const customSection = container.querySelector('.kafka-custom-proposal-section');
     const autoTable = container.querySelector('[data-kafka-proposal-table="1"]');
     const customTable = container.querySelector('[data-kafka-custom-proposal-table="1"]');
 
-    if (select) select.value = selectedSource;
-    if (toolHeading) toolHeading.innerText = selectedSource === 'auto'
+    if (select) select.value = normalizedSource;
+    if (toolHeading) toolHeading.innerText = effectiveSource === 'auto'
         ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
         : 'Đề xuất cấu hình do tool tạo';
-    if (customHeading) customHeading.innerText = selectedSource === 'custom'
+    if (customHeading) customHeading.innerText = effectiveSource === 'custom'
         ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
         : 'Đề xuất cấu hình tùy chỉnh';
+    if (customSection) {
+        customSection.style.display = normalizedSource === 'custom' ? '' : 'none';
+    }
 
     if (autoTable) {
-        autoTable.style.opacity = selectedSource === 'auto' ? '1' : '0.7';
-        autoTable.style.border = selectedSource === 'auto' ? '2px solid #38a169' : '';
+        autoTable.style.opacity = effectiveSource === 'auto' ? '1' : '0.7';
+        autoTable.style.border = effectiveSource === 'auto' ? '2px solid #38a169' : '';
     }
     if (customTable) {
-        customTable.style.opacity = selectedSource === 'custom' ? '1' : '0.7';
-        customTable.style.border = selectedSource === 'custom' ? '2px solid #38a169' : '';
+        customTable.style.opacity = effectiveSource === 'custom' ? '1' : '0.7';
+        customTable.style.border = effectiveSource === 'custom' ? '2px solid #38a169' : '';
     }
 }
 
@@ -6389,12 +6400,7 @@ function handleKafkaProposalSourceChange(selectEl) {
     const container = selectEl?.closest('#kafka-throughput-result-container, #kafka-linear-result-container');
     if (!container) return;
 
-    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
-    const customProposalTable = collectKafkaCustomProposalTableData(container);
-    if (selectedSource === 'custom' && !isKafkaCustomProposalTableFilled(customProposalTable)) {
-        showToast('Vui lòng nhập đầy đủ cấu hình cho dòng Kafka Broker trước khi dùng cấu hình tùy chỉnh.', 'warning');
-        selectedSource = 'auto';
-    }
+    const selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
 
     updateKafkaProposalSourceUI(container, selectedSource);
     markSummaryNeedsSizingRefresh();
@@ -6402,45 +6408,47 @@ function handleKafkaProposalSourceChange(selectEl) {
 
 function buildKafkaCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const normalizedRows = normalizeKafkaCustomProposalTable(customProposalTable);
-    const normalizedSource = normalizeKafkaProposalSource(selectedProposalSource, normalizedRows);
+    const normalizedSource = selectedProposalSource === 'custom' ? 'custom' : 'auto';
 
     return `
         <div class="kafka-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
-            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Bạn có muốn chỉnh sửa cấu hình không?</label>
             <select class="input-full kafka-proposal-source-select" onchange="handleKafkaProposalSourceChange(this)">
-                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
-                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Không</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Có</option>
             </select>
         </div>
-        <h4 class="kafka-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
-        <table class="sizing-table kafka-custom-proposal-table" data-kafka-custom-proposal-table="1" style="margin-top:8px;">
-            <thead>
-                <tr>
-                    <th style="width: 150px;">Thành phần</th>
-                    <th style="width: 100px;">Số lượng Node</th>
-                    <th style="width: 100px;">vCPU/Node</th>
-                    <th style="width: 100px;">RAM/Node</th>
-                    <th style="width: 150px;">Disk/Node (SSD)</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${normalizedRows.map(row => {
-                    const isLocked = row.component === 'Zookeeper/KRaft';
-                    const readOnlyAttr = isLocked ? 'readonly' : '';
-                    const lockedStyle = isLocked ? 'background:#f8fafc; color:#475569; cursor:not-allowed;' : '';
-                    const rowStyle = isLocked ? 'background:#fff3cd;' : 'background:#eefbf3;';
-                    return `
-                        <tr class="kafka-custom-proposal-row" data-component="${escapeHtml(row.component)}" style="${rowStyle}">
-                            <td><strong>${escapeHtml(row.component)}</strong></td>
-                            <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng" style="${lockedStyle}" ${readOnlyAttr}></td>
-                            <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-vcpu" value="${escapeHtml(row.vcpu)}" placeholder="vCPU" style="${lockedStyle}" ${readOnlyAttr}></td>
-                            <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-ram" value="${escapeHtml(row.ram)}" placeholder="RAM" style="${lockedStyle}" ${readOnlyAttr}></td>
-                            <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-disk" value="${escapeHtml(row.disk)}" placeholder="Disk" style="${lockedStyle}" ${readOnlyAttr}></td>
-                        </tr>
-                    `;
-                }).join('')}
-            </tbody>
-        </table>`;
+        <div class="kafka-custom-proposal-section" style="${normalizedSource === 'custom' ? '' : 'display:none;'}">
+            <h4 class="kafka-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+            <table class="sizing-table kafka-custom-proposal-table" data-kafka-custom-proposal-table="1" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">Thành phần</th>
+                        <th style="width: 100px;">Số lượng Node</th>
+                        <th style="width: 100px;">vCPU/Node</th>
+                        <th style="width: 100px;">RAM/Node</th>
+                        <th style="width: 150px;">Disk/Node (SSD)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${normalizedRows.map(row => {
+                        const isLocked = row.component === 'Zookeeper/KRaft';
+                        const readOnlyAttr = isLocked ? 'readonly' : '';
+                        const lockedStyle = isLocked ? 'background:#f8fafc; color:#475569; cursor:not-allowed;' : '';
+                        const rowStyle = isLocked ? 'background:#fff3cd;' : 'background:#eefbf3;';
+                        return `
+                            <tr class="kafka-custom-proposal-row" data-component="${escapeHtml(row.component)}" style="${rowStyle}">
+                                <td><strong>${escapeHtml(row.component)}</strong></td>
+                                <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng" style="${lockedStyle}" ${readOnlyAttr}></td>
+                                <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-vcpu" value="${escapeHtml(row.vcpu)}" placeholder="vCPU" style="${lockedStyle}" ${readOnlyAttr}></td>
+                                <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-ram" value="${escapeHtml(row.ram)}" placeholder="RAM" style="${lockedStyle}" ${readOnlyAttr}></td>
+                                <td class="text-center"><input type="text" class="input-full text-center kafka-custom-proposal-disk" value="${escapeHtml(row.disk)}" placeholder="Disk" style="${lockedStyle}" ${readOnlyAttr}></td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>`;
 }
 
 function ensureKafkaProposalSelectionUI(container, options = {}) {
@@ -6485,7 +6493,7 @@ function ensureKafkaProposalSelectionUI(container, options = {}) {
         if (diskInput) diskInput.value = rowData.disk;
     });
 
-    updateKafkaProposalSourceUI(container, normalizeKafkaProposalSource(options.selectedProposalSource || 'auto', normalizedRows));
+    updateKafkaProposalSourceUI(container, options.selectedProposalSource || 'auto');
 }
 
 function buildKafkaConfigurationTextFromRow(row) {
@@ -7352,7 +7360,7 @@ async function exportToWord() {
         // 1. Lưu full payload (bao gồm dữ liệu định cỡ + kết quả tổng hợp)
         // để DOCX luôn lấy đúng dữ liệu Kafka mới tính toán.
         const exportActiveSectionId = document.querySelector('.page-section.active')?.id || null;
-        const payload = buildSavePayload({
+        const payload = buildSectionSavePayload({
             activeSectionId: exportActiveSectionId,
             summaryMode: exportActiveSectionId === 'page-sizing' ? 'regenerate' : 'snapshot',
             summaryAggregateOptions: exportActiveSectionId === 'page-sizing'
@@ -9824,27 +9832,32 @@ function updateAppProposalSourceUI(container = null, selectedSource = 'auto') {
     if (!container) return;
 
     const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const effectiveSource = normalizeAppProposalSource(normalizedSource, collectAppCustomProposalTableData(container));
     const select = container.querySelector('.app-proposal-source-select');
     const toolHeading = container.querySelector('.app-tool-proposal-heading');
     const customHeading = container.querySelector('.app-custom-proposal-heading');
+    const customSection = container.querySelector('.app-custom-proposal-section');
     const autoTable = container.querySelector('[data-app-proposal-table="1"]');
     const customTable = container.querySelector('[data-app-custom-proposal-table="1"]');
 
     if (select) select.value = normalizedSource;
-    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+    if (toolHeading) toolHeading.textContent = effectiveSource === 'auto'
         ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
         : 'Đề xuất cấu hình do tool tạo';
-    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+    if (customHeading) customHeading.textContent = effectiveSource === 'custom'
         ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
         : 'Đề xuất cấu hình tùy chỉnh';
+    if (customSection) {
+        customSection.style.display = normalizedSource === 'custom' ? '' : 'none';
+    }
 
     if (autoTable) {
-        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
-        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+        autoTable.style.outline = effectiveSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = effectiveSource === 'auto' ? '2px' : '0';
     }
     if (customTable) {
-        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
-        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+        customTable.style.outline = effectiveSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = effectiveSource === 'custom' ? '2px' : '0';
     }
 }
 
@@ -9857,12 +9870,7 @@ function handleAppProposalSourceChange(selectEl) {
         : container.querySelector('.app-proposal-source-select');
     if (!select) return;
 
-    let selectedSource = select.value === 'custom' ? 'custom' : 'auto';
-    const customProposalTable = collectAppCustomProposalTableData(container);
-    if (selectedSource === 'custom' && !isAppCustomProposalTableFilled(customProposalTable)) {
-        showToast('Vui lòng nhập cấu hình đề xuất tùy chỉnh trước khi chọn sử dụng.', 'warning');
-        selectedSource = 'auto';
-    }
+    const selectedSource = select.value === 'custom' ? 'custom' : 'auto';
 
     updateAppProposalSourceUI(container, selectedSource);
     markSummaryNeedsSizingRefresh();
@@ -9870,7 +9878,7 @@ function handleAppProposalSourceChange(selectEl) {
 
 function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const rows = normalizeAppCustomProposalTableList(customProposalTable);
-    const normalizedSource = normalizeAppProposalSource(selectedProposalSource, customProposalTable);
+    const normalizedSource = selectedProposalSource === 'custom' ? 'custom' : 'auto';
     const effectiveRows = rows.length > 0 ? rows : [getEmptyAppCustomProposalTable()];
     const sourceChangeHandler = buildInstanceAwareHandler('handleAppProposalSourceChange(this)');
     const addRowHandler = buildInstanceAwareHandler('addAppCustomProposalRow(this)');
@@ -9900,30 +9908,32 @@ function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposa
 
     return `
         <div class="app-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
-            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Bạn có muốn chỉnh sửa cấu hình không?</label>
             <select class="input-full app-proposal-source-select" onchange="${sourceChangeHandler}">
-                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
-                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Không</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Có</option>
             </select>
         </div>
-        <h4 class="app-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
-        <table class="sizing-table app-custom-proposal-table" data-app-custom-proposal-table="1" style="margin-top:8px;">
-            <thead>
-                <tr>
-                    <th style="width:180px;">Thành phần</th>
-                    <th style="width:250px;">Cấu hình</th>
-                    <th style="width:100px;">Số lượng</th>
-                    <th>Ghi chú</th>
-                    <th style="width:50px;"><i class="fa-solid fa-trash-can"></i></th>
-                </tr>
-            </thead>
-            <tbody class="app-custom-proposal-tbody">
-                ${buildRows()}
-            </tbody>
-        </table>
-        <button type="button" class="btn-add sizing-user-btn" onclick="${addRowHandler}" style="margin-top:10px;">
-            <i class="fa-solid fa-plus"></i> Thêm thành phần
-        </button>`;
+        <div class="app-custom-proposal-section" style="${normalizedSource === 'custom' ? '' : 'display:none;'}">
+            <h4 class="app-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+            <table class="sizing-table app-custom-proposal-table" data-app-custom-proposal-table="1" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:180px;">Thành phần</th>
+                        <th style="width:250px;">Cấu hình</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
+                        <th style="width:50px;"><i class="fa-solid fa-trash-can"></i></th>
+                    </tr>
+                </thead>
+                <tbody class="app-custom-proposal-tbody">
+                    ${buildRows()}
+                </tbody>
+            </table>
+            <button type="button" class="btn-add sizing-user-btn" onclick="${addRowHandler}" style="margin-top:10px;">
+                <i class="fa-solid fa-plus"></i> Thêm thành phần
+            </button>
+        </div>`;
 }
 
 function ensureAppProposalSelectionUI(containerOrOptions = {}, optionsArg = {}) {
@@ -9999,7 +10009,7 @@ function ensureAppProposalSelectionUI(containerOrOptions = {}, optionsArg = {}) 
     try { applyRolePermissions(); } catch (e) { }
 
     // Update source selection UI
-    updateAppProposalSourceUI(container, normalizeAppProposalSource(options.selectedProposalSource || 'auto', tableData));
+    updateAppProposalSourceUI(container, options.selectedProposalSource || 'auto');
 }
 
 function buildAppEffectiveCustomProposalData(customProposalTable) {
@@ -11633,27 +11643,32 @@ function updateK8SProposalSourceUI(container, selectedSource = 'auto') {
     if (!container) return;
 
     const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const effectiveSource = normalizeK8SProposalSource(normalizedSource, collectK8SCustomProposalTableData(container));
     const select = container.querySelector('.k8s-proposal-source-select');
     const toolHeading = container.querySelector('.k8s-tool-proposal-heading');
     const customHeading = container.querySelector('.k8s-custom-proposal-heading');
+    const customSection = container.querySelector('.k8s-custom-proposal-section');
     const autoTable = container.querySelector('[data-k8s-proposal-table="1"]');
     const customTable = container.querySelector('[data-k8s-custom-proposal-table="1"]');
 
     if (select) select.value = normalizedSource;
-    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+    if (toolHeading) toolHeading.textContent = effectiveSource === 'auto'
         ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
         : 'Đề xuất cấu hình do tool tạo';
-    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+    if (customHeading) customHeading.textContent = effectiveSource === 'custom'
         ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
         : 'Đề xuất cấu hình tùy chỉnh';
+    if (customSection) {
+        customSection.style.display = normalizedSource === 'custom' ? '' : 'none';
+    }
 
     if (autoTable) {
-        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
-        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+        autoTable.style.outline = effectiveSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = effectiveSource === 'auto' ? '2px' : '0';
     }
     if (customTable) {
-        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
-        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+        customTable.style.outline = effectiveSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = effectiveSource === 'custom' ? '2px' : '0';
     }
 }
 
@@ -11661,12 +11676,7 @@ function handleK8SProposalSourceChange(selectEl) {
     const container = selectEl?.closest('#k8s-result-container');
     if (!container) return;
 
-    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
-    const customProposalTable = collectK8SCustomProposalTableData(container);
-    if (selectedSource === 'custom' && !isK8SCustomProposalTableFilled(customProposalTable)) {
-        showToast('Vui lòng nhập ít nhất một dòng cấu hình tùy chỉnh trước khi chọn sử dụng.', 'warning');
-        selectedSource = 'auto';
-    }
+    const selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
 
     updateK8SProposalSourceUI(container, selectedSource);
     markSummaryNeedsSizingRefresh();
@@ -11674,37 +11684,39 @@ function handleK8SProposalSourceChange(selectEl) {
 
 function buildK8SCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const normalizedRows = normalizeK8SCustomProposalTable(customProposalTable);
-    const normalizedSource = normalizeK8SProposalSource(selectedProposalSource, normalizedRows);
+    const normalizedSource = selectedProposalSource === 'custom' ? 'custom' : 'auto';
 
     return `
         <div class="k8s-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
-            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Bạn có muốn chỉnh sửa cấu hình không?</label>
             <select class="input-full k8s-proposal-source-select" onchange="handleK8SProposalSourceChange(this)">
-                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
-                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Không</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Có</option>
             </select>
         </div>
-        <h4 class="k8s-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
-        <table class="sizing-table k8s-custom-proposal-table" data-k8s-custom-proposal-table="1" style="margin-top:8px;">
-            <thead>
-                <tr>
-                    <th style="width:150px;">Thành phần</th>
-                    <th style="width:250px;">Cấu hình</th>
-                    <th style="width:100px;">Số lượng</th>
-                    <th>Ghi chú</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${normalizedRows.map(row => `
-                    <tr class="k8s-custom-proposal-row" data-component="${escapeHtml(row.component)}">
-                        <td><strong>${escapeHtml(row.component)}</strong></td>
-                        <td><textarea class="input-full k8s-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình">${escapeHtml(row.configurationText)}</textarea></td>
-                        <td class="text-center"><input type="text" class="input-full text-center k8s-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng"></td>
-                        <td><textarea class="input-full k8s-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(row.note)}</textarea></td>
+        <div class="k8s-custom-proposal-section" style="${normalizedSource === 'custom' ? '' : 'display:none;'}">
+            <h4 class="k8s-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+            <table class="sizing-table k8s-custom-proposal-table" data-k8s-custom-proposal-table="1" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:150px;">Thành phần</th>
+                        <th style="width:250px;">Cấu hình</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
                     </tr>
-                `).join('')}
-            </tbody>
-        </table>`;
+                </thead>
+                <tbody>
+                    ${normalizedRows.map(row => `
+                        <tr class="k8s-custom-proposal-row" data-component="${escapeHtml(row.component)}">
+                            <td><strong>${escapeHtml(row.component)}</strong></td>
+                            <td><textarea class="input-full k8s-custom-proposal-config" rows="4" style="resize:vertical;min-height:88px;" placeholder="Mỗi dòng là một thông số cấu hình">${escapeHtml(row.configurationText)}</textarea></td>
+                            <td class="text-center"><input type="text" class="input-full text-center k8s-custom-proposal-qty" value="${escapeHtml(row.quantity)}" placeholder="Số lượng"></td>
+                            <td><textarea class="input-full k8s-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(row.note)}</textarea></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>`;
 }
 
 function ensureK8SProposalSelectionUI(container, options = {}) {
@@ -11747,7 +11759,7 @@ function ensureK8SProposalSelectionUI(container, options = {}) {
         if (noteInput) noteInput.value = rowData.note;
     });
 
-    updateK8SProposalSourceUI(container, normalizeK8SProposalSource(options.selectedProposalSource || 'auto', normalizedRows));
+    updateK8SProposalSourceUI(container, options.selectedProposalSource || 'auto');
 }
 
 function buildEffectiveK8SCustomProposalData(customProposalTable) {
@@ -11841,27 +11853,32 @@ function updateLBFWProposalSourceUI(container, selectedSource = 'auto') {
     if (!container) return;
 
     const normalizedSource = selectedSource === 'custom' ? 'custom' : 'auto';
+    const effectiveSource = normalizeLBFWProposalSource(normalizedSource, collectLBFWCustomProposalTableData(container));
     const select = container.querySelector('.lbfw-proposal-source-select');
     const toolHeading = container.querySelector('.lbfw-tool-proposal-heading');
     const customHeading = container.querySelector('.lbfw-custom-proposal-heading');
+    const customSection = container.querySelector('.lbfw-custom-proposal-section');
     const autoTable = container.querySelector('[data-lbfw-proposal-table="1"]');
     const customTable = container.querySelector('[data-lbfw-custom-proposal-table="1"]');
 
     if (select) select.value = normalizedSource;
-    if (toolHeading) toolHeading.textContent = normalizedSource === 'auto'
+    if (toolHeading) toolHeading.textContent = effectiveSource === 'auto'
         ? 'Đề xuất cấu hình do tool tạo (đang dùng)'
         : 'Đề xuất cấu hình do tool tạo';
-    if (customHeading) customHeading.textContent = normalizedSource === 'custom'
+    if (customHeading) customHeading.textContent = effectiveSource === 'custom'
         ? 'Đề xuất cấu hình tùy chỉnh (đang dùng)'
         : 'Đề xuất cấu hình tùy chỉnh';
+    if (customSection) {
+        customSection.style.display = normalizedSource === 'custom' ? '' : 'none';
+    }
 
     if (autoTable) {
-        autoTable.style.outline = normalizedSource === 'auto' ? '2px solid #38b2ac' : 'none';
-        autoTable.style.outlineOffset = normalizedSource === 'auto' ? '2px' : '0';
+        autoTable.style.outline = effectiveSource === 'auto' ? '2px solid #38b2ac' : 'none';
+        autoTable.style.outlineOffset = effectiveSource === 'auto' ? '2px' : '0';
     }
     if (customTable) {
-        customTable.style.outline = normalizedSource === 'custom' ? '2px solid #38b2ac' : 'none';
-        customTable.style.outlineOffset = normalizedSource === 'custom' ? '2px' : '0';
+        customTable.style.outline = effectiveSource === 'custom' ? '2px solid #38b2ac' : 'none';
+        customTable.style.outlineOffset = effectiveSource === 'custom' ? '2px' : '0';
     }
 }
 
@@ -11869,12 +11886,7 @@ function handleLBFWProposalSourceChange(selectEl) {
     const container = selectEl?.closest('#lbfw-result-container');
     if (!container) return;
 
-    let selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
-    const customProposalTable = collectLBFWCustomProposalTableData(container);
-    if (selectedSource === 'custom' && !isLBFWCustomProposalTableFilled(customProposalTable)) {
-        showToast('Vui lòng nhập thông lượng tùy chỉnh trước khi chọn sử dụng.', 'warning');
-        selectedSource = 'auto';
-    }
+    const selectedSource = selectEl.value === 'custom' ? 'custom' : 'auto';
 
     updateLBFWProposalSourceUI(container, selectedSource);
     markSummaryNeedsSizingRefresh();
@@ -11882,35 +11894,37 @@ function handleLBFWProposalSourceChange(selectEl) {
 
 function buildLBFWCustomProposalSectionHtml(selectedProposalSource, customProposalTable) {
     const normalizedTable = normalizeLBFWCustomProposalTable(customProposalTable);
-    const normalizedSource = normalizeLBFWProposalSource(selectedProposalSource, normalizedTable);
+    const normalizedSource = selectedProposalSource === 'custom' ? 'custom' : 'auto';
 
     return `
         <div class="lbfw-proposal-source-panel" style="margin-top:16px; padding:12px; border:1px solid #dbeafe; background:#f8fbff; border-radius:6px;">
-            <label style="display:block; font-weight:600; margin-bottom:6px;">Cấu hình dùng cho Tổng hợp và export</label>
+            <label style="display:block; font-weight:600; margin-bottom:6px;">Bạn có muốn chỉnh sửa cấu hình không?</label>
             <select class="input-full lbfw-proposal-source-select" onchange="handleLBFWProposalSourceChange(this)">
-                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Dùng cấu hình tool tạo</option>
-                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Dùng cấu hình tùy chỉnh</option>
+                <option value="auto" ${normalizedSource === 'auto' ? 'selected' : ''}>Không</option>
+                <option value="custom" ${normalizedSource === 'custom' ? 'selected' : ''}>Có</option>
             </select>
         </div>
-        <h4 class="lbfw-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
-        <table class="sizing-table lbfw-custom-proposal-table" data-lbfw-custom-proposal-table="1" style="margin-top:8px;">
-            <thead>
-                <tr>
-                    <th style="width:150px;">Thành phần</th>
-                    <th style="width:250px;">Thông lượng</th>
-                    <th style="width:100px;">Số lượng</th>
-                    <th>Ghi chú</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>FW/LB</strong></td>
-                    <td><textarea class="input-full lbfw-custom-proposal-config" rows="3" style="resize:vertical;min-height:72px;" placeholder="Ví dụ: Thông lượng < 2.5000 Gbps">${escapeHtml(normalizedTable.configurationText)}</textarea></td>
-                    <td class="text-center"><input type="text" class="input-full text-center lbfw-custom-proposal-qty" value="${escapeHtml(normalizedTable.quantity)}" placeholder="Số lượng"></td>
-                    <td><textarea class="input-full lbfw-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedTable.note)}</textarea></td>
-                </tr>
-            </tbody>
-        </table>`;
+        <div class="lbfw-custom-proposal-section" style="${normalizedSource === 'custom' ? '' : 'display:none;'}">
+            <h4 class="lbfw-custom-proposal-heading" style="margin-top:20px; margin-bottom:8px; color:#2c5282;">Đề xuất cấu hình tùy chỉnh</h4>
+            <table class="sizing-table lbfw-custom-proposal-table" data-lbfw-custom-proposal-table="1" style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th style="width:150px;">Thành phần</th>
+                        <th style="width:250px;">Thông lượng</th>
+                        <th style="width:100px;">Số lượng</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>FW/LB</strong></td>
+                        <td><textarea class="input-full lbfw-custom-proposal-config" rows="3" style="resize:vertical;min-height:72px;" placeholder="Ví dụ: Thông lượng < 2.5000 Gbps">${escapeHtml(normalizedTable.configurationText)}</textarea></td>
+                        <td class="text-center"><input type="text" class="input-full text-center lbfw-custom-proposal-qty" value="${escapeHtml(normalizedTable.quantity)}" placeholder="Số lượng"></td>
+                        <td><textarea class="input-full lbfw-custom-proposal-note" rows="2" style="resize:vertical;min-height:58px;" placeholder="Ghi chú">${escapeHtml(normalizedTable.note)}</textarea></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>`;
 }
 
 function ensureLBFWProposalSelectionUI(container, options = {}) {
@@ -11949,7 +11963,7 @@ function ensureLBFWProposalSelectionUI(container, options = {}) {
     if (qtyInput) qtyInput.value = normalizedTable.quantity;
     if (noteInput) noteInput.value = normalizedTable.note;
 
-    updateLBFWProposalSourceUI(container, normalizeLBFWProposalSource(options.selectedProposalSource || 'auto', normalizedTable));
+    updateLBFWProposalSourceUI(container, options.selectedProposalSource || 'auto');
 }
 
 function buildEffectiveLBFWCustomProposalData(customProposalTable) {
@@ -15878,92 +15892,147 @@ async function saveWithRevision(saveFunction, sectionName) {
 let isSaving = false;
 
 /**
- * Build payload chứa toàn bộ dữ liệu từ tất cả sections
+ * Map section hiện tại sang section review backend tương ứng
  */
-function buildSavePayload(options = {}) {
-    const user = getCurrentUser();
-    const role = (user.role || '').toLowerCase();
-
-    let payload = {};
-
-    try {
-        // === 1. YÊU CẦU BÀI TOÁN ===
-        const requestData = collectYeuCauBaiToan();
-        if (role !== 'admin1' && role !== 'admin2') {
-            delete requestData.adminReview;
-        }
-        payload.yeuCauBaiToanContent = JSON.stringify(requestData);
-
-        // === 2. THÔNG TIN ĐẦU VÀO ===
-        const inputData = collectThongTinDauVao();
-        if (role !== 'admin1' && role !== 'admin2') {
-            inputData.inputRows = inputData.inputRows.map(r => {
-                const c = Object.assign({}, r);
-                delete c.adminEval;
-                delete c.adminNote;
-                return c;
-            });
-        }
-        payload.thongTinDauVaoContent = JSON.stringify(inputData);
-
-        // === 3. MÔ HÌNH HỆ THỐNG ===
-        const modelData = collectMoHinhHeThong();
-        payload.moHinhHeThongContent = JSON.stringify(modelData);
-
-        // === 4. ĐỊNH CỠ HỆ THỐNG ===
-        if (typeof collectAllSizingData === 'function') {
-            const sizingData = collectAllSizingData();
-            payload.dinhCoHeThongContent = JSON.stringify(sizingData);
-        }
-
-        // === 5. TỔNG HỢP VÀ ĐỀ XUẤT ===
-        // Trước khi collect, aggregate lại từ kết quả định cỡ (chỉ module được chọn)
-        aggregateSizingResults(options.summaryAggregateOptions || {});
-        const summaryData = collectTongHop();
-        payload.tongHopVaDeXuatContent = JSON.stringify(summaryData);
-    } catch (e) {
-        Logger.error('Error building save payload:', e);
-        return null;
+function getReviewSectionKeyByPage(sectionId) {
+    switch (sectionId) {
+        case 'page-request':
+            return 'request';
+        case 'page-input':
+            return 'input';
+        case 'page-model':
+            return 'model';
+        case 'page-sizing':
+            return 'sizing';
+        default:
+            return null;
     }
-
-    return payload;
 }
 
 /**
- * Thực hiện lưu thủ công: lưu TẤT CẢ dữ liệu + tạo revision
- * Được gọi khi user bấm nút Lưu ở bất kỳ section nào
+ * Thu thập dữ liệu admin review đúng theo section đang lưu
  */
-function buildSavePayload(options = {}) {
+function buildAdminReviewPayloadForSection(sectionKey, options = {}) {
+    if (!sectionKey) {
+        return null;
+    }
+
+    switch (sectionKey) {
+        case 'request': {
+            const requestData = options.requestData || collectYeuCauBaiToan();
+            return requestData.adminReview || {};
+        }
+        case 'input': {
+            const rows = Array.from(document.querySelectorAll('#input-table-body tr'));
+            return {
+                rows: rows.map(row => ({
+                    eval: row.querySelector('.admin-eval')?.value || '',
+                    note: row.querySelector('.admin-note')?.value || ''
+                }))
+            };
+        }
+        case 'model':
+            return collectMoHinhAdminReview();
+        case 'sizing':
+            return collectSizingAdminReviewData();
+        default:
+            return null;
+    }
+}
+
+/**
+ * Tạo mới hoặc cập nhật project metadata cho tab Yêu cầu bài toán
+ */
+async function ensureProjectForRequestSection(requestData, headers, activeSectionId) {
+    if (!requestData?.projectName) {
+        throw new Error('Vui lòng nhập Tên dự án!');
+    }
+
+    if (!currentProjectId) {
+        const projectResponse = await fetchAPI(`${API_BASE_URL}/projects`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                name: requestData.projectName,
+                devUnit: requestData.devUnit,
+                ownerName: requestData.contactPerson,
+                status: 'SIZING',
+                statusRound: 1
+            })
+        });
+
+        if (!projectResponse.ok) {
+            throw new Error(await parseApiError(projectResponse.clone()));
+        }
+
+        const project = await projectResponse.json();
+        saveProjectIdToStorage(project.id);
+        currentProjectStatus = project.status || 'SIZING';
+        currentProjectStatusRound = project.statusRound || 1;
+        updateProjectStatusDisplay();
+        replaceAppState('project', project.id, activeSectionId || 'page-request');
+        return { created: true, project };
+    }
+
+    const updateResponse = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+            name: requestData.projectName,
+            devUnit: requestData.devUnit,
+            ownerName: requestData.contactPerson
+        })
+    });
+
+    if (!updateResponse.ok) {
+        throw new Error(await parseApiError(updateResponse.clone()));
+    }
+
+    return { created: false };
+}
+
+/**
+ * Build payload tối thiểu theo section đang lưu
+ */
+function buildSectionSavePayload(options = {}) {
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
     const activeSectionId = options.activeSectionId || document.querySelector('.page-section.active')?.id || null;
+    const requestData = options.requestData || null;
 
     let payload = {};
 
     try {
-        const requestData = collectYeuCauBaiToan();
-        if (role !== 'admin1' && role !== 'admin2') {
-            delete requestData.adminReview;
+        if (!activeSectionId) {
+            throw new Error('Không xác định được tab hiện tại để lưu');
         }
-        payload.yeuCauBaiToanContent = JSON.stringify(requestData);
 
-        const inputData = collectThongTinDauVao();
-        if (role !== 'admin1' && role !== 'admin2') {
-            inputData.inputRows = inputData.inputRows.map(r => {
-                const c = Object.assign({}, r);
-                delete c.adminEval;
-                delete c.adminNote;
-                return c;
-            });
-        }
-        payload.thongTinDauVaoContent = JSON.stringify(inputData);
-
-        const modelData = collectMoHinhHeThong();
-        payload.moHinhHeThongContent = JSON.stringify(modelData);
-
-        if (typeof collectAllSizingData === 'function') {
-            const sizingData = collectAllSizingData();
-            payload.dinhCoHeThongContent = JSON.stringify(sizingData);
+        if (activeSectionId === 'page-request') {
+            const safeRequestData = requestData || collectYeuCauBaiToan();
+            if (role !== 'admin1' && role !== 'admin2') {
+                delete safeRequestData.adminReview;
+            }
+            payload.yeuCauBaiToanContent = JSON.stringify(safeRequestData);
+        } else if (activeSectionId === 'page-input') {
+            const inputData = collectThongTinDauVao();
+            if (role !== 'admin1' && role !== 'admin2') {
+                inputData.inputRows = inputData.inputRows.map(r => {
+                    const c = Object.assign({}, r);
+                    delete c.adminEval;
+                    delete c.adminNote;
+                    return c;
+                });
+            }
+            payload.thongTinDauVaoContent = JSON.stringify(inputData);
+        } else if (activeSectionId === 'page-model') {
+            payload.moHinhHeThongContent = JSON.stringify(collectMoHinhHeThong());
+        } else if (activeSectionId === 'page-sizing') {
+            if (typeof collectAllSizingData === 'function') {
+                payload.dinhCoHeThongContent = JSON.stringify(collectAllSizingData());
+            }
+        } else if (activeSectionId === 'page-summary') {
+            cancelSummaryAutosave();
+            payload.tongHopVaDeXuatContent = JSON.stringify(collectTongHop());
         }
 
         const summaryMode = options.summaryMode || (
@@ -15977,7 +16046,7 @@ function buildSavePayload(options = {}) {
             aggregateSizingResults(options.summaryAggregateOptions || {});
             payload.tongHopVaDeXuatContent = JSON.stringify(collectTongHop());
             clearSummaryNeedsSizingRefresh();
-        } else if (summaryMode === 'snapshot') {
+        } else if (summaryMode === 'snapshot' && activeSectionId === 'page-summary') {
             cancelSummaryAutosave();
             payload.tongHopVaDeXuatContent = JSON.stringify(collectTongHop());
         }
@@ -15990,7 +16059,7 @@ function buildSavePayload(options = {}) {
 }
 
 async function performManualSave() {
-    if (isSaving || !currentProjectId) return;
+    if (isSaving) return;
     if (currentProjectStatus === 'HOAN_THANH') {
         showToast('Dự án đã hoàn thành, không thể chỉnh sửa.', 'warning');
         return;
@@ -16015,12 +16084,25 @@ async function performManualSave() {
 
     const user = getCurrentUser();
     const role = (user.role || '').toLowerCase();
+    const isAdmin = role === 'admin1' || role === 'admin2';
 
     try {
         const headers = Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders());
+        let requestData = null;
 
-        // ========== BUILD PAYLOAD ==========
-        const payload = buildSavePayload({
+        if (activeSectionId === 'page-request') {
+            requestData = collectYeuCauBaiToan();
+            await ensureProjectForRequestSection(requestData, headers, activeSectionId);
+        } else if (!currentProjectId) {
+            showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning');
+            showSaveStatus('error');
+            return;
+        }
+
+        // ========== BUILD PAYLOAD THEO SECTION ==========
+        const payload = buildSectionSavePayload({
+            activeSectionId,
+            requestData,
             summaryAggregateOptions: activeSectionId === 'page-sizing'
                 ? { resetManualDeletes: true }
                 : {}
@@ -16030,28 +16112,10 @@ async function performManualSave() {
             return;
         }
 
-        // Lấy requestData cho project name update
-        let requestData = {};
-        try { requestData = collectYeuCauBaiToan(); } catch (e) { }
-
-        // ========== CHẠY SONG SONG TẤT CẢ NETWORK REQUESTS ==========
+        // ========== CHẠY CÁC NETWORK REQUEST CẦN THIẾT CHO SECTION HIỆN TẠI ==========
         const networkPromises = [];
 
-        // 1) Cập nhật project name/devUnit
-        if (requestData.projectName) {
-            networkPromises.push(
-                fetch(`${API_BASE_URL}/projects/${currentProjectId}`, {
-                    method: 'PUT', headers,
-                    body: JSON.stringify({
-                        name: requestData.projectName,
-                        devUnit: requestData.devUnit,
-                        ownerName: requestData.contactPerson
-                    })
-                }).catch(() => { })
-            );
-        }
-
-        // 2) Lưu dữ liệu chính
+        // 1) Lưu dữ liệu chính của section hiện tại
         if (Object.keys(payload).length > 0) {
             if (!currentProjectDataId) {
                 payload.projectId = currentProjectId;
@@ -16077,39 +16141,22 @@ async function performManualSave() {
             }
         }
 
-        // 3) Admin review (nếu là admin)
-        if (role === 'admin1' || role === 'admin2') {
-            const requestAdminReview = requestData.adminReview || {};
-
-            const inputRows = Array.from(document.querySelectorAll('#input-table-body tr'));
-            const inputAdminReview = {
-                rows: inputRows.map(row => ({
-                    eval: row.querySelector('.admin-eval')?.value || '',
-                    note: row.querySelector('.admin-note')?.value || ''
-                }))
-            };
-
-            let modelAdminReview = {};
-            try { modelAdminReview = collectMoHinhAdminReview(); } catch (e) { }
-
-            let sizingAdminReview = {};
-            try { sizingAdminReview = collectSizingAdminReviewData(); } catch (e) { }
-
-            const reviewSections = [
-                { section: 'request', data: requestAdminReview },
-                { section: 'input', data: inputAdminReview },
-                { section: 'model', data: modelAdminReview },
-                { section: 'sizing', data: sizingAdminReview }
-            ];
-
-            reviewSections.forEach(({ section, data }) => {
-                networkPromises.push(
-                    fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
-                        method: 'POST', headers,
-                        body: JSON.stringify({ section, reviewJson: JSON.stringify(data) })
-                    }).catch(e => Logger.warn(`Admin review save failed [${section}]:`, e.message))
-                );
-            });
+        // 2) Admin review đúng theo section đang active
+        if (isAdmin) {
+            const reviewSection = getReviewSectionKeyByPage(activeSectionId);
+            if (reviewSection) {
+                try {
+                    const reviewData = buildAdminReviewPayloadForSection(reviewSection, { requestData });
+                    networkPromises.push(
+                        fetch(`${API_BASE_URL}/project-data/project/${currentProjectId}/evaluate`, {
+                            method: 'POST', headers,
+                            body: JSON.stringify({ section: reviewSection, reviewJson: JSON.stringify(reviewData || {}) })
+                        }).catch(e => Logger.warn(`Admin review save failed [${reviewSection}]:`, e.message))
+                    );
+                } catch (e) {
+                    Logger.warn(`Failed to collect admin review for [${reviewSection}]`, e);
+                }
+            }
         }
 
         // ========== CHỜ TẤT CẢ HOÀN TẤT ==========
