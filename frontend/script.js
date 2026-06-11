@@ -16829,6 +16829,8 @@ function normalizeConnectionHeader(value) {
     return String(value || '').trim();
 }
 
+const CONNECTION_IMPORT_HEADERS = ['IP Nguồn', 'IP Đích', 'Port', 'Giao thức', 'Mô tả'];
+
 function getConnectionCellText(sheet, row, col) {
     const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
     if (!cell) return '';
@@ -16837,10 +16839,32 @@ function getConnectionCellText(sheet, row, col) {
     return '';
 }
 
+function downloadConnectionTemplate() {
+    if (typeof XLSX === 'undefined') {
+        showToast('Thiếu thư viện tạo file Excel. Vui lòng liên hệ admin hệ thống.', 'error');
+        return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet([CONNECTION_IMPORT_HEADERS]);
+
+    worksheet['!cols'] = [
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 15 },
+        { wch: 40 }
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Thong tin ket noi');
+    XLSX.writeFile(workbook, 'mau-thong-tin-ket-noi.xlsx');
+    showToast('Đã tải file mẫu Thông tin kết nối.', 'success');
+}
+
 function parseConnectionImportSheet(sheet) {
     if (!sheet || !sheet['!ref']) return null;
 
-    const requiredHeaders = ['IP Nguồn', 'IP Đích', 'Port', 'Giao thức', 'Mô tả'];
+    const requiredHeaders = CONNECTION_IMPORT_HEADERS;
     const range = XLSX.utils.decode_range(sheet['!ref']);
     const headerRow = range.s.r;
     const headerColumns = {};

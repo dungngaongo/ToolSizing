@@ -651,6 +651,10 @@
                                         onclick="document.getElementById('connection-import-input').click()">
                                     <i class="fa-solid fa-file-import"></i> Import Excel/CSV
                                 </button>
+                                <button type="button" class="btn-add" id="downloadConnectionTemplateBtn"
+                                        onclick="downloadConnectionTemplate()">
+                                    <i class="fa-solid fa-file-arrow-down"></i> Tải file mẫu về
+                                </button>
                                 <input type="file" id="connection-import-input" accept=".xlsx,.csv"
                                        onchange="handleConnectionImport(this)" style="display: none;">
                             </div>
