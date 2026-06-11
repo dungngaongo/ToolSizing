@@ -17,6 +17,7 @@ public class ErrorResponse {
     private String path;
     private LocalDateTime timestamp;
     private Map<String, String> validationErrors;
+    private List<ApprovalIssue> approvalIssues;
 
     public ErrorResponse() {
         this.timestamp = LocalDateTime.now();
@@ -48,4 +49,7 @@ public class ErrorResponse {
 
     public Map<String, String> getValidationErrors() { return validationErrors; }
     public void setValidationErrors(Map<String, String> validationErrors) { this.validationErrors = validationErrors; }
+
+    public List<ApprovalIssue> getApprovalIssues() { return approvalIssues; }
+    public void setApprovalIssues(List<ApprovalIssue> approvalIssues) { this.approvalIssues = approvalIssues; }
 }

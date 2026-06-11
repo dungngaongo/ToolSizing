@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/projects/admin1-users").hasRole("ADMIN2")
                         .requestMatchers(HttpMethod.PUT, "/api/projects/*/assign-reviewer").hasRole("ADMIN2")
+                        .requestMatchers(HttpMethod.POST, "/api/projects/*/approve").hasRole("ADMIN2")
                         .requestMatchers("/api/projects/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN2")
                         .requestMatchers(HttpMethod.PUT, "/api/users/**").hasRole("ADMIN2")

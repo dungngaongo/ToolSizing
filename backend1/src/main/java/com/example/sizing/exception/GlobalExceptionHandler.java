@@ -76,6 +76,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(ApprovalBlockedException.class)
+    public ResponseEntity<ErrorResponse> handleApprovalBlocked(ApprovalBlockedException ex, HttpServletRequest request) {
+        log.warn("Approval blocked: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "Conflict",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        error.setApprovalIssues(ex.getApprovalIssues());
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
     // ========================
     // 401 - Chưa xác thực
     // ========================

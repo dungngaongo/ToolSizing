@@ -1,6 +1,8 @@
 package com.example.sizing.service;
 
+import com.example.sizing.dto.ApprovalIssue;
 import com.example.sizing.dto.CreateProjectRequest;
+import com.example.sizing.exception.ApprovalBlockedException;
 import com.example.sizing.model.Project;
 import com.example.sizing.model.ProjectData;
 import com.example.sizing.model.User;
@@ -8,6 +10,8 @@ import com.example.sizing.repository.ProjectDataRepository;
 import com.example.sizing.repository.ProjectRepository;
 import com.example.sizing.repository.ProjectRevisionRepository;
 import com.example.sizing.repository.UserRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +23,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -31,6 +38,7 @@ public class ProjectService {
     private final ProjectRevisionRepository projectRevisionRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ProjectService(ProjectRepository projectRepository,
                           ProjectDataRepository projectDataRepository,
@@ -126,6 +134,9 @@ public class ProjectService {
         }
         if (request.getStatus() != null) {
             String newStatus = request.getStatus();
+            if ("HOAN_THANH".equalsIgnoreCase(newStatus)) {
+                throw new BadRequestException("Không thể chuyển dự án sang HOAN_THANH bằng API cập nhật thường. Vui lòng dùng luồng phê duyệt.");
+            }
             project.setStatus(newStatus);
             if ("SIZING".equalsIgnoreCase(newStatus) && isReviewStatus(currentStatus)) {
                 project.setStatusRound(currentRound + 1);
@@ -163,6 +174,54 @@ public class ProjectService {
         }
         String normalized = status.trim().toUpperCase();
         return "THAM_DINH".equals(normalized) || "PHE_DUYET".equals(normalized);
+    }
+
+    @Transactional
+    public Project approveProject(String id) {
+        if (!canAccessProject(id)) {
+            throw new ForbiddenException("Bạn không có quyền phê duyệt dự án này");
+        }
+
+        Project project = projectRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
+
+        String currentStatus = project.getStatus() == null ? "" : project.getStatus().trim().toUpperCase();
+        if (!"THAM_DINH".equals(currentStatus) && !"PHE_DUYET".equals(currentStatus)) {
+            List<ApprovalIssue> issues = List.of(new ApprovalIssue(null, "INVALID_STATUS",
+                    "Chỉ có thể phê duyệt dự án khi đang ở trạng thái THAM_DINH hoặc PHE_DUYET"));
+            throw new ApprovalBlockedException("Dự án chưa ở trạng thái cho phép phê duyệt.", issues);
+        }
+
+        ProjectData projectData = projectDataRepository.findFirstByProjectId(id)
+                .orElseThrow(() -> new ApprovalBlockedException(
+                        "Dự án chưa có dữ liệu đánh giá để phê duyệt.",
+                        List.of(new ApprovalIssue("request", "SECTION_NOT_REVIEWED", "Chưa có dữ liệu đánh giá admin cho dự án này"))
+                ));
+
+        List<ApprovalIssue> approvalIssues = new ArrayList<>();
+        validateApprovalSection("request", "Yêu cầu bài toán", projectData.getYeuCauAdminReview(), approvalIssues);
+        validateApprovalSection("input", "Thông tin đầu vào", projectData.getThongTinAdminReview(), approvalIssues);
+        validateApprovalSection("model", "Mô hình hệ thống", projectData.getMoHinhAdminReview(), approvalIssues);
+        validateApprovalSection("sizing", "Định cỡ hệ thống", projectData.getDinhCoAdminReview(), approvalIssues);
+        validateApprovalSection("summary", "Tổng hợp và đề xuất", projectData.getTongHopAdminReview(), approvalIssues);
+
+        if (!approvalIssues.isEmpty()) {
+            throw new ApprovalBlockedException(
+                    "Không thể phê duyệt. Vui lòng hoàn tất đánh giá admin và bảo đảm tất cả đều OK.",
+                    approvalIssues
+            );
+        }
+
+        project.setStatus("HOAN_THANH");
+        Project saved = projectRepository.save(project);
+        activityLogService.record(
+                "APPROVE",
+                "PROJECT",
+                saved.getId(),
+                saved.getName(),
+                "Phê duyệt dự án"
+        );
+        return saved;
     }
 
     @Transactional
@@ -299,6 +358,134 @@ public class ProjectService {
     private void ensureUserExists(String userId, String label) {
         if (!userRepository.existsById(userId)) {
             throw new BadRequestException("Invalid " + label + " id: " + userId);
+        }
+    }
+
+    private void validateApprovalSection(String section, String label, String rawReviewJson, List<ApprovalIssue> issues) {
+        if (rawReviewJson == null || rawReviewJson.isBlank()) {
+            issues.add(new ApprovalIssue(section, "SECTION_NOT_REVIEWED", "Tab " + label + " chưa được đánh giá."));
+            return;
+        }
+
+        final JsonNode root;
+        try {
+            root = objectMapper.readTree(rawReviewJson);
+        } catch (Exception ex) {
+            throw new ApprovalBlockedException(
+                    "Không thể phê duyệt vì dữ liệu đánh giá admin không hợp lệ.",
+                    List.of(new ApprovalIssue(section, "SECTION_NOT_REVIEWED", "Dữ liệu đánh giá của tab " + label + " không đọc được."))
+            );
+        }
+
+        ApprovalScanState state = new ApprovalScanState(section, label);
+        traverseApprovalReview(root, state, issues, new ApprovalTraversalContext());
+
+        if (!state.foundReviewNode) {
+            issues.add(new ApprovalIssue(section, "SECTION_NOT_REVIEWED", "Tab " + label + " chưa có đánh giá admin."));
+        }
+    }
+
+    private void traverseApprovalReview(JsonNode node, ApprovalScanState state, List<ApprovalIssue> issues, ApprovalTraversalContext context) {
+        if (node == null || node.isNull()) {
+            return;
+        }
+
+        ApprovalTraversalContext nextContext = context.copy();
+
+        if (node.isObject()) {
+            if (node.hasNonNull("instanceKey")) {
+                nextContext.instanceKey = node.get("instanceKey").asText(null);
+            }
+            if (node.hasNonNull("rowIndex") && node.get("rowIndex").canConvertToInt()) {
+                nextContext.rowIndex = node.get("rowIndex").asInt();
+            }
+
+            if (node.has("eval")) {
+                state.foundReviewNode = true;
+                String eval = node.path("eval").asText("").trim();
+                if (eval.isEmpty()) {
+                    issues.add(buildApprovalIssue(state.section, "MISSING_EVAL", state.label, nextContext, "Chưa chọn đánh giá admin."));
+                } else if (!"OK".equalsIgnoreCase(eval)) {
+                    issues.add(buildApprovalIssue(state.section, "NON_OK_EVAL", state.label, nextContext,
+                            "Giá trị đánh giá admin phải là OK để được phê duyệt."));
+                }
+            }
+
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = fields.next();
+                ApprovalTraversalContext childContext = nextContext.copy();
+                if (!"eval".equals(entry.getKey()) && !"note".equals(entry.getKey())) {
+                    childContext.fieldKey = normalizeFieldKey(entry.getKey(), childContext.fieldKey);
+                }
+                traverseApprovalReview(entry.getValue(), state, issues, childContext);
+            }
+            return;
+        }
+
+        if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++) {
+                ApprovalTraversalContext childContext = nextContext.copy();
+                if (childContext.rowIndex == null) {
+                    childContext.rowIndex = i;
+                }
+                traverseApprovalReview(node.get(i), state, issues, childContext);
+            }
+        }
+    }
+
+    private ApprovalIssue buildApprovalIssue(String section, String code, String label, ApprovalTraversalContext context, String detail) {
+        StringBuilder message = new StringBuilder("Tab ").append(label);
+        if (context.instanceKey != null && !context.instanceKey.isBlank()) {
+            message.append(" (").append(context.instanceKey).append(")");
+        }
+        if (context.fieldKey != null && !context.fieldKey.isBlank()) {
+            message.append(" - ").append(context.fieldKey);
+        }
+        if (context.rowIndex != null) {
+            message.append(" - dòng ").append(context.rowIndex + 1);
+        }
+        message.append(": ").append(detail);
+
+        ApprovalIssue issue = new ApprovalIssue(section, code, message.toString());
+        issue.setInstanceKey(context.instanceKey);
+        issue.setRowIndex(context.rowIndex);
+        issue.setFieldKey(context.fieldKey);
+        return issue;
+    }
+
+    private String normalizeFieldKey(String candidate, String fallback) {
+        if (candidate == null || candidate.isBlank()) {
+            return fallback;
+        }
+        if ("reviewData".equals(candidate) || "rows".equals(candidate)) {
+            return fallback;
+        }
+        return candidate;
+    }
+
+    private static class ApprovalScanState {
+        private final String section;
+        private final String label;
+        private boolean foundReviewNode;
+
+        private ApprovalScanState(String section, String label) {
+            this.section = section;
+            this.label = label;
+        }
+    }
+
+    private static class ApprovalTraversalContext {
+        private String instanceKey;
+        private Integer rowIndex;
+        private String fieldKey;
+
+        private ApprovalTraversalContext copy() {
+            ApprovalTraversalContext copy = new ApprovalTraversalContext();
+            copy.instanceKey = instanceKey;
+            copy.rowIndex = rowIndex;
+            copy.fieldKey = fieldKey;
+            return copy;
         }
     }
 }

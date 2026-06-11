@@ -101,6 +101,14 @@ public class ProjectController {
         return ResponseEntity.ok(updated);
     }
 
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN2')")
+    public ResponseEntity<Project> approve(@PathVariable String id) {
+        log.info("POST /api/projects/{}/approve - Approving project", id);
+        Project approved = projectService.approveProject(id);
+        return ResponseEntity.ok(approved);
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN2')")
     public ResponseEntity<Void> delete(@PathVariable String id) {

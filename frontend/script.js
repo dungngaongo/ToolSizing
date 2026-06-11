@@ -24,6 +24,14 @@ const SLUG_TAB_MAP = Object.fromEntries(
     Object.entries(TAB_SLUG_MAP).map(([k, v]) => [v, k])
 );
 const TAB_FLOW_ORDER = ['page-request', 'page-input', 'page-model', 'page-sizing', 'page-summary'];
+const SECTION_DISPLAY_NAMES = {
+    'page-request': 'Yêu cầu bài toán',
+    'page-input': 'Thông tin đầu vào',
+    'page-model': 'Mô hình hệ thống',
+    'page-sizing': 'Định cỡ hệ thống',
+    'page-summary': 'Tổng hợp và đề xuất'
+};
+const adminReviewDirtySections = new Set();
 
 /**
  * Tạo hash URL từ trạng thái hiện tại
@@ -845,6 +853,18 @@ async function parseApiError(response) {
     }
 }
 
+async function parseApiErrorBody(response) {
+    try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return await response.json();
+        }
+    } catch (e) {
+        Logger.warn('Unable to parse API error body', e);
+    }
+    return null;
+}
+
 // ==================== FETCH API WRAPPER (Auth chuẩn hóa) ====================
 /**
  * Wrapper cho fetch() tự động thêm auth headers và xử lý 401
@@ -971,6 +991,160 @@ function getCurrentUser() {
         role: localStorage.getItem('userRole'),
         isLoggedIn: localStorage.getItem('isLoggedIn') === 'true'
     };
+}
+
+function getSectionDisplayName(sectionId) {
+    return SECTION_DISPLAY_NAMES[sectionId] || sectionId || 'tab hiện tại';
+}
+
+function isAdminReviewField(element) {
+    return !!element && (
+        element.classList?.contains('admin-eval') ||
+        element.classList?.contains('admin-eval-select') ||
+        element.classList?.contains('admin-note')
+    );
+}
+
+function markAdminReviewSectionDirty(sectionId) {
+    if (sectionId) adminReviewDirtySections.add(sectionId);
+}
+
+function markAdminReviewSectionClean(sectionId) {
+    if (sectionId) adminReviewDirtySections.delete(sectionId);
+}
+
+function resetAdminReviewDirtySections() {
+    adminReviewDirtySections.clear();
+}
+
+function getFirstDirtyAdminSectionId() {
+    return TAB_FLOW_ORDER.find(sectionId => adminReviewDirtySections.has(sectionId)) || null;
+}
+
+function initAdminReviewDirtyTracking() {
+    if (window.__adminReviewDirtyTrackingInited) return;
+    window.__adminReviewDirtyTrackingInited = true;
+
+    const handleDirtyEvent = (event) => {
+        const target = event.target;
+        if (!isAdminReviewField(target)) return;
+        const sectionId = target.closest('.page-section')?.id || null;
+        markAdminReviewSectionDirty(sectionId);
+    };
+
+    document.addEventListener('input', handleDirtyEvent, true);
+    document.addEventListener('change', handleDirtyEvent, true);
+}
+
+function isElementApplicableForApproval(element) {
+    if (!element || element.disabled) return false;
+    if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
+
+    let node = element;
+    while (node && node !== document.body) {
+        const isTabSection = node.classList?.contains('page-section') && TAB_FLOW_ORDER.includes(node.id);
+        if (!isTabSection) {
+            if (node.hidden || node.getAttribute?.('aria-hidden') === 'true') return false;
+            const style = window.getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+        }
+        node = node.parentElement;
+    }
+
+    return true;
+}
+
+function buildApprovalIssue(sectionId, message, element, extra = {}) {
+    return Object.assign({ sectionId, message, element }, extra);
+}
+
+function addApprovalFieldIssue(issues, sectionId, element, message, extra = {}) {
+    if (!element || !isElementApplicableForApproval(element)) return false;
+    const value = String(element.value || '').trim().toUpperCase();
+    if (value !== 'OK') {
+        issues.push(buildApprovalIssue(sectionId, message, element, extra));
+    }
+    return true;
+}
+
+function getFirstAdminReviewElementForSection(sectionId, instanceKey = null) {
+    const section = document.getElementById(sectionId);
+    if (!section) return null;
+
+    let scope = section;
+    if (instanceKey) {
+        const wrapper = section.querySelector(`.module-instance-wrapper[data-instance-key="${instanceKey}"]`);
+        if (wrapper) scope = wrapper;
+    }
+
+    return Array.from(scope.querySelectorAll('.admin-eval, .admin-eval-select, .admin-note'))
+        .find(isElementApplicableForApproval) || null;
+}
+
+function resolveApprovalIssueElement(issue) {
+    if (!issue) return null;
+
+    const isBlockingEvalElement = (element) => {
+        if (!element || !isElementApplicableForApproval(element)) return false;
+        if (element.classList?.contains('admin-note')) return false;
+        return String(element.value || '').trim().toUpperCase() !== 'OK';
+    };
+
+    if (issue.element && isElementApplicableForApproval(issue.element)) {
+        if (issue.element.classList?.contains('admin-note') || isBlockingEvalElement(issue.element)) {
+            return issue.element;
+        }
+    }
+
+    const section = document.getElementById(issue.sectionId);
+    if (!section) return issue.element || null;
+
+    let scope = section;
+    if (issue.instanceKey) {
+        const wrapper = section.querySelector(`.module-instance-wrapper[data-instance-key="${issue.instanceKey}"]`);
+        if (wrapper) scope = wrapper;
+    }
+
+    const firstBlockingEval = Array.from(scope.querySelectorAll('.admin-eval, .admin-eval-select'))
+        .find(isBlockingEvalElement);
+    if (firstBlockingEval) return firstBlockingEval;
+
+    return getFirstAdminReviewElementForSection(issue.sectionId, issue.instanceKey) || issue.element || null;
+}
+
+function expandApprovalTarget(issue) {
+    if (!issue?.element) return;
+    const collapsibleContent = issue.element.closest('.module-collapsible-content');
+    if (collapsibleContent && !collapsibleContent.classList.contains('expanded')) {
+        collapsibleContent.classList.add('expanded');
+        collapsibleContent.previousElementSibling?.classList.add('active');
+    }
+}
+
+function highlightApprovalElement(element) {
+    if (!element) return;
+    element.classList.add('field-error');
+    element.dataset.approvalHighlight = '1';
+    window.setTimeout(() => {
+        if (element.dataset.approvalHighlight === '1' && !element.dataset.strictRequiredError) {
+            element.classList.remove('field-error');
+            delete element.dataset.approvalHighlight;
+        }
+    }, 3500);
+}
+
+function navigateToApprovalIssue(issue) {
+    if (!issue) return;
+    const link = getSectionMenuLink(issue.sectionId);
+    showSection(issue.sectionId, link, { skipValidation: true, skipPushState: false });
+
+    const fallbackElement = resolveApprovalIssueElement(issue);
+    if (!fallbackElement) return;
+
+    expandApprovalTarget({ element: fallbackElement });
+    highlightApprovalElement(fallbackElement);
+    fallbackElement.focus();
+    fallbackElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function getAuthHeaders() {
@@ -1322,6 +1496,7 @@ function clearProjectIds() {
     currentProjectDataId = null;
     localStorage.removeItem('currentProjectId');
     localStorage.removeItem('currentProjectDataId');
+    resetAdminReviewDirtySections();
     Logger.debug('Cleared Project IDs');
 }
 
@@ -1590,6 +1765,235 @@ async function updateProjectStatus(actionType) {
 /**
  * Hiển thị/ẩn nút Phê duyệt dự án cho admin2
  */
+function mapApprovalSectionToPage(section) {
+    switch (section) {
+        case 'request': return 'page-request';
+        case 'input': return 'page-input';
+        case 'model': return 'page-model';
+        case 'sizing': return 'page-sizing';
+        case 'summary': return 'page-summary';
+        default: return null;
+    }
+}
+
+function validateRequestApprovalIssues(issues) {
+    let reviewCount = 0;
+    document.querySelectorAll('#request-table-body tr').forEach((row, index) => {
+        const found = addApprovalFieldIssue(issues, 'page-request', row.cells[2]?.querySelector('select.admin-eval'), `Tab ${getSectionDisplayName('page-request')} - dòng ${index + 1} phải được đánh giá OK.`, { rowIndex: index });
+        if (found) reviewCount++;
+    });
+    if (reviewCount === 0) {
+        issues.push(buildApprovalIssue('page-request', `Tab ${getSectionDisplayName('page-request')} chưa được đánh giá.`, getFirstAdminReviewElementForSection('page-request')));
+    }
+}
+
+function validateInputApprovalIssues(issues) {
+    let reviewCount = 0;
+    document.querySelectorAll('#input-table-body tr').forEach((row, index) => {
+        const found = addApprovalFieldIssue(issues, 'page-input', row.cells[6]?.querySelector('select.admin-eval'), `Tab ${getSectionDisplayName('page-input')} - dòng ${index + 1} phải được đánh giá OK.`, { rowIndex: index });
+        if (found) reviewCount++;
+    });
+    if (reviewCount === 0) {
+        issues.push(buildApprovalIssue('page-input', `Tab ${getSectionDisplayName('page-input')} chưa được đánh giá.`, getFirstAdminReviewElementForSection('page-input')));
+    }
+}
+
+function validateModelApprovalIssues(issues) {
+    let reviewCount = 0;
+    [
+        { id: 'eval-physical', label: 'Mô hình vật lý' },
+        { id: 'eval-logical', label: 'Mô hình logic' },
+        { id: 'eval-flow', label: 'Luồng nghiệp vụ' }
+    ].forEach(item => {
+        const found = addApprovalFieldIssue(issues, 'page-model', document.getElementById(item.id), `Tab ${getSectionDisplayName('page-model')} - ${item.label} phải được đánh giá OK.`, { fieldKey: item.id });
+        if (found) reviewCount++;
+    });
+
+    document.querySelectorAll('#arch-table-body tr').forEach((row, index) => {
+        const found = addApprovalFieldIssue(issues, 'page-model', row.cells[6]?.querySelector('.admin-eval-select'), `Tab ${getSectionDisplayName('page-model')} - bảng thành phần/dòng ${index + 1} phải được đánh giá OK.`, { rowIndex: index, fieldKey: 'archRowReviews' });
+        if (found) reviewCount++;
+    });
+
+    document.querySelectorAll('#connection-info-table-body tr').forEach((row, index) => {
+        const found = addApprovalFieldIssue(issues, 'page-model', row.cells[6]?.querySelector('.admin-eval-select'), `Tab ${getSectionDisplayName('page-model')} - bảng kết nối/dòng ${index + 1} phải được đánh giá OK.`, { rowIndex: index, fieldKey: 'connectionRowReviews' });
+        if (found) reviewCount++;
+    });
+
+    if (reviewCount === 0) {
+        issues.push(buildApprovalIssue('page-model', `Tab ${getSectionDisplayName('page-model')} chưa được đánh giá.`, getFirstAdminReviewElementForSection('page-model')));
+    }
+}
+
+function validateSizingInstanceApproval(instance, issues, tracker) {
+    const sectionId = 'page-sizing';
+    const instanceKey = getModuleInstanceKey(instance);
+    const instanceLabel = getModuleInstanceDisplayName(instance);
+    const redisSelectedMethod = document.getElementById('redis-method-key')?.classList.contains('active') ? 'key' : 'config';
+    const kafkaSelectedMethod = document.getElementById('kafka-method-throughput')?.classList.contains('active') ? 'throughput' : 'linear';
+    const lbfwSelectedMethod = document.getElementById('lbfw-method-select')?.value || 'bandwidthMethod';
+    const customSelectedMethod = document.getElementById('custom-method-select')?.value || 'linearEquivalentApp';
+    const addInstanceIssue = (element, label, extra = {}) => {
+        const found = addApprovalFieldIssue(issues, sectionId, element, `Tab ${getSectionDisplayName(sectionId)} - ${instanceLabel} - ${label} phải được đánh giá OK.`, Object.assign({ instanceKey }, extra));
+        if (found) tracker.count++;
+    };
+
+    switch (instance.moduleType) {
+        case 'App':
+            addInstanceIssue(document.getElementById('eval-module-app'), 'đánh giá tổng quan', { fieldKey: 'overallReview' });
+            addInstanceIssue(document.getElementById('app-flavor-eval'), 'đánh giá flavor', { fieldKey: 'flavorReview' });
+            document.querySelectorAll('#baseline-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.admin-eval-select'), `baseline dòng ${index + 1}`, { rowIndex: index, fieldKey: 'baselineRowReviews' }));
+            document.querySelectorAll('#input-config-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.input-config-eval'), `input config dòng ${index + 1}`, { rowIndex: index, fieldKey: 'inputConfigRowReviews' }));
+            document.querySelectorAll('#storage-input-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.storage-eval'), `storage dòng ${index + 1}`, { rowIndex: index, fieldKey: 'storageRowReviews' }));
+            break;
+        case 'MariaDB':
+            addInstanceIssue(document.getElementById('eval-module-mariadb'), 'đánh giá tổng quan', { fieldKey: 'overallReview' });
+            addInstanceIssue(document.getElementById('eval-mariadb-storage'), 'đánh giá storage', { fieldKey: 'storageReview' });
+            document.querySelectorAll('#mariadb-ref-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.mariadb-ref-eval'), `ref dòng ${index + 1}`, { rowIndex: index, fieldKey: 'refRowReviews' }));
+            break;
+        case 'Redis':
+            addInstanceIssue(document.getElementById('eval-module-redis'), 'đánh giá tổng quan', { fieldKey: 'overallReview' });
+            addInstanceIssue(document.getElementById('eval-redis-key-method'), 'đánh giá phương án key', { fieldKey: 'keyMethodReview' });
+            addInstanceIssue(document.getElementById('eval-redis-config-method'), 'đánh giá phương án cấu hình', { fieldKey: 'configMethodReview' });
+            document.querySelectorAll('#redis-config-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.redis-config-eval'), `config dòng ${index + 1}`, { rowIndex: index, fieldKey: 'configRowReviews' }));
+            break;
+        case 'Kafka':
+            addInstanceIssue(document.getElementById('eval-module-kafka'), 'đánh giá tổng quan', { fieldKey: 'overallReview' });
+            addInstanceIssue(document.getElementById('eval-kafka-throughput-method'), 'đánh giá phương án throughput', { fieldKey: 'throughputMethodReview' });
+            addInstanceIssue(document.getElementById('eval-kafka-linear-method'), 'đánh giá phương án linear', { fieldKey: 'linearMethodReview' });
+            getKafkaLinearRows().forEach((row, index) => addInstanceIssue(row.querySelector('.kafka-linear-eval'), `linear dòng ${index + 1}`, { rowIndex: index, fieldKey: 'linearRowReviews' }));
+            break;
+        case 'K8S':
+            addInstanceIssue(document.getElementById('eval-module-k8s'), 'đánh giá tổng quan', { fieldKey: 'overallReview' });
+            addInstanceIssue(document.getElementById('k8s-flavor-eval'), 'đánh giá flavor', { fieldKey: 'flavorReview' });
+            getK8SBaselineRows().forEach((row, index) => addInstanceIssue(row.querySelector('.k8s-baseline-eval'), `baseline dòng ${index + 1}`, { rowIndex: index, fieldKey: 'baselineRowReviews' }));
+            getK8SInputConfigRows().forEach((row, index) => addInstanceIssue(row.querySelector('.k8s-input-config-eval'), `input config dòng ${index + 1}`, { rowIndex: index, fieldKey: 'inputConfigRowReviews' }));
+            document.querySelectorAll('#k8s-storage-input-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.k8s-storage-eval'), `storage dòng ${index + 1}`, { rowIndex: index, fieldKey: 'storageRowReviews' }));
+            break;
+        case 'LB/FW':
+            addInstanceIssue(document.getElementById('eval-lbfw-linear-method'), 'đánh giá phương án linear', { fieldKey: 'linearMethodReview' });
+            addInstanceIssue(document.getElementById('eval-lbfw-custom-method'), 'đánh giá phương án custom', { fieldKey: 'customMethodReview' });
+            document.querySelectorAll('#lbfw-custom-proposal-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.lbfw-custom-proposal-eval'), `proposal dòng ${index + 1}`, { rowIndex: index, fieldKey: 'proposalRowReviews' }));
+            break;
+        case 'Khác':
+            addInstanceIssue(document.getElementById('eval-custom-linear-method'), 'đánh giá phương án linear', { fieldKey: 'linearMethodReview' });
+            addInstanceIssue(document.getElementById('eval-custom-method'), 'đánh giá phương án custom', { fieldKey: 'customMethodReview' });
+            document.querySelectorAll('#custom-baseline-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.admin-eval-select'), `baseline dòng ${index + 1}`, { rowIndex: index, fieldKey: 'baselineRowReviews' }));
+            document.querySelectorAll('#custom-input-config-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.custom-input-config-eval'), `input config dòng ${index + 1}`, { rowIndex: index, fieldKey: 'inputConfigRowReviews' }));
+            document.querySelectorAll('#custom-storage-input-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.custom-storage-eval'), `storage dòng ${index + 1}`, { rowIndex: index, fieldKey: 'storageRowReviews' }));
+            document.querySelectorAll('#custom-proposal-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.custom-proposal-eval'), `proposal dòng ${index + 1}`, { rowIndex: index, fieldKey: 'proposalRowReviews' }));
+            break;
+    }
+}
+
+function validateSizingApprovalIssues(issues) {
+    const instances = getModuleInstancesFromArchTable();
+    if (!instances.length) {
+        issues.push(buildApprovalIssue('page-sizing', `Tab ${getSectionDisplayName('page-sizing')} chưa có module cần đánh giá.`, getFirstAdminReviewElementForSection('page-sizing')));
+        return;
+    }
+
+    const tracker = { count: 0 };
+    instances.forEach(instance => {
+        runInInstanceContext(getModuleInstanceKey(instance), () => validateSizingInstanceApproval(instance, issues, tracker));
+    });
+
+    if (tracker.count === 0) {
+        const firstInstanceKey = getModuleInstanceKey(instances[0]);
+        issues.push(buildApprovalIssue('page-sizing', `Tab ${getSectionDisplayName('page-sizing')} chưa được đánh giá.`, getFirstAdminReviewElementForSection('page-sizing', firstInstanceKey), { instanceKey: firstInstanceKey }));
+    }
+}
+
+function validateSummaryApprovalIssues(issues) {
+    const found = addApprovalFieldIssue(issues, 'page-summary', document.getElementById('eval-summary'), `Tab ${getSectionDisplayName('page-summary')} phải được đánh giá OK.`, { fieldKey: 'summary' });
+    if (!found) {
+        issues.push(buildApprovalIssue('page-summary', `Tab ${getSectionDisplayName('page-summary')} chưa được đánh giá.`, getFirstAdminReviewElementForSection('page-summary')));
+    }
+}
+
+function collectApprovalBlockingIssues() {
+    const issues = [];
+    validateRequestApprovalIssues(issues);
+    validateInputApprovalIssues(issues);
+    validateModelApprovalIssues(issues);
+    validateSizingApprovalIssues(issues);
+    validateSummaryApprovalIssues(issues);
+    return issues;
+}
+
+function validateSizingInstanceApproval(instance, issues, tracker) {
+    const sectionId = 'page-sizing';
+    const instanceKey = getModuleInstanceKey(instance);
+    const instanceLabel = getModuleInstanceDisplayName(instance);
+    const redisSelectedMethod = document.getElementById('redis-method-key')?.classList.contains('active') ? 'key' : 'config';
+    const kafkaSelectedMethod = document.getElementById('kafka-method-throughput')?.classList.contains('active') ? 'throughput' : 'linear';
+    const lbfwSelectedMethod = document.getElementById('lbfw-method-select')?.value || 'bandwidthMethod';
+    const customSelectedMethod = document.getElementById('custom-method-select')?.value || 'linearEquivalentApp';
+    const addInstanceIssue = (element, label, extra = {}) => {
+        const found = addApprovalFieldIssue(issues, sectionId, element, `Tab ${getSectionDisplayName(sectionId)} - ${instanceLabel} - ${label} phai duoc danh gia OK.`, Object.assign({ instanceKey }, extra));
+        if (found) tracker.count++;
+    };
+
+    switch (instance.moduleType) {
+        case 'App':
+            addInstanceIssue(document.getElementById('eval-module-app'), 'danh gia tong quan', { fieldKey: 'overallReview' });
+            addInstanceIssue(document.getElementById('app-flavor-eval'), 'danh gia flavor', { fieldKey: 'flavorReview' });
+            document.querySelectorAll('#baseline-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.admin-eval-select'), `baseline dong ${index + 1}`, { rowIndex: index, fieldKey: 'baselineRowReviews' }));
+            document.querySelectorAll('#input-config-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.input-config-eval'), `input config dong ${index + 1}`, { rowIndex: index, fieldKey: 'inputConfigRowReviews' }));
+            document.querySelectorAll('#storage-input-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.storage-eval'), `storage dong ${index + 1}`, { rowIndex: index, fieldKey: 'storageRowReviews' }));
+            break;
+        case 'MariaDB':
+            addInstanceIssue(document.getElementById('eval-module-mariadb'), 'danh gia tong quan', { fieldKey: 'overallReview' });
+            addInstanceIssue(document.getElementById('eval-mariadb-storage'), 'danh gia storage', { fieldKey: 'storageReview' });
+            document.querySelectorAll('#mariadb-ref-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.mariadb-ref-eval'), `ref dong ${index + 1}`, { rowIndex: index, fieldKey: 'refRowReviews' }));
+            break;
+        case 'Redis':
+            addInstanceIssue(document.getElementById('eval-module-redis'), 'danh gia tong quan', { fieldKey: 'overallReview' });
+            if (redisSelectedMethod === 'key') {
+                addInstanceIssue(document.getElementById('eval-redis-key-method'), 'danh gia phuong an key', { fieldKey: 'keyMethodReview' });
+            } else {
+                addInstanceIssue(document.getElementById('eval-redis-config-method'), 'danh gia phuong an cau hinh', { fieldKey: 'configMethodReview' });
+                document.querySelectorAll('#redis-config-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.redis-config-eval'), `config dong ${index + 1}`, { rowIndex: index, fieldKey: 'configRowReviews' }));
+            }
+            break;
+        case 'Kafka':
+            addInstanceIssue(document.getElementById('eval-module-kafka'), 'danh gia tong quan', { fieldKey: 'overallReview' });
+            if (kafkaSelectedMethod === 'throughput') {
+                addInstanceIssue(document.getElementById('eval-kafka-throughput-method'), 'danh gia phuong an throughput', { fieldKey: 'throughputMethodReview' });
+            } else {
+                addInstanceIssue(document.getElementById('eval-kafka-linear-method'), 'danh gia phuong an linear', { fieldKey: 'linearMethodReview' });
+                getKafkaLinearRows().forEach((row, index) => addInstanceIssue(row.querySelector('.kafka-linear-eval'), `linear dong ${index + 1}`, { rowIndex: index, fieldKey: 'linearRowReviews' }));
+            }
+            break;
+        case 'K8S':
+            addInstanceIssue(document.getElementById('eval-module-k8s'), 'danh gia tong quan', { fieldKey: 'overallReview' });
+            addInstanceIssue(document.getElementById('k8s-flavor-eval'), 'danh gia flavor', { fieldKey: 'flavorReview' });
+            getK8SBaselineRows().forEach((row, index) => addInstanceIssue(row.querySelector('.k8s-baseline-eval'), `baseline dong ${index + 1}`, { rowIndex: index, fieldKey: 'baselineRowReviews' }));
+            getK8SInputConfigRows().forEach((row, index) => addInstanceIssue(row.querySelector('.k8s-input-config-eval'), `input config dong ${index + 1}`, { rowIndex: index, fieldKey: 'inputConfigRowReviews' }));
+            document.querySelectorAll('#k8s-storage-input-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.k8s-storage-eval'), `storage dong ${index + 1}`, { rowIndex: index, fieldKey: 'storageRowReviews' }));
+            break;
+        case 'LB/FW':
+            if (lbfwSelectedMethod === 'customMethod') {
+                addInstanceIssue(document.getElementById('eval-lbfw-custom-method'), 'danh gia phuong an custom', { fieldKey: 'customMethodReview' });
+                document.querySelectorAll('#lbfw-custom-proposal-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.lbfw-custom-proposal-eval'), `proposal dong ${index + 1}`, { rowIndex: index, fieldKey: 'proposalRowReviews' }));
+            } else {
+                addInstanceIssue(document.getElementById('eval-lbfw-linear-method'), 'danh gia phuong an linear', { fieldKey: 'linearMethodReview' });
+            }
+            break;
+        case 'Khác':
+        case 'KhÃ¡c':
+            if (customSelectedMethod === 'customMethod') {
+                addInstanceIssue(document.getElementById('eval-custom-method'), 'danh gia phuong an custom', { fieldKey: 'customMethodReview' });
+                document.querySelectorAll('#custom-proposal-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.custom-proposal-eval'), `proposal dong ${index + 1}`, { rowIndex: index, fieldKey: 'proposalRowReviews' }));
+            } else {
+                addInstanceIssue(document.getElementById('eval-custom-linear-method'), 'danh gia phuong an linear', { fieldKey: 'linearMethodReview' });
+                document.querySelectorAll('#custom-baseline-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.admin-eval-select'), `baseline dong ${index + 1}`, { rowIndex: index, fieldKey: 'baselineRowReviews' }));
+                document.querySelectorAll('#custom-input-config-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.custom-input-config-eval'), `input config dong ${index + 1}`, { rowIndex: index, fieldKey: 'inputConfigRowReviews' }));
+                document.querySelectorAll('#custom-storage-input-table-body tr').forEach((row, index) => addInstanceIssue(row.querySelector('.custom-storage-eval'), `storage dong ${index + 1}`, { rowIndex: index, fieldKey: 'storageRowReviews' }));
+            }
+            break;
+    }
+}
+
 function updateApproveButtonVisibility() {
     const approveHeaderBtn = document.getElementById('btn-approve-header');
     if (!approveHeaderBtn) return;
@@ -1635,6 +2039,83 @@ async function approveProject() {
     showLoading(false);
     showToast('Dự án đã được phê duyệt thành công!', 'success');
 }
+
+approveProject = async function () {
+    const user = getCurrentUser();
+    const role = (user.role || '').toLowerCase();
+    if (role !== 'admin2') {
+        showToast('Chỉ admin2 mới có quyền phê duyệt dự án.', 'warning');
+        return;
+    }
+    if (currentProjectStatus !== 'THAM_DINH' && currentProjectStatus !== 'PHE_DUYET') {
+        showToast('Dự án chưa sẵn sàng để phê duyệt.', 'warning');
+        return;
+    }
+
+    const dirtySectionId = getFirstDirtyAdminSectionId();
+    if (dirtySectionId) {
+        const dirtyIssue = buildApprovalIssue(
+            dirtySectionId,
+            `Có thay đổi đánh giá chưa lưu ở tab ${getSectionDisplayName(dirtySectionId)}. Vui lòng lưu/gửi đánh giá trước khi phê duyệt.`,
+            getFirstAdminReviewElementForSection(dirtySectionId)
+        );
+        showToast(dirtyIssue.message, 'warning');
+        navigateToApprovalIssue(dirtyIssue);
+        return;
+    }
+
+    const blockingIssues = collectApprovalBlockingIssues();
+    if (blockingIssues.length > 0) {
+        showToast('Không thể phê duyệt. Vui lòng hoàn tất đánh giá admin và bảo đảm tất cả đều OK.', 'warning');
+        navigateToApprovalIssue(blockingIssues[0]);
+        return;
+    }
+
+    const confirmed = await showConfirm(
+        'Phê duyệt dự án',
+        'Bạn có chắc muốn phê duyệt dự án này?<br>Dự án sẽ chuyển sang trạng thái <strong>Hoàn thành</strong>.',
+        { confirmText: 'Phê duyệt', cancelText: 'Hủy' }
+    );
+    if (!confirmed) return;
+
+    showLoading(true, 'Đang phê duyệt dự án...');
+    try {
+        const response = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}/approve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+            const body = await parseApiErrorBody(response.clone());
+            const firstServerIssue = body?.approvalIssues?.[0];
+            if (firstServerIssue) {
+                const sectionId = mapApprovalSectionToPage(firstServerIssue.section) || 'page-request';
+                const fallbackIssue = buildApprovalIssue(
+                    sectionId,
+                    firstServerIssue.message || 'Không thể phê duyệt dự án.',
+                    getFirstAdminReviewElementForSection(sectionId, firstServerIssue.instanceKey || null),
+                    { instanceKey: firstServerIssue.instanceKey || null }
+                );
+                showToast(body?.message || fallbackIssue.message, 'warning');
+                navigateToApprovalIssue(fallbackIssue);
+                return;
+            }
+            throw new Error(await parseApiError(response.clone()));
+        }
+
+        const approvedProject = await response.json();
+        currentProjectStatus = approvedProject.status || 'HOAN_THANH';
+        currentProjectStatusRound = approvedProject.statusRound || currentProjectStatusRound;
+        updateProjectStatusDisplay();
+        resetAdminReviewDirtySections();
+        applyRolePermissions();
+        showToast('Dự án đã được phê duyệt thành công!', 'success');
+    } catch (error) {
+        Logger.error('Approve error:', error);
+        showToast('Lỗi khi phê duyệt dự án: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+};
 
 async function openProject(projectId, options = {}) {
     saveProjectIdToStorage(projectId);
@@ -1985,6 +2466,7 @@ async function loadAllDataFromDB() {
     const activeMenuLink = document.querySelector('.side-menu a.active');
 
     try {
+        resetAdminReviewDirtySections();
         // Load project info để lấy trạng thái
         const projectResponse = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`);
         if (projectResponse.ok) {
@@ -7665,6 +8147,7 @@ async function exportToWord() {
 document.addEventListener("DOMContentLoaded", async function () {
     Logger.debug('Current Project ID:', currentProjectId);
     applyFixedSizingRule();
+    initAdminReviewDirtyTracking();
 
     // Kiểm tra xem người dùng đã đăng nhập chưa
     const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -8453,6 +8936,10 @@ function collectSizingAdminReviewData() {
     const collectReviewByTypeInContext = (moduleType) => {
         if (moduleType === 'App') {
             return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-app')?.value || '',
+                    note: document.getElementById('note-module-app')?.value || ''
+                },
                 baselineRowReviews: collectBaselineAdminReviewData(),
                 inputConfigRowReviews: (() => {
                     const reviews = [];
@@ -8486,6 +8973,10 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'Redis') {
             return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-redis')?.value || '',
+                    note: document.getElementById('note-module-redis')?.value || ''
+                },
                 keyMethodReview: {
                     eval: document.getElementById('eval-redis-key-method')?.value || '',
                     note: document.getElementById('note-redis-key-method')?.value || ''
@@ -8508,6 +8999,10 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'Kafka') {
             return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-kafka')?.value || '',
+                    note: document.getElementById('note-module-kafka')?.value || ''
+                },
                 throughputMethodReview: {
                     eval: document.getElementById('eval-kafka-throughput-method')?.value || '',
                     note: document.getElementById('note-kafka-throughput-method')?.value || ''
@@ -8530,6 +9025,10 @@ function collectSizingAdminReviewData() {
         }
         if (moduleType === 'K8S') {
             return {
+                overallReview: {
+                    eval: document.getElementById('eval-module-k8s')?.value || '',
+                    note: document.getElementById('note-module-k8s')?.value || ''
+                },
                 baselineRowReviews: (() => {
                     const reviews = [];
                     getK8SBaselineRows().forEach(row => {
@@ -8679,6 +9178,96 @@ function collectSizingAdminReviewData() {
         moduleInstanceReviews
     };
 }
+
+const collectSizingAdminReviewDataLegacy = collectSizingAdminReviewData;
+collectSizingAdminReviewData = function () {
+    const raw = collectSizingAdminReviewDataLegacy();
+    if (!raw || !Array.isArray(raw.moduleInstanceReviews)) return raw;
+
+    const pruneReviewData = (moduleType, reviewData = {}) => {
+        if (!reviewData || typeof reviewData !== 'object') return {};
+
+        if (moduleType === 'Redis') {
+            const selectedMethod = document.getElementById('redis-method-key')?.classList.contains('active') ? 'key' : 'config';
+            return selectedMethod === 'key'
+                ? {
+                    overallReview: reviewData.overallReview || {},
+                    keyMethodReview: reviewData.keyMethodReview || {}
+                }
+                : {
+                    overallReview: reviewData.overallReview || {},
+                    configMethodReview: reviewData.configMethodReview || {},
+                    configRowReviews: reviewData.configRowReviews || []
+                };
+        }
+
+        if (moduleType === 'Kafka') {
+            const selectedMethod = document.getElementById('kafka-method-throughput')?.classList.contains('active') ? 'throughput' : 'linear';
+            return selectedMethod === 'throughput'
+                ? {
+                    overallReview: reviewData.overallReview || {},
+                    throughputMethodReview: reviewData.throughputMethodReview || {}
+                }
+                : {
+                    overallReview: reviewData.overallReview || {},
+                    linearMethodReview: reviewData.linearMethodReview || {},
+                    linearRowReviews: reviewData.linearRowReviews || []
+                };
+        }
+
+        if (moduleType === 'LB/FW') {
+            const selectedMethod = document.getElementById('lbfw-method-select')?.value || 'bandwidthMethod';
+            return selectedMethod === 'customMethod'
+                ? {
+                    customMethodReview: reviewData.customMethodReview || {},
+                    proposalRowReviews: reviewData.proposalRowReviews || []
+                }
+                : {
+                    linearMethodReview: reviewData.linearMethodReview || {}
+                };
+        }
+
+        if (moduleType === 'Khác' || moduleType === 'KhÃ¡c') {
+            const selectedMethod = document.getElementById('custom-method-select')?.value || 'linearEquivalentApp';
+            return selectedMethod === 'customMethod'
+                ? {
+                    customMethodReview: reviewData.customMethodReview || {},
+                    proposalRowReviews: reviewData.proposalRowReviews || []
+                }
+                : {
+                    linearMethodReview: reviewData.linearMethodReview || {},
+                    baselineRowReviews: reviewData.baselineRowReviews || [],
+                    inputConfigRowReviews: reviewData.inputConfigRowReviews || [],
+                    storageRowReviews: reviewData.storageRowReviews || []
+                };
+        }
+
+        return reviewData;
+    };
+
+    const moduleInstanceReviews = raw.moduleInstanceReviews.map(item => ({
+        ...item,
+        reviewData: pruneReviewData(item.moduleType, item.reviewData || {})
+    }));
+
+    const firstByType = {};
+    moduleInstanceReviews.forEach(item => {
+        if (!firstByType[item.moduleType]) {
+            firstByType[item.moduleType] = item.reviewData;
+        }
+    });
+
+    return {
+        moduleApp: firstByType.App || {},
+        moduleMariaDB: firstByType.MariaDB || {},
+        moduleRedis: firstByType.Redis || {},
+        moduleKafka: firstByType.Kafka || {},
+        moduleK8S: firstByType.K8S || {},
+        moduleLBFW: firstByType['LB/FW'] || {},
+        moduleCustom: firstByType['Khác'] || firstByType['KhÃ¡c'] || {},
+        moduleInstanceReviews
+    };
+};
 
 // Save all sizing data to database
 async function saveSizingData() {
@@ -9089,6 +9678,7 @@ function loadSizingAdminReview(adminReview) {
                 if (item.moduleType === 'K8S') legacyReview.moduleK8S = item.reviewData || {};
                 if (item.moduleType === 'LB/FW') legacyReview.moduleLBFW = item.reviewData || {};
                 if (item.moduleType === 'Khác') legacyReview.moduleCustom = item.reviewData || {};
+                legacyReview.__skipInstanceMapping = true;
                 runInInstanceContext(item.instanceKey, () => loadSizingAdminReview(legacyReview));
             });
             applyRolePermissions();
@@ -9115,13 +9705,24 @@ function loadSizingAdminReview(adminReview) {
         const lbfwKey = firstInstanceKey('LB/FW');
         if (adminReview.moduleLBFW && lbfwKey) legacyMappedReviews.push({ instanceKey: lbfwKey, moduleType: 'LB/FW', reviewData: adminReview.moduleLBFW });
 
-        if (legacyMappedReviews.length > 0) {
-            loadSizingAdminReview({ moduleInstanceReviews: legacyMappedReviews });
+        if (!adminReview.__skipInstanceMapping && legacyMappedReviews.length > 0) {
+            loadSizingAdminReview({ moduleInstanceReviews: legacyMappedReviews, __skipInstanceMapping: true });
             return;
         }
 
         // Load module app admin review
         if (adminReview.moduleApp) {
+            if (adminReview.moduleApp.overallReview) {
+                const moduleReview = adminReview.moduleApp.overallReview;
+                if (document.getElementById('eval-module-app')) {
+                    document.getElementById('eval-module-app').value = moduleReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-app'));
+                }
+                if (document.getElementById('note-module-app')) {
+                    document.getElementById('note-module-app').value = moduleReview.note || '';
+                }
+            }
+
             // Load baseline row reviews
             if (adminReview.moduleApp.baselineRowReviews) {
                 const rows = document.querySelectorAll('#baseline-table-body tr');
@@ -9234,6 +9835,17 @@ function loadSizingAdminReview(adminReview) {
 
         // Load module Redis admin review
         if (adminReview.moduleRedis) {
+            if (adminReview.moduleRedis.overallReview) {
+                const moduleReview = adminReview.moduleRedis.overallReview;
+                if (document.getElementById('eval-module-redis')) {
+                    document.getElementById('eval-module-redis').value = moduleReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-redis'));
+                }
+                if (document.getElementById('note-module-redis')) {
+                    document.getElementById('note-module-redis').value = moduleReview.note || '';
+                }
+            }
+
             // Load key method review
             if (adminReview.moduleRedis.keyMethodReview) {
                 const keyReview = adminReview.moduleRedis.keyMethodReview;
@@ -9279,6 +9891,17 @@ function loadSizingAdminReview(adminReview) {
 
         // Load module Kafka admin review
         if (adminReview.moduleKafka) {
+            if (adminReview.moduleKafka.overallReview) {
+                const moduleReview = adminReview.moduleKafka.overallReview;
+                if (document.getElementById('eval-module-kafka')) {
+                    document.getElementById('eval-module-kafka').value = moduleReview.eval || '';
+                    styleAdminSelect(document.getElementById('eval-module-kafka'));
+                }
+                if (document.getElementById('note-module-kafka')) {
+                    document.getElementById('note-module-kafka').value = moduleReview.note || '';
+                }
+            }
+
             // Load throughput method review
             if (adminReview.moduleKafka.throughputMethodReview) {
                 const throughputReview = adminReview.moduleKafka.throughputMethodReview;
@@ -16587,6 +17210,9 @@ async function performManualSave() {
         await createRevision(`${userName} lưu dữ liệu`);
 
         showSaveStatus('saved');
+        if (isAdmin && activeSectionId) {
+            markAdminReviewSectionClean(activeSectionId);
+        }
         showToast('Lưu dữ liệu thành công!', 'success');
 
         // Cập nhật trạng thái dự án dựa trên role

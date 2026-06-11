@@ -1,11 +1,11 @@
 /**
- * projects.js - Enhanced Quản lý Dự án
+ * projects.js - Enhanced Quan ly Du an
  * Features: Pagination, event delegation, role-based filtering, assign admin1
  */
 
 let allProjects = [];
 let filteredProjects = [];
-let admin1UsersList = []; // Cache danh sách admin1 users
+let admin1UsersList = []; // Cache danh sach admin1 users
 
 // Paginator instance
 const projectsPaginator = new Paginator({
@@ -17,24 +17,24 @@ const projectsPaginator = new Paginator({
 async function loadProjects() {
     try {
         const currentUser = getCurrentUser();
-        
-        // Nếu là admin2, load danh sách admin1 users trước để hiện tên
+
+        // Neu la admin2, load danh sach admin1 users truoc de hien ten
         if (currentUser.role === 'admin2' && admin1UsersList.length === 0) {
             await loadAdmin1Users();
         }
 
-        // Sử dụng API /my-projects để lấy danh sách theo quyền
+        // Su dung API /my-projects de lay danh sach theo quyen
         allProjects = await fetchAPI('/projects/my-projects');
         filteredProjects = [...allProjects];
         projectsPaginator.reset();
         renderProjectsTable(filteredProjects);
     } catch (error) {
-        showToast('Lỗi tải danh sách dự án: ' + error.message, 'error');
+        showToast('Loi tai danh sach du an: ' + error.message, 'error');
     }
 }
 
 /**
- * Load danh sách user admin1 (để admin2 chỉ định thẩm định).
+ * Load danh sach user admin1 (de admin2 chi dinh tham dinh).
  */
 async function loadAdmin1Users() {
     try {
@@ -46,7 +46,7 @@ async function loadAdmin1Users() {
 }
 
 /**
- * Lấy tên admin1 đã được chỉ định từ danh sách cache.
+ * Lay ten admin1 da duoc chi dinh tu danh sach cache.
  */
 function getAssignedAdmin1Name(admin1Id) {
     if (!admin1Id) return null;
@@ -61,20 +61,20 @@ function renderProjectsTable(projects) {
 
     if (!projects || projects.length === 0) {
         const colspan = isAdmin2 ? 8 : 7;
-        tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-row"><div class="empty-state"><span class="empty-icon">📁</span><span>Không có dự án nào</span></div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-row"><div class="empty-state"><span class="empty-icon">📁</span><span>Khong co du an nao</span></div></td></tr>`;
         const pgContainer = document.getElementById('pagination-projects');
         if (pgContainer) pgContainer.innerHTML = '';
         return;
     }
 
-    // Phân trang
+    // Phan trang
     const pageItems = projectsPaginator.paginate(projects);
 
     tbody.innerHTML = pageItems.map(p => {
         const assignedName = getAssignedAdmin1Name(p.assignedAdmin1Id);
-        const assignBadge = assignedName 
-            ? `<span class="badge badge-info" title="Người thẩm định">${escapeHtml(assignedName)}</span>`
-            : `<span class="badge badge-secondary">Chưa chỉ định</span>`;
+        const assignBadge = assignedName
+            ? `<span class="badge badge-info" title="Nguoi tham dinh">${escapeHtml(assignedName)}</span>`
+            : `<span class="badge badge-secondary">Chua chi dinh</span>`;
 
         return `
             <tr>
@@ -87,38 +87,35 @@ function renderProjectsTable(projects) {
                 ${isAdmin2 ? `<td>${assignBadge}</td>` : ''}
                 <td class="actions-cell">
                     ${isAdmin2 ? `
-                    <button class="btn-icon btn-icon-assign" title="Chỉ định thẩm định"
-                        data-action="assign-project" data-id="${p.id}" data-name="${escapeHtml(p.name)}" 
+                    <button class="btn-icon btn-icon-assign" title="Chi dinh tham dinh"
+                        data-action="assign-project" data-id="${p.id}" data-name="${escapeHtml(p.name)}"
                         data-assigned="${p.assignedAdmin1Id || ''}">⇄</button>` : ''}
-                    ${(p.status === 'THAM_DINH' || p.status === 'PHE_DUYET') ? `
-                    <button class="btn-icon btn-icon-approve" title="Phê duyệt nhanh"
-                        data-action="approve-project" data-id="${p.id}" data-name="${escapeHtml(p.name)}">D</button>` : ''}
                     ${isAdmin2 ? `
-                    <button class="btn-icon btn-icon-delete" title="Xóa"
+                    <button class="btn-icon btn-icon-delete" title="Xoa"
                         data-action="delete-project" data-id="${p.id}" data-name="${escapeHtml(p.name)}">X</button>` : ''}
                 </td>
             </tr>
         `;
     }).join('');
 
-    // Cập nhật header bảng cho admin2 (thêm cột Người thẩm định)
+    // Cap nhat header bang cho admin2 (them cot Nguoi tham dinh)
     updateProjectTableHeader(isAdmin2);
 }
 
 /**
- * Cập nhật header bảng dự án dựa vào role.
+ * Cap nhat header bang du an dua vao role.
  */
 function updateProjectTableHeader(isAdmin2) {
     const thead = document.querySelector('#table-projects thead tr');
     if (!thead) return;
-    
+
     const expectedCols = isAdmin2 ? 8 : 7;
-    if (thead.children.length === expectedCols) return; // Đã đúng
+    if (thead.children.length === expectedCols) return; // Da dung
 
     if (isAdmin2 && thead.children.length === 7) {
-        // Thêm cột "Người thẩm định" trước cột "Hành động"
+        // Them cot "Nguoi tham dinh" truoc cot "Hanh dong"
         const th = document.createElement('th');
-        th.textContent = 'Người thẩm định';
+        th.textContent = 'Nguoi tham dinh';
         const actionTh = thead.lastElementChild;
         thead.insertBefore(th, actionTh);
     }
@@ -138,8 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (action === 'delete-project') {
                 deleteProject(id, name);
-            } else if (action === 'approve-project') {
-                quickApproveProject(id, name);
             } else if (action === 'assign-project') {
                 openAssignModal(id, name, btn.dataset.assigned);
             }
@@ -168,66 +163,36 @@ function filterProjects() {
 }
 
 async function refreshProjects() {
-    showLoading(true, 'Đang tải dự án...');
-    // Xóa cache để lấy dữ liệu mới
+    showLoading(true, 'Dang tai du an...');
+    // Xoa cache de lay du lieu moi
     RequestCache.invalidate('projects');
     await loadProjects();
     showLoading(false);
-    showToast('Đã làm mới danh sách dự án', 'success');
+    showToast('Da lam moi danh sach du an', 'success');
 }
 
 async function deleteProject(id, name) {
     const confirmed = await showConfirm(
-        'Xóa Dự án',
-        `Bạn có chắc muốn xóa dự án <strong>${escapeHtml(name)}</strong>?<br>Tất cả dữ liệu liên quan sẽ bị mất.`
+        'Xoa Du An',
+        `Ban co chac muon xoa du an <strong>${escapeHtml(name)}</strong>?<br>Tat ca du lieu lien quan se bi mat.`
     );
     if (!confirmed) return;
 
     try {
         await fetchAPI(`/projects/${id}`, { method: 'DELETE' });
-        showToast(`Đã xóa dự án "${name}"`, 'success');
-        if (typeof logAudit === 'function') logAudit('DELETE', 'PROJECT', name, `Xóa dự án ID=${id}`);
+        showToast(`Da xoa du an "${name}"`, 'success');
+        if (typeof logAudit === 'function') logAudit('DELETE', 'PROJECT', name, `Xoa du an ID=${id}`);
         await loadProjects();
         if (typeof loadDashboardStats === 'function') loadDashboardStats();
     } catch (error) {
-        showToast('Lỗi xóa dự án: ' + error.message, 'error');
-    }
-}
-
-async function quickApproveProject(id, name) {
-    const confirmed = await showConfirm(
-        'Phê duyệt Dự án',
-        `Bạn có chắc muốn phê duyệt dự án <strong>${escapeHtml(name)}</strong>?<br>Dự án sẽ chuyển sang trạng thái <strong>Hoàn thành</strong>.`
-    );
-    if (!confirmed) return;
-
-    try {
-        const project = allProjects.find(p => p.id === id || String(p.id) === String(id));
-        if (!project) throw new Error('Không tìm thấy dự án');
-
-        await fetchAPI(`/projects/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-                name: project.name,
-                devUnit: project.devUnit,
-                ownerName: project.ownerName,
-                status: 'HOAN_THANH',
-                statusRound: project.statusRound
-            })
-        });
-        showToast(`Đã phê duyệt dự án "${name}"`, 'success');
-        if (typeof logAudit === 'function') logAudit('APPROVE', 'PROJECT', name, `Phê duyệt dự án → HOAN_THANH`);
-        await loadProjects();
-        if (typeof loadDashboardStats === 'function') loadDashboardStats();
-    } catch (error) {
-        showToast('Lỗi phê duyệt: ' + error.message, 'error');
+        showToast('Loi xoa du an: ' + error.message, 'error');
     }
 }
 
 // ==================== ASSIGN ADMIN1 MODAL ====================
 
 /**
- * Mở modal chỉ định admin1 thẩm định dự án.
+ * Mo modal chi dinh admin1 tham dinh du an.
  */
 function openAssignModal(projectId, projectName, currentAssigned) {
     const modal = document.getElementById('modal-assign-admin1');
@@ -238,8 +203,8 @@ function openAssignModal(projectId, projectName, currentAssigned) {
 
     // Populate dropdown admin1 users
     const select = document.getElementById('assign-admin1-select');
-    select.innerHTML = '<option value="">-- Không chỉ định --</option>';
-    
+    select.innerHTML = '<option value="">-- Khong chi dinh --</option>';
+
     admin1UsersList.forEach(u => {
         const opt = document.createElement('option');
         opt.value = u.id;
@@ -258,7 +223,7 @@ function closeAssignModal() {
 }
 
 /**
- * Lưu chỉ định admin1 cho dự án.
+ * Luu chi dinh admin1 cho du an.
  */
 async function saveAssignAdmin1() {
     const projectId = document.getElementById('assign-project-id').value;
@@ -275,17 +240,17 @@ async function saveAssignAdmin1() {
 
         if (admin1Id) {
             const admin1Name = admin1UsersList.find(u => u.id === admin1Id)?.username || admin1Id;
-            showToast(`Đã chỉ định "${admin1Name}" thẩm định dự án "${projectName}"`, 'success');
-            if (typeof logAudit === 'function') logAudit('ASSIGN', 'PROJECT', projectName, `Chỉ định admin1 "${admin1Name}" thẩm định`);
+            showToast(`Da chi dinh "${admin1Name}" tham dinh du an "${projectName}"`, 'success');
+            if (typeof logAudit === 'function') logAudit('ASSIGN', 'PROJECT', projectName, `Chi dinh admin1 "${admin1Name}" tham dinh`);
         } else {
-            showToast(`Đã bỏ chỉ định thẩm định cho dự án "${projectName}"`, 'success');
-            if (typeof logAudit === 'function') logAudit('UNASSIGN', 'PROJECT', projectName, `Bỏ chỉ định admin1 thẩm định`);
+            showToast(`Da bo chi dinh tham dinh cho du an "${projectName}"`, 'success');
+            if (typeof logAudit === 'function') logAudit('UNASSIGN', 'PROJECT', projectName, 'Bo chi dinh admin1 tham dinh');
         }
 
-        // Refresh danh sách
+        // Refresh danh sach
         RequestCache.invalidate('projects');
         await loadProjects();
     } catch (error) {
-        showToast('Lỗi chỉ định: ' + error.message, 'error');
+        showToast('Loi chi dinh: ' + error.message, 'error');
     }
 }
