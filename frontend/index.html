@@ -40,10 +40,9 @@
                     <i class="fa-solid fa-arrow-left"></i> Quay về danh sách
                 </button>
 
-                <!-- Nút Phê duyệt trên header (luôn hiển thị, chỉ admin2 mới bấm được) -->
-                <button type="button" class="btn-approve" id="btn-approve-header" onclick="approveProject()"
+                <button type="button" class="btn-approve" id="btn-workflow-header" onclick="openWorkflowActionModal()"
                     style="display: none; padding: 8px 18px; font-size: 13px;">
-                    <i class="fa-solid fa-check-circle"></i> PHÊ DUYỆT
+                    <i class="fa-solid fa-diagram-project"></i> KET LUAN GIAI DOAN
                 </button>
 
                 <button onclick="startNewProject()"
@@ -158,7 +157,6 @@
         </nav>
 
         <section class="content" id="main-display">
-
             <div id="page-request" class="page-section active">
                 <div class="form-container">
                     <h2 class="content-title">1. YÊU CẦU BÀI TOÁN</h2>
@@ -2687,6 +2685,133 @@
 
         </section>
     </main>
+
+    <div class="modal-overlay workflow-modal-overlay" id="workflow-action-modal" style="display:none"
+        onclick="if (event.target === this) closeWorkflowActionModal()">
+        <div class="workflow-modal" onclick="event.stopPropagation()">
+            <div class="workflow-modal-header">
+                <div>
+                    <p id="workflow-modal-kicker" class="workflow-modal-kicker">Xu ly workflow</p>
+                    <h3 id="workflow-modal-title">Ket luan giai doan</h3>
+                    <p id="workflow-modal-subtitle" class="workflow-modal-subtitle">Du an: --</p>
+                </div>
+                <button class="workflow-modal-close" onclick="closeWorkflowActionModal()" aria-label="Dong">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="workflow-modal-body">
+                <div class="workflow-modal-layout">
+                    <div class="workflow-modal-main">
+                        <section class="workflow-section">
+                            <div class="workflow-section-head">
+                                <h4>Chon huong xu ly</h4>
+                                <span id="workflow-current-status" class="workflow-status-pill">Trang thai hien tai: --</span>
+                            </div>
+                            <div id="workflow-option-list" class="workflow-option-list"></div>
+                        </section>
+
+                        <section class="workflow-section">
+                            <div class="workflow-section-head">
+                                <h4 id="workflow-form-title">Noi dung nghiep vu</h4>
+                            </div>
+                            <div id="workflow-form-fields" class="workflow-form-fields"></div>
+                        </section>
+                    </div>
+
+                    <aside class="workflow-modal-aside">
+                        <section class="workflow-section workflow-section-sticky">
+                            <div class="workflow-section-head">
+                                <h4>Thong bao SMS</h4>
+                            </div>
+
+                            <div class="workflow-subcard workflow-context-summary">
+                                <div class="workflow-context-summary-head">
+                                    <div>
+                                        <span class="workflow-subcard-label">Tong quan workflow</span>
+                                        <strong id="workflow-context-project-name" class="workflow-context-project-name">Du an: --</strong>
+                                    </div>
+                                    <span id="workflow-summary-state" class="notification-state-badge pending">Dang cho cau hinh</span>
+                                </div>
+
+                                <div class="notification-summary-grid workflow-summary-grid-compact">
+                                    <div class="notification-summary-item">
+                                        <span class="summary-label">Trang thai hien tai</span>
+                                        <strong id="workflow-context-status">--</strong>
+                                    </div>
+                                    <div class="notification-summary-item">
+                                        <span class="summary-label">Su kien</span>
+                                        <strong id="workflow-summary-event">--</strong>
+                                    </div>
+                                    <div class="notification-summary-item">
+                                        <span class="summary-label">Don vi</span>
+                                        <strong id="workflow-context-dev-unit">--</strong>
+                                    </div>
+                                    <div class="notification-summary-item">
+                                        <span class="summary-label">Reviewer</span>
+                                        <strong id="workflow-context-reviewer">--</strong>
+                                    </div>
+                                    <div class="notification-summary-item">
+                                        <span class="summary-label">Lien he SMS</span>
+                                        <strong id="workflow-context-phone">--</strong>
+                                    </div>
+                                    <div class="notification-summary-item">
+                                        <span class="summary-label">Nguoi nhan du kien</span>
+                                        <strong id="workflow-summary-count">0 doi tuong</strong>
+                                    </div>
+                                    <div class="notification-summary-item notification-summary-item-wide">
+                                        <span class="summary-label">Lan xu ly gan nhat</span>
+                                        <strong id="workflow-summary-last-action">Chua ghi nhan</strong>
+                                    </div>
+                                    <div class="notification-summary-item notification-summary-item-wide">
+                                        <span class="summary-label">Ghi chu</span>
+                                        <strong id="workflow-summary-note">Logic gui SMS backend se duoc tich hop sau.</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <label class="workflow-toggle">
+                                <input type="checkbox" id="workflow-send-sms-toggle" checked
+                                    onchange="setWorkflowDecisionSmsEnabled(this.checked)">
+                                <span>Gui SMS sau khi xac nhan</span>
+                            </label>
+
+                            <div id="workflow-sms-status" class="workflow-inline-alert info">
+                                Dang preview danh sach nguoi nhan.
+                            </div>
+
+                            <div class="workflow-subcard">
+                                <span class="workflow-subcard-label">Nguoi nhan</span>
+                                <div id="workflow-recipient-list" class="workflow-recipient-list"></div>
+                            </div>
+
+                            <div class="workflow-subcard">
+                                <span class="workflow-subcard-label">Mau tin nhan</span>
+                                <div id="workflow-sms-preview" class="workflow-sms-preview"></div>
+                            </div>
+
+                            <div class="workflow-subcard">
+                                <span class="workflow-subcard-label">Ket qua sau khi xac nhan</span>
+                                <div id="workflow-outcome-summary" class="workflow-outcome-summary"></div>
+                            </div>
+
+                            <p class="workflow-disclaimer">
+                                Day la lop UI preview. Logic gui SMS thuc te se duoc noi backend sau.
+                            </p>
+                        </section>
+                    </aside>
+                </div>
+            </div>
+
+            <div class="workflow-modal-footer">
+                <button class="btn-confirm-cancel" onclick="closeWorkflowActionModal()">Huy</button>
+                <button class="workflow-secondary-btn" onclick="saveWorkflowDecisionDraft()">Luu ket luan</button>
+                <button class="btn-confirm-ok" id="workflow-confirm-btn" onclick="confirmWorkflowDecision()">
+                    Xac nhan & thuc hien
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="lib/xlsx.full.min.js"></script>
     <script src="script.js"></script>

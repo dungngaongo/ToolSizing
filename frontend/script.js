@@ -7,6 +7,8 @@ let currentProjectDataId = localStorage.getItem('currentProjectDataId') || null;
 // Biến lưu trạng thái dự án hiện tại
 let currentProjectStatus = null;
 let currentProjectStatusRound = 1;
+let currentProjectMeta = createEmptyProjectMeta();
+let workflowModalRuntime = null;
 
 // Biến lưu danh sách dự án
 let allProjects = [];
@@ -993,6 +995,173 @@ function getCurrentUser() {
     };
 }
 
+function createEmptyProjectMeta() {
+    return {
+        id: null,
+        name: '',
+        devUnit: '',
+        ownerName: '',
+        userId: null,
+        assignedAdmin1Id: null,
+        assignedAdmin1Name: '',
+        contact: {
+            email: '',
+            unit: '',
+            phone: ''
+        }
+    };
+}
+
+function resetCurrentProjectContext() {
+    currentProjectMeta = createEmptyProjectMeta();
+    workflowModalRuntime = null;
+}
+
+function parseContactComposite(rawValue) {
+    const parts = String(rawValue || '').split(' - ');
+    return {
+        email: (parts[0] || '').trim(),
+        unit: (parts[1] || '').trim(),
+        phone: parts.slice(2).join(' - ').trim()
+    };
+}
+
+function normalizePhone(value) {
+    return String(value || '').replace(/[^\d+]/g, '').trim();
+}
+
+function hasValidPhone(value) {
+    return normalizePhone(value).replace(/\+/g, '').length >= 8;
+}
+
+function maskPhone(value) {
+    const normalized = normalizePhone(value);
+    if (!normalized) return 'Chua co so';
+    if (normalized.length <= 6) return normalized;
+    return `${normalized.slice(0, 4)}***${normalized.slice(-3)}`;
+}
+
+function setCurrentProjectMetaFromProject(project) {
+    if (!project) return;
+    const fallbackContact = parseContactComposite(project.ownerName || currentProjectMeta.ownerName);
+    currentProjectMeta = {
+        id: project.id || currentProjectId || currentProjectMeta.id,
+        name: project.name || currentProjectMeta.name || 'Chua dat ten',
+        devUnit: project.devUnit || currentProjectMeta.devUnit || '',
+        ownerName: project.ownerName || currentProjectMeta.ownerName || '',
+        userId: project.userId || currentProjectMeta.userId || null,
+        assignedAdmin1Id: project.assignedAdmin1Id || null,
+        assignedAdmin1Name: project.assignedAdmin1Id === currentProjectMeta.assignedAdmin1Id
+            ? currentProjectMeta.assignedAdmin1Name
+            : '',
+        contact: {
+            email: currentProjectMeta.contact.email || fallbackContact.email,
+            unit: currentProjectMeta.contact.unit || fallbackContact.unit,
+            phone: currentProjectMeta.contact.phone || fallbackContact.phone
+        }
+    };
+}
+
+function applyProjectRequestDataToContext(requestData) {
+    if (!requestData) return;
+    const contact = parseContactComposite(requestData.contactPerson || currentProjectMeta.ownerName);
+    currentProjectMeta.name = requestData.projectName || currentProjectMeta.name;
+    currentProjectMeta.devUnit = requestData.devUnit || currentProjectMeta.devUnit;
+    currentProjectMeta.ownerName = requestData.contactPerson || currentProjectMeta.ownerName;
+    currentProjectMeta.contact = {
+        email: contact.email,
+        unit: contact.unit,
+        phone: contact.phone
+    };
+}
+
+async function hydrateCurrentProjectParticipants() {
+    if (!currentProjectMeta.assignedAdmin1Id) {
+        currentProjectMeta.assignedAdmin1Name = '';
+        return;
+    }
+
+    try {
+        const response = await fetchAPI(`${API_BASE_URL}/users/${currentProjectMeta.assignedAdmin1Id}`);
+        if (!response.ok) return;
+        const reviewer = await response.json();
+        currentProjectMeta.assignedAdmin1Name = reviewer.displayName || reviewer.username || reviewer.email || currentProjectMeta.assignedAdmin1Id;
+    } catch (error) {
+        Logger.warn('Khong tai duoc thong tin reviewer cho workflow UI', error);
+    }
+}
+
+function getWorkflowDraftStorageKey(projectId = currentProjectId, role = (getCurrentUser().role || '').toLowerCase()) {
+    return `workflow-ui-draft:${projectId || 'none'}:${role || 'guest'}`;
+}
+
+function getWorkflowHistoryStorageKey(projectId = currentProjectId) {
+    return `workflow-ui-history:${projectId || 'none'}`;
+}
+
+function readStoredJsonObject(key) {
+    try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function readStoredJsonArray(key) {
+    const parsed = readStoredJsonObject(key);
+    return Array.isArray(parsed) ? parsed : [];
+}
+
+function saveJsonToStorage(key, value) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+        Logger.warn('Khong the ghi localStorage cho workflow UI', error);
+    }
+}
+
+function saveWorkflowDraftState(state) {
+    if (!currentProjectId || !state) return;
+    saveJsonToStorage(getWorkflowDraftStorageKey(), state);
+}
+
+function readWorkflowDraftState() {
+    if (!currentProjectId) return null;
+    return readStoredJsonObject(getWorkflowDraftStorageKey());
+}
+
+function clearWorkflowDraftState() {
+    if (!currentProjectId) return;
+    localStorage.removeItem(getWorkflowDraftStorageKey());
+}
+
+function persistWorkflowUiRecord(entry) {
+    if (!currentProjectId || !entry) return;
+    const key = getWorkflowHistoryStorageKey();
+    const history = readStoredJsonArray(key);
+    history.unshift(entry);
+    saveJsonToStorage(key, history.slice(0, 12));
+}
+
+function getLatestWorkflowUiRecord() {
+    return readStoredJsonArray(getWorkflowHistoryStorageKey())[0] || null;
+}
+
+function formatDateTimeValue(value) {
+    if (!value) return 'Chua ghi nhan';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    }) + ' ' + date.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
 function getSectionDisplayName(sectionId) {
     return SECTION_DISPLAY_NAMES[sectionId] || sectionId || 'tab hiện tại';
 }
@@ -1497,6 +1666,7 @@ function clearProjectIds() {
     localStorage.removeItem('currentProjectId');
     localStorage.removeItem('currentProjectDataId');
     resetAdminReviewDirtySections();
+    resetCurrentProjectContext();
     Logger.debug('Cleared Project IDs');
 }
 
@@ -1630,6 +1800,897 @@ function getStatusText(status, statusRound) {
     }
 }
 
+function getWorkflowActionContext() {
+    const user = getCurrentUser();
+    const role = (user.role || 'user').toLowerCase();
+    const baseContext = {
+        role,
+        title: 'Ket luan giai doan',
+        subtitle: 'Chot nghiep vu va preview thong bao SMS lien quan.',
+        buttonLabel: 'Ket luan giai doan',
+        buttonIcon: 'fa-diagram-project',
+        buttonTone: role,
+        helperText: 'Luu du lieu cac tab truoc khi chot giai doan de dam bao preview thong bao chinh xac.',
+        disabledReason: '',
+        options: []
+    };
+
+    if (!currentProjectId) {
+        baseContext.disabledReason = 'Vui long luu du an truoc khi ket luan giai doan.';
+        return baseContext;
+    }
+
+    if (currentProjectStatus === 'HOAN_THANH') {
+        baseContext.disabledReason = 'Du an da hoan thanh va dang o che do chi doc.';
+        return baseContext;
+    }
+
+    if (role === 'admin1') {
+        baseContext.title = 'Ket luan tham dinh';
+        baseContext.buttonLabel = 'Ket luan tham dinh';
+        baseContext.buttonIcon = 'fa-list-check';
+        baseContext.helperText = 'Admin1 chot ket qua tham dinh, co the chuyen phe duyet hoac tra sizing lai.';
+        baseContext.options = [
+            {
+                id: 'admin1_forward_approval',
+                label: 'Dat yeu cau, chuyen phe duyet',
+                description: 'Chot tham dinh dat va chuyen du an sang buoc phe duyet.',
+                kind: 'transition',
+                nextStatus: 'PHE_DUYET',
+                eventLabel: 'Admin1 hoan tat tham dinh',
+                confirmLabel: 'Xac nhan chuyen phe duyet',
+                formTitle: 'Noi dung ban giao cho admin2',
+                fields: [
+                    { id: 'reviewSummary', type: 'textarea', label: 'Nhan xet tong quat', required: true, rows: 4, placeholder: 'Tom tat ket qua tham dinh...' },
+                    { id: 'admin2Note', type: 'textarea', label: 'Ghi chu gui admin2', rows: 3, placeholder: 'Luu y de admin2 phe duyet nhanh hon...' },
+                    { id: 'reviewConfirmation', type: 'checkbox', required: true, label: 'Toi xac nhan da review day du va cac hang muc de xuat deu da dat.' }
+                ]
+            },
+            {
+                id: 'admin1_return_sizing',
+                label: 'Chua dat, tra user sizing lai',
+                description: 'Dua du an ve sizing va tao preview SMS thong bao noi dung can sua.',
+                kind: 'transition',
+                nextStatus: 'SIZING',
+                eventLabel: 'Admin1 tra sizing lai',
+                confirmLabel: 'Xac nhan tra sizing lai',
+                formTitle: 'Noi dung tra lai cho user',
+                fields: [
+                    { id: 'returnReason', type: 'textarea', label: 'Ly do tra lai', required: true, rows: 4, placeholder: 'Neu ro ly do du an chua dat...' },
+                    {
+                        id: 'repairSections',
+                        type: 'checkbox-group',
+                        label: 'Cac muc can sua',
+                        required: true,
+                        options: [
+                            { value: 'Yeu cau bai toan', label: 'Yeu cau bai toan' },
+                            { value: 'Thong tin dau vao', label: 'Thong tin dau vao' },
+                            { value: 'Mo hinh he thong', label: 'Mo hinh he thong' },
+                            { value: 'Dinh co he thong', label: 'Dinh co he thong' },
+                            { value: 'Tong hop va de xuat', label: 'Tong hop va de xuat' }
+                        ]
+                    },
+                    {
+                        id: 'returnPriority',
+                        type: 'select',
+                        label: 'Muc do uu tien',
+                        required: true,
+                        options: [
+                            { value: '', label: '-- Chon muc do --' },
+                            { value: 'Can bo sung thong tin', label: 'Can bo sung thong tin' },
+                            { value: 'Can sizing lai gap', label: 'Can sizing lai gap' }
+                        ]
+                    },
+                    { id: 'returnDeadline', type: 'date', label: 'Han mong muon hoan thien lai' },
+                    { id: 'userReturnNote', type: 'textarea', label: 'Ghi chu gui user', rows: 3, placeholder: 'Huong dan them cho dau moi sizing...' }
+                ]
+            },
+            {
+                id: 'admin1_save_draft',
+                label: 'Tam luu ket luan, chua chuyen buoc',
+                description: 'Luu nhanh noi dung tham dinh vao draft local UI, chua doi trang thai du an.',
+                kind: 'draft',
+                eventLabel: 'Luu nhap tham dinh',
+                confirmLabel: 'Luu ket luan',
+                formTitle: 'Noi dung draft',
+                fields: [
+                    { id: 'draftReviewNote', type: 'textarea', label: 'Ghi chu noi bo', rows: 3, placeholder: 'Noi dung can theo doi truoc khi chot...' }
+                ]
+            }
+        ];
+
+        if (currentProjectStatus !== 'SIZING' && currentProjectStatus !== 'THAM_DINH') {
+            baseContext.disabledReason = 'Admin1 chi ket luan khi du an dang o Sizing hoac Tham dinh.';
+        }
+        return baseContext;
+    }
+
+    if (role === 'admin2') {
+        baseContext.title = 'Ket luan phe duyet';
+        baseContext.buttonLabel = 'Ket luan phe duyet';
+        baseContext.buttonIcon = 'fa-stamp';
+        baseContext.helperText = 'Admin2 chot phe duyet cuoi cung hoac tra sizing lai cho user/admin1.';
+        baseContext.options = [
+            {
+                id: 'admin2_approve_final',
+                label: 'Phe duyet hoan tat',
+                description: 'Phe duyet du an va chuyen sang trang thai hoan thanh.',
+                kind: 'approve',
+                eventLabel: 'Admin2 phe duyet xong',
+                confirmLabel: 'Xac nhan phe duyet',
+                formTitle: 'Thong tin phe duyet',
+                fields: [
+                    { id: 'approvalNote', type: 'textarea', label: 'Ghi chu phe duyet', required: true, rows: 4, placeholder: 'Tom tat noi dung phe duyet...' },
+                    { id: 'decisionCode', type: 'text', label: 'Ma/Phu luc quyet dinh', placeholder: 'VD: QD-2026-015' },
+                    { id: 'approvalConfirmation', type: 'checkbox', required: true, label: 'Toi xac nhan tat ca cac hang muc phe duyet cuoi cung da dat.' }
+                ]
+            },
+            {
+                id: 'admin2_return_sizing',
+                label: 'Chua phe duyet, tra sizing lai',
+                description: 'Tra sizing lai va gui preview thong bao cho user va reviewer lien quan.',
+                kind: 'transition',
+                nextStatus: 'SIZING',
+                eventLabel: 'Admin2 tra sizing lai',
+                confirmLabel: 'Xac nhan tra sizing lai',
+                formTitle: 'Noi dung tra lai sau phe duyet',
+                fields: [
+                    { id: 'rejectionReason', type: 'textarea', label: 'Ly do chua phe duyet', required: true, rows: 4, placeholder: 'Neu ro ly do khong the phe duyet...' },
+                    {
+                        id: 'rejectionSections',
+                        type: 'checkbox-group',
+                        label: 'Hang muc can lam lai',
+                        required: true,
+                        options: [
+                            { value: 'Yeu cau bai toan', label: 'Yeu cau bai toan' },
+                            { value: 'Thong tin dau vao', label: 'Thong tin dau vao' },
+                            { value: 'Mo hinh he thong', label: 'Mo hinh he thong' },
+                            { value: 'Dinh co he thong', label: 'Dinh co he thong' },
+                            { value: 'Tong hop va de xuat', label: 'Tong hop va de xuat' }
+                        ]
+                    },
+                    {
+                        id: 'rejectionPriority',
+                        type: 'select',
+                        label: 'Muc do uu tien',
+                        required: true,
+                        options: [
+                            { value: '', label: '-- Chon muc do --' },
+                            { value: 'Sizing lai gap', label: 'Sizing lai gap' },
+                            { value: 'Can lam ro them', label: 'Can lam ro them' }
+                        ]
+                    },
+                    { id: 'rejectionNote', type: 'textarea', label: 'Ghi chu gui admin1/user', rows: 3, placeholder: 'Bo sung luu y cho vong sizing tiep theo...' }
+                ]
+            },
+            {
+                id: 'admin2_hold_review',
+                label: 'Tam giu o buoc phe duyet',
+                description: 'Luu draft noi dung phe duyet, chua thay doi trang thai du an.',
+                kind: 'draft',
+                eventLabel: 'Tam giu phe duyet',
+                confirmLabel: 'Luu ket luan',
+                formTitle: 'Noi dung draft',
+                fields: [
+                    { id: 'holdNote', type: 'textarea', label: 'Ghi chu noi bo', rows: 3, placeholder: 'Noi dung can theo doi truoc khi phe duyet...' }
+                ]
+            }
+        ];
+
+        if (currentProjectStatus !== 'THAM_DINH' && currentProjectStatus !== 'PHE_DUYET') {
+            baseContext.disabledReason = 'Admin2 chi phe duyet khi du an da qua buoc tham dinh.';
+        }
+        return baseContext;
+    }
+
+    baseContext.title = 'Gui ket qua sizing';
+    baseContext.buttonLabel = 'Gui ket qua sizing';
+    baseContext.buttonIcon = 'fa-paper-plane';
+    baseContext.helperText = 'User chot ket qua sizing va preview thong bao cho buoc tham dinh.';
+    baseContext.options = [
+        {
+            id: 'user_submit_review',
+            label: 'Hoan tat sizing, gui tham dinh',
+            description: 'Chuyen du an sang buoc tham dinh va preview thong bao cho nguoi lien quan.',
+            kind: 'transition',
+            nextStatus: 'THAM_DINH',
+            eventLabel: 'User hoan tat sizing',
+            confirmLabel: 'Xac nhan chuyen tham dinh',
+            formTitle: 'Thong tin ban giao cho admin1',
+            fields: [
+                { id: 'handoffNote', type: 'textarea', label: 'Ghi chu cho admin1', rows: 3, placeholder: 'Luu y quan trong cho nguoi tham dinh...' },
+                {
+                    id: 'handoffPriority',
+                    type: 'select',
+                    label: 'Muc do uu tien',
+                    required: true,
+                    options: [
+                        { value: '', label: '-- Chon muc do --' },
+                        { value: 'Binh thuong', label: 'Binh thuong' },
+                        { value: 'Gap', label: 'Gap' }
+                    ]
+                },
+                { id: 'handoffConfirmation', type: 'checkbox', required: true, label: 'Toi xac nhan da luu va ra soat du lieu sizing hien tai.' }
+            ]
+        },
+        {
+            id: 'user_save_draft',
+            label: 'Luu nhap, chua chuyen buoc',
+            description: 'Luu noi dung handoff vao draft local UI de xem lai sau.',
+            kind: 'draft',
+            eventLabel: 'Luu nhap sizing',
+            confirmLabel: 'Luu ket luan',
+            formTitle: 'Noi dung draft',
+            fields: [
+                { id: 'userDraftNote', type: 'textarea', label: 'Ghi chu noi bo', rows: 3, placeholder: 'Noi dung can ghi nho truoc khi gui tham dinh...' }
+            ]
+        }
+    ];
+
+    return baseContext;
+}
+
+function getDefaultWorkflowOption(options) {
+    if (!Array.isArray(options) || options.length === 0) return null;
+    return options.find(option => option.kind !== 'draft') || options[0];
+}
+
+function getWorkflowOptionById(optionId, context = workflowModalRuntime?.context) {
+    return (context?.options || []).find(option => option.id === optionId) || null;
+}
+
+function getActiveWorkflowOption() {
+    return getWorkflowOptionById(workflowModalRuntime?.state?.optionId);
+}
+
+function getWorkflowFieldValue(fieldId, fallbackValue = '') {
+    if (!workflowModalRuntime) return fallbackValue;
+    const value = workflowModalRuntime.state.values[fieldId];
+    return value === undefined ? fallbackValue : value;
+}
+
+function ensureWorkflowStateDefaults(context, state) {
+    const safeState = state || { optionId: '', sendSms: true, values: {} };
+    safeState.values = safeState.values || {};
+    const defaultOption = getDefaultWorkflowOption(context.options);
+    safeState.optionId = safeState.optionId || defaultOption?.id || '';
+    if (typeof safeState.sendSms !== 'boolean') safeState.sendSms = true;
+
+    (context.options || []).forEach(option => {
+        (option.fields || []).forEach(field => {
+            if (safeState.values[field.id] !== undefined) return;
+            if (field.type === 'checkbox-group') safeState.values[field.id] = [];
+            else if (field.type === 'checkbox') safeState.values[field.id] = false;
+            else if (field.type === 'select') safeState.values[field.id] = field.options?.[0]?.value || '';
+            else safeState.values[field.id] = '';
+        });
+    });
+
+    if (!getWorkflowOptionById(safeState.optionId, context)) {
+        safeState.optionId = defaultOption?.id || '';
+    }
+
+    return safeState;
+}
+
+function computeWorkflowOutcome(option) {
+    if (!option) {
+        return {
+            status: currentProjectStatus || 'SIZING',
+            round: currentProjectStatusRound || 1,
+            statusText: getStatusText(currentProjectStatus || 'SIZING', currentProjectStatusRound || 1)
+        };
+    }
+
+    if (option.kind === 'draft') {
+        return {
+            status: currentProjectStatus || 'SIZING',
+            round: currentProjectStatusRound || 1,
+            statusText: 'Khong doi trang thai'
+        };
+    }
+
+    const baseRound = currentProjectStatusRound || 1;
+    const returningToSizing = option.nextStatus === 'SIZING' &&
+        (currentProjectStatus === 'THAM_DINH' || currentProjectStatus === 'PHE_DUYET');
+    const round = returningToSizing ? baseRound + 1 : baseRound;
+    const status = option.kind === 'approve' ? 'HOAN_THANH' : option.nextStatus;
+
+    return {
+        status,
+        round,
+        statusText: getStatusText(status, round)
+    };
+}
+
+function createWorkflowRecipient(label, detail, phone) {
+    return {
+        label,
+        detail,
+        phone,
+        valid: hasValidPhone(phone)
+    };
+}
+
+function buildWorkflowRecipients(option) {
+    if (!option) return [];
+
+    const reviewerLabel = currentProjectMeta.assignedAdmin1Name
+        ? `${currentProjectMeta.assignedAdmin1Name}`
+        : (currentProjectMeta.assignedAdmin1Id ? 'Admin1 duoc chi dinh' : 'Chua chi dinh admin1');
+    const contactUnit = currentProjectMeta.contact.unit || currentProjectMeta.devUnit || 'Dau moi du an';
+    const contactPhone = currentProjectMeta.contact.phone || '';
+    const recipients = [];
+
+    switch (option.id) {
+        case 'user_submit_review':
+            recipients.push(createWorkflowRecipient('Admin1 tham dinh', reviewerLabel, ''));
+            if (contactPhone) recipients.push(createWorkflowRecipient('Dau moi sizing', contactUnit, contactPhone));
+            break;
+        case 'admin1_forward_approval':
+            recipients.push(createWorkflowRecipient('Admin2 phe duyet', 'Nguoi phe duyet cuoi cung', ''));
+            if (contactPhone) recipients.push(createWorkflowRecipient('Dau moi sizing', contactUnit, contactPhone));
+            break;
+        case 'admin1_return_sizing':
+            recipients.push(createWorkflowRecipient('Dau moi sizing', contactUnit, contactPhone));
+            break;
+        case 'admin2_approve_final':
+            recipients.push(createWorkflowRecipient('Dau moi sizing', contactUnit, contactPhone));
+            recipients.push(createWorkflowRecipient('Admin1 reviewer', reviewerLabel, ''));
+            break;
+        case 'admin2_return_sizing':
+            recipients.push(createWorkflowRecipient('Dau moi sizing', contactUnit, contactPhone));
+            recipients.push(createWorkflowRecipient('Admin1 reviewer', reviewerLabel, ''));
+            break;
+        default:
+            break;
+    }
+
+    return recipients;
+}
+
+function getWorkflowArrayLabel(option, fieldId) {
+    const field = (option?.fields || []).find(item => item.id === fieldId);
+    const selectedValues = Array.isArray(getWorkflowFieldValue(fieldId, []))
+        ? getWorkflowFieldValue(fieldId, [])
+        : [];
+    const labels = (field?.options || [])
+        .filter(item => selectedValues.includes(item.value))
+        .map(item => item.label);
+    return labels.join(', ');
+}
+
+function buildWorkflowSmsPreview(option) {
+    if (!option || option.kind === 'draft') {
+        return 'Lua chon nay chi luu nhap UI, khong phat sinh thong bao SMS.';
+    }
+
+    const outcome = computeWorkflowOutcome(option);
+    const projectName = currentProjectMeta.name || 'Du an chua dat ten';
+    const reviewSummary = getWorkflowFieldValue('reviewSummary', '');
+    const handoffNote = getWorkflowFieldValue('handoffNote', '');
+    const returnReason = getWorkflowFieldValue('returnReason', '');
+    const rejectionReason = getWorkflowFieldValue('rejectionReason', '');
+    const approvalNote = getWorkflowFieldValue('approvalNote', '');
+    const userNote = getWorkflowFieldValue('userReturnNote', '');
+    const rejectionNote = getWorkflowFieldValue('rejectionNote', '');
+    const repairSections = getWorkflowArrayLabel(option, 'repairSections');
+    const rejectionSections = getWorkflowArrayLabel(option, 'rejectionSections');
+
+    switch (option.id) {
+        case 'user_submit_review':
+            return `Du an ${projectName} da duoc sizing xong va chuyen tham dinh ${outcome.statusText.toLowerCase()}.${handoffNote ? ` Luu y: ${handoffNote}` : ''}`;
+        case 'admin1_forward_approval':
+            return `Du an ${projectName} da duoc tham dinh dat yeu cau va chuyen phe duyet.${reviewSummary ? ` Tom tat: ${reviewSummary}` : ''}`;
+        case 'admin1_return_sizing':
+            return `Du an ${projectName} chua dat tham dinh, vui long sizing lai ${outcome.statusText.toLowerCase()}.${repairSections ? ` Can sua: ${repairSections}.` : ''}${returnReason ? ` Ly do: ${returnReason}` : ''}${userNote ? ` Ghi chu: ${userNote}` : ''}`;
+        case 'admin2_approve_final':
+            return `Du an ${projectName} da duoc phe duyet hoan tat.${approvalNote ? ` Ghi chu: ${approvalNote}` : ''}`;
+        case 'admin2_return_sizing':
+            return `Du an ${projectName} chua duoc phe duyet, vui long sizing lai ${outcome.statusText.toLowerCase()}.${rejectionSections ? ` Can lam lai: ${rejectionSections}.` : ''}${rejectionReason ? ` Ly do: ${rejectionReason}` : ''}${rejectionNote ? ` Ghi chu: ${rejectionNote}` : ''}`;
+        default:
+            return `Thong bao du kien cho du an ${projectName}.`;
+    }
+}
+
+function renderWorkflowRecipientList(recipients, emptyMessage = 'Chua co nguoi nhan du kien.') {
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+        return `<div class="workflow-empty-state">${emptyMessage}</div>`;
+    }
+
+    return recipients.map(recipient => `
+        <div class="workflow-recipient-item">
+            <div class="workflow-recipient-main">
+                <strong>${escapeHtml(recipient.label || '--')}</strong>
+                <span>${escapeHtml(recipient.detail || 'Chua co mo ta')}</span>
+            </div>
+            <span class="recipient-phone-badge ${recipient.valid ? 'valid' : 'missing'}">
+                ${escapeHtml(recipient.valid ? maskPhone(recipient.phone) : 'Thieu SDT')}
+            </span>
+        </div>
+    `).join('');
+}
+
+function renderWorkflowSummaryRecipientList(recipients) {
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+        return '<div class="workflow-empty-state">Chua co nguoi nhan du kien cho su kien nay.</div>';
+    }
+
+    return recipients.map(recipient => `
+        <div class="summary-recipient-item">
+            <div class="summary-recipient-main">
+                <strong>${escapeHtml(recipient.label || '--')}</strong>
+                <span>${escapeHtml(recipient.detail || 'Chua co mo ta')}</span>
+            </div>
+            <span class="recipient-phone-badge ${recipient.valid ? 'valid' : 'missing'}">
+                ${escapeHtml(recipient.valid ? maskPhone(recipient.phone) : 'Thieu SDT')}
+            </span>
+        </div>
+    `).join('');
+}
+
+function buildNotificationSummaryState(context, option, recipients) {
+    if (context.disabledReason) return { cls: 'disabled', label: 'Tam khoa' };
+    if ((recipients || []).some(recipient => recipient.valid)) return { cls: 'ready', label: 'San sang preview' };
+    return { cls: 'pending', label: option?.kind === 'draft' ? 'Luu nhap' : 'Cho bo sung SDT' };
+}
+
+function updateProjectContextPanel() {
+    const inProject = document.getElementById('project-detail-page')?.style.display !== 'none' && !!currentProjectId;
+    if (!inProject) return;
+
+    const setText = (id, value) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+    };
+    const workflowContext = workflowModalRuntime?.context || getWorkflowActionContext();
+    const activeOption = workflowModalRuntime
+        ? (getActiveWorkflowOption() || getDefaultWorkflowOption(workflowContext.options))
+        : getDefaultWorkflowOption(workflowContext.options);
+    const recipients = buildWorkflowRecipients(activeOption);
+    const latestRecord = getLatestWorkflowUiRecord();
+    const summaryState = buildNotificationSummaryState(workflowContext, activeOption, recipients);
+    const summaryStateEl = document.getElementById('workflow-summary-state');
+
+    setText('workflow-context-project-name', currentProjectMeta.name || 'Du an chua dat ten');
+    setText('workflow-context-status', getStatusText(currentProjectStatus || 'SIZING', currentProjectStatusRound || 1));
+    setText('workflow-context-dev-unit', currentProjectMeta.devUnit || 'Chua cap nhat');
+    setText(
+        'workflow-context-reviewer',
+        currentProjectMeta.assignedAdmin1Name || (currentProjectMeta.assignedAdmin1Id ? 'Da chi dinh' : 'Chua chi dinh')
+    );
+    setText('workflow-context-phone', currentProjectMeta.contact.phone ? maskPhone(currentProjectMeta.contact.phone) : 'Chua co so');
+
+    if (summaryStateEl) {
+        summaryStateEl.className = `notification-state-badge ${summaryState.cls}`;
+        summaryStateEl.textContent = summaryState.label;
+    }
+
+    setText('workflow-summary-event', activeOption?.eventLabel || 'Chua san sang');
+    setText('workflow-summary-count', `${recipients.length} doi tuong`);
+    setText(
+        'workflow-summary-last-action',
+        latestRecord
+        ? `${latestRecord.optionLabel} - ${formatDateTimeValue(latestRecord.createdAt)}`
+        : 'Chua ghi nhan'
+    );
+    setText(
+        'workflow-summary-note',
+        workflowContext.disabledReason || 'UI preview da san sang, logic gui SMS backend se noi sau.'
+    );
+}
+
+function createWorkflowRuntimeState() {
+    const context = getWorkflowActionContext();
+    const savedDraft = readWorkflowDraftState();
+    return {
+        context,
+        state: ensureWorkflowStateDefaults(context, savedDraft || { optionId: '', sendSms: true, values: {} })
+    };
+}
+
+function renderWorkflowOptionCards(context, selectedOptionId) {
+    return (context.options || []).map(option => `
+        <label class="workflow-option-card ${selectedOptionId === option.id ? 'selected' : ''}">
+            <input type="radio" name="workflow-option" value="${escapeHtml(option.id)}"
+                ${selectedOptionId === option.id ? 'checked' : ''}
+                onchange="setWorkflowDecisionOption('${escapeHtml(option.id)}')">
+            <strong>${escapeHtml(option.label)}</strong>
+            <p>${escapeHtml(option.description)}</p>
+        </label>
+    `).join('');
+}
+
+function renderWorkflowField(option, field) {
+    const currentValue = getWorkflowFieldValue(field.id, field.type === 'checkbox-group' ? [] : (field.type === 'checkbox' ? false : ''));
+    const requiredMark = field.required ? '<span class="workflow-required">*</span>' : '';
+
+    if (field.type === 'textarea') {
+        return `
+            <div class="workflow-field" id="workflow-field-${escapeHtml(field.id)}">
+                <label for="workflow-input-${escapeHtml(field.id)}">${escapeHtml(field.label)} ${requiredMark}</label>
+                <textarea id="workflow-input-${escapeHtml(field.id)}" rows="${field.rows || 3}"
+                    placeholder="${escapeHtml(field.placeholder || '')}"
+                    oninput="updateWorkflowModalValue('${escapeHtml(field.id)}', this.value)">${escapeHtml(currentValue || '')}</textarea>
+            </div>
+        `;
+    }
+
+    if (field.type === 'text' || field.type === 'date') {
+        return `
+            <div class="workflow-field" id="workflow-field-${escapeHtml(field.id)}">
+                <label for="workflow-input-${escapeHtml(field.id)}">${escapeHtml(field.label)} ${requiredMark}</label>
+                <input id="workflow-input-${escapeHtml(field.id)}" type="${field.type}"
+                    value="${escapeHtml(currentValue || '')}"
+                    placeholder="${escapeHtml(field.placeholder || '')}"
+                    oninput="updateWorkflowModalValue('${escapeHtml(field.id)}', this.value)">
+            </div>
+        `;
+    }
+
+    if (field.type === 'select') {
+        const optionsHtml = (field.options || []).map(item => `
+            <option value="${escapeHtml(item.value)}" ${item.value === currentValue ? 'selected' : ''}>${escapeHtml(item.label)}</option>
+        `).join('');
+
+        return `
+            <div class="workflow-field" id="workflow-field-${escapeHtml(field.id)}">
+                <label for="workflow-input-${escapeHtml(field.id)}">${escapeHtml(field.label)} ${requiredMark}</label>
+                <select id="workflow-input-${escapeHtml(field.id)}"
+                    onchange="updateWorkflowModalValue('${escapeHtml(field.id)}', this.value)">${optionsHtml}</select>
+            </div>
+        `;
+    }
+
+    if (field.type === 'checkbox') {
+        return `
+            <div class="workflow-field" id="workflow-field-${escapeHtml(field.id)}">
+                <label class="workflow-check-card">
+                    <input type="checkbox" ${currentValue ? 'checked' : ''}
+                        onchange="updateWorkflowModalChecked('${escapeHtml(field.id)}', this.checked)">
+                    <span>${escapeHtml(field.label)} ${field.required ? '(bat buoc)' : ''}</span>
+                </label>
+            </div>
+        `;
+    }
+
+    if (field.type === 'checkbox-group') {
+        const selectedValues = Array.isArray(currentValue) ? currentValue : [];
+        const groupHtml = (field.options || []).map(item => `
+            <label class="workflow-check-card">
+                <input type="checkbox"
+                    ${selectedValues.includes(item.value) ? 'checked' : ''}
+                    onchange="updateWorkflowModalArrayField('${escapeHtml(field.id)}', '${escapeHtml(item.value)}', this.checked)">
+                <span>${escapeHtml(item.label)}</span>
+            </label>
+        `).join('');
+
+        return `
+            <div class="workflow-field" id="workflow-field-${escapeHtml(field.id)}">
+                <span class="workflow-field-legend">${escapeHtml(field.label)} ${requiredMark}</span>
+                <div class="workflow-checkbox-group">${groupHtml}</div>
+            </div>
+        `;
+    }
+
+    return '';
+}
+
+function renderWorkflowFieldsForOption(option) {
+    if (!option) return '<div class="workflow-empty-state">Khong tim thay lua chon workflow phu hop.</div>';
+    const fieldsHtml = (option.fields || []).map(field => renderWorkflowField(option, field)).join('');
+    return fieldsHtml || '<div class="workflow-empty-state">Lua chon nay khong yeu cau nhap them thong tin.</div>';
+}
+
+function renderWorkflowActionModal() {
+    if (!workflowModalRuntime) return;
+
+    const { context, state } = workflowModalRuntime;
+    const option = getActiveWorkflowOption() || getDefaultWorkflowOption(context.options);
+
+    document.getElementById('workflow-modal-kicker').textContent = context.buttonLabel;
+    document.getElementById('workflow-modal-title').textContent = context.title;
+    document.getElementById('workflow-modal-subtitle').textContent = `Du an: ${currentProjectMeta.name || 'Chua dat ten'}`;
+    document.getElementById('workflow-current-status').textContent = `Trang thai hien tai: ${getStatusText(currentProjectStatus || 'SIZING', currentProjectStatusRound || 1)}`;
+    document.getElementById('workflow-option-list').innerHTML = renderWorkflowOptionCards(context, state.optionId);
+    document.getElementById('workflow-form-title').textContent = option?.formTitle || 'Noi dung nghiep vu';
+    document.getElementById('workflow-form-fields').innerHTML = renderWorkflowFieldsForOption(option);
+
+    const smsToggle = document.getElementById('workflow-send-sms-toggle');
+    if (smsToggle) {
+        const smsSupported = option?.kind !== 'draft';
+        smsToggle.checked = smsSupported && !!state.sendSms;
+        smsToggle.disabled = !smsSupported;
+    }
+
+    refreshWorkflowModalPreview();
+}
+
+function openWorkflowActionModal() {
+    const context = getWorkflowActionContext();
+    if (context.disabledReason) {
+        showToast(context.disabledReason, 'warning');
+        return;
+    }
+
+    workflowModalRuntime = createWorkflowRuntimeState();
+    const modal = document.getElementById('workflow-action-modal');
+    if (!modal) return;
+
+    renderWorkflowActionModal();
+    modal.style.display = 'flex';
+}
+
+function closeWorkflowActionModal() {
+    const modal = document.getElementById('workflow-action-modal');
+    if (modal) modal.style.display = 'none';
+    workflowModalRuntime = null;
+}
+
+function setWorkflowDecisionOption(optionId) {
+    if (!workflowModalRuntime) return;
+    workflowModalRuntime.state.optionId = optionId;
+    renderWorkflowActionModal();
+}
+
+function updateWorkflowModalValue(fieldId, value) {
+    if (!workflowModalRuntime) return;
+    workflowModalRuntime.state.values[fieldId] = value;
+    clearWorkflowFieldError(fieldId);
+    refreshWorkflowModalPreview();
+}
+
+function updateWorkflowModalChecked(fieldId, checked) {
+    if (!workflowModalRuntime) return;
+    workflowModalRuntime.state.values[fieldId] = !!checked;
+    clearWorkflowFieldError(fieldId);
+    refreshWorkflowModalPreview();
+}
+
+function updateWorkflowModalArrayField(fieldId, value, checked) {
+    if (!workflowModalRuntime) return;
+    const currentValues = Array.isArray(workflowModalRuntime.state.values[fieldId])
+        ? [...workflowModalRuntime.state.values[fieldId]]
+        : [];
+    const nextValues = checked
+        ? Array.from(new Set([...currentValues, value]))
+        : currentValues.filter(item => item !== value);
+    workflowModalRuntime.state.values[fieldId] = nextValues;
+    clearWorkflowFieldError(fieldId);
+    refreshWorkflowModalPreview();
+}
+
+function setWorkflowDecisionSmsEnabled(checked) {
+    if (!workflowModalRuntime) return;
+    workflowModalRuntime.state.sendSms = !!checked;
+    refreshWorkflowModalPreview();
+}
+
+function refreshWorkflowModalPreview() {
+    if (!workflowModalRuntime) return;
+    const option = getActiveWorkflowOption();
+    const recipients = buildWorkflowRecipients(option);
+    const validRecipientCount = recipients.filter(recipient => recipient.valid).length;
+    const smsEnabled = option?.kind !== 'draft' && workflowModalRuntime.state.sendSms;
+    const smsStatus = document.getElementById('workflow-sms-status');
+    const confirmBtn = document.getElementById('workflow-confirm-btn');
+
+    if (smsStatus) {
+        smsStatus.className = `workflow-inline-alert ${(smsEnabled && validRecipientCount > 0) ? 'info' : 'warning'}`;
+        smsStatus.textContent = option?.kind === 'draft'
+            ? 'Lua chon nay chi luu nhap UI, chua kich hoat SMS.'
+            : (smsEnabled
+                ? (validRecipientCount > 0
+                    ? `Da preview ${validRecipientCount}/${recipients.length} nguoi nhan co SDT hop le.`
+                    : 'Chua co nguoi nhan nao co SDT hop le trong he thong hien tai.')
+                : 'SMS dang tat cho thao tac nay.');
+    }
+
+    document.getElementById('workflow-recipient-list').innerHTML = renderWorkflowRecipientList(recipients);
+    document.getElementById('workflow-sms-preview').textContent = buildWorkflowSmsPreview(option);
+
+    const outcome = computeWorkflowOutcome(option);
+    document.getElementById('workflow-outcome-summary').innerHTML = `
+        <div class="workflow-outcome-row">
+            <span>Trang thai moi</span>
+            <strong>${escapeHtml(outcome.statusText)}</strong>
+        </div>
+        <div class="workflow-outcome-row">
+            <span>SMS</span>
+            <strong>${escapeHtml(option?.kind === 'draft' ? 'Khong gui' : (smsEnabled ? 'Preview san sang' : 'Tat preview'))}</strong>
+        </div>
+        <div class="workflow-outcome-row">
+            <span>Nguoi nhan hop le</span>
+            <strong>${escapeHtml(`${validRecipientCount}/${recipients.length}`)}</strong>
+        </div>
+    `;
+
+    if (confirmBtn) confirmBtn.textContent = option?.confirmLabel || 'Xac nhan & thuc hien';
+    updateProjectContextPanel();
+}
+
+function clearWorkflowFieldError(fieldId) {
+    const fieldEl = document.getElementById(`workflow-field-${fieldId}`);
+    if (fieldEl) {
+        fieldEl.querySelectorAll('input, textarea, select').forEach(el => el.classList.remove('workflow-field-error'));
+    }
+}
+
+function markWorkflowFieldError(fieldId) {
+    const fieldEl = document.getElementById(`workflow-field-${fieldId}`);
+    if (fieldEl) {
+        fieldEl.querySelectorAll('input, textarea, select').forEach(el => el.classList.add('workflow-field-error'));
+    }
+}
+
+function validateWorkflowDecision(option) {
+    const invalidFieldIds = [];
+    (option?.fields || []).forEach(field => {
+        const value = getWorkflowFieldValue(field.id, field.type === 'checkbox-group' ? [] : (field.type === 'checkbox' ? false : ''));
+        if (!field.required) return;
+
+        if (field.type === 'checkbox-group' && (!Array.isArray(value) || value.length === 0)) invalidFieldIds.push(field.id);
+        else if (field.type === 'checkbox' && !value) invalidFieldIds.push(field.id);
+        else if ((field.type === 'textarea' || field.type === 'text' || field.type === 'date' || field.type === 'select') && !String(value || '').trim()) invalidFieldIds.push(field.id);
+    });
+
+    invalidFieldIds.forEach(markWorkflowFieldError);
+    return invalidFieldIds;
+}
+
+function buildWorkflowAuditEntry(option, executed) {
+    const recipients = buildWorkflowRecipients(option);
+    const outcome = computeWorkflowOutcome(option);
+    return {
+        createdAt: new Date().toISOString(),
+        optionId: option?.id || 'unknown',
+        optionLabel: option?.label || 'Khong ro hanh dong',
+        outcomeText: outcome.statusText,
+        smsEnabled: option?.kind !== 'draft' && !!workflowModalRuntime?.state?.sendSms,
+        recipients: recipients,
+        preview: buildWorkflowSmsPreview(option),
+        executed: !!executed
+    };
+}
+
+function saveWorkflowDecisionDraft() {
+    if (!workflowModalRuntime) return;
+    saveWorkflowDraftState(workflowModalRuntime.state);
+    persistWorkflowUiRecord(buildWorkflowAuditEntry(getActiveWorkflowOption(), false));
+    updateProjectContextPanel();
+    showToast('Da luu ket luan nhap tren UI.', 'success');
+}
+
+async function transitionProjectStatusDirect(nextStatus) {
+    const response = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+    });
+
+    if (!response.ok) {
+        throw new Error(await parseApiError(response.clone()));
+    }
+
+    return response.json();
+}
+
+function applyProjectStatusFromResponse(project) {
+    if (!project) return;
+    currentProjectStatus = project.status || currentProjectStatus || 'SIZING';
+    currentProjectStatusRound = project.statusRound || currentProjectStatusRound || 1;
+    setCurrentProjectMetaFromProject(project);
+    updateProjectStatusDisplay();
+    updateProjectContextPanel();
+}
+
+async function executeAdmin2ApprovalAction() {
+    const dirtySectionId = getFirstDirtyAdminSectionId();
+    if (dirtySectionId) {
+        const dirtyIssue = buildApprovalIssue(
+            dirtySectionId,
+            `Co thay doi danh gia chua luu o tab ${getSectionDisplayName(dirtySectionId)}. Vui long luu truoc khi phe duyet.`,
+            getFirstAdminReviewElementForSection(dirtySectionId)
+        );
+        showToast(dirtyIssue.message, 'warning');
+        navigateToApprovalIssue(dirtyIssue);
+        throw new Error('ApprovalBlocked');
+    }
+
+    const blockingIssues = collectApprovalBlockingIssues();
+    if (blockingIssues.length > 0) {
+        showToast('Khong the phe duyet. Vui long hoan tat danh gia admin truoc.', 'warning');
+        navigateToApprovalIssue(blockingIssues[0]);
+        throw new Error('ApprovalBlocked');
+    }
+
+    const response = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) {
+        const body = await parseApiErrorBody(response.clone());
+        const firstServerIssue = body?.approvalIssues?.[0];
+        if (firstServerIssue) {
+            const sectionId = mapApprovalSectionToPage(firstServerIssue.section) || 'page-request';
+            const fallbackIssue = buildApprovalIssue(
+                sectionId,
+                firstServerIssue.message || 'Khong the phe duyet du an.',
+                getFirstAdminReviewElementForSection(sectionId, firstServerIssue.instanceKey || null),
+                { instanceKey: firstServerIssue.instanceKey || null }
+            );
+            showToast(body?.message || fallbackIssue.message, 'warning');
+            navigateToApprovalIssue(fallbackIssue);
+        }
+        throw new Error(await parseApiError(response.clone()));
+    }
+
+    return response.json();
+}
+
+async function confirmWorkflowDecision() {
+    if (!workflowModalRuntime) return;
+
+    const option = getActiveWorkflowOption();
+    if (!option) {
+        showToast('Vui long chon mot huong xu ly.', 'warning');
+        return;
+    }
+
+    const invalidFieldIds = validateWorkflowDecision(option);
+    if (invalidFieldIds.length > 0) {
+        showToast('Vui long hoan thien cac truong bat buoc trong modal.', 'warning');
+        document.getElementById(`workflow-field-${invalidFieldIds[0]}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+
+    if (option.id === 'admin1_forward_approval') {
+        const blockingIssues = collectApprovalBlockingIssues();
+        if (blockingIssues.length > 0) {
+            showToast('Vui long hoan tat danh gia admin truoc khi chuyen phe duyet.', 'warning');
+            navigateToApprovalIssue(blockingIssues[0]);
+            return;
+        }
+    }
+
+    const confirmBtn = document.getElementById('workflow-confirm-btn');
+    if (confirmBtn) confirmBtn.classList.add('btn-loading');
+
+    showLoading(true, 'Dang xu ly workflow...');
+    try {
+        let updatedProject = null;
+
+        if (option.kind === 'draft') {
+            saveWorkflowDraftState(workflowModalRuntime.state);
+            persistWorkflowUiRecord(buildWorkflowAuditEntry(option, false));
+            updateProjectContextPanel();
+            closeWorkflowActionModal();
+            showToast('Da luu ket luan nhap tren UI.', 'success');
+            return;
+        }
+
+        if (option.kind === 'approve') updatedProject = await executeAdmin2ApprovalAction();
+        else updatedProject = await transitionProjectStatusDirect(option.nextStatus);
+
+        clearWorkflowDraftState();
+        persistWorkflowUiRecord(buildWorkflowAuditEntry(option, true));
+        resetAdminReviewDirtySections();
+        applyProjectStatusFromResponse(updatedProject);
+        try { applyRolePermissions(); } catch (error) { }
+        closeWorkflowActionModal();
+        showToast('Da cap nhat workflow thanh cong. UI thong bao SMS da san sang cho backend.', 'success');
+    } catch (error) {
+        if (error.message !== 'ApprovalBlocked') {
+            Logger.error('Workflow confirm error:', error);
+            showToast('Loi khi xu ly workflow: ' + error.message, 'error');
+        }
+    } finally {
+        showLoading(false);
+        if (confirmBtn) confirmBtn.classList.remove('btn-loading');
+    }
+}
+
 function filterProjects() {
     const searchText = document.getElementById('search-project')?.value.toLowerCase() || '';
     const statusFilter = document.getElementById('filter-status')?.value || '';
@@ -1670,14 +2731,16 @@ function clearProjectSearch() {
  */
 function updateProjectStatusDisplay() {
     const statusBadge = document.getElementById('current-project-status');
-    if (!statusBadge) return;
 
     const statusClass = getStatusClass(currentProjectStatus);
     const statusText = getStatusText(currentProjectStatus, currentProjectStatusRound);
 
-    statusBadge.className = `project-status-badge ${statusClass}`;
-    statusBadge.innerHTML = `<i class="fa-solid fa-circle-info"></i> ${statusText}`;
-    statusBadge.style.display = 'inline-flex';
+    if (statusBadge) {
+        statusBadge.className = `project-status-badge ${statusClass}`;
+        statusBadge.innerHTML = `<i class="fa-solid fa-circle-info"></i> ${statusText}`;
+        statusBadge.style.display = 'inline-flex';
+    }
+    updateProjectContextPanel();
 
     // Hiển thị/ẩn nút Phê duyệt cho admin2
     updateApproveButtonVisibility();
@@ -2117,14 +3180,44 @@ approveProject = async function () {
     }
 };
 
+updateApproveButtonVisibility = function () {
+    const legacyApproveBtn = document.getElementById('btn-approve-header');
+    const workflowBtn = document.getElementById('btn-workflow-header');
+    if (legacyApproveBtn) legacyApproveBtn.style.display = 'none';
+    if (!workflowBtn) return;
+
+    const context = getWorkflowActionContext();
+    const inProject = document.getElementById('project-detail-page')?.style.display !== 'none';
+    workflowBtn.style.display = inProject ? 'inline-flex' : 'none';
+
+    if (!inProject) return;
+
+    workflowBtn.innerHTML = `<i class="fa-solid ${context.buttonIcon || 'fa-diagram-project'}"></i> ${context.buttonLabel || 'Ket luan giai doan'}`;
+    workflowBtn.disabled = !!context.disabledReason;
+    workflowBtn.style.opacity = context.disabledReason ? '0.55' : '1';
+    workflowBtn.style.cursor = context.disabledReason ? 'not-allowed' : 'pointer';
+    workflowBtn.title = context.disabledReason || context.helperText || context.buttonLabel;
+    workflowBtn.classList.remove('is-user-action', 'is-admin1-action', 'is-admin2-action');
+
+    if (context.role === 'admin1') workflowBtn.classList.add('is-admin1-action');
+    else if (context.role === 'admin2') workflowBtn.classList.add('is-admin2-action');
+    else workflowBtn.classList.add('is-user-action');
+};
+
+approveProject = async function () {
+    openWorkflowActionModal();
+};
+
 async function openProject(projectId, options = {}) {
     saveProjectIdToStorage(projectId);
+    resetCurrentProjectContext();
 
     showLoading(true, 'Đang tải dữ liệu dự án...');
 
     document.getElementById('project-list-page').style.display = 'none';
     document.getElementById('project-detail-page').style.display = 'flex';
     document.getElementById('btn-back-to-list').style.display = 'inline-block';
+    updateProjectContextPanel();
 
     // Hiển thị tab được chỉ định hoặc page-request mặc định
     const targetTab = options.tab || 'page-request';
@@ -2165,6 +3258,8 @@ function showProjectList(options = {}) {
     document.getElementById('project-list-page').style.display = 'block';
     document.getElementById('project-detail-page').style.display = 'none';
     document.getElementById('btn-back-to-list').style.display = 'none';
+    closeWorkflowActionModal();
+    updateProjectContextPanel();
 
     // Ẩn nút Phê duyệt khi không ở trong dự án
     updateApproveButtonVisibility();
@@ -2231,6 +3326,8 @@ async function startNewProject() {
         if (response.ok) {
             const project = await response.json();
             saveProjectIdToStorage(project.id);
+            resetCurrentProjectContext();
+            setCurrentProjectMetaFromProject(project);
 
             // Cập nhật trạng thái dự án
             currentProjectStatus = 'SIZING';
@@ -2240,6 +3337,7 @@ async function startNewProject() {
             document.getElementById('project-list-page').style.display = 'none';
             document.getElementById('project-detail-page').style.display = 'flex';
             document.getElementById('btn-back-to-list').style.display = 'inline-block';
+            updateProjectContextPanel();
 
             resetAllForms();
             await loadAllDataFromDB();
@@ -2471,8 +3569,10 @@ async function loadAllDataFromDB() {
         const projectResponse = await fetchAPI(`${API_BASE_URL}/projects/${currentProjectId}`);
         if (projectResponse.ok) {
             const project = await projectResponse.json();
+            setCurrentProjectMetaFromProject(project);
             currentProjectStatus = project.status || 'SIZING';
             currentProjectStatusRound = project.statusRound || 1;
+            await hydrateCurrentProjectParticipants();
             updateProjectStatusDisplay();
         }
 
@@ -2489,6 +3589,7 @@ async function loadAllDataFromDB() {
             // Prefer separate admin review columns when present
             if (projectData.yeuCauBaiToanContent) {
                 let content = JSON.parse(projectData.yeuCauBaiToanContent);
+                applyProjectRequestDataToContext(content);
                 if (projectData.yeuCauAdminReview) {
                     try { content.adminReview = JSON.parse(projectData.yeuCauAdminReview); } catch (e) { /* ignore */ }
                 }
@@ -2557,6 +3658,8 @@ async function loadAllDataFromDB() {
         Logger.error('Lỗi khi tải dữ liệu:', error);
         showToast('Lỗi khi tải dữ liệu dự án: ' + error.message, 'error', 5000);
     }
+
+    updateProjectContextPanel();
 
     // Keep fixed sizing rule visible even when project has no saved request content yet.
     applyFixedSizingRule();
@@ -8246,6 +9349,7 @@ function closeModal() {
 document.addEventListener('keydown', function (event) {
     if (event.key === "Escape") {
         closeModal();
+        closeWorkflowActionModal();
     }
 });
 
@@ -17005,6 +18109,9 @@ async function ensureProjectForRequestSection(requestData, headers, activeSectio
 
         const project = await projectResponse.json();
         saveProjectIdToStorage(project.id);
+        resetCurrentProjectContext();
+        setCurrentProjectMetaFromProject(project);
+        applyProjectRequestDataToContext(requestData);
         currentProjectStatus = project.status || 'SIZING';
         currentProjectStatusRound = project.statusRound || 1;
         updateProjectStatusDisplay();
@@ -17026,6 +18133,8 @@ async function ensureProjectForRequestSection(requestData, headers, activeSectio
         throw new Error(await parseApiError(updateResponse.clone()));
     }
 
+    applyProjectRequestDataToContext(requestData);
+    updateProjectContextPanel();
     return { created: false };
 }
 
@@ -17134,6 +18243,7 @@ async function performManualSave() {
         if (activeSectionId === 'page-request') {
             requestData = collectYeuCauBaiToan();
             await ensureProjectForRequestSection(requestData, headers, activeSectionId);
+            applyProjectRequestDataToContext(requestData);
         } else if (!currentProjectId) {
             showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning');
             showSaveStatus('error');
@@ -17233,6 +18343,7 @@ async function performManualSave() {
                 showSection(nextSectionId, getSectionMenuLink(nextSectionId), { skipValidation: true });
             }
         }
+        updateProjectContextPanel();
     } catch (error) {
         Logger.error('Save error:', error);
         showSaveStatus('error');
