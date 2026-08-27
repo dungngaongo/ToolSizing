@@ -416,6 +416,58 @@ function clearStrictValidationErrors(container) {
         el.classList.remove('field-error');
         delete el.dataset.strictRequiredError;
     });
+    container.querySelectorAll('[data-model-image-required-message="1"]').forEach(el => el.remove());
+}
+
+function clearModelImageRequiredError(container) {
+    if (!container) return;
+    container.classList.remove('field-error');
+    delete container.dataset.strictRequiredError;
+    delete container.dataset.modelImageRequiredError;
+    const errorMessage = container.nextElementSibling;
+    if (errorMessage?.dataset?.modelImageRequiredMessage === '1') {
+        errorMessage.remove();
+    }
+}
+
+function hasModelImage(type) {
+    return collectImagesFromContainer(type).length > 0;
+}
+
+function addModelImageRequiredError(container, message) {
+    if (!container) return;
+    container.classList.add('field-error');
+    container.dataset.strictRequiredError = '1';
+    container.dataset.modelImageRequiredError = '1';
+
+    const errDiv = document.createElement('div');
+    errDiv.className = 'field-error-message';
+    errDiv.dataset.modelImageRequiredMessage = '1';
+    errDiv.innerHTML = `<i class="fa-solid fa-exclamation-circle"></i> ${message}`;
+    container.insertAdjacentElement('afterend', errDiv);
+}
+
+function validateModelRequiredImages() {
+    const requiredImages = [
+        { type: 'physical', containerId: 'container-physical', message: 'Vui lòng thêm Mô hình Vật lý.' },
+        { type: 'logical', containerId: 'container-logical', message: 'Vui lòng thêm Mô hình Logic.' }
+    ];
+
+    const invalidItems = [];
+    requiredImages.forEach(item => {
+        const container = document.getElementById(item.containerId);
+        clearModelImageRequiredError(container);
+        if (container && !hasModelImage(item.type)) {
+            addModelImageRequiredError(container, item.message);
+            invalidItems.push({ container, message: item.message });
+        }
+    });
+
+    return {
+        isValid: invalidItems.length === 0,
+        firstInvalidElement: invalidItems[0]?.container || null,
+        invalidCount: invalidItems.length
+    };
 }
 
 function isElementVisibleForValidation(element) {
@@ -533,7 +585,6 @@ const SIZING_REQUIRED_SELECTOR_GROUPS = {
     App: [
         'select[id^="app-input-row-select"]',
         '#baseline-table-body .ip-input',
-        '#baseline-table-body .qty-input',
         '#baseline-table-body .cpu-input',
         '#baseline-table-body .ram-input',
         '#baseline-table-body .disk-input',
@@ -576,7 +627,6 @@ const SIZING_REQUIRED_SELECTOR_GROUPS = {
     K8S: [
         'select[id^="k8s-input-row-select"]',
         '#k8s-baseline-table-body .k8s-ip-input',
-        '#k8s-baseline-table-body .qty-input',
         '#k8s-baseline-table-body .k8s-cpu-input',
         '#k8s-baseline-table-body .k8s-ram-input',
         '#k8s-baseline-table-body .k8s-disk-input',
@@ -590,7 +640,6 @@ const SIZING_REQUIRED_SELECTOR_GROUPS = {
     'Khác': [
         'select[id^="custom-input-row-select"]',
         '#custom-baseline-table-body .ip-input',
-        '#custom-baseline-table-body .qty-input',
         '#custom-baseline-table-body .cpu-input',
         '#custom-baseline-table-body .ram-input',
         '#custom-baseline-table-body .disk-input',
@@ -642,7 +691,11 @@ function validateTabCompletion(sectionId, options = {}) {
         .filter(shouldValidateAsRequired);
 
     const invalidControls = controls.filter(el => !isRequiredControlFilled(el));
-    if (invalidControls.length === 0) {
+    const modelImageValidation = sectionId === 'page-model'
+        ? validateModelRequiredImages()
+        : { isValid: true, firstInvalidElement: null, invalidCount: 0 };
+
+    if (invalidControls.length === 0 && modelImageValidation.isValid) {
         return { isValid: true, firstInvalidElement: null };
     }
 
@@ -651,9 +704,11 @@ function validateTabCompletion(sectionId, options = {}) {
         el.dataset.strictRequiredError = '1';
     });
 
-    const firstInvalidElement = invalidControls[0];
+    const firstInvalidElement = invalidControls[0] || modelImageValidation.firstInvalidElement;
     if (focusFirstInvalid && firstInvalidElement) {
-        firstInvalidElement.focus();
+        if (typeof firstInvalidElement.focus === 'function' && firstInvalidElement.matches?.('input, textarea, select, button')) {
+            firstInvalidElement.focus();
+        }
         firstInvalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
@@ -664,7 +719,7 @@ function validateTabCompletion(sectionId, options = {}) {
     return {
         isValid: false,
         firstInvalidElement,
-        invalidCount: invalidControls.length
+        invalidCount: invalidControls.length + (modelImageValidation.invalidCount || 0)
     };
 }
 
@@ -1096,10 +1151,21 @@ function isTextBoxInTab(element) {
     return !!element?.closest?.('.page-section');
 }
 
+function isTextBoxMeasurable(textBox) {
+    return !!(textBox && textBox.getClientRects && textBox.getClientRects().length > 0);
+}
+
 function autoResizeTextBox(textBox) {
     if (!textBox || textBox.tagName !== 'TEXTAREA') return;
+    if (!isTextBoxMeasurable(textBox)) {
+        textBox.dataset.pendingAutoResize = '1';
+        return;
+    }
+
     textBox.style.height = 'auto';
-    textBox.style.height = `${textBox.scrollHeight}px`;
+    const minHeight = parseFloat(window.getComputedStyle(textBox).minHeight) || 0;
+    textBox.style.height = `${Math.max(textBox.scrollHeight, minHeight)}px`;
+    delete textBox.dataset.pendingAutoResize;
 }
 
 function copyTextInputToTextarea(input) {
@@ -1161,6 +1227,27 @@ function initGlobalAutoResizeTextBoxes(scope = document) {
     });
 }
 
+function refreshAutoResizeTextBoxes(scope = document) {
+    initGlobalAutoResizeTextBoxes(scope);
+    if (scope.querySelectorAll) {
+        scope.querySelectorAll('.connection-auto-textarea').forEach(autoResizeConnectionTextarea);
+        scope.querySelectorAll('.custom-proposal-config, .app-custom-proposal-config, .redis-custom-proposal-config, .mariadb-custom-proposal-config, .k8s-custom-proposal-config, .lbfw-custom-proposal-config').forEach(autoResizeCustomProposalTextarea);
+    }
+}
+
+function scheduleAutoResizeTextBoxes(scope = document) {
+    const run = () => refreshAutoResizeTextBoxes(scope);
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(run);
+    });
+    [0, 120, 350, 800].forEach(delay => setTimeout(run, delay));
+
+    if (document.fonts?.ready) {
+        document.fonts.ready.then(run).catch(() => {});
+    }
+}
+
 function initGlobalAutoResizeTextBoxObserver() {
     if (window.__globalAutoResizeTextBoxObserverInited) return;
     window.__globalAutoResizeTextBoxObserverInited = true;
@@ -1171,6 +1258,7 @@ function initGlobalAutoResizeTextBoxObserver() {
             mutation.addedNodes.forEach(node => {
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     initGlobalAutoResizeTextBoxes(node);
+                    scheduleAutoResizeTextBoxes(node);
                 }
             });
         });
@@ -1532,6 +1620,7 @@ function expandApprovalTarget(issue) {
     if (collapsibleContent && !collapsibleContent.classList.contains('expanded')) {
         collapsibleContent.classList.add('expanded');
         collapsibleContent.previousElementSibling?.classList.add('active');
+        scheduleAutoResizeTextBoxes(collapsibleContent);
     }
 }
 
@@ -3820,6 +3909,7 @@ async function loadAllDataFromDB() {
     // Keep fixed sizing rule visible even when project has no saved request content yet.
     applyFixedSizingRule();
     initGlobalAutoResizeTextBoxes();
+    scheduleAutoResizeTextBoxes();
 
     // Khôi phục tab đang xem
     if (activeSectionId) {
@@ -3836,6 +3926,7 @@ async function loadAllDataFromDB() {
     setTimeout(() => {
         window.scrollTo(scrollX, scrollY);
     }, 150);
+    scheduleAutoResizeTextBoxes();
 }
 
 // ==================== 1. YÊU CẦU BÀI TOÁN ====================
@@ -4393,7 +4484,7 @@ function createInputTableRow(stt, data = {}) {
                 <div class="row-evidence-controls">
                     <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
-                           <input type="file" accept="image/*" class="hidden-file-input"
+                           <input type="file" accept="image/*" multiple class="hidden-file-input"
                                onclick="event.stopPropagation()"
                                onchange="handleRowEvidenceUpload(this, 'poc')">
                     </label>
@@ -4410,7 +4501,7 @@ function createInputTableRow(stt, data = {}) {
                 <div class="row-evidence-controls">
                     <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
-                           <input type="file" accept="image/*" class="hidden-file-input"
+                           <input type="file" accept="image/*" multiple class="hidden-file-input"
                                onclick="event.stopPropagation()"
                                onchange="handleRowEvidenceUpload(this, 'sizing')">
                     </label>
@@ -4440,7 +4531,7 @@ function createInputTableRow(stt, data = {}) {
 
         <td class="u-text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger ui-icon-btn-table btn-delete-row-item" onclick="deleteRow(this)" title="Xóa dòng này" aria-label="Xóa dòng này">
-                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>
     `;
@@ -4462,11 +4553,11 @@ function createInputTableRow(stt, data = {}) {
         // ignore
     }
 
-    // Nếu đã có ảnh tải sẵn, ẩn icon upload để tránh upload thêm
+    // Nếu đã có ảnh tải sẵn, đánh dấu icon upload nhưng vẫn cho phép tải thêm ảnh
     const pocContainer = tr.querySelector('.row-evidence-container');
     if (pocContainer && pocContainer.children.length > 0) {
         const pocLabel = tr.querySelector('td .upload-icon-btn');
-        if (pocLabel) pocLabel.style.display = 'none';
+        if (pocLabel) pocLabel.classList.add('has-file');
     }
     // Sizing column (nếu tồn tại ảnh) - tìm label trong cùng row, cột 4
     const sizingContainers = tr.querySelectorAll('td .row-evidence-container');
@@ -4474,7 +4565,7 @@ function createInputTableRow(stt, data = {}) {
         const sizingContainer = sizingContainers[1];
         if (sizingContainer && sizingContainer.children.length > 0) {
             const sizingLabel = tr.querySelectorAll('td .upload-icon-btn')[1];
-            if (sizingLabel) sizingLabel.style.display = 'none';
+            if (sizingLabel) sizingLabel.classList.add('has-file');
         }
     }
 
@@ -4505,18 +4596,16 @@ function onDauVaoTypeChange(selectEl) {
 
 // 4. [MỚI] Hàm xóa dòng cụ thể
 function deleteRow(btn) {
-    if (confirm("Bạn có chắc muốn xóa dòng này không?")) {
-        const row = btn.closest('tr');
-        const tbody = row.parentElement;
-        row.remove();
+    const row = btn.closest('tr');
+    const tbody = row.parentElement;
+    row.remove();
 
-        // Cập nhật lại số thứ tự (STT)
-        Array.from(tbody.rows).forEach((r, index) => {
-            r.cells[0].innerText = index + 1;
-        });
-        // Update POC/Sizing dropdowns after row deletion
-        populatePocSizingDropdowns();
-    }
+    // Cập nhật lại số thứ tự (STT)
+    Array.from(tbody.rows).forEach((r, index) => {
+        r.cells[0].innerText = index + 1;
+    });
+    // Update POC/Sizing dropdowns after row deletion
+    populatePocSizingDropdowns();
 }
 // 2. Hàm Thêm Dòng (Được gọi khi bấm nút)
 function addInputRow() {
@@ -4968,21 +5057,31 @@ function createBaselineTableRow(data = {}) {
         <td><input type="text" placeholder="Intel Xeon..." value="${data.cpu || ''}"></td>
         <td><input type="number" class="ram-val" placeholder="0" value="${data.ram || ''}" oninput="calculateBaselineTotal()"></td>
         <td><input type="number" class="cint-val" placeholder="0" value="${data.cintRate2017 || ''}" oninput="calculateBaselineTotal()"></td>
-        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></td>
+        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="this.closest('tr').remove(); calculateBaselineTotal();"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
     `;
     return tr;
 }
 
 function autoResizeFlowExplanation(textarea) {
     if (!textarea) return;
+    if (!isTextBoxMeasurable(textarea)) {
+        textarea.dataset.pendingAutoResize = '1';
+        return;
+    }
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.max(textarea.scrollHeight, 150)}px`;
+    delete textarea.dataset.pendingAutoResize;
 }
 
 function autoGrowTextarea(textarea) {
     if (!textarea) return;
+    if (!isTextBoxMeasurable(textarea)) {
+        textarea.dataset.pendingAutoResize = '1';
+        return;
+    }
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.max(textarea.scrollHeight, 44)}px`;
+    delete textarea.dataset.pendingAutoResize;
 }
 
 function createLogicComponentTableRow(stt, data = {}) {
@@ -4990,12 +5089,12 @@ function createLogicComponentTableRow(stt, data = {}) {
     tr.innerHTML = `
         <td class="text-center">${stt}</td>
         <td>
-            <textarea class="input-full logic-name-textarea" rows="2" oninput="autoGrowTextarea(this)" placeholder="Ví dụ: MariaDB, WebService, Redis,...">${escapeHtml(data.componentName || '')}</textarea>
+            <textarea class="input-full logic-name-textarea" rows="2" oninput="handleLogicComponentNameInput(this)" placeholder="Ví dụ: MariaDB, WebService, Redis,...">${escapeHtml(data.componentName || '')}</textarea>
         </td>
         <td>
             <textarea class="input-full logic-task-textarea" rows="2" oninput="autoGrowTextarea(this)" placeholder="Mô tả nhiệm vụ chính của thành phần/module...">${escapeHtml(data.mainTask || '')}</textarea>
         </td>
-        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="removeLogicComponentRow(this)"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></td>
+        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="removeLogicComponentRow(this)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
     `;
     const nameTextarea = tr.querySelector('.logic-name-textarea');
     const taskTextarea = tr.querySelector('.logic-task-textarea');
@@ -5017,13 +5116,70 @@ function removeLogicComponentRow(btn) {
     removeRow(btn);
     const tbody = document.getElementById('logic-component-table-body');
     updateSTT(tbody);
+    refreshArchModuleDropdowns();
+}
+
+function handleLogicComponentNameInput(textarea) {
+    autoGrowTextarea(textarea);
+    refreshArchModuleDropdowns();
+}
+
+function getLogicComponentModuleNames() {
+    const names = [];
+    const seen = new Set();
+
+    document.querySelectorAll('#logic-component-table-body .logic-name-textarea').forEach(textarea => {
+        const name = textarea.value.trim();
+        if (!name || seen.has(name)) return;
+        seen.add(name);
+        names.push(name);
+    });
+
+    return names;
+}
+
+function buildArchModuleOptions(selectedValue = '') {
+    const selected = String(selectedValue || '').trim();
+    const logicModuleNames = getLogicComponentModuleNames();
+    const hasSelected = logicModuleNames.includes(selected);
+    const options = ['<option value="">-- Chọn module --</option>'];
+
+    if (selected && !hasSelected) {
+        options.push(`<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)} (không còn trong bảng Logic)</option>`);
+    }
+
+    logicModuleNames.forEach(name => {
+        const isSelected = name === selected ? ' selected' : '';
+        options.push(`<option value="${escapeHtml(name)}"${isSelected}>${escapeHtml(name)}</option>`);
+    });
+
+    return options.join('');
+}
+
+function refreshArchModuleDropdowns() {
+    document.querySelectorAll('#arch-table-body .arch-module-select').forEach(select => {
+        const currentValue = select.value;
+        select.innerHTML = buildArchModuleOptions(currentValue);
+    });
+}
+
+function getArchRowModuleName(row) {
+    const select = row?.querySelector('.arch-module-select');
+    if (select) return select.value || '';
+
+    // Backward compatibility for rows rendered before the Module cell became a dropdown.
+    return row?.querySelector('.module-cell-textarea')?.value || '';
 }
 
 function createArchTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td>${stt}</td>
-        <td><textarea rows="2" class="module-cell-textarea" placeholder="Tên module" oninput="updateModuleVisibility(); autoResizeModuleCell(this);">${escapeHtml(data.moduleName || '')}</textarea></td>
+        <td>
+            <select class="inline-control-select arch-module-select" onchange="updateModuleVisibility()">
+                ${buildArchModuleOptions(data.moduleName || '')}
+            </select>
+        </td>
         <td>
             <select class="inline-control-select" onchange="updateModuleVisibility()">
                 <option value="">-- Chọn --</option>
@@ -5062,7 +5218,7 @@ function createArchTableRow(stt, data = {}) {
         <td class="admin-cell">
             <input type="text" class="input-full admin-note" placeholder="Nhận xét..." value="${data.adminNote || ''}">
         </td>
-        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="removeArchRow(this)"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></td>
+        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="removeArchRow(this)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
     `;
     return tr;
 }
@@ -5083,7 +5239,7 @@ function collectMoHinhHeThong() {
         const cells = row.querySelectorAll('td');
 
         archRows.push({
-            moduleName: cells[1]?.querySelector('textarea')?.value || '',
+            moduleName: getArchRowModuleName(row),
             loaiModule: cells[2]?.querySelector('select')?.value || '',
             zoneMang: cells[3]?.querySelector('select')?.value || '',
             heDieuHanh: cells[4]?.querySelector('select')?.value || '',
@@ -5202,7 +5358,7 @@ function getModuleInstancesFromArchTable() {
 
     document.querySelectorAll('#arch-table-body tr').forEach((row, rowIndex) => {
         const cells = row.querySelectorAll('td');
-        const moduleName = cells[1]?.querySelector('textarea')?.value?.trim() || '';
+        const moduleName = getArchRowModuleName(row).trim();
         const moduleType = cells[2]?.querySelector('select')?.value?.trim() || '';
 
         if (!moduleType) return;
@@ -5831,7 +5987,7 @@ function createSummaryTableRow(stt, data = {}) {
         <td class="summary-note-cell"><div class="summary-multiline-cell">${escapedGhiChu}</div></td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeSummaryRow(this)" title="Xóa dòng này" aria-label="Xóa dòng này">
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
             </button>
         </td>
     `;
@@ -6184,13 +6340,76 @@ function getLBFWCustomDocEditor() {
         : document.getElementById(baseId);
 }
 
+const STORAGE_IP_DROPDOWN_CONFIG = {
+    app: {
+        baselineSelector: '#baseline-table-body .ip-input',
+        storageSelector: '#storage-input-table-body .storage-ip-input'
+    },
+    k8s: {
+        baselineSelector: '#k8s-baseline-table-body .k8s-ip-input',
+        storageSelector: '#k8s-storage-input-table-body .k8s-storage-ip-input'
+    },
+    custom: {
+        baselineSelector: '#custom-baseline-table-body .ip-input',
+        storageSelector: '#custom-storage-input-table-body .custom-storage-ip-input'
+    }
+};
+
+function getBaselineIpsForStorageDropdown(moduleKey) {
+    const config = STORAGE_IP_DROPDOWN_CONFIG[moduleKey];
+    if (!config) return [];
+
+    const seen = new Set();
+    return Array.from(document.querySelectorAll(config.baselineSelector))
+        .map(input => (input.value || '').trim())
+        .filter(ip => {
+            if (!ip || seen.has(ip)) return false;
+            seen.add(ip);
+            return true;
+        });
+}
+
+function buildStorageIpOptions(moduleKey, selectedValue = '') {
+    const selected = String(selectedValue || '').trim();
+    const ips = getBaselineIpsForStorageDropdown(moduleKey);
+    const options = ['<option value="">-- Chọn IP --</option>'];
+
+    if (selected && !ips.includes(selected)) {
+        const escapedSelected = escapeHtml(selected);
+        options.push(`<option value="${escapedSelected}" selected>${escapedSelected} (không còn trong tham chiếu)</option>`);
+    }
+
+    ips.forEach(ip => {
+        const escapedIp = escapeHtml(ip);
+        const selectedAttr = ip === selected ? ' selected' : '';
+        options.push(`<option value="${escapedIp}"${selectedAttr}>${escapedIp}</option>`);
+    });
+
+    return options.join('');
+}
+
+function setStorageIpSelectValue(select, moduleKey, value) {
+    if (!select) return;
+    const selected = String(value || '').trim();
+    select.innerHTML = buildStorageIpOptions(moduleKey, selected);
+    select.value = selected;
+}
+
+function refreshStorageIpDropdowns(moduleKey) {
+    const config = STORAGE_IP_DROPDOWN_CONFIG[moduleKey];
+    if (!config) return;
+
+    document.querySelectorAll(config.storageSelector).forEach(select => {
+        setStorageIpSelectValue(select, moduleKey, select.value);
+    });
+}
+
 // Collect custom baseline table data
 function collectCustomBaselineTableData() {
     const rows = document.querySelectorAll('#custom-baseline-table-body tr');
     const data = [];
     rows.forEach((row, index) => {
         const ip = row.querySelector('.ip-input')?.value || '';
-        const qty = row.querySelector('.qty-input')?.value || '';
         const cpu = row.querySelector('.cpu-input')?.value || '';
         const ram = row.querySelector('.ram-input')?.value || '';
         const disk = row.querySelector('.disk-input')?.value || '';
@@ -6204,7 +6423,7 @@ function collectCustomBaselineTableData() {
         if (ip || cpu || ram || disk || cint) {
             data.push({
                 stt: index + 1,
-                ip, quantity: qty, cpu, ram, disk, cintRate: cint,
+                ip, cpu, ram, disk, cintRate: cint,
                 evidenceImages,
                 adminRating: adminEval,
                 adminNote
@@ -6280,7 +6499,6 @@ function addCustomBaselineRow() {
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
-        <td><input type="number" class="input-full text-center qty-input" value="1" min="1" step="1" oninput="${baselineRamHandler}"></td>
         <td><input type="text" class="input-full cpu-input" placeholder="Intel Xeon..."></td>
         <td><input type="number" class="input-full text-center ram-input" min="0" oninput="${baselineRamHandler}"></td>
         <td><input type="number" class="input-full text-center disk-input" min="0" oninput="${baselineDiskHandler}"></td>
@@ -6305,7 +6523,7 @@ function addCustomBaselineRow() {
             <input type="text" class="input-full admin-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="${deleteRowHandler}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="${deleteRowHandler}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
         </td>
     `;
     tbody.appendChild(tr);
@@ -6313,7 +6531,9 @@ function addCustomBaselineRow() {
     // Thêm dòng tương ứng vào input config table
     addCustomInputConfigRow();
 
+    refreshStorageIpDropdowns('custom');
     try { applyRolePermissions(); } catch (e) {}
+    return tr;
 }
 
 // Add custom input config row
@@ -6357,7 +6577,7 @@ function addCustomInputConfigRow() {
             <input type="text" class="input-full admin-note custom-input-config-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="${deleteRowHandler}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="${deleteRowHandler}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
         </td>
     `;
     tbody.appendChild(tr);
@@ -6376,8 +6596,8 @@ function addCustomStorageInputRow() {
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
-        <td><input type="text" class="input-full text-center sizing-user-input custom-storage-ip-input" placeholder="10.x.x.x"></td>
-        <td><input type="text" class="input-full text-center sizing-user-input custom-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
+        <td><select class="input-full text-center sizing-user-input custom-storage-ip-input">${buildStorageIpOptions('custom')}</select></td>
+        <td><input type="text" class="input-full text-center sizing-user-input custom-storage-partition-input" placeholder="/u01, /u02,..."></td>
         <td><input type="number" class="input-full text-center sizing-user-input custom-storage-used-input" min="0" step="0.01"></td>
         <td>
             <div class="inline-evidence-cell">
@@ -6400,19 +6620,18 @@ function addCustomStorageInputRow() {
             <input type="text" class="input-full admin-note custom-storage-admin-note" placeholder="Nhận xét...">
         </td>
         <td class="text-center">
-            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="${deleteRowHandler}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="${deleteRowHandler}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
         </td>
     `;
 
     tbody.appendChild(tr);
+    refreshStorageIpDropdowns('custom');
     try { applyRolePermissions(); } catch (e) {}
 }
 
 function deleteCustomStorageInputRow(btn) {
-    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
-        btn.closest('tr').remove();
-        updateCustomStorageInputRowNumbers();
-    }
+    btn.closest('tr').remove();
+    updateCustomStorageInputRowNumbers();
 }
 
 // Update custom baseline total
@@ -6428,13 +6647,12 @@ function updateCustomBaselineTotal() {
 
     let totalRam = 0, totalDisk = 0, totalCint = 0;
     tbody.querySelectorAll('tr').forEach(row => {
-        const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
         const ram = parseFloat(row.querySelector('.ram-input')?.value) || 0;
         const disk = parseFloat(row.querySelector('.disk-input')?.value) || 0;
         const cint = parseFloat(row.querySelector('.cint-input')?.value) || 0;
-        totalRam += ram * qty;
-        totalDisk += disk * qty;
-        totalCint += cint * qty;
+        totalRam += ram;
+        totalDisk += disk;
+        totalCint += cint;
     });
 
     totalRamEl.innerText = totalRam.toFixed(0);
@@ -6471,6 +6689,7 @@ function updateCustomIPToInputConfig(ipInput) {
         const ipConfigInput = inputConfigTbody.rows[rowIndex].querySelector('.ip-config-input');
         if (ipConfigInput) ipConfigInput.value = ipInput.value;
     }
+    refreshStorageIpDropdowns('custom');
 }
 
 // Calculate custom input config row
@@ -6489,13 +6708,12 @@ function calculateCustomInputConfigRow(inputElement) {
 
     const baselineCint = parseFloat(baselineRow.querySelector('.cint-input').value) || 0;
     const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
-    const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
     const cpuLoad = parseFloat(row.querySelector('.cpu-load-input')?.value) || 0;
     const ramLoad = parseFloat(row.querySelector('.ram-load-input')?.value) || 0;
 
-    const cintUsed = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
-    const ramUsed = (baselineRam * quantity * ramLoad / 100).toFixed(2);
+    const cintUsed = (baselineCint * cpuLoad / 100).toFixed(2);
+    const ramUsed = (baselineRam * ramLoad / 100).toFixed(2);
 
     cintUsedInput.value = cintUsed;
     ramUsedInput.value = ramUsed;
@@ -6770,22 +6988,21 @@ function onCustomMethodChanged(selectEl) {
 
 // 3. Delete custom baseline row
 function deleteCustomBaselineRow(btn) {
-    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
-        const baselineRow = btn.closest('tr');
-        const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+    const baselineRow = btn.closest('tr');
+    const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
 
-        baselineRow.remove();
+    baselineRow.remove();
 
-        // Xóa dòng tương ứng trong input config table
-        const inputConfigTbody = document.getElementById('custom-input-config-table-body');
-        if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
-            inputConfigTbody.rows[baselineRowIndex].remove();
-        }
-        updateCustomBaselineRowNumbers();   // Đánh lại số STT
-        updateCustomInputConfigRowNumbers();
-        updateCustomBaselineTotal(); // Tính lại tổng
-        updateCustomInputConfigTotal();
+    // Xóa dòng tương ứng trong input config table
+    const inputConfigTbody = document.getElementById('custom-input-config-table-body');
+    if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+        inputConfigTbody.rows[baselineRowIndex].remove();
     }
+    updateCustomBaselineRowNumbers();   // Đánh lại số STT
+    updateCustomInputConfigRowNumbers();
+    updateCustomBaselineTotal(); // Tính lại tổng
+    updateCustomInputConfigTotal();
+    refreshStorageIpDropdowns('custom');
 }
 
 // 4. Helper: Cập nhật lại số thứ tự (1, 2, 3...) khi xóa dòng giữa
@@ -6888,15 +7105,20 @@ function createCustomProposalRow(data = {}) {
         <td class="admin-cell">
             <input type="text" class="input-full admin-note custom-proposal-admin-note" placeholder="Nhận xét...">
         </td>
-        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></td>
+        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
     `;
     return tr;
 }
 
 function autoResizeCustomProposalTextarea(textarea) {
     if (!textarea) return;
+    if (!isTextBoxMeasurable(textarea)) {
+        textarea.dataset.pendingAutoResize = '1';
+        return;
+    }
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.max(textarea.scrollHeight, 56)}px`;
+    delete textarea.dataset.pendingAutoResize;
 }
 
 function autoResizeAllCustomProposalConfig(container) {
@@ -6972,13 +7194,11 @@ function loadCustomLinearLikeApp(moduleApp) {
             const lastRow = baselineBody?.lastElementChild;
             if (!lastRow) return;
             const ipInput = lastRow.querySelector('.ip-input');
-            const qtyInput = lastRow.querySelector('.qty-input');
             const cpuInput = lastRow.querySelector('.cpu-input');
             const ramInput = lastRow.querySelector('.ram-input');
             const diskInput = lastRow.querySelector('.disk-input');
             const cintInput = lastRow.querySelector('.cint-input');
             if (ipInput) ipInput.value = row.ip || '';
-            if (qtyInput) qtyInput.value = row.quantity || '1';
             if (cpuInput) cpuInput.value = row.cpu || '';
             if (ramInput) ramInput.value = row.ram || '';
             if (diskInput) diskInput.value = row.disk || '';
@@ -7025,7 +7245,7 @@ function loadCustomLinearLikeApp(moduleApp) {
             const noteInput = lastRow.querySelector('.custom-storage-note-input');
             const evalSelect = lastRow.querySelector('.custom-storage-eval');
             const adminNoteInput = lastRow.querySelector('.custom-storage-admin-note');
-            if (ipInput) ipInput.value = row.ip || '';
+            setStorageIpSelectValue(ipInput, 'custom', row.ip || '');
             if (partitionInput) partitionInput.value = row.partition || '';
             if (usedInput) usedInput.value = row.used || '';
             const imgs = getEvidenceImagesFromRowData(row);
@@ -7043,6 +7263,7 @@ function loadCustomLinearLikeApp(moduleApp) {
     }
 
     ensureDefaultCustomLinearRows();
+    refreshStorageIpDropdowns('custom');
 
     updateCustomBaselineTotal();
     updateCustomInputConfigTotal();
@@ -7616,6 +7837,38 @@ function resolveEffectiveMariaDBProposalResult(mariaState = {}) {
 function parseRedisSizingResult(html) {
     if (!html || html.trim() === '') return null;
 
+    const proposalTableMatch = html.match(/<table[^>]*data-redis-proposal-table="1"[^>]*>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>[\s\S]*?<\/table>/i);
+    if (proposalTableMatch) {
+        const rowMatch = proposalTableMatch[1].match(/<tr[^>]*>([\s\S]*?)<\/tr>/i);
+        if (rowMatch) {
+            const tdMatches = Array.from(rowMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map(m => m[1]);
+            if (tdMatches.length >= 4) {
+                const toText = (raw) => (raw || '')
+                    .replace(/<br\s*\/?>/gi, '\n')
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/\s+\n/g, '\n')
+                    .replace(/\n\s+/g, '\n')
+                    .replace(/[ \t]+/g, ' ')
+                    .trim();
+                const componentText = toText(tdMatches[0]);
+                const configHtml = tdMatches[1];
+                const quantityText = toText(tdMatches[2]);
+                const noteText = toText(tdMatches[3]);
+                const listItems = Array.from(configHtml.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
+                    .map(m => toText(m[1]))
+                    .filter(Boolean);
+
+                if (listItems.length > 0) {
+                    return {
+                        cauHinh: listItems.map(item => `- ${item}`).join('<br>'),
+                        soLuong: (quantityText.match(/\d+/) || [quantityText])[0] || '',
+                        ghiChu: noteText
+                    };
+                }
+            }
+        }
+    }
+
     const vcpuMatch = html.match(/<strong>(\d+)\s*vCPU<\/strong>/i);
     const ramMatch = html.match(/<strong>(\d+)\s*GB\s*RAM<\/strong>/i);
     const diskMatch = html.match(/<strong>(\d+)\s*GB\s*DISK<\/strong>/i);
@@ -7812,7 +8065,7 @@ function buildRedisCustomProposalSectionHtml(selectedProposalSource, customPropo
             <td><textarea class="input-full redis-custom-proposal-note sizing-user-input u-resize-y textarea-min-lg" rows="2" placeholder="Ghi chú">${escapeHtml(row.note)}</textarea></td>
             <td class="text-center">
                 <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này" aria-label="Xóa dòng này">
-                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
                 </button>
             </td>
         </tr>
@@ -7891,7 +8144,7 @@ function ensureRedisProposalSelectionUI(container, options = {}) {
                 <td><textarea class="input-full redis-custom-proposal-note sizing-user-input u-resize-y textarea-min-lg" rows="2" placeholder="Ghi chú">${escapeHtml(rowData.note)}</textarea></td>
                 <td class="text-center">
                     <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này" aria-label="Xóa dòng này">
-                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
                     </button>
                 </td>
             `;
@@ -8389,7 +8642,7 @@ function addAppCustomProposalRow(sourceOrData = {}, rowData = null) {
         </td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này" aria-label="Xóa dòng này">
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
             </button>
         </td>
     `;
@@ -8424,7 +8677,7 @@ function addRedisProposalRow(sourceOrData = {}, rowData = null) {
         <td><textarea class="input-full redis-custom-proposal-note sizing-user-input u-resize-y textarea-min-lg" rows="2" placeholder="Ghi chú">${escapeHtml(normalizedData.note)}</textarea></td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này" aria-label="Xóa dòng này">
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
             </button>
         </td>
     `;
@@ -8684,7 +8937,7 @@ function createLBFWCustomProposalRow(data = {}) {
         <td class="admin-cell">
             <input type="text" class="input-full admin-note lbfw-custom-proposal-admin-note" placeholder="Nhận xét...">
         </td>
-        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></td>
+        <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
     `;
     return tr;
 }
@@ -8811,24 +9064,90 @@ function loadImagesToContainer(type, images) {
     // Tạo lại các box với ảnh đã lưu
     images.forEach(imgData => {
         const boxId = imgData.id || 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        const div = document.createElement('div');
-        div.className = 'upload-box';
-        div.id = boxId;
-        div.innerHTML = `
-            <div class="upload-controls">
-                <input type="file" accept="image/*" onchange="previewModelImage(this, '${boxId}')" class="is-hidden" id="input-${boxId}">
-                <label for="input-${boxId}" class="upload-label">
-                    <i class="fa-solid fa-cloud-arrow-up"></i>
-                    <span>Đổi ảnh</span>
-                </label>
-                <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-remove-img" onclick="document.getElementById('${boxId}').remove()"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-            </div>
-            <div class="preview-area" id="preview-${boxId}">
-                <img src="${imgData.base64}" alt="Preview" class="zoomable-image u-mt-10" onclick="openModal(this.src)">
-            </div>
-        `;
-        container.appendChild(div);
+        container.appendChild(createModelUploadCard(boxId, imgData.base64));
     });
+}
+
+function createModelUploadCard(boxId, imageSrc = '', options = {}) {
+    const previewHandler = options.previewHandler || 'previewModelImage';
+    const previewAlt = options.previewAlt || 'Ảnh mô hình hệ thống';
+    const emptyLabel = options.emptyLabel || 'Chọn ảnh';
+    const div = document.createElement('div');
+    div.className = 'upload-box model-upload-card' + (imageSrc ? ' has-image' : ' is-empty');
+    div.id = boxId;
+    div.innerHTML = `
+        <input type="file" accept="image/*" onchange="${previewHandler}(this, '${boxId}')" class="is-hidden" id="input-${boxId}">
+        <button type="button" class="model-card-remove" onclick="document.getElementById('${boxId}')?.remove()" title="Xóa ảnh" aria-label="Xóa ảnh">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+        <label for="input-${boxId}" class="model-card-change" title="Đổi ảnh">
+            <i class="fa-solid fa-arrow-rotate-right" aria-hidden="true"></i>
+        </label>
+        <div class="preview-area model-preview-area" id="preview-${boxId}">
+            ${imageSrc ? createModelPreviewMarkup(imageSrc, previewAlt) : createModelEmptyMarkup(boxId, emptyLabel)}
+        </div>
+    `;
+    return div;
+}
+
+function createModelPreviewMarkup(src, alt = 'Ảnh mô hình hệ thống') {
+    return `
+        <button type="button" class="model-preview-button btn-view-evidence" onclick="openModal(this.querySelector('img').src)" title="Xem ảnh" aria-label="Xem ảnh">
+            <img src="${src}" alt="${alt}" class="model-preview-img">
+            <span class="model-preview-overlay">
+                <i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
+                <span>Xem ảnh</span>
+            </span>
+        </button>
+    `;
+}
+
+function createModelEmptyMarkup(boxId, label = 'Chọn ảnh') {
+    return `
+        <label class="model-empty-state" for="input-${boxId}">
+            <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+            <span>${label}</span>
+        </label>
+    `;
+}
+
+function createEvidenceUploadCard(boxId, imageSrc = '') {
+    return createModelUploadCard(boxId, imageSrc, {
+        previewHandler: 'previewEvidenceCardImage',
+        previewAlt: 'Ảnh sở cứ',
+        emptyLabel: 'Chọn ảnh'
+    });
+}
+
+function appendEvidenceImageCard(container, file, prefix = 'evidence-img') {
+    const boxId = prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+    const card = createEvidenceUploadCard(boxId);
+    container.appendChild(card);
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const previewArea = document.getElementById(`preview-${boxId}`);
+        if (previewArea) previewArea.innerHTML = createModelPreviewMarkup(e.target.result, 'Ảnh sở cứ');
+        card.classList.remove('is-empty');
+        card.classList.add('has-image');
+    };
+    reader.readAsDataURL(file);
+}
+
+function appendModelImageCard(container, file) {
+    const boxId = 'img-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+    const card = createModelUploadCard(boxId);
+    container.appendChild(card);
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const previewArea = document.getElementById(`preview-${boxId}`);
+        if (previewArea) previewArea.innerHTML = createModelPreviewMarkup(e.target.result);
+        card.classList.remove('is-empty');
+        card.classList.add('has-image');
+        clearModelImageRequiredError(container);
+    };
+    reader.readAsDataURL(file);
 }
 
 function createUploadBox(type) {
@@ -8836,22 +9155,19 @@ function createUploadBox(type) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    const boxId = 'img-' + Date.now();
-    const div = document.createElement('div');
-    div.className = 'upload-box';
-    div.id = boxId;
-    div.innerHTML = `
-        <div class="upload-controls">
-            <input type="file" accept="image/*" onchange="previewModelImage(this, '${boxId}')" class="is-hidden" id="input-${boxId}">
-            <label for="input-${boxId}" class="upload-label">
-                <i class="fa-solid fa-cloud-arrow-up"></i>
-                <span>Chọn ảnh</span>
-            </label>
-            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-remove-img" onclick="document.getElementById('${boxId}').remove()"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-        </div>
-        <div class="preview-area" id="preview-${boxId}"></div>
-    `;
-    container.appendChild(div);
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.multiple = true;
+    picker.className = 'is-hidden';
+    picker.addEventListener('cancel', () => picker.remove());
+    picker.onchange = function () {
+        Array.from(picker.files || []).forEach(file => appendModelImageCard(container, file));
+        picker.remove();
+        try { applyRolePermissions(); } catch (e) { }
+    };
+    document.body.appendChild(picker);
+    picker.click();
     // enforce role permissions (disable upload box for admin if needed)
     try { applyRolePermissions(); } catch (e) { }
 }
@@ -8882,9 +9198,33 @@ function previewModelImage(input, boxId) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function (e) {
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Preview" class="zoomable-image u-mt-10" onclick="openModal(this.src)">`;
+            if (previewArea) previewArea.innerHTML = createModelPreviewMarkup(e.target.result);
+            const card = document.getElementById(boxId);
+            if (card) {
+                card.classList.remove('is-empty');
+                card.classList.add('has-image');
+                clearModelImageRequiredError(card.closest('.model-upload-grid'));
+            }
         };
         reader.readAsDataURL(input.files[0]);
+        input.value = '';
+    }
+}
+
+function previewEvidenceCardImage(input, boxId) {
+    const previewArea = document.getElementById(`preview-${boxId}`);
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            if (previewArea) previewArea.innerHTML = createModelPreviewMarkup(e.target.result, 'Ảnh sở cứ');
+            const card = document.getElementById(boxId);
+            if (card) {
+                card.classList.remove('is-empty');
+                card.classList.add('has-image');
+            }
+        };
+        reader.readAsDataURL(input.files[0]);
+        input.value = '';
     }
 }
 
@@ -8953,20 +9293,19 @@ function handleRowEvidenceUpload(input, kind) {
     const cellWrapper = input.closest('.cell-wrapper');
     const container = cellWrapper?.querySelector('.row-evidence-container');
     if (!container) return;
-    // Only accept the first file (single image per cell)
-    const file = files[0];
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        const div = document.createElement('div');
-        div.className = 'row-evidence-item';
-        const safeBase64 = e.target.result.replace(/"/g, '&quot;');
-        div.innerHTML = `<button type="button" class="ui-icon-btn ui-icon-btn-success btn-view-evidence" data-base64="${safeBase64}" onclick="openModalFromElement(this)" title="Xem ảnh" aria-label="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
-        // append and then hide upload icon to prevent uploading more
-        container.appendChild(div);
-        const label = cellWrapper.querySelector('.upload-icon-btn');
-        if (label) label.style.display = 'none';
-    };
-    reader.readAsDataURL(file);
+    Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const div = document.createElement('div');
+            div.className = 'row-evidence-item';
+            const safeBase64 = e.target.result.replace(/"/g, '&quot;');
+            div.innerHTML = `<button type="button" class="ui-icon-btn ui-icon-btn-success btn-view-evidence" data-base64="${safeBase64}" onclick="openModalFromElement(this)" title="Xem ảnh" aria-label="Xem ảnh"><i class="fa-solid fa-eye"></i></button><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+            container.appendChild(div);
+            const label = cellWrapper.querySelector('.upload-icon-btn');
+            if (label) label.classList.add('has-file');
+        };
+        reader.readAsDataURL(file);
+    });
     // Clear input so same file can be selected again if needed
     input.value = '';
 }
@@ -8980,7 +9319,7 @@ function removeRowEvidence(btn) {
         if (container && container.children.length === 0) {
             const cellWrapper = container.closest('.cell-wrapper');
             const label = cellWrapper?.querySelector('.upload-icon-btn');
-            if (label) label.style.display = '';
+            if (label) label.classList.remove('has-file');
         }
     }
 }
@@ -9248,6 +9587,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     checkAuthStatus();
     initGlobalAutoResizeTextBoxes();
     initGlobalAutoResizeTextBoxObserver();
+    scheduleAutoResizeTextBoxes();
     initVietnameseDateInputs();
     initRequestAutoResizeTextareas();
     applyRolePermissions();
@@ -9513,6 +9853,7 @@ document.addEventListener('keydown', function (event) {
     if (event.key === "Escape") {
         closeModal();
         closeWorkflowActionModal();
+        closeBulkBaselineModal();
     }
 });
 
@@ -9531,6 +9872,85 @@ const MODULE_LIST = [
     "MQ (Kafka/RabbitMQ)",
     "OTHER"
 ];
+
+let bulkBaselineTargetInstanceKey = '';
+let bulkBaselineTargetModuleKey = 'app';
+
+const BULK_BASELINE_MODULE_CONFIG = {
+    app: {
+        title: 'Nhập Server tham chiếu hàng loạt',
+        successLabel: 'Server tham chiếu',
+        tableBodyId: 'baseline-table-body',
+        inputConfigBodyId: 'input-config-table-body',
+        selectors: {
+            ip: '.ip-input',
+            cpu: '.cpu-input',
+            ram: '.ram-input',
+            disk: '.disk-input',
+            cint: '.cint-input'
+        },
+        addRow: () => addBaselineRow(),
+        syncIp: (ipInput) => syncIPToInputConfig(ipInput),
+        recalculateRow: (row) => recalculateInputConfigForRow(row.querySelector('.cint-input') || row),
+        updateAfterApply: () => {
+            updateRowNumbers();
+            updateInputConfigRowNumbers();
+            updateBaselineTotal();
+            updateInputConfigTotal();
+            refreshStorageIpDropdowns('app');
+        }
+    },
+    custom: {
+        title: 'Nhập Server tương đương hàng loạt',
+        successLabel: 'Server tương đương',
+        tableBodyId: 'custom-baseline-table-body',
+        inputConfigBodyId: 'custom-input-config-table-body',
+        selectors: {
+            ip: '.ip-input',
+            cpu: '.cpu-input',
+            ram: '.ram-input',
+            disk: '.disk-input',
+            cint: '.cint-input'
+        },
+        addRow: () => addCustomBaselineRow(),
+        syncIp: (ipInput) => updateCustomIPToInputConfig(ipInput),
+        recalculateRow: (row) => recalculateCustomInputConfigRow(row.querySelector('.cint-input') || row),
+        updateAfterApply: () => {
+            updateCustomBaselineRowNumbers();
+            updateCustomInputConfigRowNumbers();
+            updateCustomBaselineTotal();
+            updateCustomInputConfigTotal();
+            refreshStorageIpDropdowns('custom');
+        }
+    },
+    k8s: {
+        title: 'Nhập Server tham chiếu K8S hàng loạt',
+        successLabel: 'Server tham chiếu K8S',
+        tableBodyId: 'k8s-baseline-table-body',
+        inputConfigBodyId: 'k8s-input-config-table-body',
+        selectors: {
+            ip: '.k8s-ip-input',
+            cpu: '.k8s-cpu-input',
+            ram: '.k8s-ram-input',
+            disk: '.k8s-disk-input',
+            cint: '.k8s-cint-input'
+        },
+        addRow: () => addK8SBaselineRow(),
+        syncIp: (ipInput) => syncK8SIPToInputConfig(ipInput),
+        recalculateRow: (row) => recalculateK8SInputConfigForRow(row.querySelector('.k8s-cint-input') || row),
+        updateAfterApply: () => {
+            updateK8SRowNumbers();
+            updateK8SInputConfigRowNumbers();
+            updateK8SBaselineTotal();
+            updateK8SInputConfigTotal();
+            refreshStorageIpDropdowns('k8s');
+        }
+    }
+};
+
+function getBulkBaselineModuleConfig(moduleKey = bulkBaselineTargetModuleKey) {
+    return BULK_BASELINE_MODULE_CONFIG[moduleKey] || BULK_BASELINE_MODULE_CONFIG.app;
+}
 
 // 2. Hàm Thêm dòng mới
 function addBaselineRow() {
@@ -9552,8 +9972,6 @@ function addBaselineRow() {
         <td class="text-center stt-cell">${rowCount}</td>
 
         <td><input type="text" class="input-full text-center ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
-
-        <td><input type="number" class="input-full text-center qty-input" value="1" min="1" step="1" oninput="${recalcHandler}"></td>
 
         <td><input type="text" class="input-full cpu-input" placeholder="Intel Xeon..."></td>
 
@@ -9593,7 +10011,7 @@ function addBaselineRow() {
 
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger ui-icon-btn-table btn-delete-row-item" onclick="${deleteRowHandler}">
-                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>
     `;
@@ -9605,7 +10023,9 @@ function addBaselineRow() {
     }
 
     // Re-apply role permissions for new row (disable admin fields for user, disable user fields for admin)
+    refreshStorageIpDropdowns('app');
     applyRolePermissions();
+    return tr;
 }
 
 // Generic inline evidence upload handler for per-row image columns
@@ -9775,22 +10195,21 @@ function closeImageModal() {
 
 // 3. Hàm Xóa dòng & Cập nhật lại STT
 function deleteBaselineRow(btn) {
-    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
-        const baselineRow = btn.closest('tr');
-        const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+    const baselineRow = btn.closest('tr');
+    const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
 
-        baselineRow.remove();
+    baselineRow.remove();
 
-        // Xóa dòng tương ứng trong input config table
-        const inputConfigTbody = document.getElementById('input-config-table-body');
-        if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
-            inputConfigTbody.rows[baselineRowIndex].remove();
-        }
-        updateRowNumbers();   // Đánh lại số STT
-        updateInputConfigRowNumbers();
-        updateBaselineTotal(); // Tính lại tổng
-        updateInputConfigTotal();
+    // Xóa dòng tương ứng trong input config table
+    const inputConfigTbody = document.getElementById('input-config-table-body');
+    if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+        inputConfigTbody.rows[baselineRowIndex].remove();
     }
+    updateRowNumbers();   // Đánh lại số STT
+    updateInputConfigRowNumbers();
+    updateBaselineTotal(); // Tính lại tổng
+    updateInputConfigTotal();
+    refreshStorageIpDropdowns('app');
 }
 
 // 4. Helper: Cập nhật lại số thứ tự (1, 2, 3...) khi xóa dòng giữa
@@ -9814,18 +10233,244 @@ function updateBaselineTotal() {
     let totalDisk = 0;
 
     document.querySelectorAll('#baseline-table-body tr').forEach(row => {
-        const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
         const ram = parseFloat(row.querySelector('.ram-input')?.value) || 0;
         const cint = parseFloat(row.querySelector('.cint-input')?.value) || 0;
         const disk = parseFloat(row.querySelector('.disk-input')?.value) || 0;
-        totalRam += ram * qty;
-        totalCint += cint * qty;
-        totalDisk += disk * qty;
+        totalRam += ram;
+        totalCint += cint;
+        totalDisk += disk;
     });
 
     totalRamEl.innerText = totalRam;
     totalCintEl.innerText = totalCint;
     if (totalDiskEl) totalDiskEl.innerText = totalDisk;
+}
+
+function getBulkBaselineControls() {
+    return {
+        modal: document.getElementById('bulk-baseline-modal'),
+        title: document.getElementById('bulk-baseline-title'),
+        cpu: document.getElementById('bulk-baseline-cpu'),
+        ram: document.getElementById('bulk-baseline-ram'),
+        disk: document.getElementById('bulk-baseline-disk'),
+        cint: document.getElementById('bulk-baseline-cint'),
+        ipList: document.getElementById('bulk-baseline-ip-list'),
+        error: document.getElementById('bulk-baseline-error')
+    };
+}
+
+function setBulkBaselineError(message, field = null) {
+    const controls = getBulkBaselineControls();
+    if (controls.error) controls.error.textContent = message || '';
+    Object.values(controls).forEach(el => el?.classList?.remove('field-error'));
+    if (field) {
+        field.classList.add('field-error');
+        field.focus();
+    }
+}
+
+function openBulkBaselineModal(sourceElement = null, moduleKey = 'app') {
+    const role = (getCurrentUser()?.role || '').toLowerCase();
+    if (role === 'admin1' || role === 'admin2') {
+        showToast('Chỉ user mới có thể nhập hàng loạt Server tham chiếu.', 'warning');
+        return;
+    }
+
+    const sourceWrapper = sourceElement?.closest?.('.module-instance-wrapper[data-instance-key]');
+    bulkBaselineTargetInstanceKey = sourceWrapper?.dataset?.instanceKey || window.__activeInstanceKey || '';
+    bulkBaselineTargetModuleKey = BULK_BASELINE_MODULE_CONFIG[moduleKey] ? moduleKey : 'app';
+
+    const controls = getBulkBaselineControls();
+    if (!controls.modal) return;
+    if (controls.title) controls.title.textContent = getBulkBaselineModuleConfig().title;
+    setBulkBaselineError('');
+    controls.modal.classList.remove('initially-hidden', 'is-hidden');
+    controls.modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => controls.cpu?.focus(), 0);
+}
+
+function closeBulkBaselineModal() {
+    const { modal } = getBulkBaselineControls();
+    if (!modal) return;
+    modal.classList.add('initially-hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    bulkBaselineTargetInstanceKey = '';
+    bulkBaselineTargetModuleKey = 'app';
+}
+
+function resetBulkBaselineForm() {
+    const controls = getBulkBaselineControls();
+    ['cpu', 'ram', 'disk', 'cint', 'ipList'].forEach(key => {
+        if (controls[key]) controls[key].value = '';
+    });
+    setBulkBaselineError('');
+}
+
+function isValidIpv4Address(value) {
+    const parts = String(value || '').trim().split('.');
+    if (parts.length !== 4) return false;
+    return parts.every(part => {
+        if (!/^\d{1,3}$/.test(part)) return false;
+        const number = Number(part);
+        return number >= 0 && number <= 255;
+    });
+}
+
+function parseBulkBaselineIpList(rawValue) {
+    const tokens = String(rawValue || '')
+        .split(/[\s,;]+/)
+        .map(item => item.trim())
+        .filter(Boolean);
+    const seen = new Set();
+    const duplicateIps = [];
+    const invalidIps = [];
+    const ips = [];
+
+    tokens.forEach(ip => {
+        if (!isValidIpv4Address(ip)) {
+            invalidIps.push(ip);
+            return;
+        }
+        if (seen.has(ip)) {
+            duplicateIps.push(ip);
+            return;
+        }
+        seen.add(ip);
+        ips.push(ip);
+    });
+
+    return { ips, invalidIps, duplicateIps };
+}
+
+function getExistingBaselineIps(moduleKey = bulkBaselineTargetModuleKey) {
+    const config = getBulkBaselineModuleConfig(moduleKey);
+    return new Set(Array.from(document.querySelectorAll(`#${config.tableBodyId} ${config.selectors.ip}`))
+        .map(input => input.value.trim())
+        .filter(Boolean));
+}
+
+function isBulkReplaceableBaselineSeedRow(row, moduleKey = bulkBaselineTargetModuleKey) {
+    if (!row) return false;
+    const selectors = getBulkBaselineModuleConfig(moduleKey).selectors;
+    const getValue = selector => row.querySelector(selector)?.value?.trim() || '';
+    const hasUserData = [
+        selectors.ip,
+        selectors.cpu,
+        selectors.ram,
+        selectors.disk,
+        selectors.cint
+    ].some(selector => getValue(selector) !== '');
+    const hasAdminData = getValue('.admin-eval-select') !== '' || getValue('.admin-note') !== '';
+    const hasEvidence = row.querySelectorAll('.inline-evidence-img').length > 0;
+    return !hasUserData && !hasAdminData && !hasEvidence;
+}
+
+function removeBulkReplaceableSeedRows(moduleKey = bulkBaselineTargetModuleKey) {
+    const config = getBulkBaselineModuleConfig(moduleKey);
+    const baselineTbody = document.getElementById(config.tableBodyId);
+    const inputConfigTbody = document.getElementById(config.inputConfigBodyId);
+    if (!baselineTbody || baselineTbody.rows.length !== 1) return;
+    if (!isBulkReplaceableBaselineSeedRow(baselineTbody.rows[0], moduleKey)) return;
+
+    baselineTbody.rows[0].remove();
+    if (inputConfigTbody?.rows?.[0]) inputConfigTbody.rows[0].remove();
+}
+
+function setBaselineRowValue(row, selector, value) {
+    const input = row?.querySelector(selector);
+    if (input) input.value = value;
+    return input;
+}
+
+function applyBulkBaselineRows() {
+    if (bulkBaselineTargetInstanceKey && window.__activeInstanceKey !== bulkBaselineTargetInstanceKey) {
+        return runInInstanceContext(bulkBaselineTargetInstanceKey, () => applyBulkBaselineRows());
+    }
+    const moduleKey = bulkBaselineTargetModuleKey;
+    const moduleConfig = getBulkBaselineModuleConfig(moduleKey);
+
+    const role = (getCurrentUser()?.role || '').toLowerCase();
+    if (role === 'admin1' || role === 'admin2') {
+        showToast('Chỉ user mới có thể nhập hàng loạt Server tham chiếu.', 'warning');
+        return;
+    }
+
+    const controls = getBulkBaselineControls();
+    if (!controls.modal) return;
+    setBulkBaselineError('');
+
+    const requiredFields = [
+        { key: 'cpu', label: 'CPU' },
+        { key: 'ram', label: 'RAM' },
+        { key: 'disk', label: 'Disk' },
+        { key: 'cint', label: 'Cint_rate' },
+        { key: 'ipList', label: 'Danh sách IP' }
+    ];
+    for (const item of requiredFields) {
+        if (!controls[item.key]?.value?.trim()) {
+            setBulkBaselineError(`Vui lòng nhập ${item.label}.`, controls[item.key]);
+            return;
+        }
+    }
+
+    const numericFields = [
+        { key: 'ram', label: 'RAM' },
+        { key: 'disk', label: 'Disk' },
+        { key: 'cint', label: 'Cint_rate' }
+    ];
+    for (const item of numericFields) {
+        const value = Number(controls[item.key].value);
+        if (!Number.isFinite(value) || value < 0) {
+            setBulkBaselineError(`${item.label} phải là số không âm.`, controls[item.key]);
+            return;
+        }
+    }
+
+    const parsed = parseBulkBaselineIpList(controls.ipList.value);
+    if (parsed.invalidIps.length > 0) {
+        setBulkBaselineError(`IP không hợp lệ: ${parsed.invalidIps.slice(0, 5).join(', ')}`, controls.ipList);
+        return;
+    }
+    if (parsed.duplicateIps.length > 0) {
+        setBulkBaselineError(`Danh sách IP bị trùng: ${parsed.duplicateIps.slice(0, 5).join(', ')}`, controls.ipList);
+        return;
+    }
+    if (parsed.ips.length === 0) {
+        setBulkBaselineError('Vui lòng nhập ít nhất một IP hợp lệ.', controls.ipList);
+        return;
+    }
+
+    const existingIps = getExistingBaselineIps(moduleKey);
+    const duplicatedExistingIps = parsed.ips.filter(ip => existingIps.has(ip));
+    if (duplicatedExistingIps.length > 0) {
+        setBulkBaselineError(`IP đã tồn tại trong bảng: ${duplicatedExistingIps.slice(0, 5).join(', ')}`, controls.ipList);
+        return;
+    }
+
+    removeBulkReplaceableSeedRows(moduleKey);
+
+    parsed.ips.forEach(ip => {
+        const row = moduleConfig.addRow();
+        if (!row) return;
+        const selectors = moduleConfig.selectors;
+
+        const ipInput = setBaselineRowValue(row, selectors.ip, ip);
+        setBaselineRowValue(row, selectors.cpu, controls.cpu.value.trim());
+        setBaselineRowValue(row, selectors.ram, controls.ram.value);
+        setBaselineRowValue(row, selectors.disk, controls.disk.value);
+        setBaselineRowValue(row, selectors.cint, controls.cint.value);
+
+        if (ipInput) moduleConfig.syncIp(ipInput);
+        moduleConfig.recalculateRow(row);
+    });
+
+    moduleConfig.updateAfterApply();
+    refreshSizingRequiredMarkers(document.getElementById('page-sizing'));
+    applyRolePermissions();
+
+    showToast(`Đã tạo ${parsed.ips.length} dòng ${moduleConfig.successLabel}.`, 'success');
+    resetBulkBaselineForm();
+    closeBulkBaselineModal();
 }
 
 // 6. Helper: Đổi màu xanh/đỏ cho ô Admin Select
@@ -9848,6 +10493,7 @@ function syncIPToInputConfig(ipInput) {
             ipConfigInput.value = ipInput.value;
         }
     }
+    refreshStorageIpDropdowns('app');
 }
 
 // 6b. Helper: Tính lại kết quả cho dòng input config tương ứng khi baseline thay đổi
@@ -9942,6 +10588,7 @@ function toggleModuleCollapsible(contentId) {
     } else {
         content.classList.add('expanded');
         header.classList.add('active');
+        scheduleAutoResizeTextBoxes(content);
     }
 }
 
@@ -9956,7 +10603,6 @@ function collectBaselineTableData() {
         data.push({
             stt: index + 1,
             ip: row.querySelector('.ip-input')?.value || '',
-            quantity: row.querySelector('.qty-input')?.value || '',
             cpu: row.querySelector('.cpu-input')?.value || '',
             ram: row.querySelector('.ram-input')?.value || '',
             disk: row.querySelector('.disk-input')?.value || '',
@@ -10640,14 +11286,12 @@ function loadAppSizingModuleData(moduleApp) {
             if (!lastRow) return;
 
             const ipInput = lastRow.querySelector('.ip-input');
-            const qtyInput = lastRow.querySelector('.qty-input');
             const cpuInput = lastRow.querySelector('.cpu-input');
             const ramInput = lastRow.querySelector('.ram-input');
             const diskInput = lastRow.querySelector('.disk-input');
             const cintInput = lastRow.querySelector('.cint-input');
 
             if (ipInput) ipInput.value = row.ip || '';
-            if (qtyInput) qtyInput.value = row.quantity || '1';
             if (cpuInput) cpuInput.value = row.cpu || '';
             if (ramInput) ramInput.value = row.ram || '';
             if (diskInput) diskInput.value = row.disk || '';
@@ -10662,6 +11306,7 @@ function loadAppSizingModuleData(moduleApp) {
     }
     ensureDefaultAppSizingRows();
     updateBaselineTotal();
+    refreshStorageIpDropdowns('app');
 
     if (inputConfigTbody) inputConfigTbody.innerHTML = '';
     if (moduleApp.inputConfigTable && Array.isArray(moduleApp.inputConfigTable) && moduleApp.inputConfigTable.length > 0) {
@@ -10712,7 +11357,7 @@ function loadAppSizingModuleData(moduleApp) {
             const evalSelect = lastRow.querySelector('.storage-eval');
             const adminNoteInput = lastRow.querySelector('.storage-admin-note');
 
-            if (ipInput) ipInput.value = row.ip || '';
+            setStorageIpSelectValue(ipInput, 'app', row.ip || '');
             if (partitionInput) partitionInput.value = row.partition || '';
             if (usedInput) usedInput.value = row.used || '';
             const storageEvidenceImages = getEvidenceImagesFromRowData(row);
@@ -10729,6 +11374,7 @@ function loadAppSizingModuleData(moduleApp) {
         });
     }
     ensureDefaultAppSizingRows();
+    refreshStorageIpDropdowns('app');
 
     if (moduleApp.selectedInputRow !== undefined && moduleApp.selectedInputRow !== '' && document.getElementById('app-input-row-select')) {
         document.getElementById('app-input-row-select').value = moduleApp.selectedInputRow;
@@ -11481,6 +12127,7 @@ function showSection(sectionId, linkElement, options = {}) {
     if (target) {
         target.classList.add('active'); // Thêm class active
         target.style.display = 'block'; // Hiện bằng style
+        scheduleAutoResizeTextBoxes(target);
     } else {
         Logger.error('Không tìm thấy ID: ' + sectionId);
     }
@@ -11535,6 +12182,7 @@ function showSection(sectionId, linkElement, options = {}) {
     if (target) {
         target.classList.add('active');
         target.style.display = 'block';
+        scheduleAutoResizeTextBoxes(target);
     } else {
         Logger.error('Khong tim thay ID: ' + sectionId);
     }
@@ -11555,6 +12203,7 @@ document.addEventListener("DOMContentLoaded", function () {
     applyFixedSizingRule();
     initGlobalAutoResizeTextBoxes();
     initGlobalAutoResizeTextBoxObserver();
+    scheduleAutoResizeTextBoxes();
     initVietnameseDateInputs();
     initRequestAutoResizeTextareas();
     ensureDefaultAppSizingRows();
@@ -11649,7 +12298,7 @@ function addInputConfigRow() {
 
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger ui-icon-btn-table btn-delete-row-item" onclick="${deleteRowHandler}">
-                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>
     `;
@@ -11673,7 +12322,6 @@ function calculateInputConfigRow(input) {
         const baselineRow = baselineRows[rowIndex];
         const baselineCint = parseFloat(baselineRow.querySelector('.cint-input').value) || 0;
         const baselineRam = parseFloat(baselineRow.querySelector('.ram-input').value) || 0;
-        const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
         const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
         const ramLoad = parseFloat(ramLoadInput.value) || 0;
@@ -11681,8 +12329,8 @@ function calculateInputConfigRow(input) {
         // Công thức:
         // Cint_rate used (Cint) = Cint_rate_2017 (hệ thống tham chiếu) × Tải CPU 95th percentile (%)
         // RAM used (GB) = RAM (hệ thống tham chiếu) × Tải RAM 95th percentile (%)
-        const cintUsed = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
-        const ramUsed = (baselineRam * quantity * ramLoad / 100).toFixed(2);
+        const cintUsed = (baselineCint * cpuLoad / 100).toFixed(2);
+        const ramUsed = (baselineRam * ramLoad / 100).toFixed(2);
 
         cintUsedInput.value = cintUsed;
         ramUsedInput.value = ramUsed;
@@ -11692,11 +12340,9 @@ function calculateInputConfigRow(input) {
 }
 
 function deleteInputConfigRow(btn) {
-    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
-        btn.closest('tr').remove();
-        updateInputConfigRowNumbers();
-        updateInputConfigTotal();
-    }
+    btn.closest('tr').remove();
+    updateInputConfigRowNumbers();
+    updateInputConfigTotal();
 }
 
 function updateInputConfigRowNumbers() {
@@ -11741,8 +12387,8 @@ function addStorageInputRow() {
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
-        <td><input type="text" class="input-full text-center storage-ip-input" placeholder="10.x.x.x"></td>
-        <td><input type="text" class="input-full text-center storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
+        <td><select class="input-full text-center storage-ip-input">${buildStorageIpOptions('app')}</select></td>
+        <td><input type="text" class="input-full text-center storage-partition-input" placeholder="/u01, /u02,..."></td>
         <td><input type="number" class="input-full text-center storage-used-input" min="0" step="0.01"></td>
         <td>
             <div class="inline-evidence-cell">
@@ -11766,20 +12412,19 @@ function addStorageInputRow() {
         </td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger ui-icon-btn-table btn-delete-row-item" onclick="${deleteRowHandler}">
-                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>
     `;
 
     tbody.appendChild(tr);
+    refreshStorageIpDropdowns('app');
     applyRolePermissions();
 }
 
 function deleteStorageInputRow(btn) {
-    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
-        btn.closest('tr').remove();
-        updateStorageInputRowNumbers();
-    }
+    btn.closest('tr').remove();
+    updateStorageInputRowNumbers();
 }
 
 function updateStorageInputRowNumbers() {
@@ -12048,7 +12693,7 @@ function buildAppCustomProposalSectionHtml(selectedProposalSource, customProposa
             </td>
             <td class="text-center">
                 <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này" aria-label="Xóa dòng này">
-                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
                 </button>
             </td>
         </tr>
@@ -12145,7 +12790,7 @@ function ensureAppProposalSelectionUI(containerOrOptions = {}, optionsArg = {}) 
                 </td>
                 <td class="text-center">
                     <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="removeRow(this)" title="Xóa dòng này" aria-label="Xóa dòng này">
-                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
                     </button>
                 </td>
             `;
@@ -12664,7 +13309,6 @@ function addK8SBaselineRow() {
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
         <td><input type="text" class="input-full text-center k8s-ip-input" placeholder="10.x.x.x" oninput="${syncIpHandler}"></td>
-        <td><input type="number" class="input-full text-center qty-input" value="1" min="1" step="1" oninput="${baselineRamHandler}"></td>
         <td><input type="text" class="input-full k8s-cpu-input" placeholder="Intel Xeon..."></td>
         <td><input type="number" class="input-full text-center k8s-ram-input" min="0" oninput="${baselineRamHandler}"></td>
         <td><input type="number" class="input-full text-center k8s-disk-input" min="0" oninput="${baselineDiskHandler}"></td>
@@ -12690,7 +13334,7 @@ function addK8SBaselineRow() {
         </td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger ui-icon-btn-table btn-delete-row-item" onclick="${deleteBaselineHandler}">
-                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>
     `;
@@ -12699,7 +13343,9 @@ function addK8SBaselineRow() {
     if (inputConfigTbody) {
         addK8SInputConfigRow();
     }
+    refreshStorageIpDropdowns('k8s');
     applyRolePermissions();
+    return tr;
 }
 
 function addK8SInputConfigRow() {
@@ -12741,7 +13387,7 @@ function addK8SInputConfigRow() {
         </td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger ui-icon-btn-table btn-delete-row-item" onclick="${deleteHandler}">
-                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>
     `;
@@ -12764,41 +13410,37 @@ function calculateK8SInputConfigRow(input) {
         const baselineRow = baselineRows[rowIndex];
         const baselineCint = parseFloat(baselineRow.querySelector('.k8s-cint-input').value) || 0;
         const baselineRam = parseFloat(baselineRow.querySelector('.k8s-ram-input').value) || 0;
-        const quantity = parseFloat(baselineRow.querySelector('.qty-input')?.value) || 1;
 
         const cpuLoad = parseFloat(cpuLoadInput.value) || 0;
         const ramLoad = parseFloat(ramLoadInput.value) || 0;
 
-        cintUsedInput.value = (baselineCint * quantity * cpuLoad / 100).toFixed(2);
-        ramUsedInput.value = (baselineRam * quantity * ramLoad / 100).toFixed(2);
+        cintUsedInput.value = (baselineCint * cpuLoad / 100).toFixed(2);
+        ramUsedInput.value = (baselineRam * ramLoad / 100).toFixed(2);
     }
 
     updateK8SInputConfigTotal();
 }
 
 function deleteK8SBaselineRow(btn) {
-    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
-        const baselineRow = btn.closest('tr');
-        const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
-        baselineRow.remove();
+    const baselineRow = btn.closest('tr');
+    const baselineRowIndex = Array.from(baselineRow.parentNode.children).indexOf(baselineRow);
+    baselineRow.remove();
 
-        const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
-        if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
-            inputConfigTbody.rows[baselineRowIndex].remove();
-        }
-        updateK8SRowNumbers();
-        updateK8SInputConfigRowNumbers();
-        updateK8SBaselineTotal();
-        updateK8SInputConfigTotal();
+    const inputConfigTbody = document.getElementById('k8s-input-config-table-body');
+    if (inputConfigTbody && inputConfigTbody.rows[baselineRowIndex]) {
+        inputConfigTbody.rows[baselineRowIndex].remove();
     }
+    updateK8SRowNumbers();
+    updateK8SInputConfigRowNumbers();
+    updateK8SBaselineTotal();
+    updateK8SInputConfigTotal();
+    refreshStorageIpDropdowns('k8s');
 }
 
 function deleteK8SInputConfigRow(btn) {
-    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
-        btn.closest('tr').remove();
-        updateK8SInputConfigRowNumbers();
-        updateK8SInputConfigTotal();
-    }
+    btn.closest('tr').remove();
+    updateK8SInputConfigRowNumbers();
+    updateK8SInputConfigTotal();
 }
 
 function updateK8SRowNumbers() {
@@ -12826,13 +13468,12 @@ function updateK8SBaselineTotal() {
     let totalRam = 0, totalCint = 0, totalDisk = 0;
 
     getK8SBaselineRows().forEach(row => {
-        const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
         const ram = parseFloat(row.querySelector('.k8s-ram-input')?.value) || 0;
         const cint = parseFloat(row.querySelector('.k8s-cint-input')?.value) || 0;
         const disk = parseFloat(row.querySelector('.k8s-disk-input')?.value) || 0;
-        totalRam += ram * qty;
-        totalCint += cint * qty;
-        totalDisk += disk * qty;
+        totalRam += ram;
+        totalCint += cint;
+        totalDisk += disk;
     });
 
     totalRamEl.innerText = totalRam;
@@ -12866,8 +13507,8 @@ function addK8SStorageInputRow() {
 
     tr.innerHTML = `
         <td class="text-center stt-cell">${rowCount}</td>
-        <td><input type="text" class="input-full text-center k8s-storage-ip-input" placeholder="10.x.x.x"></td>
-        <td><input type="text" class="input-full text-center k8s-storage-partition-input" placeholder="/os, /u01, /u02,..."></td>
+        <td><select class="input-full text-center k8s-storage-ip-input">${buildStorageIpOptions('k8s')}</select></td>
+        <td><input type="text" class="input-full text-center k8s-storage-partition-input" placeholder="/u01, /u02,..."></td>
         <td><input type="number" class="input-full text-center k8s-storage-used-input" min="0" step="0.01"></td>
         <td><input type="text" class="input-full k8s-storage-note-input" placeholder="Lưu /data, /logs, /backup, NAS, ..."></td>
         <td class="admin-cell">
@@ -12882,20 +13523,19 @@ function addK8SStorageInputRow() {
         </td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger ui-icon-btn-table btn-delete-row-item" onclick="${deleteRowHandler}">
-                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>
     `;
 
     tbody.appendChild(tr);
+    refreshStorageIpDropdowns('k8s');
     applyRolePermissions();
 }
 
 function deleteK8SStorageInputRow(btn) {
-    if (confirm('Bạn có chắc muốn xóa dòng này?')) {
-        btn.closest('tr').remove();
-        updateK8SStorageInputRowNumbers();
-    }
+    btn.closest('tr').remove();
+    updateK8SStorageInputRowNumbers();
 }
 
 function updateK8SStorageInputRowNumbers() {
@@ -12931,6 +13571,7 @@ function syncK8SIPToInputConfig(ipInput) {
         const ipConfigInput = inputConfigTbody.rows[baselineRowIndex].querySelector('.k8s-ip-config-input');
         if (ipConfigInput) ipConfigInput.value = ipInput.value;
     }
+    refreshStorageIpDropdowns('k8s');
 }
 
 function recalculateK8SInputConfigForRow(baselineInput) {
@@ -13161,7 +13802,6 @@ function collectK8SBaselineTableData() {
         data.push({
             stt: index + 1,
             ip: row.querySelector('.k8s-ip-input')?.value || '',
-            quantity: row.querySelector('.qty-input')?.value || '',
             cpu: row.querySelector('.k8s-cpu-input')?.value || '',
             ram: row.querySelector('.k8s-ram-input')?.value || '',
             disk: row.querySelector('.k8s-disk-input')?.value || '',
@@ -13295,6 +13935,7 @@ function loadK8SData(data) {
                 }
             });
             updateK8SBaselineTotal();
+            refreshStorageIpDropdowns('k8s');
         }
     }
 
@@ -13349,7 +13990,7 @@ function loadK8SData(data) {
             const evalSelect = lastRow.querySelector('.k8s-storage-eval');
             const adminNoteInput = lastRow.querySelector('.k8s-storage-admin-note');
 
-            if (ipInput) ipInput.value = row.ip || '';
+            setStorageIpSelectValue(ipInput, 'k8s', row.ip || '');
             if (partitionInput) partitionInput.value = row.partition || '';
             if (usedInput) usedInput.value = row.used || '';
             if (noteInput) noteInput.value = row.note || '';
@@ -13362,6 +14003,7 @@ function loadK8SData(data) {
     }
 
     ensureDefaultK8SSizingRows();
+    refreshStorageIpDropdowns('k8s');
 
     // Load POC and Sizing values
     if (data.selectedInputRow !== undefined && data.selectedInputRow !== '' && document.getElementById('k8s-input-row-select')) {
@@ -14416,7 +15058,7 @@ function addMariaDBRefRow(data = {}) {
         </td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="this.closest('tr').remove()">
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
             </button>
         </td>
     `;
@@ -14458,17 +15100,8 @@ function collectMariaDBRefTableData() {
 
 // Thu thập dữ liệu storage MariaDB (direct input - dataUsed, logUsed, soBanBackup, tiLeNen)
 function collectMariaDBStorageData() {
-    // Collect multiple evidence images
-    const evidenceImages = [];
-    const grid = document.getElementById('mariadb-storage-evidence-grid');
-    if (grid) {
-        grid.querySelectorAll('.mariadb-storage-evidence-slot').forEach(slot => {
-            const img = slot.querySelector('img');
-            if (img && img.src) {
-                evidenceImages.push(img.src);
-            }
-        });
-    }
+    const evidenceScope = document.getElementById('mariadb-storage-evidence-cell') || document.getElementById('mariadb-storage-evidence-grid');
+    const evidenceImages = collectInlineEvidenceFromScope(evidenceScope);
     return {
         dataUsed: document.getElementById('mariadb-storage-data-used')?.value || '',
         logUsed: document.getElementById('mariadb-storage-log-used')?.value || '',
@@ -14825,77 +15458,35 @@ function deleteMariaDBEvidenceSlot(btn) {
 
 // Thêm slot ảnh sở cứ cho bảng Storage MariaDB (hỗ trợ nhiều ảnh)
 function addMariaDBStorageEvidenceSlot() {
-    const grid = document.getElementById('mariadb-storage-evidence-grid');
-    if (!grid) return;
-
-    const slot = document.createElement('div');
-    slot.className = 'mariadb-storage-evidence-slot';
-    slot.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: var(--method-green-bg); border-radius: 4px; border: 1px solid var(--method-border);';
-    slot.innerHTML = `
-        <input type="file" accept="image/*" onchange="handleMariaDBStorageEvidenceUpload(this)" class="is-hidden">
-        <span class="storage-evidence-preview u-text-muted u-text-xs">Chưa có ảnh</span>
-        <button type="button" class="ui-icon-btn ui-icon-btn-success ui-icon-btn-xs btn-inline-evidence sizing-user-btn tiny-upload-control" onclick="this.parentElement.querySelector('input[type=file]').click()" title="Upload ảnh" aria-label="Upload ảnh">
-            <i class="fa-solid fa-cloud-arrow-up"></i>
-        </button>
-    `;
-    grid.appendChild(slot);
-    // Trigger file picker immediately
-    slot.querySelector('input[type=file]').click();
+    const cell = document.getElementById('mariadb-storage-evidence-cell');
+    cell?.querySelector('input[type=file]')?.click();
 }
 
 // Xử lý upload ảnh cho Storage MariaDB
 function handleMariaDBStorageEvidenceUpload(input) {
-    const slot = input.closest('.mariadb-storage-evidence-slot');
-    const previewSpan = slot.querySelector('.storage-evidence-preview');
-
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            previewSpan.innerHTML = `
-                <img src="${e.target.result}" alt="Evidence" class="is-hidden">
-                <button type="button" class="ui-icon-btn ui-icon-btn-success btn-view-evidence tiny-icon-control" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh" aria-label="Xem ảnh">
-                    <i class="fa-solid fa-eye"></i>
-                </button>
-                <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-remove-evidence sizing-user-btn tiny-icon-control" onclick="removeMariaDBStorageEvidenceSlot(this)" title="Xóa ảnh" aria-label="Xóa ảnh"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-            `;
-            // Hide the upload button
-            const uploadBtn = slot.querySelector('.btn-inline-evidence');
-            if (uploadBtn) uploadBtn.style.display = 'none';
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
+    handleInlineEvidenceUpload(input);
 }
 
 // Xóa slot ảnh sở cứ Storage MariaDB
 function removeMariaDBStorageEvidenceSlot(btn) {
     if (confirm('Bạn có chắc muốn xóa ảnh này?')) {
         const slot = btn.closest('.mariadb-storage-evidence-slot');
-        if (slot) slot.remove();
+        if (slot) {
+            slot.remove();
+        } else {
+            removeInlineEvidence(btn);
+        }
     }
 }
 
 // Load ảnh sở cứ Storage MariaDB (nhiều ảnh)
 function loadMariaDBStorageEvidence(images) {
-    const grid = document.getElementById('mariadb-storage-evidence-grid');
-    if (!grid || !images || !Array.isArray(images)) return;
+    const cell = document.getElementById('mariadb-storage-evidence-cell');
+    const previewSpan = document.getElementById('mariadb-storage-evidence-grid');
+    if (!cell || !previewSpan || !images || !Array.isArray(images)) return;
 
-    grid.innerHTML = '';
-    images.forEach(imgSrc => {
-        const slot = document.createElement('div');
-        slot.className = 'mariadb-storage-evidence-slot';
-        slot.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: var(--method-green-bg); border-radius: 4px; border: 1px solid var(--method-border);';
-        slot.innerHTML = `
-            <input type="file" accept="image/*" onchange="handleMariaDBStorageEvidenceUpload(this)" class="is-hidden">
-            <span class="storage-evidence-preview">
-                <img src="${imgSrc}" alt="Evidence" class="is-hidden">
-                <button type="button" class="ui-icon-btn ui-icon-btn-success btn-view-evidence tiny-icon-control" onclick="openModal(this.parentElement.querySelector('img').src)" title="Xem ảnh" aria-label="Xem ảnh">
-                    <i class="fa-solid fa-eye"></i>
-                </button>
-                <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-remove-evidence sizing-user-btn tiny-icon-control" onclick="removeMariaDBStorageEvidenceSlot(this)" title="Xóa ảnh" aria-label="Xóa ảnh"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-            </span>
-        `;
-        grid.appendChild(slot);
-    });
+    previewSpan.innerHTML = '';
+    loadInlineEvidence(cell, images);
 }
 
 // Thu thập dữ liệu ảnh sở cứ MariaDB
@@ -15006,32 +15597,26 @@ function addRedisKeyEvidenceSlot() {
     const grid = document.getElementById('redis-key-evidence-grid');
     if (!grid) return;
 
-    const slot = document.createElement('div');
-    slot.className = 'upload-box';
-    slot.innerHTML = `
-        <div class="preview-area"></div>
-        <input type="file" accept="image/*" onchange="handleRedisKeyImageUpload(this)" class="is-hidden">
-        <button type="button" class="ui-btn ui-btn-outline btn-upload sizing-user-btn" onclick="this.previousElementSibling.click()">
-            <i class="fa-solid fa-upload"></i> Chọn ảnh
-        </button>
-        <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn u-ml-5" onclick="this.closest('.upload-box').remove()">
-            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-        </button>
-    `;
-    grid.appendChild(slot);
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.multiple = true;
+    picker.className = 'is-hidden';
+    picker.addEventListener('cancel', () => picker.remove());
+    picker.onchange = function () {
+        Array.from(picker.files || []).forEach(file => appendEvidenceImageCard(grid, file, 'redis-key-evidence'));
+        picker.remove();
+        try { applyRolePermissions(); } catch (e) { }
+    };
+    document.body.appendChild(picker);
+    picker.click();
+    try { applyRolePermissions(); } catch (e) { }
 }
 
 // Xử lý upload ảnh
 function handleRedisKeyImageUpload(input) {
-    const file = input.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        const previewArea = input.closest('.upload-box').querySelector('.preview-area');
-        previewArea.innerHTML = `<img src="${e.target.result}" alt="Evidence" class="is-hidden"><button type="button" class="ui-icon-btn ui-icon-btn-success btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh" aria-label="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
-    };
-    reader.readAsDataURL(file);
+    const boxId = input.closest('.upload-box')?.id;
+    if (boxId) previewEvidenceCardImage(input, boxId);
 }
 
 // Thêm dòng vào bảng cấu hình Redis
@@ -15072,7 +15657,7 @@ function addRedisConfigRow(data = {}) {
         </td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="this.closest('tr').remove(); updateRedisTotalMasterRAM();">
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
             </button>
         </td>
     `;
@@ -15250,7 +15835,7 @@ function calculateRedisKeyMethod() {
             <li><strong>Tổng số Key sau định cỡ (A):</strong> ${keyCountPOC.toLocaleString()} × ${(sizing / poc).toFixed(2)} = <strong>${keyCount.toLocaleString()}</strong></li>
             <li><strong>Kích thước trung bình 1 bản ghi (B):</strong> ${recordSize} bytes</li>
             <li><strong>Tổng dung lượng Key Redis (C):</strong> ${keyCount.toLocaleString()} × ${recordSize} = <strong>${C.toFixed(4)} GB</strong></li>
-            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT' : 'Bình thường'}</li>
+            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'Đặc biệt quan trọng' : 'Bình thường'}</li>
         </ul>
     </div>`;
 
@@ -15332,11 +15917,10 @@ function calculateRedisConfigMethod() {
     // Hệ số
     const factor = sizingCCU / inputCCU;
 
-    // RAM cần = RAM * Tải RAM * (Định cỡ / Đầu vào) * 1.1 / 0.9
-    const ramNeeded = totalMasterRAM * factor * 1.1 / 0.9;
-
-    // Sau đó áp dụng công thức tương tự phương pháp Key
-    const C = ramNeeded;
+    // RAM nền sau khi quy đổi tải sizing. Hệ số dự phòng/KPI chỉ áp dụng ở phần công thức RAM mỗi server.
+    const scaledMasterRAM = totalMasterRAM * factor;
+    const ramBeforeSharding = scaledMasterRAM * 1.1 / 0.9;
+    const C = scaledMasterRAM;
 
     const container = document.getElementById('redis-config-result-container');
     const existingProposalState = getCurrentRedisProposalState(container);
@@ -15349,11 +15933,11 @@ function calculateRedisConfigMethod() {
     let slavePerMaster = importance === 'dbqt' ? 2 : 1;
     let totalServers = 0;
 
-    if (C < 32) {
+    if (ramBeforeSharding < 32) {
         // Redis Sentinel
         model = 'Redis Sentinel';
         vcpu = 8;
-        ramPerServer = C * 1.1 / 0.9;
+        ramPerServer = ramBeforeSharding;
         diskPerServer = 4 * ramPerServer;
         masterCount = 1;
         slavePerMaster = 2;
@@ -15363,9 +15947,12 @@ function calculateRedisConfigMethod() {
         model = 'Redis Cluster';
         vcpu = 16;
 
-        const N = findOptimalN(C);
+        let N = 3;
+        while (ramBeforeSharding / N >= 64) {
+            N += 2;
+        }
         masterCount = N;
-        ramPerServer = (C * 1.1 / 0.9) / N;
+        ramPerServer = ramBeforeSharding / N;
         diskPerServer = 4 * ramPerServer;
         totalServers = N * (1 + slavePerMaster);
     }
@@ -15377,17 +15964,9 @@ function calculateRedisConfigMethod() {
             <li><strong>Mô hình hiện tại:</strong> ${currentModel === 'cluster' ? 'Redis Cluster' : 'Redis Sentinel'}</li>
             <li><strong>Tổng RAM Master hiện tại (đã nhân tải):</strong> ${totalMasterRAM.toFixed(2)} GB</li>
             <li><strong>Hệ số (Định cỡ/Đầu vào):</strong> ${sizingCCU} / ${inputCCU} = ${factor.toFixed(2)}</li>
-            <li><strong>RAM cần cho hệ thống mới:</strong> ${totalMasterRAM.toFixed(2)} × ${factor.toFixed(2)} × 1.1 / 0.9 = <strong>${ramNeeded.toFixed(2)} GB</strong></li>
-            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'DBQT' : 'Bình thường'}</li>
+            <li><strong>RAM quy đổi theo tải sizing (C):</strong> ${totalMasterRAM.toFixed(2)} × ${factor.toFixed(2)} = <strong>${C.toFixed(2)} GB</strong></li>
+            <li><strong>Mức độ quan trọng:</strong> ${importance === 'dbqt' ? 'Đặc biệt quan trọng' : 'Bình thường'}</li>
         </ul>
-    </div>`;
-
-    html += `<div class="success-callout">
-        <h4 class="u-m-0 u-mb-10 u-text-success"><i class="fa-solid fa-lightbulb"></i> Đề xuất mô hình</h4>
-        <p class="inline-summary-text">
-            <strong>${model}</strong> - ${masterCount} master ${slavePerMaster} slave
-            ${C >= 32 ? `<br><em>(RAM = ${C.toFixed(2)} GB > 32 GB → Sử dụng Cluster với N = ${masterCount} master)</em>` : `<br><em>(RAM = ${C.toFixed(2)} GB < 32 GB → Sử dụng Sentinel)</em>`}
-        </p>
     </div>`;
 
     html += `<div class="warning-callout">
@@ -15397,6 +15976,14 @@ function calculateRedisConfigMethod() {
             <li><strong>vCPU mỗi server:</strong> ${vcpu} vCPU (mặc định cho ${model})</li>
             <li><strong>DISK mỗi server:</strong> 4 × RAM = 4 × ${ramPerServer.toFixed(2)} = <strong>${diskPerServer.toFixed(2)} GB</strong></li>
         </ul>
+    </div>`;
+
+    html += `<div class="success-callout">
+        <h4 class="u-m-0 u-mb-10 u-text-success"><i class="fa-solid fa-lightbulb"></i> Đề xuất mô hình</h4>
+        <p class="inline-summary-text">
+            <strong>${model}</strong> - ${masterCount} master ${slavePerMaster} slave
+            ${ramBeforeSharding >= 32 ? `<br><em>(RAM1svr trước chia cụm = ${ramBeforeSharding.toFixed(2)} GB ≥ 32 GB → Sử dụng Cluster với N = ${masterCount} master)</em>` : `<br><em>(RAM1svr = ${ramBeforeSharding.toFixed(2)} GB < 32 GB → Sử dụng Sentinel)</em>`}
+        </p>
     </div>`;
 
     // Bảng kết quả
@@ -15516,13 +16103,10 @@ function loadRedisData(data) {
             if (grid) {
                 grid.innerHTML = '';
                 km.evidenceImages.forEach(img => {
-                    addRedisKeyEvidenceSlot();
-                    const lastSlot = grid.lastElementChild;
-                    if (lastSlot && img.dataUrl) {
-                        const previewArea = lastSlot.querySelector('.preview-area');
-                        if (previewArea) {
-                            previewArea.innerHTML = `<img src="${img.dataUrl}" alt="Evidence" class="is-hidden"><button type="button" class="ui-icon-btn ui-icon-btn-success btn-view-evidence" onclick="openModal(this.previousElementSibling.src)" title="Xem ảnh" aria-label="Xem ảnh"><i class="fa-solid fa-eye"></i></button>`;
-                        }
+                    const dataUrl = img?.dataUrl || img?.base64 || img;
+                    if (dataUrl) {
+                        const boxId = 'redis-key-evidence-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+                        grid.appendChild(createEvidenceUploadCard(boxId, dataUrl));
                     }
                 });
             }
@@ -15614,16 +16198,31 @@ function selectKafkaMethod(method) {
 
 // Thêm ảnh sở cứ cho Throughput
 function addKafkaThroughputEvidenceSlot() {
-    const grid = document.getElementById('kafka-throughput-evidence-grid');
-    if (!grid) return;
-    addImageUploadSlot(grid, 'handleKafkaImageUpload');
+    addKafkaEvidenceCardsFromPicker('kafka-throughput-evidence-grid', 'kafka-throughput-evidence');
 }
 
 // Thêm ảnh sở cứ cho Compression
 function addKafkaCompressionEvidenceSlot() {
-    const grid = document.getElementById('kafka-compression-evidence-grid');
+    addKafkaEvidenceCardsFromPicker('kafka-compression-evidence-grid', 'kafka-compression-evidence');
+}
+
+function addKafkaEvidenceCardsFromPicker(gridId, prefix) {
+    const grid = document.getElementById(gridId);
     if (!grid) return;
-    addImageUploadSlot(grid, 'handleKafkaImageUpload');
+
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.multiple = true;
+    picker.className = 'is-hidden';
+    picker.addEventListener('cancel', () => picker.remove());
+    picker.onchange = function () {
+        Array.from(picker.files || []).forEach(file => appendEvidenceImageCard(grid, file, prefix));
+        picker.remove();
+        try { applyRolePermissions(); } catch (e) { }
+    };
+    document.body.appendChild(picker);
+    picker.click();
 }
 
 // Helper function để thêm image upload slot
@@ -15796,7 +16395,7 @@ function addKafkaLinearRow(data = {}) {
         </td>
         <td class="text-center">
             <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete sizing-user-btn" onclick="this.closest('tr').remove(); updateKafkaLinearTotal();">
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
             </button>
         </td>
     `;
@@ -16364,6 +16963,15 @@ function loadKafkaEvidenceImages(gridId, images, addSlotFn) {
 
     grid.innerHTML = '';
     images.forEach(img => {
+        if (grid.classList.contains('model-upload-grid')) {
+            const dataUrl = img?.dataUrl || img?.base64 || img;
+            if (dataUrl) {
+                const boxId = gridId + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+                grid.appendChild(createEvidenceUploadCard(boxId, dataUrl));
+            }
+            return;
+        }
+
         addSlotFn();
         const lastSlot = grid.lastElementChild;
         if (lastSlot && img.dataUrl) {
@@ -18657,7 +19265,7 @@ function createConnectionTableRow(stt, data = {}) {
             <textarea rows="1" class="input-full admin-note connection-auto-textarea textarea-min-sm" placeholder="Nhận xét..." oninput="autoResizeConnectionTextarea(this)">${data.adminNote || ''}</textarea>
         </td>
         <td class="text-center">
-            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="removeConnectionRow(this)"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="removeConnectionRow(this)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
         </td>
     `;
     return tr;
@@ -18665,14 +19273,25 @@ function createConnectionTableRow(stt, data = {}) {
 
 function autoResizeConnectionTextarea(textarea) {
     if (!textarea) return;
+    if (!isTextBoxMeasurable(textarea)) {
+        textarea.dataset.pendingAutoResize = '1';
+        return;
+    }
     textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
+    const minHeight = parseFloat(window.getComputedStyle(textarea).minHeight) || 0;
+    textarea.style.height = `${Math.max(textarea.scrollHeight, minHeight)}px`;
+    delete textarea.dataset.pendingAutoResize;
 }
 
 function autoResizeModuleCell(textarea) {
     if (!textarea) return;
+    if (!isTextBoxMeasurable(textarea)) {
+        textarea.dataset.pendingAutoResize = '1';
+        return;
+    }
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.max(textarea.scrollHeight, 44)}px`;
+    delete textarea.dataset.pendingAutoResize;
 }
 
 function resizeConnectionTextareasInRow(row) {

@@ -427,7 +427,7 @@
                                             <div class="row-evidence-controls">
                                                 <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                                                     <i class="fa-solid fa-cloud-arrow-up"></i>
-                                                    <input type="file" accept="image/*" class="hidden-file-input"
+                                                    <input type="file" accept="image/*" multiple class="hidden-file-input"
                                                         onclick="event.stopPropagation()"
                                                         onchange="handleRowEvidenceUpload(this, 'poc')">
                                                 </label>
@@ -442,7 +442,7 @@
                                             <div class="row-evidence-controls">
                                                 <label class="upload-icon-btn" title="Tải ảnh/Xem ảnh">
                                                     <i class="fa-solid fa-cloud-arrow-up"></i>
-                                                    <input type="file" accept="image/*" class="hidden-file-input"
+                                                    <input type="file" accept="image/*" multiple class="hidden-file-input"
                                                         onclick="event.stopPropagation()"
                                                         onchange="handleRowEvidenceUpload(this, 'sizing')">
                                                 </label>
@@ -471,7 +471,7 @@
                                     <td class="u-text-center">
                                         <button type="button" class="ui-icon-btn ui-icon-btn-danger ui-icon-btn-table btn-delete-row-item" onclick="deleteRow(this)"
                                             title="Xóa dòng này">
-                                            <i class="fa-solid fa-trash"></i>
+                                            <i class="fa-solid fa-trash-can"></i>
                                         </button>
                                     </td>
                                 </tr>
@@ -505,7 +505,7 @@
                     <div class="model-wrapper">
                         <div class="model-user-content">
                             <h3 class="model-header">
-                                <i class="fa-solid fa-server icon-primary"></i> A. Mô hình Vật lý
+                                <i class="fa-solid fa-server icon-primary"></i> A. Mô hình Vật lý <span class="model-required-marker">*</span>
 
                                 <span class="help-icon">
                                     <i class="fa-solid fa-question"></i>
@@ -518,8 +518,8 @@
                                 </span>
                             </h3>
 
-                            <div id="container-physical" class="image-upload-grid"></div>
-                            <button type="button" class="ui-btn ui-btn-outline btn-add-img" onclick="createUploadBox('physical')">
+                            <div id="container-physical" class="image-upload-grid model-upload-grid"></div>
+                            <button type="button" class="ui-btn ui-btn-outline btn-add-img btn-model-add-img" onclick="createUploadBox('physical')">
                                 <i class="fa-solid fa-plus"></i> Thêm ảnh
                             </button>
                         </div>
@@ -546,7 +546,7 @@
                     <div class="model-wrapper">
                         <div class="model-user-content">
                             <h3 class="model-header">
-                                <i class="fa-solid fa-network-wired icon-primary"></i> B. Mô hình Logic
+                                <i class="fa-solid fa-network-wired icon-primary"></i> B. Mô hình Logic <span class="model-required-marker">*</span>
 
                                 <span class="help-icon">
                                     <i class="fa-solid fa-question"></i>
@@ -558,8 +558,8 @@
                                 </span>
                             </h3>
 
-                            <div id="container-logical" class="image-upload-grid"></div>
-                            <button type="button" class="ui-btn ui-btn-outline btn-add-img" onclick="createUploadBox('logical')">
+                            <div id="container-logical" class="image-upload-grid model-upload-grid"></div>
+                            <button type="button" class="ui-btn ui-btn-outline btn-add-img btn-model-add-img" onclick="createUploadBox('logical')">
                                 <i class="fa-solid fa-plus"></i> Thêm ảnh
                             </button>
 
@@ -682,8 +682,8 @@
                             </h3>
 
                             <div class="u-mb-20">
-                                <div id="container-flow" class="image-upload-grid"></div>
-                                <button type="button" class="ui-btn ui-btn-outline btn-add-img" onclick="createUploadBox('flow')">
+                                <div id="container-flow" class="image-upload-grid model-upload-grid"></div>
+                                <button type="button" class="ui-btn ui-btn-outline btn-add-img btn-model-add-img" onclick="createUploadBox('flow')">
                                     <i class="fa-solid fa-plus"></i> Thêm ảnh luồng
                                 </button>
                             </div>
@@ -732,6 +732,7 @@
                                     </div>
                                 </span> -->
                             </h3>
+                            <p class="muted-note model-sizing-note">Điền những module cần sizing.</p>
                             <div class="table-responsive">
                                 <table class="sizing-table">
                                     <thead>
@@ -797,7 +798,6 @@
                                             <tr>
                                                 <th class="col-w-50">STT</th>
                                                 <th class="col-w-130">IP</th>
-                                                <th class="col-w-80">Số lượng</th>
                                                 <th class="col-w-220">CPU (Model & Specs)</th>
                                                 <th class="col-w-100">RAM (GB)</th>
                                                 <th class="col-w-100">Disk (GB)</th>
@@ -819,7 +819,7 @@
                                         <tbody id="baseline-table-body"></tbody>
                                         <tfoot>
                                             <tr>
-                                                <td colspan="4" class="text-right table-total-label"
+                                                <td colspan="3" class="text-right table-total-label"
                                                    >
                                                     Tổng cộng:
                                                 </td>
@@ -835,9 +835,14 @@
                                     </table>
                                 </div>
 
-                                <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="addBaselineRow()">
-                                    <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
-                                </button>
+                                <div class="baseline-action-bar">
+                                    <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="addBaselineRow()">
+                                        <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
+                                    </button>
+                                    <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="openBulkBaselineModal(this)">
+                                        <i class="fa-solid fa-layer-group"></i> Nhập hàng loạt
+                                    </button>
+                                </div>
 
                                 <div class="section-subgroup u-mt-50">
                                     <h3 class="model-header">
@@ -1124,17 +1129,19 @@
                                                             class="input-full sizing-user-input" placeholder="%" min="0"
                                                             max="100" value="100"></td>
                                                     <td>
-                                                        <div class="mariadb-storage-evidence-container">
-                                                            <div id="mariadb-storage-evidence-grid"
-                                                                class="u-flex u-flex-wrap u-gap-6 u-mb-4">
-                                                            </div>
+                                                        <div id="mariadb-storage-evidence-cell"
+                                                            class="inline-evidence-cell mariadb-storage-evidence-container">
+                                                            <input type="file" accept="image/*" multiple
+                                                                class="mariadb-storage-evidence-input is-hidden"
+                                                                onchange="handleInlineEvidenceUpload(this)">
                                                             <button type="button"
-                                                                class="ui-icon-btn ui-icon-btn-success ui-icon-btn-xs btn-inline-evidence sizing-user-btn mini-chip"
-                                                                onclick="addMariaDBStorageEvidenceSlot()"
-                                                                title="Thêm ảnh sở cứ"
-                                                               >
-                                                                <i class="fa-solid fa-plus"></i>
+                                                                class="ui-icon-btn ui-icon-btn-success ui-icon-btn-xs btn-inline-evidence sizing-user-btn"
+                                                                onclick="this.parentElement.querySelector('input[type=file]').click()"
+                                                                title="Upload ảnh" aria-label="Upload ảnh">
+                                                                <i class="fa-solid fa-cloud-arrow-up"></i>
                                                             </button>
+                                                            <span id="mariadb-storage-evidence-grid"
+                                                                class="inline-evidence-preview"></span>
                                                         </div>
                                                     </td>
                                                     <td class="admin-cell">
@@ -1252,13 +1259,13 @@
                                         id="redis-method-key" onclick="selectRedisMethod('key')"
                                        >
                                         <i class="fa-solid fa-key"></i> Tính theo Key dự kiến <span
-                                            class="u-text-success u-text-sm">(recommend)</span>
+                                            class="u-text-success u-text-sm"></span>
                                     </button>
                                     <button type="button" class="ui-btn ui-btn-choice btn-method sizing-user-btn flex-1-padded" id="redis-method-config"
                                         onclick="selectRedisMethod('config')"
                                        >
                                         <i class="fa-solid fa-server"></i> Tính theo cấu hình hiện có <span
-                                            class="u-text-danger u-text-sm">(không khuyến khích)</span>
+                                            class="u-text-danger u-text-sm"></span>
                                     </button>
                                 </div>
 
@@ -1306,8 +1313,13 @@
                                                 <label
                                                     class="form-label-compact">
                                                     Tổng lượng Key của hệ thống POC là:
-                                                    <span class="tooltip-icon"
-                                                        title="Hướng dẫn sử dụng lấy Key: Dùng môi trường test đã cài redis-cli, dùng lệnh dbsize hoặc info keyspace">?</span>
+                                                    <span class="field-help" tabindex="0" role="button"
+                                                        aria-label="Hướng dẫn lấy tổng lượng Key của hệ thống POC">
+                                                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                        <span class="field-help-tooltip">
+                                                            Dùng môi trường test đã cài redis-cli, chạy lệnh dbsize hoặc info keyspace để lấy tổng lượng key hiện tại.
+                                                        </span>
+                                                    </span>
                                                 </label>
                                                 <input id="redis-key-count-poc" type="number" min="0" step="1"
                                                     class="input-full sizing-user-input" placeholder="VD: 500000"
@@ -1317,8 +1329,13 @@
                                                 <label
                                                     class="form-label-compact">
                                                     Tổng lượng Key dự kiến là: A
-                                                    <span class="tooltip-icon"
-                                                        title="Số lượng key Redis dự kiến (tính tự động theo tỷ lệ)">?</span>
+                                                    <span class="field-help" tabindex="0" role="button"
+                                                        aria-label="Hướng dẫn tổng lượng Key dự kiến">
+                                                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                        <span class="field-help-tooltip">
+                                                            Giá trị này được tính tự động theo tỷ lệ giữa hệ thống POC và hệ thống sizing.
+                                                        </span>
+                                                    </span>
                                                 </label>
                                                 <input id="redis-key-count" type="number" min="0" step="1"
                                                     class="input-full field-readonly" placeholder="Tự động tính" readonly
@@ -1328,8 +1345,13 @@
                                                 <label
                                                     class="form-label-compact">
                                                     Kích thước trung bình 1 bản ghi (bytes): B
-                                                    <span class="tooltip-icon"
-                                                        title="dùng lệnh memory usage <ten key> chọn ra 10 20 key đại diện cho các cấu trúc khác nhau. Sau đó lấy trung bình">?</span>
+                                                    <span class="field-help" tabindex="0" role="button"
+                                                        aria-label="Hướng dẫn lấy kích thước trung bình bản ghi Redis">
+                                                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                        <span class="field-help-tooltip">
+                                                            Dùng lệnh memory usage &lt;tên key&gt; với 10-20 key đại diện cho các cấu trúc khác nhau, sau đó lấy trung bình.
+                                                        </span>
+                                                    </span>
                                                 </label>
                                                 <input id="redis-record-size" type="number" min="0" step="0.01"
                                                     class="input-full sizing-user-input" placeholder="VD: 500">
@@ -1341,7 +1363,7 @@
                                                 </label>
                                                 <select id="redis-key-importance" class="input-full sizing-user-input">
                                                     <option value="normal">Bình thường (1 master 1 slave)</option>
-                                                    <option value="dbqt">DBQT - (1 master 2 slave)</option>
+                                                    <option value="dbqt">Đặc biệt quan trọng - (1 master 2 slave)</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -1352,10 +1374,10 @@
                                                 class="form-label-compact">
                                                 <i class="fa-solid fa-image"></i> Hình ảnh sở cứ
                                             </label>
-                                            <div id="redis-key-evidence-grid" class="image-upload-grid"></div>
-                                            <button type="button" class="ui-btn ui-btn-outline btn-add-img sizing-user-btn u-mt-10"
+                                            <div id="redis-key-evidence-grid" class="image-upload-grid model-upload-grid"></div>
+                                            <button type="button" class="ui-btn ui-btn-outline btn-add-img btn-model-add-img sizing-user-btn"
                                                 onclick="addRedisKeyEvidenceSlot()">
-                                                <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                                <i class="fa-solid fa-plus"></i> Thêm ảnh
                                             </button>
                                         </div>
                                     </div>
@@ -1518,7 +1540,7 @@
                                                 <select id="redis-config-importance"
                                                     class="input-full sizing-user-input">
                                                     <option value="normal">Bình thường (1 master 1 slave)</option>
-                                                    <option value="dbqt">DBQT (1 master 2 slave)</option>
+                                                    <option value="dbqt">Đặc biệt quan trọng (1 master 2 slave)</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -1578,21 +1600,21 @@
                                     <button type="button" class="ui-btn ui-btn-choice btn-method sizing-user-btn active flex-1-padded u-font-semibold"
                                         id="kafka-method-throughput" onclick="selectKafkaMethod('throughput')"
                                        >
-                                        <i class="fa-solid fa-gauge-high"></i> Phương án A: Tính theo lưu lượng <span
-                                            class="u-text-success u-text-sm">(Recommended)</span>
+                                        <i class="fa-solid fa-gauge-high"></i> Tính theo lưu lượng <span
+                                            class="u-text-success u-text-sm"></span>
                                     </button>
                                     <button type="button" class="ui-btn ui-btn-choice btn-method sizing-user-btn flex-1-padded" id="kafka-method-linear"
                                         onclick="selectKafkaMethod('linear')"
                                        >
-                                        <i class="fa-solid fa-server"></i> Phương án B: Tính tuyến tính <span
-                                            class="u-text-muted u-text-sm">(Existing System)</span>
+                                        <i class="fa-solid fa-server"></i> Tính tuyến tính <span
+                                            class="u-text-muted u-text-sm"></span>
                                     </button>
                                 </div>
 
                                 <!-- ==================== PHƯƠNG ÁN A: TÍNH THEO LƯU LƯỢNG ==================== -->
                                 <div id="kafka-method-throughput-content" class="kafka-method-content">
                                     <h3 class="model-header">
-                                        <i class="fa-solid fa-gauge-high u-text-primary"></i>PHƯƠNG ÁN A: TÍNH
+                                        <i class="fa-solid fa-gauge-high u-text-primary"></i>TÍNH
                                         THEO LƯU LƯỢNG
                                     </h3>
 
@@ -1607,10 +1629,10 @@
                                                     <label class="form-label-inline">
                                                         Lưu lượng vào Write - A (MB/s)
                                                     </label>
-                                                    <button type="button" class="ui-btn ui-btn-success ui-btn-xs btn-helper sizing-user-btn success-chip"
+                                                    <button type="button" class="ui-btn ui-btn-outline ui-btn-xs btn-helper sizing-user-btn kafka-helper-open-btn"
                                                         onclick="openKafkaHelperTool()"
                                                        >
-                                                        <i class="fa-solid fa-calculator"></i> Helper Tool
+                                                        <i class="fa-solid fa-calculator"></i> Tính nhanh
                                                     </button>
                                                 </div>
                                                 <input id="kafka-throughput-a" type="number" min="0" step="0.01"
@@ -1620,11 +1642,11 @@
                                                     <i class="fa-solid fa-info-circle"></i> Kiểm tra Monitor
                                                     (Grafana/JMX) thông số BytesInPerSec
                                                 </p>
-                                                <div id="kafka-throughput-evidence-grid" class="image-upload-grid u-mt-10"
+                                                <div id="kafka-throughput-evidence-grid" class="image-upload-grid model-upload-grid u-mt-10"
                                                    ></div>
-                                                <button type="button" class="ui-btn ui-btn-outline btn-add-img sizing-user-btn evidence-add-btn-sm"
+                                                <button type="button" class="ui-btn ui-btn-outline btn-add-img btn-model-add-img sizing-user-btn evidence-add-btn-sm"
                                                     onclick="addKafkaThroughputEvidenceSlot()">
-                                                    <i class="fa-solid fa-cloud-arrow-up"></i> Thêm ảnh sở cứ
+                                                    <i class="fa-solid fa-plus"></i> Thêm ảnh sở cứ
                                                 </button>
                                             </div>
 
@@ -1648,7 +1670,7 @@
                                                 </label>
                                                 <select id="kafka-replication-factor"
                                                     class="input-full sizing-user-input">
-                                                    <option value="3">3 (Production - Khuyến nghị)</option>
+                                                    <option value="3">3 (Production)</option>
                                                     <option value="2">2 (Test/Dev)</option>
                                                 </select>
                                             </div>
@@ -1665,11 +1687,11 @@
                                                     <option value="0.7">Snappy (~0.7)</option>
                                                     <option value="1.0">Không nén (1.0)</option>
                                                 </select>
-                                                <div id="kafka-compression-evidence-grid" class="image-upload-grid u-mt-10"
+                                                <div id="kafka-compression-evidence-grid" class="image-upload-grid model-upload-grid u-mt-10"
                                                    ></div>
-                                                <button type="button" class="ui-btn ui-btn-outline btn-add-img sizing-user-btn evidence-add-btn-sm"
+                                                <button type="button" class="ui-btn ui-btn-outline btn-add-img btn-model-add-img sizing-user-btn evidence-add-btn-sm"
                                                     onclick="addKafkaCompressionEvidenceSlot()">
-                                                    <i class="fa-solid fa-cloud-arrow-up"></i> Ảnh sở cứ hệ số nén
+                                                    <i class="fa-solid fa-plus"></i> Ảnh sở cứ hệ số nén
                                                 </button>
                                             </div>
                                         </div>
@@ -1798,8 +1820,8 @@
                                 <!-- ==================== PHƯƠNG ÁN B: TÍNH TUYẾN TÍNH ==================== -->
                                 <div id="kafka-method-linear-content" class="kafka-method-content initially-hidden">
                                     <h3 class="model-header">
-                                        <i class="fa-solid fa-server u-text-primary"></i>PHƯƠNG ÁN B: TÍNH
-                                        TUYẾN TÍNH (EXISTING SYSTEM)
+                                        <i class="fa-solid fa-server u-text-primary"></i>TÍNH
+                                        TUYẾN TÍNH
                                     </h3>
 
                                     <p class="muted-note">
@@ -1944,7 +1966,6 @@
                                             <tr>
                                                 <th class="col-w-50">STT</th>
                                                 <th class="col-w-130">IP</th>
-                                                <th class="col-w-80">Số lượng</th>
                                                 <th class="col-w-220">CPU (Model & Specs)</th>
                                                 <th class="col-w-100">RAM (GB)</th>
                                                 <th class="col-w-100">Disk (GB)</th>
@@ -1964,7 +1985,7 @@
                                         <tbody id="k8s-baseline-table-body"></tbody>
                                         <tfoot>
                                             <tr>
-                                                <td colspan="4" class="text-right table-total-label"
+                                                <td colspan="3" class="text-right table-total-label"
                                                    >
                                                     Tổng cộng:</td>
                                                 <td class="text-center u-font-bold" id="k8s-total-ram">0
@@ -1980,9 +2001,14 @@
                                     </table>
                                 </div>
 
-                                <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="addK8SBaselineRow()">
-                                    <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
-                                </button>
+                                <div class="baseline-action-bar">
+                                    <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="addK8SBaselineRow()">
+                                        <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
+                                    </button>
+                                    <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="openBulkBaselineModal(this, 'k8s')">
+                                        <i class="fa-solid fa-layer-group"></i> Nhập hàng loạt
+                                    </button>
+                                </div>
 
                                 <div class="section-divider u-mt-50">
                                     <h3 class="model-header">
@@ -2345,7 +2371,6 @@
                                                 <tr>
                                                     <th class="col-w-50">STT</th>
                                                     <th class="col-w-130">IP</th>
-                                                    <th class="col-w-80">Số lượng</th>
                                                     <th class="col-w-220">CPU (Model & Specs)</th>
                                                     <th class="col-w-100">RAM (GB)</th>
                                                     <th class="col-w-100">Disk (GB)</th>
@@ -2362,7 +2387,7 @@
                                             <tbody id="custom-baseline-table-body"></tbody>
                                             <tfoot>
                                                 <tr>
-                                                    <td colspan="4" class="text-right table-total-label"
+                                                    <td colspan="3" class="text-right table-total-label"
                                                        >
                                                         Tổng cộng:</td>
                                                     <td class="text-center u-font-bold" id="custom-total-ram">0
@@ -2376,9 +2401,14 @@
                                             </tfoot>
                                         </table>
                                     </div>
-                                    <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="addCustomBaselineRow()">
-                                        <i class="fa-solid fa-plus"></i> Thêm Server tham chiếu
-                                    </button>
+                                    <div class="baseline-action-bar">
+                                        <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="addCustomBaselineRow()">
+                                            <i class="fa-solid fa-plus"></i> Thêm Server tương đương
+                                        </button>
+                                        <button type="button" class="ui-btn ui-btn-outline btn-add sizing-user-btn" onclick="openBulkBaselineModal(this, 'custom')">
+                                            <i class="fa-solid fa-layer-group"></i> Nhập hàng loạt
+                                        </button>
+                                    </div>
 
                                     <div class="table-responsive u-mt-16">
                                         <table class="sizing-table input-config-table">
@@ -2770,6 +2800,55 @@
         </div>
     </div>
 
+    <div id="bulk-baseline-modal" class="bulk-baseline-modal initially-hidden" onclick="closeBulkBaselineModal()">
+        <div class="bulk-baseline-dialog" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="bulk-baseline-title">
+            <div class="bulk-baseline-header">
+                <div>
+                    <h4 id="bulk-baseline-title">Nhập Server tham chiếu hàng loạt</h4>
+                </div>
+                <button type="button" class="ui-icon-btn ui-icon-btn-ghost" onclick="closeBulkBaselineModal()" title="Đóng" aria-label="Đóng">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <div class="bulk-baseline-body">
+                <div class="bulk-baseline-grid">
+                    <label>
+                        <span>CPU (Model & Specs)</span>
+                        <input id="bulk-baseline-cpu" type="text" class="input-full sizing-user-input" placeholder="Intel Xeon...">
+                    </label>
+                    <label>
+                        <span>RAM (GB)</span>
+                        <input id="bulk-baseline-ram" type="number" min="0" step="0.01" class="input-full sizing-user-input">
+                    </label>
+                    <label>
+                        <span>Disk (GB)</span>
+                        <input id="bulk-baseline-disk" type="number" min="0" step="0.01" class="input-full sizing-user-input">
+                    </label>
+                    <label>
+                        <span>Cint_rate</span>
+                        <input id="bulk-baseline-cint" type="number" min="0" step="0.01" class="input-full sizing-user-input">
+                    </label>
+                </div>
+
+                <label class="bulk-baseline-ip-field">
+                    <span>Danh sách IP</span>
+                    <textarea id="bulk-baseline-ip-list" class="input-full sizing-user-input" rows="8" placeholder="10.10.1.11&#10;10.10.1.12&#10;10.10.1.13&#10;10.10.1.14"></textarea>
+                </label>
+                <div id="bulk-baseline-error" class="bulk-baseline-error" aria-live="polite"></div>
+            </div>
+
+            <div class="bulk-baseline-footer">
+                <button type="button" class="ui-btn ui-btn-secondary" onclick="closeBulkBaselineModal()">
+                    <i class="fa-solid fa-xmark"></i> Hủy
+                </button>
+                <button type="button" class="ui-btn ui-btn-primary sizing-user-btn" onclick="applyBulkBaselineRows()">
+                    <i class="fa-solid fa-check"></i> Tạo dòng
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="lib/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 
@@ -2805,10 +2884,10 @@
             <div class="kafka-helper-modal-header">
                 <div class="kafka-helper-modal-header-left">
                     <div class="kafka-helper-modal-icon">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <i class="fa-solid fa-calculator"></i>
                     </div>
                     <div class="kafka-helper-modal-title">
-                        <h3>Helper Tool</h3>
+                        <h3>Tính nhanh Throughput Kafka</h3>
                         <p>Tính nhanh Throughput (A) từ thông số message</p>
                     </div>
                 </div>
@@ -2829,7 +2908,7 @@
                     <div class="kafka-helper-input-box">
                         <div class="kafka-helper-input-label">
                             <span class="kafka-helper-number">1</span>
-                            <label><i class="fa-solid fa-list-ol"></i> Số lượng Message/s</label>
+                            <label><i></i> Số lượng Message/s</label>
                         </div>
                         <div class="kafka-helper-input-wrapper">
                             <i class="fa-solid fa-hashtag kafka-helper-input-icon"></i>
@@ -2844,7 +2923,7 @@
                     <div class="kafka-helper-input-box">
                         <div class="kafka-helper-input-label">
                             <span class="kafka-helper-number">2</span>
-                            <label><i class="fa-solid fa-ruler"></i> Kích thước TB Message (KB)</label>
+                            <label><i></i> Kích thước TB Message (KB)</label>
                         </div>
                         <div class="kafka-helper-input-wrapper">
                             <i class="fa-solid fa-database kafka-helper-input-icon"></i>
