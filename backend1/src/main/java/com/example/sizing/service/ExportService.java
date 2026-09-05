@@ -157,7 +157,7 @@ public class ExportService {
         String[][] fields = {
                 {"1", "\u0110\u01a1n v\u1ecb ph\u00e1t tri\u1ec3n", "devUnit"},
                 {"2", "T\u00ean d\u1ef1 \u00e1n", "projectName"},
-                {"3", "Ch\u1ee9c n\u0103ng h\u1ec7 th\u1ed1ng", "sysFeature"},
+                {"3", "Th\u00f4ng tin m\u00f4 t\u1ea3 h\u1ec7 th\u1ed1ng", "sysFeature"},
                 {"4", "\u0110\u1ea7u m\u1ed1i \u0111\u1ecbnh c\u1ee1", "contactPerson"},
                 {"5", "M\u1ee5c \u0111\u00edch \u0111\u1ecbnh c\u1ee1", "sizingPurpose"},
                 {"6", "C\u01a1 s\u1edf \u0111\u1ecbnh c\u1ee1", "sizingBasis"},
@@ -187,7 +187,7 @@ public class ExportService {
 
         JsonNode inputRows = root.path("inputRows");
         if (inputRows.isArray() && inputRows.size() > 0) {
-            int cols = 6;
+            int cols = 5;
             XWPFTable table = doc.createTable(inputRows.size() + 1, cols);
             styleTable(table);
 
@@ -195,8 +195,7 @@ public class ExportService {
             setCell(table, 0, 1, "\u0110\u1ea7u v\u00e0o", true, "D9E2F3");
             setCell(table, 0, 2, "Giá trị hiện tại", true, "D9E2F3");
             setCell(table, 0, 3, "\u0110\u1ecbnh c\u1ee1", true, "D9E2F3");
-            setCell(table, 0, 4, "Module", true, "D9E2F3");
-            setCell(table, 0, 5, "Ghi ch\u00fa", true, "D9E2F3");
+            setCell(table, 0, 4, "Ghi ch\u00fa", true, "D9E2F3");
 
             for (int i = 0; i < inputRows.size(); i++) {
                 JsonNode row = inputRows.get(i);
@@ -215,8 +214,7 @@ public class ExportService {
                 else dinhCoText = dinhCoNode.asText("");
                 setCell(table, i + 1, 3, dinhCoText, false, null);
 
-                setCell(table, i + 1, 4, txt(row, "module"), false, null);
-                setCell(table, i + 1, 5, txt(row, "ghiChu"), false, null);
+                setCell(table, i + 1, 4, txt(row, "ghiChu"), false, null);
             }
             doc.createParagraph();
 
@@ -354,10 +352,41 @@ public class ExportService {
                 setCell(table, i + 1, 1, txt(r, "moduleName"), false, null);
                 setCell(table, i + 1, 2, txt(r, "loaiModule"), false, null);
                 setCell(table, i + 1, 3, txt(r, "zoneMang"), false, null);
-                setCell(table, i + 1, 4, txt(r, "heDieuHanh"), false, null);
+                setCell(table, i + 1, 4, getArchRowOsName(r), false, null);
                 setCell(table, i + 1, 5, txt(r, "soLuongVIP"), false, null);
             }
             doc.createParagraph();
+            writeArchOsEvidenceSections(doc, archRows);
+        }
+    }
+
+    private String getArchRowOsName(JsonNode row) {
+        String os = txt(row, "heDieuHanh").trim();
+        if (!os.isEmpty() && !"__other_os_reason__".equals(os)) return os;
+
+        String customOs = txt(row, "heDieuHanhCustom").trim();
+        if (!customOs.isEmpty()) return customOs;
+
+        return "";
+    }
+
+    private void writeArchOsEvidenceSections(XWPFDocument doc, JsonNode archRows) {
+        if (archRows == null || !archRows.isArray()) return;
+
+        for (JsonNode row : archRows) {
+            boolean isOtherOs = "other".equalsIgnoreCase(txt(row, "heDieuHanhType"));
+            String osName = getArchRowOsName(row);
+            String reason = txt(row, "heDieuHanhReason").trim();
+            JsonNode evidenceImages = row.path("heDieuHanhEvidenceImages");
+            boolean hasImages = evidenceImages.isArray() && evidenceImages.size() > 0;
+
+            if (!isOtherOs || (reason.isEmpty() && !hasImages)) continue;
+
+            addSubHeading2(doc, "Sở cứ hệ điều hành " + (osName.isEmpty() ? "khác" : osName));
+            if (!reason.isEmpty()) {
+                addNormalText(doc, "Lý do chọn hệ điều hành: " + reason);
+            }
+            addInlineImages(doc, evidenceImages, buildCaption("Sở cứ hệ điều hành " + (osName.isEmpty() ? "khác" : osName), null));
         }
     }
 

@@ -205,9 +205,9 @@
                                            ></textarea></td>
                                 </tr>
                                 <tr>
-                                    <td><strong>3. Chức năng hệ thống</strong> <span class="info-icon"
-                                            title="Mô tả ngắn gọn chức năng">?</span></td>
-                                    <td><textarea class="input-full connection-auto-textarea request-auto-textarea textarea-min-md" rows="2" placeholder="Mô tả chức năng..."
+                                    <td><strong>3. Thông tin mô tả hệ thống</strong> <span class="info-icon"
+                                            title="Mô tả ngắn gọn thông tin hệ thống">?</span></td>
+                                    <td><textarea class="input-full connection-auto-textarea request-auto-textarea textarea-min-md" rows="2" placeholder="Nhập thông tin mô tả hệ thống..."
                                             oninput="autoResizeConnectionTextarea(this)"></textarea></td>
                                     <td><select class="admin-eval" onchange="updateColor(this)">
                                             <option value="">--</option>
@@ -226,7 +226,7 @@
                                                 class="input-full form-inline-primary request-auto-textarea"></textarea>
                                             <textarea rows="1" id="contact-unit" placeholder="Đơn vị"
                                                 class="input-full request-auto-textarea"></textarea>
-                                            <textarea rows="1" id="contact-phone" placeholder="SĐT"
+                                            <textarea rows="1" id="contact-phone" placeholder="SĐT" inputmode="tel"
                                                 class="input-full request-auto-textarea"></textarea>
                                         </div>
                                     </td>
@@ -373,7 +373,6 @@
                                 <col class="col-w-20p">
                                 <col class="col-w-15p">
                                 <col class="col-w-15p">
-                                <col class="col-w-10p">
                                 <col class="col-w-15p">
                                 <col class="col-w-8p">
                                 <col class="col-w-8p">
@@ -386,7 +385,6 @@
                                     <th rowspan="2">Đầu vào (CCU...)</th>
                                     <th class="text-center table-head-muted">Giá trị hiện tại</th>
                                     <th class="text-center table-head-muted">Định cỡ</th>
-                                    <th rowspan="2">Module</th>
                                     <th rowspan="2">Ghi chú</th>
                                     <th colspan="2" class="admin-header text-center">Admin Đánh giá</th>
                                     <th rowspan="2" title="Xóa dòng"><i class="fa-solid fa-trash-can"></i></th>
@@ -451,7 +449,6 @@
                                         </div>
                                     </td>
 
-                                    <td><input type="text" class="input-full" placeholder="Module..."></td>
                                     <td><textarea rows="2" class="input-full connection-auto-textarea" placeholder="Ghi chú..."
                                                   oninput="autoResizeConnectionTextarea(this)"></textarea></td>
 
@@ -692,9 +689,10 @@
                                 <label class="flow-label">
                                     <i class="fa-solid fa-pen-to-square"></i> Mô tả/Giải thích chi tiết luồng nghiệp vụ:
                                 </label>
-                                <textarea id="flow-explanation" class="custom-flow-textarea"
+                                <textarea id="flow-explanation" class="custom-flow-textarea" maxlength="2000"
                                     placeholder="- Bước 1: Người dùng đăng nhập vào hệ thống...&#10;- Bước 2: Hệ thống gọi API xác thực...&#10;- Bước 3: Trả về token..."
-                                    oninput="autoResizeFlowExplanation(this)"></textarea>
+                                    oninput="handleFlowExplanationInput(this)"></textarea>
+                                <div id="flow-explanation-counter" class="field-counter">0/2000</div>
                             </div>
                         </div>
 

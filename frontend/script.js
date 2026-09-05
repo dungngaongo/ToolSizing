@@ -416,7 +416,17 @@ function clearStrictValidationErrors(container) {
         el.classList.remove('field-error');
         delete el.dataset.strictRequiredError;
     });
+    container.querySelectorAll('[data-phone-format-error="1"]').forEach(el => {
+        el.classList.remove('field-error');
+        delete el.dataset.phoneFormatError;
+    });
+    container.querySelectorAll('[data-flow-length-error="1"]').forEach(el => {
+        el.classList.remove('field-error');
+        delete el.dataset.flowLengthError;
+    });
     container.querySelectorAll('[data-model-image-required-message="1"]').forEach(el => el.remove());
+    container.querySelectorAll('[data-phone-format-error-message="1"]').forEach(el => el.remove());
+    container.querySelectorAll('[data-flow-length-error-message="1"]').forEach(el => el.remove());
 }
 
 function clearModelImageRequiredError(container) {
@@ -691,11 +701,17 @@ function validateTabCompletion(sectionId, options = {}) {
         .filter(shouldValidateAsRequired);
 
     const invalidControls = controls.filter(el => !isRequiredControlFilled(el));
+    const phoneFormatValidation = sectionId === 'page-request'
+        ? validateRequestContactPhoneFormat(section)
+        : { isValid: true, firstInvalidElement: null, invalidCount: 0, message: '' };
+    const flowLengthValidation = sectionId === 'page-model'
+        ? validateFlowExplanationLength(section)
+        : { isValid: true, firstInvalidElement: null, invalidCount: 0, message: '' };
     const modelImageValidation = sectionId === 'page-model'
         ? validateModelRequiredImages()
         : { isValid: true, firstInvalidElement: null, invalidCount: 0 };
 
-    if (invalidControls.length === 0 && modelImageValidation.isValid) {
+    if (invalidControls.length === 0 && phoneFormatValidation.isValid && flowLengthValidation.isValid && modelImageValidation.isValid) {
         return { isValid: true, firstInvalidElement: null };
     }
 
@@ -704,7 +720,7 @@ function validateTabCompletion(sectionId, options = {}) {
         el.dataset.strictRequiredError = '1';
     });
 
-    const firstInvalidElement = invalidControls[0] || modelImageValidation.firstInvalidElement;
+    const firstInvalidElement = invalidControls[0] || phoneFormatValidation.firstInvalidElement || flowLengthValidation.firstInvalidElement || modelImageValidation.firstInvalidElement;
     if (focusFirstInvalid && firstInvalidElement) {
         if (typeof firstInvalidElement.focus === 'function' && firstInvalidElement.matches?.('input, textarea, select, button')) {
             firstInvalidElement.focus();
@@ -712,14 +728,18 @@ function validateTabCompletion(sectionId, options = {}) {
         firstInvalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
+    const validationMessage = invalidControls.length === 0
+        ? (phoneFormatValidation.message || flowLengthValidation.message)
+        : '';
     if (showToastMessage) {
-        showToast('Vui lòng điền đầy đủ dữ liệu bắt buộc trước khi tiếp tục.', 'warning');
+        showToast(validationMessage || 'Vui lòng điền đầy đủ dữ liệu bắt buộc trước khi tiếp tục.', 'warning');
     }
 
     return {
         isValid: false,
         firstInvalidElement,
-        invalidCount: invalidControls.length + (modelImageValidation.invalidCount || 0)
+        invalidCount: invalidControls.length + (phoneFormatValidation.invalidCount || 0) + (flowLengthValidation.invalidCount || 0) + (modelImageValidation.invalidCount || 0),
+        message: validationMessage || ''
     };
 }
 
@@ -1373,6 +1393,57 @@ function hasValidPhone(value) {
     return normalizePhone(value).replace(/\+/g, '').length >= 8;
 }
 
+function normalizeVietnamMobilePhone(value) {
+    const compact = String(value || '').trim().replace(/[\s().-]/g, '');
+    if (!compact || !/^\+?\d+$/.test(compact)) return '';
+
+    let digits = compact.replace(/^\+/, '');
+    if (digits.startsWith('84')) {
+        digits = '0' + digits.slice(2);
+    }
+
+    return digits;
+}
+
+function isValidVietnamMobilePhone(value) {
+    return /^(03|05|07|08|09)\d{8}$/.test(normalizeVietnamMobilePhone(value));
+}
+
+function getRequestContactPhoneErrorMessage() {
+    return 'SĐT phải là số di động Việt Nam hợp lệ, ví dụ 0912345678 hoặc +84912345678.';
+}
+
+function validateRequestContactPhoneFormat(section = document) {
+    const input = section?.querySelector?.('#contact-phone') || document.getElementById('contact-phone');
+    if (!input || !shouldValidateAsRequired(input)) {
+        return { isValid: true, firstInvalidElement: null, invalidCount: 0, message: '' };
+    }
+
+    const value = (input.value || '').trim();
+    if (!value || isValidVietnamMobilePhone(value)) {
+        return { isValid: true, firstInvalidElement: null, invalidCount: 0, message: '' };
+    }
+
+    input.classList.add('field-error');
+    input.dataset.phoneFormatError = '1';
+
+    const parent = input.parentElement;
+    if (parent && !parent.querySelector('[data-phone-format-error-message="1"]')) {
+        const errDiv = document.createElement('div');
+        errDiv.className = 'field-error-message';
+        errDiv.dataset.phoneFormatErrorMessage = '1';
+        errDiv.innerHTML = `<i class="fa-solid fa-exclamation-circle"></i> ${getRequestContactPhoneErrorMessage()}`;
+        parent.appendChild(errDiv);
+    }
+
+    return {
+        isValid: false,
+        firstInvalidElement: input,
+        invalidCount: 1,
+        message: getRequestContactPhoneErrorMessage()
+    };
+}
+
 function maskPhone(value) {
     const normalized = normalizePhone(value);
     if (!normalized) return 'Chưa có số';
@@ -1920,6 +1991,8 @@ function applyRolePermissions() {
         }
         if (importConnectionInput) importConnectionInput.disabled = false;
     }
+
+    syncArchOsOtherPanels();
 
     // Update project status display after applying permissions
     updateProjectStatusDisplay();
@@ -2612,7 +2685,7 @@ function renderWorkflowActionModal() {
     document.getElementById('workflow-modal-kicker').textContent = context.buttonLabel;
     document.getElementById('workflow-modal-title').textContent = context.title;
     document.getElementById('workflow-modal-subtitle').textContent =
-        `Dự án: ${currentProjectMeta.name || 'Chưa đặt tên'}`;
+        `${currentProjectMeta.name || 'Chưa đặt tên'}`;
 
     document.getElementById('workflow-current-status').textContent =
         `Trạng thái hiện tại: ${getStatusText(currentProjectStatus || 'SIZING', currentProjectStatusRound || 1)}`;
@@ -3076,7 +3149,7 @@ function validateRequestApprovalIssues(issues) {
 function validateInputApprovalIssues(issues) {
     let reviewCount = 0;
     document.querySelectorAll('#input-table-body tr').forEach((row, index) => {
-        const found = addApprovalFieldIssue(issues, 'page-input', row.cells[6]?.querySelector('select.admin-eval'), `Tab ${getSectionDisplayName('page-input')} - dòng ${index + 1} phải được đánh giá OK.`, { rowIndex: index });
+        const found = addApprovalFieldIssue(issues, 'page-input', row.cells[5]?.querySelector('select.admin-eval'), `Tab ${getSectionDisplayName('page-input')} - dòng ${index + 1} phải được đánh giá OK.`, { rowIndex: index });
         if (found) reviewCount++;
     });
     if (reviewCount === 0) {
@@ -4105,7 +4178,11 @@ function loadMoHinhHeThong(data, admin) {
 
         // flow explanation
         const flowExp = document.getElementById('flow-explanation');
-        if (flowExp) flowExp.value = data.flowExplanation || '';
+        if (flowExp) {
+            flowExp.value = data.flowExplanation || '';
+            updateFlowExplanationCounter(flowExp);
+            autoResizeFlowExplanation(flowExp);
+        }
 
         // Build canonical admin object: prefer explicit admin param (separate column)
         const adminObj = admin || data.mohinhAdminReview || data.adminReview || {
@@ -4269,9 +4346,21 @@ function collectYeuCauBaiToan() {
 async function saveYeuCauBaiToan() {
     const statusDiv = document.getElementById('save-status');
     const data = collectYeuCauBaiToan();
+    const requestSection = document.getElementById('page-request');
+    clearStrictValidationErrors(requestSection);
 
     if (!data.projectName) {
         showToast("Vui lòng nhập Tên dự án!", 'warning');
+        return;
+    }
+
+    const phoneValidation = validateRequestContactPhoneFormat(requestSection);
+    if (!phoneValidation.isValid) {
+        if (phoneValidation.firstInvalidElement) {
+            phoneValidation.firstInvalidElement.focus();
+            phoneValidation.firstInvalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        showToast(phoneValidation.message, 'warning');
         return;
     }
 
@@ -4512,8 +4601,6 @@ function createInputTableRow(stt, data = {}) {
             </div>
         </td>
 
-        <td><input type="text" class="input-full" value="${data.module || ''}" placeholder="Module..."></td>
-
         <td><textarea rows="2" class="input-full connection-auto-textarea" placeholder="Ghi chú..." oninput="autoResizeConnectionTextarea(this)">${data.ghiChu || ''}</textarea></td>
 
         <td>
@@ -4684,11 +4771,10 @@ function collectThongTinDauVao() {
                 sizingEvidenceImages: getRowImages(3)
             },
 
-            module: getTextControlValue(cells[4]), // Cột 4
-            ghiChu: cells[5]?.querySelector('textarea')?.value || '', // Cột 5
+            ghiChu: cells[4]?.querySelector('textarea')?.value || '', // Cột 4
 
-            adminEval: cells[6]?.querySelector('select')?.value || '', // Cột 6
-            adminNote: cells[7]?.querySelector('textarea')?.value || ''   // Cột 7
+            adminEval: cells[5]?.querySelector('select')?.value || '', // Cột 5
+            adminNote: cells[6]?.querySelector('textarea')?.value || ''   // Cột 6
         });
     });
 
@@ -5073,6 +5159,79 @@ function autoResizeFlowExplanation(textarea) {
     delete textarea.dataset.pendingAutoResize;
 }
 
+const FLOW_EXPLANATION_MAX_LENGTH = 2000;
+
+function getFlowExplanationLengthMessage() {
+    return `Mô tả luồng nghiệp vụ không được vượt quá ${FLOW_EXPLANATION_MAX_LENGTH} ký tự.`;
+}
+
+function updateFlowExplanationCounter(textarea = document.getElementById('flow-explanation')) {
+    const counter = document.getElementById('flow-explanation-counter');
+    if (!textarea || !counter) return;
+
+    const length = (textarea.value || '').length;
+    counter.textContent = `${length}/${FLOW_EXPLANATION_MAX_LENGTH}`;
+    counter.classList.toggle('field-counter-warning', length >= FLOW_EXPLANATION_MAX_LENGTH * 0.9 && length <= FLOW_EXPLANATION_MAX_LENGTH);
+    counter.classList.toggle('field-counter-error', length > FLOW_EXPLANATION_MAX_LENGTH);
+}
+
+function clearFlowExplanationLengthError(textarea = document.getElementById('flow-explanation')) {
+    if (!textarea) return;
+    if (textarea.dataset.flowLengthError === '1' && textarea.dataset.strictRequiredError !== '1') {
+        textarea.classList.remove('field-error');
+    }
+    delete textarea.dataset.flowLengthError;
+    const parent = textarea.parentElement;
+    parent?.querySelectorAll('[data-flow-length-error-message="1"]').forEach(el => el.remove());
+}
+
+function validateFlowExplanationLength(section = document) {
+    const textarea = section?.querySelector?.('#flow-explanation') || document.getElementById('flow-explanation');
+    if (!textarea || !shouldValidateAsRequired(textarea)) {
+        return { isValid: true, firstInvalidElement: null, invalidCount: 0, message: '' };
+    }
+
+    updateFlowExplanationCounter(textarea);
+    if ((textarea.value || '').length <= FLOW_EXPLANATION_MAX_LENGTH) {
+        clearFlowExplanationLengthError(textarea);
+        return { isValid: true, firstInvalidElement: null, invalidCount: 0, message: '' };
+    }
+
+    textarea.classList.add('field-error');
+    textarea.dataset.flowLengthError = '1';
+
+    const parent = textarea.parentElement;
+    if (parent && !parent.querySelector('[data-flow-length-error-message="1"]')) {
+        const errDiv = document.createElement('div');
+        errDiv.className = 'field-error-message';
+        errDiv.dataset.flowLengthErrorMessage = '1';
+        errDiv.innerHTML = `<i class="fa-solid fa-exclamation-circle"></i> ${getFlowExplanationLengthMessage()}`;
+        parent.appendChild(errDiv);
+    }
+
+    return {
+        isValid: false,
+        firstInvalidElement: textarea,
+        invalidCount: 1,
+        message: getFlowExplanationLengthMessage()
+    };
+}
+
+function handleFlowExplanationInput(textarea) {
+    autoResizeFlowExplanation(textarea);
+    updateFlowExplanationCounter(textarea);
+    if ((textarea?.value || '').length <= FLOW_EXPLANATION_MAX_LENGTH) {
+        clearFlowExplanationLengthError(textarea);
+    }
+}
+
+function initFlowExplanationLimit() {
+    const textarea = document.getElementById('flow-explanation');
+    if (!textarea) return;
+    textarea.setAttribute('maxlength', String(FLOW_EXPLANATION_MAX_LENGTH));
+    updateFlowExplanationCounter(textarea);
+}
+
 function autoGrowTextarea(textarea) {
     if (!textarea) return;
     if (!isTextBoxMeasurable(textarea)) {
@@ -5171,8 +5330,172 @@ function getArchRowModuleName(row) {
     return row?.querySelector('.module-cell-textarea')?.value || '';
 }
 
+var ARCH_OS_OTHER_VALUE = '__other_os_reason__';
+var ARCH_OS_OPTIONS = ['Ubuntu 22.04', 'Oracle Linux 9', 'Windows Server 2016'];
+
+function normalizeArchOsData(data = {}) {
+    const savedOs = String(data.heDieuHanh || '').trim();
+    const customOs = String(data.heDieuHanhCustom || '').trim();
+    const reason = String(data.heDieuHanhReason || '').trim();
+    const isKnownOs = ARCH_OS_OPTIONS.includes(savedOs);
+    const isOther = data.heDieuHanhType === 'other' || !!customOs || (!!savedOs && !isKnownOs && savedOs !== ARCH_OS_OTHER_VALUE);
+    return {
+        selectValue: isOther ? ARCH_OS_OTHER_VALUE : savedOs,
+        custom: customOs || (isOther ? savedOs : ''),
+        reason,
+        evidenceImages: Array.isArray(data.heDieuHanhEvidenceImages) ? data.heDieuHanhEvidenceImages : []
+    };
+}
+
+function buildArchOsOptions(selectedValue = '') {
+    const options = ['<option value="">-- Chọn --</option>'];
+    ARCH_OS_OPTIONS.forEach(os => {
+        const selected = selectedValue === os ? ' selected' : '';
+        options.push(`<option value="${escapeHtml(os)}"${selected}>${escapeHtml(os)}</option>`);
+    });
+    options.push(`<option value="${ARCH_OS_OTHER_VALUE}"${selectedValue === ARCH_OS_OTHER_VALUE ? ' selected' : ''}>Other + Lý do</option>`);
+    return options.join('');
+}
+
+function createArchOsEvidenceMarkup(images = []) {
+    return images.map((img, index) => {
+        const base64 = img?.base64 || img?.dataUrl || img || '';
+        if (!base64) return '';
+        return `
+            <div class="row-evidence-item arch-os-evidence-item">
+                <span class="arch-os-evidence-name">Ảnh ${index + 1}</span>
+                <button type="button" class="ui-icon-btn ui-icon-btn-success btn-view-evidence" data-base64="${escapeHtml(base64)}" onclick="openModalFromElement(this)" title="Xem ảnh" aria-label="Xem ảnh"><i class="fa-solid fa-eye"></i></button>
+                <button type="button" class="ui-icon-btn ui-icon-btn-danger btn-remove-evidence" onclick="removeRowEvidence(this)" title="Xóa ảnh" aria-label="Xóa ảnh"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            </div>
+        `;
+    }).join('');
+}
+
+function canEditArchOsOtherFields() {
+    if (currentProjectStatus === 'HOAN_THANH') return false;
+    const role = (getCurrentUser().role || '').toLowerCase();
+    return role !== 'admin1' && role !== 'admin2';
+}
+
+function onArchOsChange(selectEl) {
+    const cell = selectEl?.closest('td');
+    if (!cell) return;
+    const isOther = selectEl.value === ARCH_OS_OTHER_VALUE;
+    const canEdit = isOther && canEditArchOsOtherFields();
+    const panel = cell.querySelector('.arch-os-other-panel');
+    const otherControls = cell.querySelectorAll('.arch-os-custom-input, .arch-os-reason-input, .arch-os-evidence-input');
+
+    selectEl.classList.toggle('arch-os-select-other', isOther);
+    if (panel) panel.classList.toggle('is-hidden', !isOther);
+
+    otherControls.forEach(el => {
+        el.disabled = !canEdit;
+        if (el.classList.contains('arch-os-custom-input') || el.classList.contains('arch-os-reason-input')) {
+            el.required = canEdit;
+        }
+    });
+
+    if (!isOther) {
+        cell.querySelectorAll('[data-arch-os-error="1"]').forEach(clearArchOsFieldError);
+    }
+
+    if (isOther) {
+        cell.querySelectorAll('.arch-os-custom-input, .arch-os-reason-input').forEach(autoGrowTextarea);
+    }
+}
+
+function clearArchOsFieldError(el) {
+    if (!el) return;
+    el.classList.remove('field-error');
+    delete el.dataset.archOsError;
+    el.parentElement?.querySelectorAll('[data-arch-os-error-message="1"]').forEach(msg => msg.remove());
+}
+
+function validateArchOsOtherFields(section = document) {
+    const root = section?.querySelector ? section : document;
+    const invalidControls = [];
+
+    root.querySelectorAll('[data-arch-os-error="1"]').forEach(el => {
+        el.classList.remove('field-error');
+        delete el.dataset.archOsError;
+    });
+    root.querySelectorAll('[data-arch-os-error-message="1"]').forEach(msg => msg.remove());
+
+    root.querySelectorAll('#arch-table-body tr').forEach(row => {
+        const osCell = row.cells[4];
+        const select = osCell?.querySelector('.arch-os-select');
+        if (!select || select.value !== ARCH_OS_OTHER_VALUE || !canEditArchOsOtherFields()) return;
+
+        ['.arch-os-custom-input', '.arch-os-reason-input'].forEach(selector => {
+            const control = osCell.querySelector(selector);
+            if (!control || control.disabled || String(control.value || '').trim()) return;
+            control.classList.add('field-error');
+            control.dataset.archOsError = '1';
+            invalidControls.push(control);
+        });
+    });
+
+    if (invalidControls.length === 0) {
+        return { isValid: true, firstInvalidElement: null, invalidCount: 0, message: '' };
+    }
+
+    const firstInvalidElement = invalidControls[0];
+    const msg = document.createElement('div');
+    msg.className = 'field-error-message';
+    msg.dataset.archOsErrorMessage = '1';
+    msg.innerHTML = '<i class="fa-solid fa-exclamation-circle"></i> Vui lòng nhập OS khác và lý do chọn hệ điều hành.';
+    firstInvalidElement.parentElement?.appendChild(msg);
+
+    return {
+        isValid: false,
+        firstInvalidElement,
+        invalidCount: invalidControls.length,
+        message: 'Vui lòng nhập OS khác và lý do chọn hệ điều hành.'
+    };
+}
+
+function syncArchOsOtherPanels() {
+    document.querySelectorAll('#arch-table-body .arch-os-select').forEach(select => onArchOsChange(select));
+}
+
+function collectEvidenceImagesFromScope(scope) {
+    if (!scope) return [];
+    const results = [];
+    scope.querySelectorAll('.btn-view-evidence').forEach(btn => {
+        const base64 = btn.getAttribute('data-base64');
+        if (base64) results.push({ base64 });
+    });
+    scope.querySelectorAll('img').forEach(img => {
+        if (img.src) results.push({ base64: img.src });
+    });
+    return results;
+}
+
+function collectArchOsData(cell) {
+    const selectValue = cell?.querySelector('.arch-os-select')?.value || '';
+    if (selectValue !== ARCH_OS_OTHER_VALUE) {
+        return {
+            heDieuHanh: selectValue,
+            heDieuHanhType: selectValue ? 'preset' : '',
+            heDieuHanhCustom: '',
+            heDieuHanhReason: '',
+            heDieuHanhEvidenceImages: []
+        };
+    }
+
+    const customOs = cell.querySelector('.arch-os-custom-input')?.value?.trim() || '';
+    return {
+        heDieuHanh: customOs,
+        heDieuHanhType: 'other',
+        heDieuHanhCustom: customOs,
+        heDieuHanhReason: cell.querySelector('.arch-os-reason-input')?.value?.trim() || '',
+        heDieuHanhEvidenceImages: collectEvidenceImagesFromScope(cell.querySelector('.arch-os-evidence-container'))
+    };
+}
+
 function createArchTableRow(stt, data = {}) {
     const tr = document.createElement('tr');
+    const osData = normalizeArchOsData(data);
     tr.innerHTML = `
         <td>${stt}</td>
         <td>
@@ -5200,12 +5523,27 @@ function createArchTableRow(stt, data = {}) {
             </select>
         </td>
         <td>
-            <select class="inline-control-select">
-                <option value="">-- Chọn --</option>
-                <option value="Ubuntu 22.04" ${data.heDieuHanh === 'Ubuntu 22.04' ? 'selected' : ''}>Ubuntu 22.04</option>
-                <option value="Oracle Linux 9" ${data.heDieuHanh === 'Oracle Linux 9' ? 'selected' : ''}>Oracle Linux 9</option>
-                <option value="Windows Server 2016" ${data.heDieuHanh === 'Windows Server 2016' ? 'selected' : ''}>Windows Server 2016</option>
+            <select class="inline-control-select arch-os-select" onchange="onArchOsChange(this)">
+                ${buildArchOsOptions(osData.selectValue)}
             </select>
+            <div class="arch-os-other-panel ${osData.selectValue === ARCH_OS_OTHER_VALUE ? '' : 'is-hidden'}">
+                <label class="arch-os-field-label">OS khác</label>
+                <textarea rows="1" class="input-full arch-os-custom-input" placeholder="Nhập tên hệ điều hành..." oninput="clearArchOsFieldError(this); autoGrowTextarea(this)">${escapeHtml(osData.custom)}</textarea>
+                <label class="arch-os-field-label">Lý do</label>
+                <textarea rows="2" class="input-full arch-os-reason-input" placeholder="Lý do chọn hệ điều hành..." oninput="clearArchOsFieldError(this); autoGrowTextarea(this)">${escapeHtml(osData.reason)}</textarea>
+                <div class="cell-wrapper arch-os-evidence-wrapper">
+                    <label class="upload-icon-btn arch-os-upload-btn ${osData.evidenceImages.length ? 'has-file' : ''}" title="Tải ảnh sở cứ">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <input type="file" accept="image/*" multiple class="hidden-file-input arch-os-evidence-input"
+                            onclick="event.stopPropagation()"
+                            onchange="handleRowEvidenceUpload(this, 'arch-os')">
+                    </label>
+                    <span class="arch-os-upload-text">Tải ảnh</span>
+                    <div class="row-evidence-container arch-os-evidence-container">
+                        ${createArchOsEvidenceMarkup(osData.evidenceImages)}
+                    </div>
+                </div>
+            </div>
         </td>
         <td><textarea rows="1" placeholder="0">${data.soLuongVIP ?? '0'}</textarea></td>
         <td class="admin-cell">
@@ -5220,6 +5558,7 @@ function createArchTableRow(stt, data = {}) {
         </td>
         <td><button type="button" class="ui-icon-btn ui-icon-btn-danger btn-delete" onclick="removeArchRow(this)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></td>
     `;
+    onArchOsChange(tr.querySelector('.arch-os-select'));
     return tr;
 }
 
@@ -5238,11 +5577,12 @@ function collectMoHinhHeThong() {
     document.querySelectorAll('#arch-table-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
 
+        const osData = collectArchOsData(cells[4]);
         archRows.push({
             moduleName: getArchRowModuleName(row),
             loaiModule: cells[2]?.querySelector('select')?.value || '',
             zoneMang: cells[3]?.querySelector('select')?.value || '',
-            heDieuHanh: cells[4]?.querySelector('select')?.value || '',
+            ...osData,
             soLuongVIP: cells[5]?.querySelector('textarea')?.value || '0',
             rowId: row.dataset.rowId || ''
             // NOTE: Admin eval/note NOT saved here - goes to moHinhAdminReview
@@ -5304,6 +5644,24 @@ function collectMoHinhAdminReview() {
 async function saveMoHinhHeThong() {
     const statusDiv = document.getElementById('model-save-status');
     if (!currentProjectId) { showToast('Vui lòng lưu "Yêu cầu bài toán" trước!', 'warning'); return; }
+    const archOsValidation = validateArchOsOtherFields(document.getElementById('page-model'));
+    if (!archOsValidation.isValid) {
+        if (archOsValidation.firstInvalidElement) {
+            archOsValidation.firstInvalidElement.focus();
+            archOsValidation.firstInvalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        showToast(archOsValidation.message, 'warning');
+        return;
+    }
+    const flowValidation = validateFlowExplanationLength(document.getElementById('page-model'));
+    if (!flowValidation.isValid) {
+        if (flowValidation.firstInvalidElement) {
+            flowValidation.firstInvalidElement.focus();
+            flowValidation.firstInvalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        showToast(flowValidation.message, 'warning');
+        return;
+    }
     try {
         if (statusDiv) statusDiv.innerHTML = '<span class="u-text-primary">⏳ Đang lưu...</span>';
 
@@ -9590,6 +9948,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     scheduleAutoResizeTextBoxes();
     initVietnameseDateInputs();
     initRequestAutoResizeTextareas();
+    initFlowExplanationLimit();
     applyRolePermissions();
     initHelpTooltipSmartPositioning();
     initFirstRowGuards();
@@ -12110,7 +12469,7 @@ function showSection(sectionId, linkElement, options = {}) {
             showToastMessage: false
         });
         if (!validation.isValid) {
-            showToast('Không thể chuyển tab khi chưa điền xong dữ liệu ở tab hiện tại.', 'warning');
+            showToast(validation.message || 'Không thể chuyển tab khi chưa điền xong dữ liệu ở tab hiện tại.', 'warning');
             return;
         }
     }
@@ -12167,7 +12526,7 @@ function showSection(sectionId, linkElement, options = {}) {
             showToastMessage: false
         });
         if (!validation.isValid) {
-            showToast('Khong the chuyen tab khi chua dien xong du lieu o tab hien tai.', 'warning');
+            showToast(validation.message || 'Khong the chuyen tab khi chua dien xong du lieu o tab hien tai.', 'warning');
             return;
         }
     }
@@ -12206,6 +12565,7 @@ document.addEventListener("DOMContentLoaded", function () {
     scheduleAutoResizeTextBoxes();
     initVietnameseDateInputs();
     initRequestAutoResizeTextareas();
+    initFlowExplanationLimit();
     ensureDefaultAppSizingRows();
     const connectionBody = document.getElementById('connection-info-table-body');
     if (connectionBody && connectionBody.children.length === 0) {
@@ -17376,7 +17736,7 @@ function renderRequestDiff(snapshot, prevSnapshot) {
     const fields = [
         { label: 'Đơn vị phát triển', key: 'devUnit', adminKey: 'row0' },
         { label: 'Tên dự án', key: 'projectName', adminKey: 'row1' },
-        { label: 'Chức năng hệ thống', key: 'sysFeature', adminKey: 'row2' },
+        { label: 'Thông tin mô tả hệ thống', key: 'sysFeature', adminKey: 'row2' },
         { label: 'Đầu mối định cỡ', key: 'contactPerson', adminKey: 'row3' },
         { label: 'Mục đích định cỡ', key: 'sizingPurpose', adminKey: 'row4' },
         { label: 'Cơ sở định cỡ', key: 'sizingBasis', adminKey: 'row5' },
@@ -17607,7 +17967,7 @@ function renderInputDiff(snapshot, prevSnapshot) {
         Logger.debug(`DEBUG row ${index}: adminData=`, adminData, 'prevAdminData=', prevAdminData);
 
         // So sánh các trường
-        const fields = ['dauVao', 'module', 'ghiChu'];
+        const fields = ['dauVao', 'ghiChu'];
         const pocText = typeof row.taiHeThongPOC === 'object' ? row.taiHeThongPOC.text : (row.taiHeThongPOC || '');
         const prevPocText = typeof prevRow.taiHeThongPOC === 'object' ? prevRow.taiHeThongPOC.text : (prevRow.taiHeThongPOC || '');
         const sizingText = typeof row.dinhCo === 'object' ? row.dinhCo.text : (row.dinhCo || '');
@@ -17642,9 +18002,6 @@ function renderInputDiff(snapshot, prevSnapshot) {
                         ${renderTextDiff(sizingText, prevSizingText)}
                     </td>
                     <td class="diff-cell">
-                        ${renderTextDiff(row.module, prevRow.module)}
-                    </td>
-                    <td class="diff-cell">
                         ${renderTextDiff(row.ghiChu, prevRow.ghiChu)}
                     </td>
                     <td class="diff-cell diff-cell-center">
@@ -17671,7 +18028,6 @@ function renderInputDiff(snapshot, prevSnapshot) {
                     <td class="diff-cell"><div class="diff-removed">${prevRow.dauVao || '-'}</div></td>
                     <td class="diff-cell"><div class="diff-removed">${prevPocText || '-'}</div></td>
                     <td class="diff-cell"><div class="diff-removed">${prevSizingText || '-'}</div></td>
-                    <td class="diff-cell"><div class="diff-removed">${prevRow.module || '-'}</div></td>
                     <td class="diff-cell"><div class="diff-removed">${prevRow.ghiChu || '-'}</div></td>
                     <td class="diff-cell">-</td>
                     <td class="diff-cell">-</td>
@@ -17705,7 +18061,6 @@ function renderInputDiff(snapshot, prevSnapshot) {
                         <th class="diff-cell">Đầu vào</th>
                         <th class="diff-cell">Tải POC</th>
                         <th class="diff-cell">Định cỡ</th>
-                        <th class="diff-cell">Module</th>
                         <th class="diff-cell">Ghi chú</th>
                         <th class="diff-cell col-w-80 diff-cell-admin">Đánh giá</th>
                         <th class="diff-cell col-w-150 diff-cell-admin">Ghi chú Admin</th>
@@ -17804,6 +18159,29 @@ function renderModelDiff(snapshot, prevSnapshot) {
         `;
     };
 
+    const renderArchOsEvidenceSections = (rows) => {
+        const sections = rows
+            .filter(row => row?.heDieuHanhType === 'other' && (row.heDieuHanhReason || (row.heDieuHanhEvidenceImages || []).length))
+            .map(row => {
+                const osName = row.heDieuHanh || row.heDieuHanhCustom || 'OS khác';
+                const images = row.heDieuHanhEvidenceImages || [];
+                const thumbs = images.map((img, i) => {
+                    const src = img.base64 || img.dataUrl || img;
+                    return `<img src="${src}" alt="Sở cứ hệ điều hành ${escapeHtml(osName)}-${i}" onclick="openModal(this.src)" class="evidence-thumb">`;
+                }).join('');
+
+                return `
+                    <div class="diff-item u-mt-16">
+                        <strong>Sở cứ hệ điều hành ${escapeHtml(osName)}</strong>
+                        ${row.heDieuHanhReason ? `<div class="u-mt-4">Lý do chọn hệ điều hành: ${escapeHtml(row.heDieuHanhReason)}</div>` : ''}
+                        ${thumbs ? `<div class="evidence-thumb-grid u-mt-8">${thumbs}</div>` : ''}
+                    </div>
+                `;
+            });
+
+        return sections.join('');
+    };
+
     // Render images
     html += renderImageGallery('Mô hình Vật lý', data.physicalImages, moHinhAdmin.physical);
     html += renderImageGallery('Mô hình Logic', data.logicalImages, moHinhAdmin.logical);
@@ -17866,6 +18244,8 @@ function renderModelDiff(snapshot, prevSnapshot) {
                 </table>
             </div>
         `;
+
+        html += renderArchOsEvidenceSections(archRows);
     }
 
     const moduleLBFW = normalizeLBFWLegacyData(data.moduleLBFW || {});

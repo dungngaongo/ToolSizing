@@ -1912,6 +1912,73 @@ body.role-user .admin-note,
     max-width: 300px;
 }
 
+.arch-os-select.arch-os-select-other {
+    border-color: #ee0033;
+    background: #fff9f9;
+}
+
+.arch-os-other-panel {
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-left: 3px solid #ee0033;
+    border-radius: 6px;
+    background: #f8fafc;
+}
+
+.arch-os-field-label {
+    display: block;
+    margin: 0 0 4px;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.arch-os-other-panel textarea {
+    min-height: 36px;
+    resize: none;
+    overflow: hidden;
+    margin-bottom: 8px;
+    background: #fff;
+}
+
+.arch-os-evidence-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-top: 2px;
+}
+
+.arch-os-upload-btn {
+    width: 30px;
+    height: 30px;
+}
+
+.arch-os-upload-text {
+    color: #4b5563;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.arch-os-evidence-container {
+    margin-left: 0;
+}
+
+.arch-os-evidence-item {
+    min-height: 28px;
+    padding: 2px 4px 2px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.arch-os-evidence-name {
+    color: #374151;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 /* ========================================= */
 /* STYLE CHO MỤC 3: MÔ HÌNH HỆ THỐNG (FIX)   */
 /* ========================================= */
@@ -3152,6 +3219,24 @@ td.admin-cell {
 .custom-flow-textarea::placeholder {
     font-style: italic;
     color: #aaa;
+}
+
+.field-counter {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: right;
+}
+
+.field-counter.field-counter-warning {
+    color: #b45309;
+    font-weight: 600;
+}
+
+.field-counter.field-counter-error {
+    color: #dc2626;
+    font-weight: 700;
 }
 /* Style báo lỗi: Viền đỏ + Nền hồng nhạt */
 .input-error {
